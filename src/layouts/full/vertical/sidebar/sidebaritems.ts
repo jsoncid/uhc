@@ -37,7 +37,7 @@ const SidebarContent: MenuItem[] = [
     heading: 'Home',
     children: [
       {
-        name: 'Modern main',
+        name: 'Modern main page',
         icon: 'solar:widget-2-linear',
         id: uniqueId(),
         url: '/',
