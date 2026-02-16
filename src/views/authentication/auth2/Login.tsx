@@ -1,13 +1,21 @@
 // import { Link } from "react-router";
+import { Navigate } from 'react-router';
 import CardBox from "src/components/shared/CardBox";
 
 import AuthLogin from "../authforms/AuthLogin";
 // import SocialButtons from "../authforms/SocialButtons";
 
 import FullLogo from "src/layouts/full/shared/logo/FullLogo";
+import { useAuthStore } from '@/stores/useAuthStore';
 
 
 const Login = () => {
+  const { user } = useAuthStore();
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <>
       <div className="relative overflow-hidden h-screen bg-lightprimary dark:bg-darkprimary">
