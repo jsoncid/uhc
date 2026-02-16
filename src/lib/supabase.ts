@@ -29,6 +29,23 @@ export type Database = {
           status?: boolean
         }
       }
+      user_status: {
+        Row: {
+          email: string
+          created_at: string
+          is_active: boolean
+        }
+        Insert: {
+          email: string
+          created_at?: string
+          is_active?: boolean
+        }
+        Update: {
+          email?: string
+          created_at?: string
+          is_active?: boolean
+        }
+      }
     }
   }
 }
