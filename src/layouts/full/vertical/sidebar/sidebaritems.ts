@@ -37,7 +37,7 @@ const SidebarContent: MenuItem[] = [
     heading: 'Home',
     children: [
       {
-        name: 'Modern main page js0n from main',
+        name: 'Dashboard',
         icon: 'solar:widget-2-linear',
         id: uniqueId(),
         url: '/',
@@ -154,37 +154,37 @@ const SidebarContent: MenuItem[] = [
       },
     ],
   },
-  {
-    heading: 'Auth',
-    children: [
-      {
-        name: 'Login',
-        id: uniqueId(),
-        icon: 'solar:login-2-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Boxed Login',
-            url: '/auth/auth2/login',
-            isPro: false,
-          },
-        ],
-      },
-      {
-        name: 'Register',
-        id: uniqueId(),
-        icon: 'solar:user-plus-rounded-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Boxed Register',
-            url: '/auth/auth2/register',
-            isPro: false,
-          },
-        ],
-      },
-    ],
-  },
+  // {
+  //   heading: 'Auth',
+  //   children: [
+  //     {
+  //       name: 'Login',
+  //       id: uniqueId(),
+  //       icon: 'solar:login-2-linear',
+  //       children: [
+  //         {
+  //           id: uniqueId(),
+  //           name: 'Boxed Login',
+  //           url: '/auth/auth2/login',
+  //           isPro: false,
+  //         },
+  //       ],
+  //     },
+  //     {
+  //       name: 'Register',
+  //       id: uniqueId(),
+  //       icon: 'solar:user-plus-rounded-linear',
+  //       children: [
+  //         {
+  //           id: uniqueId(),
+  //           name: 'Boxed Register',
+  //           url: '/auth/auth2/register',
+  //           isPro: false,
+  //         },
+  //       ],
+  //     },
+  //   ],
+  // },
 ];
 
 export default SidebarContent;
