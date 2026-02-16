@@ -37,7 +37,7 @@ const SidebarContent: MenuItem[] = [
     heading: 'Home',
     children: [
       {
-        name: 'Modern main page',
+        name: 'OCR',
         icon: 'solar:widget-2-linear',
         id: uniqueId(),
         url: '/',
@@ -974,7 +974,6 @@ const SidebarContent: MenuItem[] = [
             url: 'https://react.tailwind-admin.com/shadcn-tables/basic',
             isPro: true,
           },
-
         ],
       },
       {
