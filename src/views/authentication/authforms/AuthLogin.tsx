@@ -52,7 +52,7 @@ const AuthLogin = () => {
             {error}
           </div>
         )}
-        <div className="flex justify-between my-5">
+        {/* <div className="flex justify-between my-5">
           <div className="flex items-center gap-2">
             <Checkbox id="accept" className="checkbox" />
             <Label htmlFor="accept" className="opacity-90 font-normal cursor-pointer">
@@ -62,7 +62,7 @@ const AuthLogin = () => {
           <Link to={'/'} className="text-primary text-sm font-medium">
             Forgot Password ?
           </Link>
-        </div>
+        </div> */}
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? 'Signing in...' : 'Sign in'}
         </Button>

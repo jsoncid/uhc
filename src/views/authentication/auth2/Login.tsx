@@ -1,8 +1,8 @@
-import { Link } from "react-router";
+// import { Link } from "react-router";
 import CardBox from "src/components/shared/CardBox";
 
 import AuthLogin from "../authforms/AuthLogin";
-import SocialButtons from "../authforms/SocialButtons";
+// import SocialButtons from "../authforms/SocialButtons";
 
 import FullLogo from "src/layouts/full/shared/logo/FullLogo";
 
@@ -16,9 +16,9 @@ const Login = () => {
             <div className="mx-auto mb-6">
               <FullLogo />
             </div>
-            <SocialButtons title="or sign in with" />
+            {/* <SocialButtons title="or sign in with" /> */}
             <AuthLogin />
-            <div className="flex gap-2 text-base text-ld font-medium mt-6 items-center justify-center">
+            {/* <div className="flex gap-2 text-base text-ld font-medium mt-6 items-center justify-center">
               <p>New to TailwindAdmin?</p>
               <Link
                 to={"/auth/auth2/register"}
@@ -26,7 +26,7 @@ const Login = () => {
               >
                 Create an account
               </Link>
-            </div>
+            </div> */}
           </CardBox>
         </div>
       </div>
