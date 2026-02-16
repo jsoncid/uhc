@@ -154,6 +154,18 @@ const SidebarContent: MenuItem[] = [
       },
     ],
   },
+  {
+    heading: 'Auth',
+    children: [
+      {
+        id: uniqueId(),
+        name: 'User Activation',
+        icon: 'solar:login-2-linear',
+        url: '/icons/iconify',
+        isPro: false,
+      },
+    ],
+  },
   // {
   //   heading: 'Auth',
   //   children: [
