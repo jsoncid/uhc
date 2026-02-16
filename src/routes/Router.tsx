@@ -32,6 +32,12 @@ const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTi
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
 const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')));
 
+// RBAC Pages
+const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
+const ModuleManagement = Loadable(lazy(() => import('../views/rbac/ModuleManagement')));
+const RoleManagement = Loadable(lazy(() => import('../views/rbac/RoleManagement')));
+const UserAssignmentManagement = Loadable(lazy(() => import('../views/rbac/UserAssignmentManagement')));
+
 const Error = Loadable(lazy(() => import('../views/authentication/Error')));
 
 // // icons
@@ -125,6 +131,39 @@ const Router = [
         element: (
           <ProtectedRoute>
             <SolarIcon />
+          </ProtectedRoute>
+        )
+      },
+      // RBAC Routes
+      { 
+        path: '/rbac/assignments', 
+        element: (
+          <ProtectedRoute>
+            <AssignmentManagement />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/rbac/modules', 
+        element: (
+          <ProtectedRoute>
+            <ModuleManagement />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/rbac/roles', 
+        element: (
+          <ProtectedRoute>
+            <RoleManagement />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/rbac/user-assignments', 
+        element: (
+          <ProtectedRoute>
+            <UserAssignmentManagement />
           </ProtectedRoute>
         )
       },
