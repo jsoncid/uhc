@@ -3,6 +3,7 @@
 import { lazy } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
+import { ProtectedRoute } from '../components/ProtectedRoute';
 
 /* ***Layouts**** */
 const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
@@ -43,19 +44,90 @@ const Router = [
     path: '/',
     element: <FullLayout />,
     children: [
-      { path: '/', exact: true, element: <Modern /> },
+      { 
+        path: '/', 
+        exact: true, 
+        element: (
+          <ProtectedRoute>
+            <Modern />
+          </ProtectedRoute>
+        )
+      },
       // { path: '/', exact: true, element: <SamplePage /> },
       { path: '*', element: <Navigate to="/auth/404" /> },
 
-      { path: '/apps/notes', element: <Notes /> },
-      { path: '/utilities/form', element: <Form /> },
-      { path: '/utilities/table', element: <Table /> },
-      { path: '/apps/tickets', element: <Tickets /> },
-      { path: '/apps/tickets/create', element: <CreateTickets /> },
-      { path: '/apps/blog/post', element: <Blog /> },
-      { path: '/apps/blog/detail/:id', element: <BlogDetail /> },
-      { path: '/user-profile', element: <UserProfile /> },
-      { path: '/icons/iconify', element: <SolarIcon /> },
+      { 
+        path: '/apps/notes', 
+        element: (
+          <ProtectedRoute>
+            <Notes />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/utilities/form', 
+        element: (
+          <ProtectedRoute>
+            <Form />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/utilities/table', 
+        element: (
+          <ProtectedRoute>
+            <Table />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/apps/tickets', 
+        element: (
+          <ProtectedRoute>
+            <Tickets />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/apps/tickets/create', 
+        element: (
+          <ProtectedRoute>
+            <CreateTickets />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/apps/blog/post', 
+        element: (
+          <ProtectedRoute>
+            <Blog />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/apps/blog/detail/:id', 
+        element: (
+          <ProtectedRoute>
+            <BlogDetail />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/user-profile', 
+        element: (
+          <ProtectedRoute>
+            <UserProfile />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/icons/iconify', 
+        element: (
+          <ProtectedRoute>
+            <SolarIcon />
+          </ProtectedRoute>
+        )
+      },
     ],
   },
   {
