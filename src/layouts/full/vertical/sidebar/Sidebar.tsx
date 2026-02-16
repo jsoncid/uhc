@@ -138,7 +138,7 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
           ))}
 
           {/* Promo Section */}
-          <div className="mt-9 overflow-hidden">
+          {/* <div className="mt-9 overflow-hidden">
             <div className="flex w-full bg-lightprimary rounded-lg p-6">
               <div className="lg:w-1/2 w-full">
                 <h5 className="text-base text-sidebar-foreground">Haven't Account?</h5>
@@ -148,7 +148,7 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
                 <img src={rocket} alt="rocket" />
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
       </SimpleBar>
     </AMSidebar>
