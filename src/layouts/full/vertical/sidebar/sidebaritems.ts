@@ -155,6 +155,39 @@ const SidebarContent: MenuItem[] = [
     ],
   },
   {
+    heading: 'Role-Based Access Control',
+    children: [
+      {
+        id: uniqueId(),
+        name: 'Assignment Management',
+        icon: 'solar:clipboard-list-linear',
+        url: '/rbac/assignments',
+        isPro: false,
+      },
+      {
+        id: uniqueId(),
+        name: 'Module Management',
+        icon: 'solar:widget-3-linear',
+        url: '/rbac/modules',
+        isPro: false,
+      },
+      {
+        id: uniqueId(),
+        name: 'Role Management',
+        icon: 'solar:shield-user-linear',
+        url: '/rbac/roles',
+        isPro: false,
+      },
+      {
+        id: uniqueId(),
+        name: 'User Management',
+        icon: 'solar:users-group-rounded-linear',
+        url: '/rbac/user-assignments',
+        isPro: false,
+      },
+    ],
+  },
+  {
     heading: 'Auth',
     children: [
       {

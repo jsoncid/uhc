@@ -46,6 +46,121 @@ export type Database = {
           is_active?: boolean
         }
       }
+      role: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+          is_active: boolean
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          is_active?: boolean
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          is_active?: boolean
+        }
+      }
+      module: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+          is_active: boolean
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          is_active?: boolean
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          is_active?: boolean
+        }
+      }
+      assignment: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+          is_active: boolean
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          is_active?: boolean
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          is_active?: boolean
+        }
+      }
+      role_module_access: {
+        Row: {
+          id: string
+          created_at: string
+          role: string
+          module: string
+          is_select: boolean
+          is_insert: boolean
+          is_update: boolean
+          is_delete: boolean
+          description: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          role: string
+          module: string
+          is_select?: boolean
+          is_insert?: boolean
+          is_update?: boolean
+          is_delete?: boolean
+          description?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          role?: string
+          module?: string
+          is_select?: boolean
+          is_insert?: boolean
+          is_update?: boolean
+          is_delete?: boolean
+          description?: string | null
+        }
+      }
+      user_assignment: {
+        Row: {
+          id: string
+          created_at: string
+          user: string
+          assignment: string
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          user: string
+          assignment: string
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          user?: string
+          assignment?: string
+        }
+      }
     }
   }
 }
