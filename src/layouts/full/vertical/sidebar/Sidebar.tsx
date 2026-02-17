@@ -73,9 +73,8 @@ const renderSidebarItems = (
       : `mt-0.5 text-sidebar-foreground dark:text-sidebar-foreground`;
 
     return (
-      <div onClick={onClose}>
+      <div key={item.id} onClick={onClose}>
         <AMMenuItem
-          key={item.id}
           icon={iconElement}
           isSelected={isSelected}
           link={item.url || undefined}

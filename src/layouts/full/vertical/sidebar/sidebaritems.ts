@@ -37,7 +37,7 @@ const SidebarContent: MenuItem[] = [
     heading: 'Home',
     children: [
       {
-        name: 'Modern main page js0n from main',
+        name: 'Dashboard',
         icon: 'solar:widget-2-linear',
         id: uniqueId(),
         url: '/',
@@ -81,6 +81,39 @@ const SidebarContent: MenuItem[] = [
 
     {
     heading: 'Module 3 - Team3',
+    children: [
+      {
+        name: 'Tables',
+        icon: 'solar:server-linear',
+        id: uniqueId(),
+        url: '/utilities/table',
+      },
+
+      {
+        name: 'Blogs',
+        id: uniqueId(),
+        icon: 'solar:sort-by-alphabet-linear',
+        children: [
+          {
+            id: uniqueId(),
+            name: 'Blog Post',
+            url: '/apps/blog/post',
+            isPro: false,
+          },
+          {
+            id: uniqueId(),
+            name: 'Blog Detail',
+            url: '/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
+            isPro: false,
+          },
+        ],
+      },
+
+    ],
+  },
+
+  {
+    heading: 'Module 1 - Queuing',
     children: [
       {
         name: 'Tables',
@@ -188,36 +221,81 @@ const SidebarContent: MenuItem[] = [
     ],
   },
   {
-    heading: 'Auth',
+    heading: 'Role-Based Access Control',
     children: [
       {
-        name: 'Login',
         id: uniqueId(),
-        icon: 'solar:login-2-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Boxed Login',
-            url: '/auth/auth2/login',
-            isPro: false,
-          },
-        ],
+        name: 'Assignment Management',
+        icon: 'solar:clipboard-list-linear',
+        url: '/rbac/assignments',
+        isPro: false,
       },
       {
-        name: 'Register',
         id: uniqueId(),
-        icon: 'solar:user-plus-rounded-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Boxed Register',
-            url: '/auth/auth2/register',
-            isPro: false,
-          },
-        ],
+        name: 'Module Management',
+        icon: 'solar:widget-3-linear',
+        url: '/rbac/modules',
+        isPro: false,
+      },
+      {
+        id: uniqueId(),
+        name: 'Role Management',
+        icon: 'solar:shield-user-linear',
+        url: '/rbac/roles',
+        isPro: false,
+      },
+      {
+        id: uniqueId(),
+        name: 'User Management',
+        icon: 'solar:users-group-rounded-linear',
+        url: '/rbac/user-assignments',
+        isPro: false,
       },
     ],
   },
+  {
+    heading: 'Auth',
+    children: [
+      {
+        id: uniqueId(),
+        name: 'User Activation',
+        icon: 'solar:login-2-linear',
+        url: '/icons/iconify',
+        isPro: false,
+      },
+    ],
+  },
+  // {
+  //   heading: 'Auth',
+  //   children: [
+  //     {
+  //       name: 'Login',
+  //       id: uniqueId(),
+  //       icon: 'solar:login-2-linear',
+  //       children: [
+  //         {
+  //           id: uniqueId(),
+  //           name: 'Boxed Login',
+  //           url: '/auth/auth2/login',
+  //           isPro: false,
+  //         },
+  //       ],
+  //     },
+  //     {
+  //       name: 'Register',
+  //       id: uniqueId(),
+  //       icon: 'solar:user-plus-rounded-linear',
+  //       children: [
+  //         {
+  //           id: uniqueId(),
+  //           name: 'Boxed Register',
+  //           url: '/auth/auth2/register',
+  //           isPro: false,
+  //         },
+  //       ],
+  //     },
+  //   ],
+  // },
 ];
 
 export default SidebarContent;
