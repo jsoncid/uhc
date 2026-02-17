@@ -1,292 +1,237 @@
 import { Icon } from "@iconify/react/dist/iconify.js"
-import { useState, useEffect } from "react";
-import BreadcrumbComp from "src/layouts/full/shared/breadcrumb/BreadcrumbComp";
 import CardBox from "src/components/shared/CardBox";
 import profileImg from "src/assets/images/profile/user-1.jpg"
-import { Button } from "src/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "src/components/ui/dialog";
-import { Label } from "src/components/ui/label";
-import { Input } from "src/components/ui/input";
+import { useUserProfile } from "src/hooks/useUserProfile";
+import { Skeleton } from "src/components/ui/skeleton";
+import { Badge } from "src/components/ui/badge";
 
 const UserProfile = () => {
-    const [openModal, setOpenModal] = useState(false);
-    const [modalType, setModalType] = useState<"personal" | "address" | null>(null);
+    const { profile, loading, error } = useUserProfile();
 
-    const BCrumb = [
-        {
-            to: "/",
-            title: "Home",
-        },
-        {
-            title: "Userprofile",
-        },
-    ];
+    // Get display name from email
+    const displayName = profile?.email?.split('@')[0] || 'User';
+    const firstName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
 
-    const [personal, setPersonal] = useState({
-        firstName: "Mathew",
-        lastName: "Anderson",
-        email: "mathew.anderson@gmail.com",
-        phone: "(347) 528-1947",
-        position: "Team Leader",
-        facebook: "https://www.facebook.com/wrappixel",
-        twitter: "https://twitter.com/wrappixel",
-        github: "https://github.com/wrappixel",
-        dribbble: "https://dribbble.com/wrappixel"
-    });
-
-    const [address, setAddress] = useState({
-        location: "United States",
-        state: "San Diego, California, United States",
-        pin: "92101",
-        zip: "30303",
-        taxNo: "GA45273910"
-    });
-
-    const [tempPersonal, setTempPersonal] = useState(personal);
-    const [tempAddress, setTempAddress] = useState(address);
-
-    useEffect(() => {
-        if (openModal && modalType === "personal") {
-            setTempPersonal(personal);
-        }
-        if (openModal && modalType === "address") {
-            setTempAddress(address);
-        }
-    }, [openModal, modalType, personal, address]);
-
-    const handleSave = () => {
-        if (modalType === "personal") {
-            setPersonal(tempPersonal);
-        } else if (modalType === "address") {
-            setAddress(tempAddress);
-        }
-        setOpenModal(false);
-    };
-
-    const socialLinks = [
-        { href: "https://www.facebook.com/wrappixel", icon: "streamline-logos:facebook-logo-2-solid" },
-        { href: "https://twitter.com/wrappixel", icon: "streamline-logos:x-twitter-logo-solid" },
-        { href: "https://github.com/wrappixel", icon: "ion:logo-github" },
-        { href: "https://dribbble.com/wrappixel", icon: "streamline-flex:dribble-logo-remix" },
-    ];
-
-    return (
-        <>
-            <BreadcrumbComp title="User Profile" items={BCrumb} />
-            <div className="flex flex-col gap-6">
-                <CardBox className="p-6 overflow-hidden">
-                    <div className="flex flex-col sm:flex-row items-center gap-6 rounded-xl relative w-full break-words">
-                        <div>
-                            <img src={profileImg} alt="image" width={80} height={80} className="rounded-full" />
-                        </div>
-                        <div className="flex flex-wrap gap-4 justify-center sm:justify-between items-center w-full">
-                            <div className="flex flex-col sm:text-left text-center gap-1.5">
-                                <h5 className="card-title">{personal.firstName} {personal.lastName}</h5>
-                                <div className="flex flex-wrap items-center gap-1 md:gap-3">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{personal.position}</p>
-                                    <div className="hidden h-4 w-px bg-gray-300 dark:bg-gray-700 xl:block"></div>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{address.location}</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {socialLinks.map((item, index) => (
-                                    <a key={index} href={item.href} target="_blank" className="flex h-11 w-11 items-center justify-center gap-2 rounded-full shadow-md border border-ld hover:bg-gray-50 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
-                                        <Icon icon={item.icon} width="20" height="20" />
-                                    </a>
-                                ))}
-                            </div>
+    if (loading) {
+        return (
+            <div className="min-h-[calc(100vh-120px)] lg:h-[calc(100vh-120px)] flex flex-col gap-4 lg:gap-5 overflow-auto lg:overflow-hidden">
+                <CardBox className="p-4 lg:p-5">
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <Skeleton className="w-16 h-16 lg:w-20 lg:h-20 rounded-full flex-shrink-0" />
+                        <div className="flex-1 space-y-3 w-full">
+                            <Skeleton className="h-6 w-32 mx-auto sm:mx-0" />
+                            <Skeleton className="h-5 w-48 mx-auto sm:mx-0" />
                         </div>
                     </div>
                 </CardBox>
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5 min-h-0">
+                    <div className="flex flex-col gap-4 lg:gap-5">
+                        <CardBox className="p-4 lg:p-5"><Skeleton className="h-32" /></CardBox>
+                        <CardBox className="p-4 lg:p-5"><Skeleton className="h-24" /></CardBox>
+                        <CardBox className="p-4 lg:p-5"><Skeleton className="h-24" /></CardBox>
+                    </div>
+                    <CardBox className="p-4 lg:p-5 lg:col-span-2"><Skeleton className="h-64 lg:h-full" /></CardBox>
+                </div>
+            </div>
+        );
+    }
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <CardBox className="p-6 overflow-hidden">
-                        <h5 className="card-title mb-6">Personal Information</h5>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-7 2xl:gap-x-32 mb-6">
-                            <div><p className="text-xs text-gray-500">First Name</p><p>{personal.firstName}</p></div>
-                            <div><p className="text-xs text-gray-500">Last Name</p><p>{personal.lastName}</p></div>
-                            <div><p className="text-xs text-gray-500">Email</p><p>{personal.email}</p></div>
-                            <div><p className="text-xs text-gray-500">Phone</p><p>{personal.phone}</p></div>
-                            <div><p className="text-xs text-gray-500">Position</p><p>{personal.position}</p></div>
+    if (error) {
+        return (
+            <CardBox className="p-5">
+                <div className="flex items-center gap-3 text-red-500">
+                    <Icon icon="solar:danger-circle-bold" className="w-6 h-6" />
+                    <p className="text-base">Error loading profile: {error.message}</p>
+                </div>
+            </CardBox>
+        );
+    }
+
+    return (
+        <div className="min-h-[calc(100vh-120px)] lg:h-[calc(100vh-120px)] flex flex-col gap-4 lg:gap-5 overflow-auto lg:overflow-hidden">
+            {/* Profile Header */}
+            <CardBox className="p-4 lg:p-5 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row items-center gap-4 lg:gap-5">
+                    {/* Avatar */}
+                    <div className="relative flex-shrink-0">
+                        <img 
+                            src={profileImg} 
+                            alt="Profile" 
+                            className="w-16 h-16 lg:w-20 lg:h-20 rounded-full border-2 border-white shadow-md" 
+                        />
+                        <span className={`absolute bottom-0.5 right-0.5 lg:bottom-1 lg:right-1 w-4 h-4 lg:w-5 lg:h-5 rounded-full border-2 border-white ${profile?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    </div>
+                    
+                    {/* Info */}
+                    <div className="flex-1 text-center sm:text-left min-w-0">
+                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 lg:gap-3 mb-1 lg:mb-2">
+                            <h1 className="text-lg lg:text-xl font-bold truncate">{firstName}</h1>
+                            <Badge className={`text-xs lg:text-sm px-2 lg:px-3 py-0.5 lg:py-1 ${profile?.isActive ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
+                                {profile?.isActive ? "Active" : "Inactive"}
+                            </Badge>
                         </div>
-                        <div className="flex justify-end">
-                            <Button onClick={() => { setModalType("personal"); setOpenModal(true); }} color={"primary"} className="flex items-center gap-1.5 rounded-md">
-                                <Icon icon="ic:outline-edit" width="18" height="18" /> Edit
-                            </Button>
+                        <p className="text-sm lg:text-base text-gray-500 dark:text-gray-400 truncate">{profile?.email}</p>
+                    </div>
+
+                    {/* Quick Stats */}
+                    <div className="flex flex-wrap justify-center gap-2 lg:gap-3">
+                        <span className="inline-flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-1.5 lg:py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs lg:text-sm font-medium">
+                            <span className="font-bold text-sm lg:text-base">{profile?.roles?.length || 0}</span> Roles
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-1.5 lg:py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full text-xs lg:text-sm font-medium">
+                            <span className="font-bold text-sm lg:text-base">{profile?.assignments?.length || 0}</span> Assign
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-1.5 lg:py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-xs lg:text-sm font-medium">
+                            <span className="font-bold text-sm lg:text-base">{profile?.modules?.length || 0}</span> Modules
+                        </span>
+                    </div>
+                </div>
+            </CardBox>
+
+            {/* Main Content Grid */}
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5 min-h-0">
+                {/* Left Column - Account + Roles + Assignments */}
+                <div className="flex flex-col gap-4 lg:gap-5 min-h-0 order-2 lg:order-1">
+                    {/* Account Details */}
+                    <CardBox className="p-4 lg:p-5">
+                        <div className="flex items-center gap-2 mb-3 lg:mb-4">
+                            <Icon icon="solar:user-id-bold-duotone" className="w-5 h-5 lg:w-6 lg:h-6 text-primary" />
+                            <h5 className="font-semibold text-sm lg:text-base">Account Details</h5>
+                        </div>
+                        <div className="space-y-2 lg:space-y-3">
+                            <div>
+                                <p className="text-xs lg:text-sm text-gray-500 uppercase mb-1">User ID</p>
+                                <p className="font-mono text-xs lg:text-sm bg-gray-100 dark:bg-gray-800 p-1.5 lg:p-2 rounded break-all">{profile?.id}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs lg:text-sm text-gray-500 uppercase mb-1">Email</p>
+                                <p className="text-sm lg:text-base break-all">{profile?.email}</p>
+                            </div>
                         </div>
                     </CardBox>
 
-                    <CardBox className="p-6 overflow-hidden">
-                        <h5 className="card-title mb-6">Address Details</h5>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-7 2xl:gap-x-32 mb-6">
-                            <div><p className="text-xs text-gray-500">Location</p><p>{address.location}</p></div>
-                            <div><p className="text-xs text-gray-500">Province / State</p><p>{address.state}</p></div>
-                            <div><p className="text-xs text-gray-500">PIN Code</p><p>{address.pin}</p></div>
-                            <div><p className="text-xs text-gray-500">ZIP</p><p>{address.zip}</p></div>
-                            <div><p className="text-xs text-gray-500">Federal Tax No.</p><p>{address.taxNo}</p></div>
-                        </div>
-                        <div className="flex justify-end">
-                            <Button onClick={() => { setModalType("address"); setOpenModal(true); }} color={"primary"} className="flex items-center gap-1.5 rounded-md">
-                                <Icon icon="ic:outline-edit" width="18" height="18" /> Edit
-                            </Button>
+                    {/* Roles & Assignments Combined */}
+                    <CardBox className="p-4 lg:p-5 lg:flex-1 min-h-0">
+                        <div className="space-y-4">
+                            {/* Roles */}
+                            <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Icon icon="solar:shield-user-bold-duotone" className="w-4 h-4 lg:w-5 lg:h-5 text-blue-500" />
+                                    <span className="text-xs lg:text-sm text-gray-500 font-medium uppercase tracking-wide">Roles</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 lg:gap-2">
+                                    {profile?.roles && profile.roles.length > 0 ? (
+                                        profile.roles.map((role) => (
+                                            <Badge key={role.id} className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2.5 lg:px-3 py-1 lg:py-1.5 text-xs lg:text-sm font-medium">
+                                                {role.description}
+                                            </Badge>
+                                        ))
+                                    ) : (
+                                        <span className="text-xs lg:text-sm text-gray-400 italic">No roles assigned</span>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {/* Divider */}
+                            <div className="border-t border-gray-100 dark:border-gray-800"></div>
+                            
+                            {/* Assignments */}
+                            <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Icon icon="solar:clipboard-list-bold-duotone" className="w-4 h-4 lg:w-5 lg:h-5 text-purple-500" />
+                                    <span className="text-xs lg:text-sm text-gray-500 font-medium uppercase tracking-wide">Assignments</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 lg:gap-2">
+                                    {profile?.assignments && profile.assignments.length > 0 ? (
+                                        profile.assignments.map((assignment) => (
+                                            <Badge key={assignment.id} className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 px-2.5 lg:px-3 py-1 lg:py-1.5 text-xs lg:text-sm font-medium">
+                                                {assignment.description}
+                                            </Badge>
+                                        ))
+                                    ) : (
+                                        <span className="text-xs lg:text-sm text-gray-400 italic">No assignments</span>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </CardBox>
                 </div>
-            </div>
 
-            <Dialog open={openModal} onOpenChange={setOpenModal}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle className="mb-4">
-                            {modalType === "personal" ? "Edit Personal Information" : "Edit Address Details"}
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    {modalType === "personal" ? (
-                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="firstName">First Name</Label>
-                                <Input
-                                    id="firstName"
-                                    placeholder="First Name"
-                                    value={tempPersonal.firstName}
-                                    onChange={(e) => setTempPersonal({ ...tempPersonal, firstName: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="lastName">Last Name</Label>
-                                <Input
-                                    id="lastName"
-                                    placeholder="Last Name"
-                                    value={tempPersonal.lastName}
-                                    onChange={(e) => setTempPersonal({ ...tempPersonal, lastName: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="email">Email</Label>
-                                <Input
-                                    id="email"
-                                    placeholder="Email"
-                                    value={tempPersonal.email}
-                                    onChange={(e) => setTempPersonal({ ...tempPersonal, email: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="phone">Phone</Label>
-                                <Input
-                                    id="phone"
-                                    placeholder="Phone"
-                                    value={tempPersonal.phone}
-                                    onChange={(e) => setTempPersonal({ ...tempPersonal, phone: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="position">Position</Label>
-                                <Input
-                                    id="position"
-                                    placeholder="Position"
-                                    value={tempPersonal.position}
-                                    onChange={(e) => setTempPersonal({ ...tempPersonal, position: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="facebook">Facebook URL</Label>
-                                <Input
-                                    id="facebook"
-                                    placeholder="Facebook URL"
-                                    value={tempPersonal.facebook}
-                                    onChange={(e) => setTempPersonal({ ...tempPersonal, facebook: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="twitter">Twitter URL</Label>
-                                <Input
-                                    id="twitter"
-                                    placeholder="Twitter URL"
-                                    value={tempPersonal.twitter}
-                                    onChange={(e) => setTempPersonal({ ...tempPersonal, twitter: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="github">GitHub URL</Label>
-                                <Input
-                                    id="github"
-                                    placeholder="GitHub URL"
-                                    value={tempPersonal.github}
-                                    onChange={(e) => setTempPersonal({ ...tempPersonal, github: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="dribbble">Dribbble URL</Label>
-                                <Input
-                                    id="dribbble"
-                                    placeholder="Dribbble URL"
-                                    value={tempPersonal.dribbble}
-                                    onChange={(e) => setTempPersonal({ ...tempPersonal, dribbble: e.target.value })}
-                                />
-                            </div>
+                {/* Right Column - Module Access (spans 2 cols on lg) */}
+                <CardBox className="p-4 lg:p-5 lg:col-span-2 flex flex-col min-h-0 order-1 lg:order-2">
+                    <div className="flex items-center gap-2 mb-3 lg:mb-4 flex-shrink-0">
+                        <Icon icon="solar:widget-2-bold-duotone" className="w-5 h-5 lg:w-6 lg:h-6 text-amber-500" />
+                        <h5 className="font-semibold text-sm lg:text-base">Module Access</h5>
+                        {profile?.modules && profile.modules.length > 0 && (
+                            <Badge variant="outline" className="ml-auto text-xs lg:text-sm">{profile.modules.length} Modules</Badge>
+                        )}
+                    </div>
+                    
+                    {profile?.modules && profile.modules.length > 0 ? (
+                        <div className="flex-1 overflow-auto min-h-0">
+                            <table className="w-full text-sm">
+                                <thead className="sticky top-0 bg-white dark:bg-gray-900">
+                                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                                        <th className="text-left py-2 lg:py-3 px-2 lg:px-3 text-xs lg:text-sm font-medium text-gray-500 uppercase">Module</th>
+                                        <th className="text-center py-2 lg:py-3 px-1 lg:px-2 text-xs lg:text-sm font-medium text-gray-500 uppercase w-12 lg:w-20">View</th>
+                                        <th className="text-center py-2 lg:py-3 px-1 lg:px-2 text-xs lg:text-sm font-medium text-gray-500 uppercase w-12 lg:w-20">Create</th>
+                                        <th className="text-center py-2 lg:py-3 px-1 lg:px-2 text-xs lg:text-sm font-medium text-gray-500 uppercase w-12 lg:w-20">Edit</th>
+                                        <th className="text-center py-2 lg:py-3 px-1 lg:px-2 text-xs lg:text-sm font-medium text-gray-500 uppercase w-12 lg:w-20">Delete</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                    {profile.modules.map((module) => (
+                                        <tr key={module.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                            <td className="py-2 lg:py-3 px-2 lg:px-3">
+                                                <div className="flex items-center gap-2 lg:gap-3">
+                                                    <Icon icon="solar:widget-4-bold" className="w-4 h-4 lg:w-5 lg:h-5 text-amber-500 flex-shrink-0" />
+                                                    <span className="font-medium text-sm lg:text-base">{module.description}</span>
+                                                </div>
+                                            </td>
+                                            <td className="text-center py-2 lg:py-3 px-1 lg:px-2">
+                                                {module.permissions.is_select ? (
+                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-emerald-500 mx-auto" />
+                                                ) : (
+                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                )}
+                                            </td>
+                                            <td className="text-center py-2 lg:py-3 px-1 lg:px-2">
+                                                {module.permissions.is_insert ? (
+                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-emerald-500 mx-auto" />
+                                                ) : (
+                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                )}
+                                            </td>
+                                            <td className="text-center py-2 lg:py-3 px-1 lg:px-2">
+                                                {module.permissions.is_update ? (
+                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-emerald-500 mx-auto" />
+                                                ) : (
+                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                )}
+                                            </td>
+                                            <td className="text-center py-2 lg:py-3 px-1 lg:px-2">
+                                                {module.permissions.is_delete ? (
+                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-emerald-500 mx-auto" />
+                                                ) : (
+                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="location">Location</Label>
-                                <Input
-                                    id="location"
-                                    placeholder="Location"
-                                    value={tempAddress.location}
-                                    onChange={(e) => setTempAddress({ ...tempAddress, location: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="state">Province / State</Label>
-                                <Input
-                                    id="state"
-                                    placeholder="Province / State"
-                                    value={tempAddress.state}
-                                    onChange={(e) => setTempAddress({ ...tempAddress, state: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="pin">PIN Code</Label>
-                                <Input
-                                    id="pin"
-                                    placeholder="PIN Code"
-                                    value={tempAddress.pin}
-                                    onChange={(e) => setTempAddress({ ...tempAddress, pin: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="zip">ZIP</Label>
-                                <Input
-                                    id="zip"
-                                    placeholder="ZIP"
-                                    value={tempAddress.zip}
-                                    onChange={(e) => setTempAddress({ ...tempAddress, zip: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="taxNo">Federal Tax No.</Label>
-                                <Input
-                                    id="taxNo"
-                                    placeholder="Federal Tax No."
-                                    value={tempAddress.taxNo}
-                                    onChange={(e) => setTempAddress({ ...tempAddress, taxNo: e.target.value })}
-                                />
+                        <div className="flex-1 flex items-center justify-center text-gray-400 py-8">
+                            <div className="text-center">
+                                <Icon icon="solar:widget-6-line-duotone" className="w-10 h-10 lg:w-12 lg:h-12 mx-auto mb-2 lg:mb-3 opacity-50" />
+                                <p className="text-xs lg:text-sm">No module access configured</p>
                             </div>
                         </div>
                     )}
-
-                    <DialogFooter className="flex gap-2 mt-4">
-                        <Button color={"primary"} className="rounded-md" onClick={handleSave}>
-                            Save Changes
-                        </Button>
-                        <Button color={"lighterror"} className="rounded-md bg-lighterror dark:bg-darkerror text-error hover:bg-error hover:text-white" onClick={() => setOpenModal(false)}>
-                            Close
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </>
+                </CardBox>
+            </div>
+        </div>
     );
 };
 
