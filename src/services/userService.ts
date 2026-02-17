@@ -18,7 +18,7 @@ interface AuthUser {
   username?: string | null
 }
 
-interface UserProfileData {
+export interface UserProfileData {
   id: string
   email: string
   isActive: boolean
