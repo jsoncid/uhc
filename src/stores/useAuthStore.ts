@@ -67,37 +67,36 @@ export const useAuthStore = create<AuthState>((set) => ({
   signUp: async (email: string, password: string, options?: { data?: { [key: string]: any } }) => {
     set({ isLoading: true, error: null })
     try {
-      console.log('Starting registration for email:', email)
-      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: options?.data
-        }
+        options: options ? { data: options.data } : undefined
       })
-      
-      if (error) {
-        console.error('Supabase signUp error:', error)
-        throw error
+      if (error) throw error
+
+      if (data?.user) {
+        // After successful signup, insert user details into user_status table
+        const { error: insertError } = await supabase
+          .from('user_status')
+          .insert([
+            {
+              id: data.user.id,
+              email: data.user.email,
+              is_active: false
+            },
+          ])
+
+        if (insertError) {
+          console.error('Error creating user_status:', insertError)
+          throw insertError
+        }
+
+        console.log('Successfully created an account and saved user details.')
       }
-      
-      console.log('Supabase auth successful, user:', data.user)
-      
-      // Create user status record in auth_extension.user_status table
-      if (data.user) {
-        console.log('Creating user status record for email:', email)
-        await userService.createUserStatus(email)
-        console.log('User status record created successfully')
-      }
-      
+
       set({ user: data.user, isLoading: false })
     } catch (error) {
-      console.error('Registration error:', error)
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to sign up',
-        isLoading: false 
-      })
+      set({ error: error instanceof Error ? error.message : 'Failed to sign up', isLoading: false })
     }
   },
 
