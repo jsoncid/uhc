@@ -42,23 +42,10 @@ const SidebarContent: MenuItem[] = [
         url: '/module-1/table',
       },
       {
-        name: 'Blogs',
+        name: 'Admin Page',
+        icon: 'solar:settings-linear',
         id: uniqueId(),
-        icon: 'solar:sort-by-alphabet-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Blog Post',
-            url: '/module-1/apps/blog/post',
-            isPro: false,
-          },
-          {
-            id: uniqueId(),
-            name: 'Blog Detail',
-            url: '/module-1/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
-            isPro: false,
-          },
-        ],
+        url: '/module-1/admin',
       },
     ],
   },
