@@ -18,7 +18,7 @@ interface AuthUser {
   username?: string | null
 }
 
-interface UserProfileData {
+export interface UserProfileData {
   id: string
   email: string
   isActive: boolean
@@ -249,16 +249,20 @@ export const userService = {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
-        console.error('No authenticated user')
+        console.log('No authenticated user')
         return null
       }
 
       // Get user status by email from user_status table
+      // Using maybeSingle() to avoid 406 error when no row exists
       const { data: statusData } = await supabase
         .from('user_status')
         .select('is_active')
         .eq('email', user.email)
-        .single()
+        .maybeSingle()
+
+      // Default to false if no status record found
+      const isActive = statusData?.is_active ?? false
 
       // Get user's roles with role descriptions
       const { data: userRoles } = await supabase
@@ -353,7 +357,7 @@ export const userService = {
       return {
         id: user.id,
         email: user.email || '',
-        isActive: statusData?.is_active ?? false,
+        isActive,
         roles,
         assignments,
         modules: Array.from(moduleMap.values())
