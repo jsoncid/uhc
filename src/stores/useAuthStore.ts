@@ -8,7 +8,7 @@ interface AuthState {
   isLoading: boolean
   error: string | null
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, options?: { data?: { [key: string]: any } }) => Promise<void>
+  signUp: (email: string, password: string, options?: { data?: { [key: string]: any }, assignmentId?: string }) => Promise<void>
   signOut: () => Promise<void>
   setUser: (user: User | null) => void
   clearError: () => void
@@ -39,19 +39,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Check if user is active in user_status table (using user id as primary key)
       const userStatus = await userService.getUserStatus(data.user.id)
       
-      // if (!userStatus) {
-      //   console.error('User status not found for email:', email)
-      //   // Sign out the user since they shouldn't be logged in
-      //   await supabase.auth.signOut()
-      //   throw new Error('Account not found. Please contact administrator.')
-      // }
+      if (!userStatus) {
+        console.error('User status not found for email:', email)
+        // Sign out the user since they shouldn't be logged in
+        await supabase.auth.signOut()
+        throw new Error('Account not found. Please contact administrator.')
+      }
       
-      // if (!userStatus.is_active) {
-      //   console.error('User account is inactive for email:', email)
-      //   // Sign out the user since they shouldn't be logged in
-      //   await supabase.auth.signOut()
-      //   throw new Error('Account is inactive. Please contact administrator to activate your account.')
-      // }
+      if (!userStatus.is_active) {
+        console.error('User account is inactive for email:', email)
+        // Sign out the user since they shouldn't be logged in
+        await supabase.auth.signOut()
+        throw new Error('Account is inactive. Please contact administrator to activate your account.')
+      }
       
       console.log('User status check passed, user is active')
       set({ user: data.user, isLoading: false })
