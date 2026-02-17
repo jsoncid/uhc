@@ -1,9 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Search, UserCheck, UserX, Eye, Clock, CheckCircle } from 'lucide-react';
+import { Search, UserCheck, UserX, Eye, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -28,6 +36,8 @@ export const UserAcceptanceList = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [userToReject, setUserToReject] = useState<UserWithStatus | null>(null);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -62,12 +72,25 @@ export const UserAcceptanceList = () => {
     }
   };
 
-  const handleReject = async (userId: string) => {
-    setProcessingId(userId);
+  const openRejectDialog = (user: UserWithStatus) => {
+    setUserToReject(user);
+    setIsRejectDialogOpen(true);
+  };
+
+  const closeRejectDialog = () => {
+    setUserToReject(null);
+    setIsRejectDialogOpen(false);
+  };
+
+  const handleReject = async () => {
+    if (!userToReject) return;
+    
+    setProcessingId(userToReject.id);
     try {
-      await userService.rejectUser(userId);
+      await userService.rejectUser(userToReject.id);
       // Remove the rejected user from the list
-      setUsers(users.filter(user => user.id !== userId));
+      setUsers(users.filter(user => user.id !== userToReject.id));
+      closeRejectDialog();
     } catch (err) {
       console.error('Error rejecting user:', err);
       setError(err instanceof Error ? err.message : 'Failed to reject user');
@@ -156,9 +179,7 @@ export const UserAcceptanceList = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                         
                           <Button 
                             variant="success" 
                             size="sm"
@@ -171,7 +192,7 @@ export const UserAcceptanceList = () => {
                           <Button 
                             variant="outlineerror" 
                             size="sm"
-                            onClick={() => handleReject(user.id)}
+                            onClick={() => openRejectDialog(user)}
                             disabled={processingId === user.id}
                           >
                             <UserX className="h-4 w-4 mr-1" />
@@ -187,6 +208,45 @@ export const UserAcceptanceList = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Reject Confirmation Dialog */}
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Confirm Rejection
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to reject this user? This action will permanently delete the user account and cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {userToReject && (
+            <div className="py-4">
+              <div className="rounded-md bg-muted p-4">
+                <p className="text-sm"><strong>Name:</strong> {userToReject.name}</p>
+                <p className="text-sm"><strong>Email:</strong> {userToReject.email}</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={closeRejectDialog}
+              disabled={processingId !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReject}
+              disabled={processingId !== null}
+            >
+              {processingId !== null ? 'Rejecting...' : 'Reject User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
