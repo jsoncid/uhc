@@ -253,20 +253,6 @@ const profileDD: ProfileType[] = [
     icon: "tabler:user",
     url: '/user-profile',
   },
-  {
-    img: inboxIcon,
-    title: 'My Notes',
-    subtitle: 'My Daily Notes',
-    icon: "tabler:mail",
-    url: '/apps/Notes',
-  },
-  {
-    img: taskIcon,
-    title: 'My Blogs',
-    subtitle: 'Stories, insights, and updates',
-    icon: "tabler:list-check",
-    url: '/apps/blog/post',
-  },
 ];
 
 export { appsLink, pageLinks, SearchLinks, MessagesLink, Notification, profileDD };
