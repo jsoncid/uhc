@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, UserCheck, UserX, Eye, Clock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, UserCheck, UserX, Eye, Clock, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,33 +12,49 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { supabase } from '@/lib/supabase';
 
-// Static mock data for UI display
-const pendingUsers = [
-  {
-    id: '1',
-    name: 'wsdAS',
-    email: 'brian.yesir@example.com',
-    status: 'pending' as const,
-  },
-  {
-    id: '2',
-    name: 'John Smith',
-    email: 'john.smith@example.com',
-    status: 'pending' as const,
-  },
-];
+interface UserWithStatus {
+  id: string;
+  email: string;
+  name: string;
+  is_active: boolean;
+}
 
 export const UserAcceptanceList = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [users, setUsers] = useState<UserWithStatus[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredUsers = pendingUsers.filter(
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Call the database function that joins user_status with auth.users
+      const { data, error: fetchError } = await supabase
+        .rpc('get_users_with_status');
+
+      if (fetchError) throw fetchError;
+
+      setUsers(data || []);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch users');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const filteredUsers = users.filter(
     (user) =>
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()),
   );
-
-  const pendingCount = pendingUsers.length;
 
   return (
     <div className="space-y-6">
@@ -65,6 +81,10 @@ export const UserAcceptanceList = () => {
             />
           </div>
 
+          {error && (
+            <div className="mb-4 text-red-500 text-sm">{error}</div>
+          )}
+
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -76,9 +96,15 @@ export const UserAcceptanceList = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredUsers.length === 0 ? (
+                {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      Loading users...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                       No pending user requests found
                     </TableCell>
                   </TableRow>
@@ -88,10 +114,17 @@ export const UserAcceptanceList = () => {
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
-                        <Badge variant="outlineWarning">
-                          <Clock className="h-3 w-3 mr-1" />
-                          Pending
-                        </Badge>
+                        {user.is_active ? (
+                          <Badge variant="outlineSuccess">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge variant="outlineWarning">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Pending
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

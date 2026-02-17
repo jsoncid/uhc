@@ -36,18 +36,18 @@ export const useAuthStore = create<AuthState>((set) => ({
       
       console.log('Supabase auth successful, checking user status...')
       
-      // Check if user is active in user_status table
-      const userStatus = await userService.getUserStatus(email)
+      // Check if user is active in user_status table (using user id as primary key)
+      const userStatus = await userService.getUserStatus(data.user.id)
       
       if (!userStatus) {
-        console.error('User status not found for email:', email)
+        console.error('User status not found for id:', data.user.id)
         // Sign out the user since they shouldn't be logged in
         await supabase.auth.signOut()
         throw new Error('Account not found. Please contact administrator.')
       }
       
       if (!userStatus.is_active) {
-        console.error('User account is inactive for email:', email)
+        console.error('User account is inactive for id:', data.user.id)
         // Sign out the user since they shouldn't be logged in
         await supabase.auth.signOut()
         throw new Error('Account is inactive. Please contact administrator to activate your account.')

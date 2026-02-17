@@ -42,12 +42,12 @@ export const userService = {
     }
   },
 
-  async updateUserStatus(email: string, isActive: boolean): Promise<void> {
+  async updateUserStatus(userId: string, isActive: boolean): Promise<void> {
     try {
       const { error } = await supabase
         .from('user_status')
         .update({ is_active: isActive } as UserStatus['Update'])
-        .eq('email', email)
+        .eq('id', userId)
 
       if (error) {
         console.error('Error updating user status:', error)
@@ -59,12 +59,12 @@ export const userService = {
     }
   },
 
-  async getUserStatus(email: string): Promise<UserStatus['Row'] | null> {
+  async getUserStatus(userId: string): Promise<UserStatus['Row'] | null> {
     try {
       const { data, error } = await supabase
         .from('user_status')
         .select('*')
-        .eq('email', email)
+        .eq('id', userId)
         .single()
 
       if (error) {
