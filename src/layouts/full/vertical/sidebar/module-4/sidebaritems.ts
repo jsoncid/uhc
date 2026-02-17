@@ -36,30 +36,19 @@ const SidebarContent: MenuItem[] = [
     heading: 'Module 4 - UNIVERSAL HEALTH CARD',
     children: [
       {
-        name: 'Tables',
-        icon: 'solar:server-linear',
+        name: 'UHC MEMBER',
+        icon: 'line-md:account-small',
         id: uniqueId(),
-        url: '/module-4/table',
-      },
-      {
-        name: 'Blogs',
+        url: '/module-4/uhc-member',
+        },
+        
+        {
+        name: 'UHC OPERATOR',
+        icon: 'line-md:person-filled',
         id: uniqueId(),
-        icon: 'solar:sort-by-alphabet-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Blog Post',
-            url: '/module-4/apps/blog/post',
-            isPro: false,
-          },
-          {
-            id: uniqueId(),
-            name: 'Blog Detail',
-            url: '/module-4/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
-            isPro: false,
-          },
-        ],
+        url: '/module-4/uhc-operator',
       },
+      
     ],
   },
   // {

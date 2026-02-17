@@ -11,7 +11,7 @@ const BCrumb = [
     title: 'Home',
   },
   {
-    title: 'Table',
+    title: 'UHC MEMBER',
   },
 ];
 const Notes = () => {

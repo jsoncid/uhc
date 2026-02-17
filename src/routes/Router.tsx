@@ -27,6 +27,7 @@ const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/User
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
+const Module4Table = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')));
 const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
 const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
@@ -83,6 +84,23 @@ const Router = [
         element: (
           <ProtectedRoute>
             <Table />
+          </ProtectedRoute>
+        )
+      },
+      { 
+        path: '/module-4/uhc-member', 
+        element: (
+          <ProtectedRoute>
+            <Module4Table />
+          </ProtectedRoute>
+        )
+      },
+
+      { 
+        path: '/module-4/uhc-operator', 
+        element: (
+          <ProtectedRoute>
+            <Module4Table />
           </ProtectedRoute>
         )
       },
