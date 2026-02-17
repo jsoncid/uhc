@@ -189,6 +189,38 @@ export const UserAssignmentList = () => {
     fetchData() // Refresh user roles data
   }
 
+  // Filter user assignments based on search term
+  const filteredUserAssignments = userAssignments.filter((assignment) => {
+    if (!searchTerm) return true
+    const lowerSearchTerm = searchTerm.toLowerCase()
+    const userEmail = assignment.users?.email?.toLowerCase() || ''
+    const userName = assignment.users?.username?.toLowerCase() || ''
+    const userId = assignment.user?.toLowerCase() || ''
+    const assignmentDesc = assignment.assignment?.description?.toLowerCase() || ''
+    const assignmentId = (typeof assignment.assignment === 'string' ? assignment.assignment : '')?.toLowerCase() || ''
+    
+    return userEmail.includes(lowerSearchTerm) || 
+           userName.includes(lowerSearchTerm) || 
+           userId.includes(lowerSearchTerm) ||
+           assignmentDesc.includes(lowerSearchTerm) ||
+           assignmentId.includes(lowerSearchTerm)
+  })
+
+  // Filter user roles based on search term
+  const filteredUserRoles = userRoles.filter((userRole) => {
+    if (!searchTerm) return true
+    const lowerSearchTerm = searchTerm.toLowerCase()
+    const userEmail = userRole.users?.email?.toLowerCase() || ''
+    const userId = userRole.user?.toLowerCase() || ''
+    const roleDesc = userRole.roleData?.description?.toLowerCase() || ''
+    const roleId = userRole.role?.toLowerCase() || ''
+    
+    return userEmail.includes(lowerSearchTerm) || 
+           userId.includes(lowerSearchTerm) ||
+           roleDesc.includes(lowerSearchTerm) ||
+           roleId.includes(lowerSearchTerm)
+  })
+
   if (isLoading) {
     return (
       <Card>
@@ -252,14 +284,14 @@ export const UserAssignmentList = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {userAssignments.length === 0 ? (
+                    {filteredUserAssignments.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          No user assignments found
+                          {searchTerm ? 'No user assignments match your search' : 'No user assignments found'}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      userAssignments.map((assignment) => (
+                      filteredUserAssignments.map((assignment) => (
                         <TableRow key={assignment.id}>
                           <TableCell className="font-medium">
                             {assignment.users?.email || assignment.users?.username || assignment.user}
@@ -331,14 +363,14 @@ export const UserAssignmentList = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {userRoles.length === 0 ? (
+                    {filteredUserRoles.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          No user roles found
+                          {searchTerm ? 'No user roles match your search' : 'No user roles found'}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      userRoles.map((userRole) => (
+                      filteredUserRoles.map((userRole) => (
                         <TableRow key={userRole.id}>
                           <TableCell className="font-medium">
                             {userRole.users?.email || userRole.user}
