@@ -18,7 +18,7 @@ interface AuthUser {
   username?: string | null
 }
 
-interface UserProfileData {
+export interface UserProfileData {
   id: string
   email: string
   isActive: boolean
@@ -88,12 +88,12 @@ export const userService = {
     }
   },
 
-  async updateUserStatus(email: string, isActive: boolean): Promise<void> {
+  async updateUserStatus(userId: string, isActive: boolean): Promise<void> {
     try {
       const { error } = await supabase
         .from('user_status')
         .update({ is_active: isActive } as UserStatus['Update'])
-        .eq('email', email)
+        .eq('id', userId)
 
       if (error) {
         console.error('Error updating user status:', error)
@@ -105,12 +105,12 @@ export const userService = {
     }
   },
 
-  async getUserStatus(email: string): Promise<UserStatus['Row'] | null> {
+  async getUserStatus(userId: string): Promise<UserStatus['Row'] | null> {
     try {
       const { data, error } = await supabase
         .from('user_status')
         .select('*')
-        .eq('email', email)
+        .eq('id', userId)
         .single()
 
       if (error) {
@@ -242,121 +242,161 @@ export const userService = {
     }
   },
 
-  // Get current user's complete profile from RBAC tables
+  // Get pending users (users with is_active = false)
+  async getPendingUsers(): Promise<{ id: string; email: string; name: string; is_active: boolean; created_at: string }[]> {
+    try {
+      const { data, error } = await supabase
+        .from('user_status')
+        .select('*')
+        .eq('is_active', false)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching pending users:', error)
+        throw error
+      }
+
+      return (data || []).map((user: any) => ({
+        id: user.id,
+        email: user.email,
+        name: user.email?.split('@')[0] || 'Unknown',
+        is_active: user.is_active,
+        created_at: user.created_at
+      }))
+    } catch (error) {
+      console.error('Error in getPendingUsers:', error)
+      throw error
+    }
+  },
+
+  // Approve a user by setting is_active to true
+  async approveUser(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('user_status')
+        .update({ is_active: true } as UserStatus['Update'])
+        .eq('id', userId)
+
+      if (error) {
+        console.error('Error approving user:', error)
+        throw error
+      }
+    } catch (error) {
+      console.error('Error in approveUser:', error)
+      throw error
+    }
+  },
+
+  // Reject a user by deleting their record
+  async rejectUser(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('user_status')
+        .delete()
+        .eq('id', userId)
+
+      if (error) {
+        console.error('Error rejecting user:', error)
+        throw error
+      }
+    } catch (error) {
+      console.error('Error in rejectUser:', error)
+      throw error
+    }
+  },
+
+  // Get current user's profile with roles, assignments, and modules
   async getCurrentUserProfile(): Promise<UserProfileData | null> {
     try {
       // Get current authenticated user
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
-        console.error('No authenticated user')
         return null
       }
 
-      // Get user status by email from user_status table
+      // Get user status
       const { data: statusData } = await supabase
         .from('user_status')
-        .select('is_active')
+        .select('*')
         .eq('email', user.email)
         .single()
 
-      // Get user's roles with role descriptions
+      // Get user roles
       const { data: userRoles } = await supabase
         .from('user_role')
-        .select(`
-          id,
-          role (
-            id,
-            description,
-            is_active
-          )
-        `)
+        .select('role')
         .eq('user', user.id)
 
-      // Get user's assignments with assignment descriptions  
-      const { data: userAssignments } = await supabase
-        .from('user_assignment')
-        .select(`
-          id,
-          assignment (
-            id,
-            description,
-            is_active
-          )
-        `)
-        .eq('user', user.id)
+      const roleIds = userRoles?.map(ur => ur.role) || []
 
-      // Get modules the user can access based on their roles
-      const roleIds = userRoles?.map((ur: any) => ur.role?.id).filter(Boolean) || []
-      
-      let userModules: any[] = []
+      // Get role details
+      let roles: Array<{ id: string; description: string }> = []
       if (roleIds.length > 0) {
-        const { data: moduleAccess } = await supabase
-          .from('role_module_access')
-          .select(`
-            is_select,
-            is_insert,
-            is_update,
-            is_delete,
-            module (
-              id,
-              description,
-              is_active
-            )
-          `)
-          .in('role', roleIds)
-
-        userModules = moduleAccess || []
+        const { data: rolesData } = await supabase
+          .from('role')
+          .select('id, description')
+          .in('id', roleIds)
+        roles = rolesData || []
       }
 
-      // Transform the data
-      const roles = userRoles
-        ?.filter((ur: any) => ur.role?.is_active)
-        .map((ur: any) => ({
-          id: ur.role.id,
-          description: ur.role.description || 'No description'
-        })) || []
-
-      const assignments = userAssignments
-        ?.filter((ua: any) => ua.assignment?.is_active)
-        .map((ua: any) => ({
-          id: ua.assignment.id,
-          description: ua.assignment.description || 'No description'
-        })) || []
-
-      // Dedupe modules and merge permissions
-      const moduleMap = new Map<string, any>()
-      userModules.forEach((ma: any) => {
-        if (ma.module?.is_active) {
-          const existing = moduleMap.get(ma.module.id)
-          if (existing) {
-            // Merge permissions (OR)
-            existing.permissions.is_select = existing.permissions.is_select || ma.is_select
-            existing.permissions.is_insert = existing.permissions.is_insert || ma.is_insert
-            existing.permissions.is_update = existing.permissions.is_update || ma.is_update
-            existing.permissions.is_delete = existing.permissions.is_delete || ma.is_delete
-          } else {
-            moduleMap.set(ma.module.id, {
-              id: ma.module.id,
-              description: ma.module.description || 'No description',
-              permissions: {
-                is_select: ma.is_select,
-                is_insert: ma.is_insert,
-                is_update: ma.is_update,
-                is_delete: ma.is_delete
-              }
-            })
-          }
+      // Get assignments through roles
+      let assignments: Array<{ id: string; description: string }> = []
+      if (roleIds.length > 0) {
+        const { data: roleAssignments } = await supabase
+          .from('role_assignment')
+          .select('assignment')
+          .in('role', roleIds)
+        
+        const assignmentIds = roleAssignments?.map(ra => ra.assignment) || []
+        if (assignmentIds.length > 0) {
+          const { data: assignmentsData } = await supabase
+            .from('assignment')
+            .select('id, description')
+            .in('id', assignmentIds)
+          assignments = assignmentsData || []
         }
-      })
+      }
+
+      // Get modules through assignments
+      let modules: Array<{ id: string; description: string; permissions: { is_select: boolean; is_insert: boolean; is_update: boolean; is_delete: boolean } }> = []
+      if (assignments.length > 0) {
+        const assignmentIds = assignments.map(a => a.id)
+        const { data: assignmentModules } = await supabase
+          .from('assignment_module')
+          .select('module, is_select, is_insert, is_update, is_delete')
+          .in('assignment', assignmentIds)
+        
+        const moduleIds = assignmentModules?.map(am => am.module) || []
+        if (moduleIds.length > 0) {
+          const { data: modulesData } = await supabase
+            .from('module')
+            .select('id, description')
+            .in('id', moduleIds)
+          
+          modules = (modulesData || []).map(mod => {
+            const perms = assignmentModules?.find(am => am.module === mod.id)
+            return {
+              id: mod.id,
+              description: mod.description,
+              permissions: {
+                is_select: perms?.is_select || false,
+                is_insert: perms?.is_insert || false,
+                is_update: perms?.is_update || false,
+                is_delete: perms?.is_delete || false
+              }
+            }
+          })
+        }
+      }
 
       return {
         id: user.id,
         email: user.email || '',
-        isActive: statusData?.is_active ?? false,
+        isActive: statusData?.is_active || false,
         roles,
         assignments,
-        modules: Array.from(moduleMap.values())
+        modules
       }
     } catch (error) {
       console.error('Error in getCurrentUserProfile:', error)
