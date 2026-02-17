@@ -15,28 +15,55 @@ interface AuthUser {
   id: string
   email?: string
   created_at: string
+  username?: string | null
 }
 
-// Types for user profile data from RBAC tables
-export interface UserProfileData {
+interface UserProfileData {
   id: string
   email: string
   isActive: boolean
-  roles: { id: string; description: string }[]
-  assignments: { id: string; description: string }[]
-  modules: { 
-    id: string
-    description: string
-    permissions: {
-      is_select: boolean
-      is_insert: boolean
-      is_update: boolean
-      is_delete: boolean
-    }
-  }[]
+  roles: Array<{ id: string; description: string }>
+  assignments: Array<{ id: string; description: string }>
+  modules: Array<{ id: string; description: string; permissions: { is_select: boolean; is_insert: boolean; is_update: boolean; is_delete: boolean } }>
 }
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+
 export const userService = {
+  // Fetch users from backend API (connects to auth.users via PostgreSQL)
+  async getAllUsersFromAPI(): Promise<AuthUser[]> {
+    try {
+      const response = await fetch(`${API_URL}/api/users`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching users from API:', error)
+      throw error
+    }
+  },
+
+  async getUsersByIds(ids: string[]): Promise<AuthUser[]> {
+    try {
+      if (!ids || ids.length === 0) return []
+      
+      const response = await fetch(`${API_URL}/api/users/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching users by IDs:', error)
+      throw error
+    }
+  },
+
   async createUserStatus(email: string): Promise<void> {
     try {
       console.log('Attempting to create user status for email:', email)
@@ -104,16 +131,23 @@ export const userService = {
 
   async getAllUsers(): Promise<AuthUser[]> {
     try {
-      // Get current authenticated user as a fallback
+      // First try to fetch from backend API (preferred method)
+      try {
+        const users = await this.getAllUsersFromAPI()
+        if (users && users.length > 0) {
+          return users
+        }
+      } catch (apiError) {
+        console.warn('Could not fetch from API, falling back to current user:', apiError)
+      }
+
+      // Fallback: Get current authenticated user
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
         throw new Error('No authenticated user found')
       }
 
-      // For now, return the current user. In a production environment,
-      // you would need to create a server-side endpoint or use RLS policies
-      // to fetch all users safely.
       return [{
         id: user.id,
         email: user.email || '',
@@ -126,7 +160,7 @@ export const userService = {
   },
 
   // User Role operations
-  async getAllUserRoles(): Promise<UserRole[]> {
+  async getAllUserRoles(): Promise<any[]> {
     try {
       const { data, error } = await supabase
         .from('user_role')
@@ -138,7 +172,33 @@ export const userService = {
         throw error
       }
 
-      return data || []
+      if (!data || data.length === 0) {
+        return []
+      }
+
+      // Get unique user IDs and role IDs
+      const userIds = [...new Set(data.map((ur: UserRole) => ur.user))]
+      const roleIds = [...new Set(data.map((ur: UserRole) => ur.role))]
+
+      // Fetch users from backend API and roles from Supabase
+      const [users, rolesResult] = await Promise.all([
+        this.getUsersByIds(userIds).catch(err => {
+          console.warn('Failed to fetch users from API:', err)
+          return []
+        }),
+        supabase.from('role').select('id, description').in('id', roleIds)
+      ])
+
+      const roles = rolesResult.data || []
+
+      // Map the data together
+      const enrichedUserRoles = data.map((ur: UserRole) => ({
+        ...ur,
+        users: users.find(u => u.id === ur.user),
+        roleData: roles.find(r => r.id === ur.role)
+      }))
+
+      return enrichedUserRoles
     } catch (error) {
       console.error('Error in getAllUserRoles:', error)
       throw error
