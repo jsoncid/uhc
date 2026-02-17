@@ -217,13 +217,7 @@ const SidebarContent: MenuItem[] = [
         url: '/rbac/user-assignments',
         isPro: false,
       },
-      {
-        id: uniqueId(),
-        name: 'User Acceptance',
-        icon: 'solar:user-check-rounded-linear',
-        url: '/rbac/user-acceptance',
-        isPro: false,
-      },
+
     ],
   },
   {
@@ -233,7 +227,7 @@ const SidebarContent: MenuItem[] = [
         id: uniqueId(),
         name: 'User Activation',
         icon: 'solar:login-2-linear',
-        url: '/icons/iconify',
+        url: '/rbac/user-acceptance',
         isPro: false,
       },
     ],

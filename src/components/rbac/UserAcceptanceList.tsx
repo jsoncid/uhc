@@ -12,13 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { supabase } from '@/lib/supabase';
+import { userService } from '@/services/userService';
 
 interface UserWithStatus {
   id: string;
   email: string;
   name: string;
   is_active: boolean;
+  created_at: string;
 }
 
 export const UserAcceptanceList = () => {
@@ -26,17 +27,14 @@ export const UserAcceptanceList = () => {
   const [users, setUsers] = useState<UserWithStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Call the database function that joins user_status with auth.users
-      const { data, error: fetchError } = await supabase
-        .rpc('get_users_with_status');
-
-      if (fetchError) throw fetchError;
-
+      // Get pending users from the database function
+      const data = await userService.getPendingUsers();
       setUsers(data || []);
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -49,6 +47,34 @@ export const UserAcceptanceList = () => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const handleApprove = async (userId: string) => {
+    setProcessingId(userId);
+    try {
+      await userService.approveUser(userId);
+      // Remove the approved user from the list
+      setUsers(users.filter(user => user.id !== userId));
+    } catch (err) {
+      console.error('Error approving user:', err);
+      setError(err instanceof Error ? err.message : 'Failed to approve user');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleReject = async (userId: string) => {
+    setProcessingId(userId);
+    try {
+      await userService.rejectUser(userId);
+      // Remove the rejected user from the list
+      setUsers(users.filter(user => user.id !== userId));
+    } catch (err) {
+      console.error('Error rejecting user:', err);
+      setError(err instanceof Error ? err.message : 'Failed to reject user');
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
   const filteredUsers = users.filter(
     (user) =>
@@ -91,6 +117,7 @@ export const UserAcceptanceList = () => {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Registered</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -98,13 +125,13 @@ export const UserAcceptanceList = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       Loading users...
                     </TableCell>
                   </TableRow>
                 ) : filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       No pending user requests found
                     </TableCell>
                   </TableRow>
@@ -113,6 +140,7 @@ export const UserAcceptanceList = () => {
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
+                      <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
                         {user.is_active ? (
                           <Badge variant="outlineSuccess">
@@ -131,11 +159,21 @@ export const UserAcceptanceList = () => {
                           <Button variant="ghost" size="sm">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="success" size="sm">
+                          <Button 
+                            variant="success" 
+                            size="sm"
+                            onClick={() => handleApprove(user.id)}
+                            disabled={processingId === user.id}
+                          >
                             <UserCheck className="h-4 w-4 mr-1" />
-                            Approve
+                            {processingId === user.id ? 'Processing...' : 'Approve'}
                           </Button>
-                          <Button variant="outlineerror" size="sm">
+                          <Button 
+                            variant="outlineerror" 
+                            size="sm"
+                            onClick={() => handleReject(user.id)}
+                            disabled={processingId === user.id}
+                          >
                             <UserX className="h-4 w-4 mr-1" />
                             Reject
                           </Button>
