@@ -1,4 +1,3 @@
-import { Icon } from "@iconify/react/dist/iconify.js"
 import BreadcrumbComp from "src/layouts/full/shared/breadcrumb/BreadcrumbComp";
 import CardBox from "src/components/shared/CardBox";
 import profileImg from "src/assets/images/profile/user-1.jpg"
@@ -23,12 +22,6 @@ const UserProfile = () => {
     const displayName = profile?.email?.split('@')[0] || 'User';
     const firstName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
 
-    const socialLinks = [
-        // { href: "#", icon: "streamline-logos:facebook-logo-2-solid" },
-        // { href: "#", icon: "streamline-logos:x-twitter-logo-solid" },
-        // { href: "#", icon: "ion:logo-github" },
-        // { href: "#", icon: "streamline-flex:dribble-logo-remix" },
-    ];
 
     if (loading) {
         return (
@@ -96,13 +89,6 @@ const UserProfile = () => {
                                         {profile?.isActive ? "Active" : "Inactive"}
                                     </Badge>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {socialLinks.map((item, index) => (
-                                    <a key={index} href={item.href} target="_blank" className="flex h-11 w-11 items-center justify-center gap-2 rounded-full shadow-md border border-ld hover:bg-gray-50 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
-                                        <Icon icon={item.icon} width="20" height="20" />
-                                    </a>
-                                ))}
                             </div>
                         </div>
                     </div>
