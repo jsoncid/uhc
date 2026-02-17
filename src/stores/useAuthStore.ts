@@ -92,9 +92,17 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
 
         console.log('Successfully created an account and saved user details.')
+        
+        // Sign out the user to prevent automatic login
+        // User must wait for admin approval and login manually
+        await supabase.auth.signOut()
       }
 
-      set({ user: data.user, isLoading: false })
+      // Don't set user - registration successful but user needs to login manually after approval
+      set({ user: null, isLoading: false })
+      
+      // Return success indication (caller can check isLoading: false and error: null)
+      return
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to sign up', isLoading: false })
     }
