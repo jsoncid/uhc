@@ -15,9 +15,55 @@ interface AuthUser {
   id: string
   email?: string
   created_at: string
+  username?: string | null
 }
 
+interface UserProfileData {
+  id: string
+  email: string
+  isActive: boolean
+  roles: Array<{ id: string; description: string }>
+  assignments: Array<{ id: string; description: string }>
+  modules: Array<{ id: string; description: string; permissions: { is_select: boolean; is_insert: boolean; is_update: boolean; is_delete: boolean } }>
+}
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+
 export const userService = {
+  // Fetch users from backend API (connects to auth.users via PostgreSQL)
+  async getAllUsersFromAPI(): Promise<AuthUser[]> {
+    try {
+      const response = await fetch(`${API_URL}/api/users`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching users from API:', error)
+      throw error
+    }
+  },
+
+  async getUsersByIds(ids: string[]): Promise<AuthUser[]> {
+    try {
+      if (!ids || ids.length === 0) return []
+      
+      const response = await fetch(`${API_URL}/api/users/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching users by IDs:', error)
+      throw error
+    }
+  },
+
   async createUserStatus(email: string): Promise<void> {
     try {
       console.log('Attempting to create user status for email:', email)
@@ -85,16 +131,23 @@ export const userService = {
 
   async getAllUsers(): Promise<AuthUser[]> {
     try {
-      // Get current authenticated user as a fallback
+      // First try to fetch from backend API (preferred method)
+      try {
+        const users = await this.getAllUsersFromAPI()
+        if (users && users.length > 0) {
+          return users
+        }
+      } catch (apiError) {
+        console.warn('Could not fetch from API, falling back to current user:', apiError)
+      }
+
+      // Fallback: Get current authenticated user
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
         throw new Error('No authenticated user found')
       }
 
-      // For now, return the current user. In a production environment,
-      // you would need to create a server-side endpoint or use RLS policies
-      // to fetch all users safely.
       return [{
         id: user.id,
         email: user.email || '',
@@ -107,7 +160,7 @@ export const userService = {
   },
 
   // User Role operations
-  async getAllUserRoles(): Promise<UserRole[]> {
+  async getAllUserRoles(): Promise<any[]> {
     try {
       const { data, error } = await supabase
         .from('user_role')
@@ -119,7 +172,33 @@ export const userService = {
         throw error
       }
 
-      return data || []
+      if (!data || data.length === 0) {
+        return []
+      }
+
+      // Get unique user IDs and role IDs
+      const userIds = [...new Set(data.map((ur: UserRole) => ur.user))]
+      const roleIds = [...new Set(data.map((ur: UserRole) => ur.role))]
+
+      // Fetch users from backend API and roles from Supabase
+      const [users, rolesResult] = await Promise.all([
+        this.getUsersByIds(userIds).catch(err => {
+          console.warn('Failed to fetch users from API:', err)
+          return []
+        }),
+        supabase.from('role').select('id, description').in('id', roleIds)
+      ])
+
+      const roles = rolesResult.data || []
+
+      // Map the data together
+      const enrichedUserRoles = data.map((ur: UserRole) => ({
+        ...ur,
+        users: users.find(u => u.id === ur.user),
+        roleData: roles.find(r => r.id === ur.role)
+      }))
+
+      return enrichedUserRoles
     } catch (error) {
       console.error('Error in getAllUserRoles:', error)
       throw error
@@ -159,6 +238,128 @@ export const userService = {
       }
     } catch (error) {
       console.error('Error in deleteUserRole:', error)
+      throw error
+    }
+  },
+
+  // Get current user's complete profile from RBAC tables
+  async getCurrentUserProfile(): Promise<UserProfileData | null> {
+    try {
+      // Get current authenticated user
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        console.error('No authenticated user')
+        return null
+      }
+
+      // Get user status by email from user_status table
+      const { data: statusData } = await supabase
+        .from('user_status')
+        .select('is_active')
+        .eq('email', user.email)
+        .single()
+
+      // Get user's roles with role descriptions
+      const { data: userRoles } = await supabase
+        .from('user_role')
+        .select(`
+          id,
+          role (
+            id,
+            description,
+            is_active
+          )
+        `)
+        .eq('user', user.id)
+
+      // Get user's assignments with assignment descriptions  
+      const { data: userAssignments } = await supabase
+        .from('user_assignment')
+        .select(`
+          id,
+          assignment (
+            id,
+            description,
+            is_active
+          )
+        `)
+        .eq('user', user.id)
+
+      // Get modules the user can access based on their roles
+      const roleIds = userRoles?.map((ur: any) => ur.role?.id).filter(Boolean) || []
+      
+      let userModules: any[] = []
+      if (roleIds.length > 0) {
+        const { data: moduleAccess } = await supabase
+          .from('role_module_access')
+          .select(`
+            is_select,
+            is_insert,
+            is_update,
+            is_delete,
+            module (
+              id,
+              description,
+              is_active
+            )
+          `)
+          .in('role', roleIds)
+
+        userModules = moduleAccess || []
+      }
+
+      // Transform the data
+      const roles = userRoles
+        ?.filter((ur: any) => ur.role?.is_active)
+        .map((ur: any) => ({
+          id: ur.role.id,
+          description: ur.role.description || 'No description'
+        })) || []
+
+      const assignments = userAssignments
+        ?.filter((ua: any) => ua.assignment?.is_active)
+        .map((ua: any) => ({
+          id: ua.assignment.id,
+          description: ua.assignment.description || 'No description'
+        })) || []
+
+      // Dedupe modules and merge permissions
+      const moduleMap = new Map<string, any>()
+      userModules.forEach((ma: any) => {
+        if (ma.module?.is_active) {
+          const existing = moduleMap.get(ma.module.id)
+          if (existing) {
+            // Merge permissions (OR)
+            existing.permissions.is_select = existing.permissions.is_select || ma.is_select
+            existing.permissions.is_insert = existing.permissions.is_insert || ma.is_insert
+            existing.permissions.is_update = existing.permissions.is_update || ma.is_update
+            existing.permissions.is_delete = existing.permissions.is_delete || ma.is_delete
+          } else {
+            moduleMap.set(ma.module.id, {
+              id: ma.module.id,
+              description: ma.module.description || 'No description',
+              permissions: {
+                is_select: ma.is_select,
+                is_insert: ma.is_insert,
+                is_update: ma.is_update,
+                is_delete: ma.is_delete
+              }
+            })
+          }
+        }
+      })
+
+      return {
+        id: user.id,
+        email: user.email || '',
+        isActive: statusData?.is_active ?? false,
+        roles,
+        assignments,
+        modules: Array.from(moduleMap.values())
+      }
+    } catch (error) {
+      console.error('Error in getCurrentUserProfile:', error)
       throw error
     }
   },
