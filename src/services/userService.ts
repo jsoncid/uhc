@@ -320,7 +320,10 @@ export const userService = {
         .from('user_status')
         .select('*')
         .eq('email', user.email)
-        .single()
+        .maybeSingle()
+
+      // Default to false if no status record found
+      const isActive = statusData?.is_active ?? false
 
       // Get user roles
       const { data: userRoles } = await supabase
