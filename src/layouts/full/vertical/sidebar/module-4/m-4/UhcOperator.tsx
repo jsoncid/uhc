@@ -20,7 +20,7 @@ const BCrumb = [
     title: 'Home',
   },
   {
-    title: 'UHC OPERATOR',
+    title: 'QR Scanner',
   },
 ];
 
@@ -69,7 +69,7 @@ const UhcOperator = () => {
 
   return (
     <>
-      <BreadcrumbComp title="UHC Operator - QR Scanner" items={BCrumb} />
+      <BreadcrumbComp title="Health Card Operator" items={BCrumb} />
 
       <div className="flex flex-col gap-6">
         <Tabs defaultValue="scanner" className="w-full">

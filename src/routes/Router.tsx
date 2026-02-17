@@ -89,7 +89,7 @@ const Router = [
         )
       },
       { 
-        path: '/module-4/uhc-member', 
+        path: '/module-4/member', 
         element: (
           <ProtectedRoute>
             <Module4Member />
@@ -98,7 +98,7 @@ const Router = [
       },
 
       { 
-        path: '/module-4/uhc-operator', 
+        path: '/module-4/operator', 
         element: (
           <ProtectedRoute>
             <Module4Operator />

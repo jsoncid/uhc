@@ -39,14 +39,14 @@ const SidebarContent: MenuItem[] = [
         name: 'Health Card Holder',
         icon: 'line-md:account-small',
         id: uniqueId(),
-        url: '/module-4/uhc-member',
+        url: '/module-4/member',
         },
         
         {
         name: 'Health Card Operator',
         icon: 'line-md:person-filled',
         id: uniqueId(),
-        url: '/module-4/uhc-operator',
+        url: '/module-4/operator',
       },
       
     ],

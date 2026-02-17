@@ -25,7 +25,7 @@ const BCrumb = [
     title: 'Home',
   },
   {
-    title: 'UHC MEMBER',
+    title: 'Documents',
   },
 ];
 
@@ -84,7 +84,7 @@ const UhcMember = () => {
 
   return (
     <>
-      <BreadcrumbComp title="UHC Member Documents" items={BCrumb} />
+      <BreadcrumbComp title="Health Card Holder" items={BCrumb} />
       
       <div className="flex flex-col gap-6">
         {/* Search Bar */}
