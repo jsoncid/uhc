@@ -31,8 +31,15 @@ export interface MenuItem {
 
 import { uniqueId } from 'lodash';
 
+// Import all module sidebars
+import Module1Sidebar from './module-1/sidebaritems';
+import Module2Sidebar from './module-2/sidebaritems';
+import Module3Sidebar from './module-3/sidebaritems';
+import Module4Sidebar from './module-4/sidebaritems';
+import Module5Sidebar from './module-5/sidebaritems';
+
 const SidebarContent: MenuItem[] = [
-  // ==================== NON-PRO SECTIONS ====================
+  // ==================== MODULE 0 ====================
   {
     heading: 'Home',
     children: [
@@ -75,43 +82,17 @@ const SidebarContent: MenuItem[] = [
           },
         ],
       },
-
     ],
   },
 
-  {
-    heading: 'Module 1 - Queuing',
-    children: [
-      {
-        name: 'Tables',
-        icon: 'solar:server-linear',
-        id: uniqueId(),
-        url: '/utilities/table',
-      },
+  // ==================== IMPORT OTHER MODULES ====================
+  ...Module1Sidebar,
+  ...Module2Sidebar,
+  ...Module3Sidebar,
+  ...Module4Sidebar,
+  ...Module5Sidebar,
 
-      {
-        name: 'Blogs',
-        id: uniqueId(),
-        icon: 'solar:sort-by-alphabet-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Blog Post',
-            url: '/apps/blog/post',
-            isPro: false,
-          },
-          {
-            id: uniqueId(),
-            name: 'Blog Detail',
-            url: '/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
-            isPro: false,
-          },
-        ],
-      },
-
-    ],
-  },
-
+  // ==================== COMMON SECTIONS ====================
   {
     heading: 'pages',
     children: [
@@ -136,6 +117,7 @@ const SidebarContent: MenuItem[] = [
       },
     ],
   },
+  
   {
     heading: 'Apps',
     children: [
@@ -174,7 +156,7 @@ const SidebarContent: MenuItem[] = [
       },
     ],
   },
-  
+
   {
     heading: 'Icons',
     children: [
@@ -187,6 +169,7 @@ const SidebarContent: MenuItem[] = [
       },
     ],
   },
+  
   {
     heading: 'Role-Based Access Control',
     children: [
@@ -218,8 +201,10 @@ const SidebarContent: MenuItem[] = [
         url: '/rbac/user-assignments',
         isPro: false,
       },
+
     ],
   },
+  
   {
     heading: 'Auth',
     children: [
@@ -227,42 +212,11 @@ const SidebarContent: MenuItem[] = [
         id: uniqueId(),
         name: 'User Activation',
         icon: 'solar:login-2-linear',
-        url: '/icons/iconify',
+        url: '/rbac/user-acceptance',
         isPro: false,
       },
     ],
   },
-  // {
-  //   heading: 'Auth',
-  //   children: [
-  //     {
-  //       name: 'Login',
-  //       id: uniqueId(),
-  //       icon: 'solar:login-2-linear',
-  //       children: [
-  //         {
-  //           id: uniqueId(),
-  //           name: 'Boxed Login',
-  //           url: '/auth/auth2/login',
-  //           isPro: false,
-  //         },
-  //       ],
-  //     },
-  //     {
-  //       name: 'Register',
-  //       id: uniqueId(),
-  //       icon: 'solar:user-plus-rounded-linear',
-  //       children: [
-  //         {
-  //           id: uniqueId(),
-  //           name: 'Boxed Register',
-  //           url: '/auth/auth2/register',
-  //           isPro: false,
-  //         },
-  //       ],
-  //     },
-  //   ],
-  // },
 ];
 
 export default SidebarContent;
