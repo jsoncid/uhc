@@ -13,8 +13,15 @@ import {
   DropdownMenuTrigger,
 } from 'src/components/ui/dropdown-menu';
 import { Button } from 'src/components/ui/button';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 const Profile = () => {
+  const { signOut } = useAuthStore();
+
+  const handleLogout = async () => {
+    await signOut();
+  };
+
   return (
     <div className="relative group/menu ps-1 sm:ps-15 shrink-0">
       <DropdownMenu>
@@ -58,11 +65,11 @@ const Profile = () => {
 
           <div className="pt-2 px-4">
             <Button
-              asChild
+              onClick={handleLogout}
               variant="outline"
               className="w-full rounded-md"
             >
-              <Link to="/auth/auth2/login">Logout</Link>
+              Logout
             </Button>
           </div>
         </DropdownMenuContent>
