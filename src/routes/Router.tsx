@@ -38,7 +38,10 @@ const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')))
 const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
 const ModuleManagement = Loadable(lazy(() => import('../views/rbac/ModuleManagement')));
 const RoleManagement = Loadable(lazy(() => import('../views/rbac/RoleManagement')));
-const UserAssignmentManagement = Loadable(lazy(() => import('../views/rbac/UserAssignmentManagement')));
+const UserAssignmentManagement = Loadable(
+  lazy(() => import('../views/rbac/UserAssignmentManagement')),
+);
+const UserAcceptance = Loadable(lazy(() => import('../views/rbac/UserAcceptance')));
 
 const Error = Loadable(lazy(() => import('../views/authentication/Error')));
 
@@ -52,42 +55,44 @@ const Router = [
     path: '/',
     element: <FullLayout />,
     children: [
-      { 
-        path: '/', 
-        exact: true, 
+      {
+        path: '/',
+        exact: true,
         element: (
           <ProtectedRoute>
             <Modern />
           </ProtectedRoute>
-        )
+        ),
       },
       // { path: '/', exact: true, element: <SamplePage /> },
       { path: '*', element: <Navigate to="/auth/404" /> },
 
-      { 
-        path: '/apps/notes', 
+      {
+        path: '/apps/notes',
         element: (
           <ProtectedRoute>
             <Notes />
           </ProtectedRoute>
-        )
+        ),
       },
-      { 
-        path: '/utilities/form', 
+      {
+        path: '/utilities/form',
         element: (
           <ProtectedRoute>
             <Form />
           </ProtectedRoute>
-        )
+        ),
       },
-      { 
-        path: '/utilities/table', 
+      {
+        path: '/utilities/table',
         element: (
           <ProtectedRoute>
             <Table />
           </ProtectedRoute>
-        )
+        ),
       },
+      {
+        path: '/apps/tickets',
       { 
         path: '/module-4/member', 
         element: (
@@ -111,80 +116,88 @@ const Router = [
           <ProtectedRoute>
             <Tickets />
           </ProtectedRoute>
-        )
+        ),
       },
-      { 
-        path: '/apps/tickets/create', 
+      {
+        path: '/apps/tickets/create',
         element: (
           <ProtectedRoute>
             <CreateTickets />
           </ProtectedRoute>
-        )
+        ),
       },
-      { 
-        path: '/apps/blog/post', 
+      {
+        path: '/apps/blog/post',
         element: (
           <ProtectedRoute>
             <Blog />
           </ProtectedRoute>
-        )
+        ),
       },
-      { 
-        path: '/apps/blog/detail/:id', 
+      {
+        path: '/apps/blog/detail/:id',
         element: (
           <ProtectedRoute>
             <BlogDetail />
           </ProtectedRoute>
-        )
+        ),
       },
-      { 
-        path: '/user-profile', 
+      {
+        path: '/user-profile',
         element: (
           <ProtectedRoute>
             <UserProfile />
           </ProtectedRoute>
-        )
+        ),
       },
-      { 
-        path: '/icons/iconify', 
+      {
+        path: '/icons/iconify',
         element: (
           <ProtectedRoute>
             <SolarIcon />
           </ProtectedRoute>
-        )
+        ),
       },
       // RBAC Routes
-      { 
-        path: '/rbac/assignments', 
+      {
+        path: '/rbac/assignments',
         element: (
           <ProtectedRoute>
             <AssignmentManagement />
           </ProtectedRoute>
-        )
+        ),
       },
-      { 
-        path: '/rbac/modules', 
+      {
+        path: '/rbac/modules',
         element: (
           <ProtectedRoute>
             <ModuleManagement />
           </ProtectedRoute>
-        )
+        ),
       },
-      { 
-        path: '/rbac/roles', 
+      {
+        path: '/rbac/roles',
         element: (
           <ProtectedRoute>
             <RoleManagement />
           </ProtectedRoute>
-        )
+        ),
       },
-      { 
-        path: '/rbac/user-assignments', 
+      {
+        path: '/rbac/user-assignments',
         element: (
           <ProtectedRoute>
             <UserAssignmentManagement />
           </ProtectedRoute>
-        )
+        ),
+      },
+      {
+        path: '/rbac/user-acceptance',
+        element: (
+          <ProtectedRoute>
+            <UserAcceptance />
+          </ProtectedRoute>
+        ),
       },
     ],
   },
