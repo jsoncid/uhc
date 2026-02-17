@@ -36,8 +36,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       
       console.log('Supabase auth successful, checking user status...')
       
-      // Check if user is active in user_status table
-      const userStatus = await userService.getUserStatus(email)
+      // Check if user is active in user_status table (using user id as primary key)
+      const userStatus = await userService.getUserStatus(data.user.id)
       
       // if (!userStatus) {
       //   console.error('User status not found for email:', email)
@@ -67,37 +67,44 @@ export const useAuthStore = create<AuthState>((set) => ({
   signUp: async (email: string, password: string, options?: { data?: { [key: string]: any } }) => {
     set({ isLoading: true, error: null })
     try {
-      console.log('Starting registration for email:', email)
-      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: options?.data
+        options: options ? { data: options.data } : undefined
+      })
+      if (error) throw error
+
+      if (data?.user) {
+        // After successful signup, insert user details into user_status table
+        const { error: insertError } = await supabase
+          .from('user_status')
+          .insert([
+            {
+              id: data.user.id,
+              email: data.user.email,
+              is_active: false
+            },
+          ])
+
+        if (insertError) {
+          console.error('Error creating user_status:', insertError)
+          throw insertError
         }
-      })
-      
-      if (error) {
-        console.error('Supabase signUp error:', error)
-        throw error
+
+        console.log('Successfully created an account and saved user details.')
+        
+        // Sign out the user to prevent automatic login
+        // User must wait for admin approval and login manually
+        await supabase.auth.signOut()
       }
+
+      // Don't set user - registration successful but user needs to login manually after approval
+      set({ user: null, isLoading: false })
       
-      console.log('Supabase auth successful, user:', data.user)
-      
-      // Create user status record in auth_extension.user_status table
-      if (data.user) {
-        console.log('Creating user status record for email:', email)
-        await userService.createUserStatus(email)
-        console.log('User status record created successfully')
-      }
-      
-      set({ user: data.user, isLoading: false })
+      // Return success indication (caller can check isLoading: false and error: null)
+      return
     } catch (error) {
-      console.error('Registration error:', error)
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to sign up',
-        isLoading: false 
-      })
+      set({ error: error instanceof Error ? error.message : 'Failed to sign up', isLoading: false })
     }
   },
 
