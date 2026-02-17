@@ -242,171 +242,40 @@ export const userService = {
     }
   },
 
-  // Get current user's complete profile from RBAC tables
-  async getCurrentUserProfile(): Promise<UserProfileData | null> {
-    try {
-      // Get current authenticated user
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        console.log('No authenticated user')
-        return null
-      }
-
-      // Get user status by email from user_status table
-      // Using maybeSingle() to avoid 406 error when no row exists
-      const { data: statusData } = await supabase
-        .from('user_status')
-        .select('is_active')
-        .eq('email', user.email)
-        .maybeSingle()
-
-      // Default to false if no status record found
-      const isActive = statusData?.is_active ?? false
-
-      // Get user's roles with role descriptions
-      const { data: userRoles } = await supabase
-        .from('user_role')
-        .select(`
-          id,
-          role (
-            id,
-            description,
-            is_active
-          )
-        `)
-        .eq('user', user.id)
-
-      // Get user's assignments with assignment descriptions  
-      const { data: userAssignments } = await supabase
-        .from('user_assignment')
-        .select(`
-          id,
-          assignment (
-            id,
-            description,
-            is_active
-          )
-        `)
-        .eq('user', user.id)
-
-      // Get modules the user can access based on their roles
-      const roleIds = userRoles?.map((ur: any) => ur.role?.id).filter(Boolean) || []
-      
-      let userModules: any[] = []
-      if (roleIds.length > 0) {
-        const { data: moduleAccess } = await supabase
-          .from('role_module_access')
-          .select(`
-            is_select,
-            is_insert,
-            is_update,
-            is_delete,
-            module (
-              id,
-              description,
-              is_active
-            )
-          `)
-          .in('role', roleIds)
-
-        userModules = moduleAccess || []
-      }
-
-      // Transform the data
-      const roles = userRoles
-        ?.filter((ur: any) => ur.role?.is_active)
-        .map((ur: any) => ({
-          id: ur.role.id,
-          description: ur.role.description || 'No description'
-        })) || []
-
-      const assignments = userAssignments
-        ?.filter((ua: any) => ua.assignment?.is_active)
-        .map((ua: any) => ({
-          id: ua.assignment.id,
-          description: ua.assignment.description || 'No description'
-        })) || []
-
-      // Dedupe modules and merge permissions
-      const moduleMap = new Map<string, any>()
-      userModules.forEach((ma: any) => {
-        if (ma.module?.is_active) {
-          const existing = moduleMap.get(ma.module.id)
-          if (existing) {
-            // Merge permissions (OR)
-            existing.permissions.is_select = existing.permissions.is_select || ma.is_select
-            existing.permissions.is_insert = existing.permissions.is_insert || ma.is_insert
-            existing.permissions.is_update = existing.permissions.is_update || ma.is_update
-            existing.permissions.is_delete = existing.permissions.is_delete || ma.is_delete
-          } else {
-            moduleMap.set(ma.module.id, {
-              id: ma.module.id,
-              description: ma.module.description || 'No description',
-              permissions: {
-                is_select: ma.is_select,
-                is_insert: ma.is_insert,
-                is_update: ma.is_update,
-                is_delete: ma.is_delete
-              }
-            })
-          }
-        }
-      })
-
-      return {
-        id: user.id,
-        email: user.email || '',
-        isActive,
-        roles,
-        assignments,
-        modules: Array.from(moduleMap.values())
-      }
-    } catch (error) {
-      console.error('Error in getCurrentUserProfile:', error)
-      throw error
-    }
-  },
-
-  // User Acceptance operations
-  async getUsersWithStatus(): Promise<{ id: string; email: string; name: string; is_active: boolean; created_at: string }[]> {
-    try {
-      const { data, error } = await supabase
-        .rpc('get_users_with_status')
-
-      if (error) {
-        console.error('Error fetching users with status:', error)
-        throw error
-      }
-
-      return data || []
-    } catch (error) {
-      console.error('Error in getUsersWithStatus:', error)
-      throw error
-    }
-  },
-
+  // Get pending users (users with is_active = false)
   async getPendingUsers(): Promise<{ id: string; email: string; name: string; is_active: boolean; created_at: string }[]> {
     try {
       const { data, error } = await supabase
-        .rpc('get_pending_users')
+        .from('user_status')
+        .select('*')
+        .eq('is_active', false)
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('Error fetching pending users:', error)
         throw error
       }
 
-      return data || []
+      return (data || []).map((user: any) => ({
+        id: user.id,
+        email: user.email,
+        name: user.email?.split('@')[0] || 'Unknown',
+        is_active: user.is_active,
+        created_at: user.created_at
+      }))
     } catch (error) {
       console.error('Error in getPendingUsers:', error)
       throw error
     }
   },
 
+  // Approve a user by setting is_active to true
   async approveUser(userId: string): Promise<void> {
     try {
       const { error } = await supabase
-        .rpc('approve_user', { user_id: userId })
+        .from('user_status')
+        .update({ is_active: true } as UserStatus['Update'])
+        .eq('id', userId)
 
       if (error) {
         console.error('Error approving user:', error)
@@ -418,10 +287,13 @@ export const userService = {
     }
   },
 
+  // Reject a user by deleting their record
   async rejectUser(userId: string): Promise<void> {
     try {
       const { error } = await supabase
-        .rpc('reject_user', { user_id: userId })
+        .from('user_status')
+        .delete()
+        .eq('id', userId)
 
       if (error) {
         console.error('Error rejecting user:', error)
@@ -429,6 +301,108 @@ export const userService = {
       }
     } catch (error) {
       console.error('Error in rejectUser:', error)
+      throw error
+    }
+  },
+
+  // Get current user's profile with roles, assignments, and modules
+  async getCurrentUserProfile(): Promise<UserProfileData | null> {
+    try {
+      // Get current authenticated user
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        return null
+      }
+
+      // Get user status
+      const { data: statusData } = await supabase
+        .from('user_status')
+        .select('*')
+        .eq('email', user.email)
+        .maybeSingle()
+
+      // Default to false if no status record found
+      const isActive = statusData?.is_active ?? false
+
+      // Get user roles
+      const { data: userRoles } = await supabase
+        .from('user_role')
+        .select('role')
+        .eq('user', user.id)
+
+      const roleIds = userRoles?.map(ur => ur.role) || []
+
+      // Get role details
+      let roles: Array<{ id: string; description: string }> = []
+      if (roleIds.length > 0) {
+        const { data: rolesData } = await supabase
+          .from('role')
+          .select('id, description')
+          .in('id', roleIds)
+        roles = rolesData || []
+      }
+
+      // Get assignments through roles
+      let assignments: Array<{ id: string; description: string }> = []
+      if (roleIds.length > 0) {
+        const { data: roleAssignments } = await supabase
+          .from('role_assignment')
+          .select('assignment')
+          .in('role', roleIds)
+        
+        const assignmentIds = roleAssignments?.map(ra => ra.assignment) || []
+        if (assignmentIds.length > 0) {
+          const { data: assignmentsData } = await supabase
+            .from('assignment')
+            .select('id, description')
+            .in('id', assignmentIds)
+          assignments = assignmentsData || []
+        }
+      }
+
+      // Get modules through assignments
+      let modules: Array<{ id: string; description: string; permissions: { is_select: boolean; is_insert: boolean; is_update: boolean; is_delete: boolean } }> = []
+      if (assignments.length > 0) {
+        const assignmentIds = assignments.map(a => a.id)
+        const { data: assignmentModules } = await supabase
+          .from('assignment_module')
+          .select('module, is_select, is_insert, is_update, is_delete')
+          .in('assignment', assignmentIds)
+        
+        const moduleIds = assignmentModules?.map(am => am.module) || []
+        if (moduleIds.length > 0) {
+          const { data: modulesData } = await supabase
+            .from('module')
+            .select('id, description')
+            .in('id', moduleIds)
+          
+          modules = (modulesData || []).map(mod => {
+            const perms = assignmentModules?.find(am => am.module === mod.id)
+            return {
+              id: mod.id,
+              description: mod.description,
+              permissions: {
+                is_select: perms?.is_select || false,
+                is_insert: perms?.is_insert || false,
+                is_update: perms?.is_update || false,
+                is_delete: perms?.is_delete || false
+              }
+            }
+          })
+        }
+      }
+
+      return {
+        id: user.id,
+        email: user.email || '',
+        isActive: statusData?.is_active || false,
+        roles,
+        assignments,
+        modules
+      }
+    } catch (error) {
+      console.error('Error in getCurrentUserProfile:', error)
       throw error
     }
   }
