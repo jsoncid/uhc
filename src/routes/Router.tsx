@@ -93,6 +93,7 @@ const Router = [
       },
       {
         path: '/apps/tickets',
+      },
       { 
         path: '/module-4/member', 
         element: (
