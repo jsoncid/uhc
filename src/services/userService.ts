@@ -88,12 +88,12 @@ export const userService = {
     }
   },
 
-  async updateUserStatus(email: string, isActive: boolean): Promise<void> {
+  async updateUserStatus(userId: string, isActive: boolean): Promise<void> {
     try {
       const { error } = await supabase
         .from('user_status')
         .update({ is_active: isActive } as UserStatus['Update'])
-        .eq('email', email)
+        .eq('id', userId)
 
       if (error) {
         console.error('Error updating user status:', error)
@@ -105,12 +105,12 @@ export const userService = {
     }
   },
 
-  async getUserStatus(email: string): Promise<UserStatus['Row'] | null> {
+  async getUserStatus(userId: string): Promise<UserStatus['Row'] | null> {
     try {
       const { data, error } = await supabase
         .from('user_status')
         .select('*')
-        .eq('email', email)
+        .eq('id', userId)
         .single()
 
       if (error) {
@@ -364,6 +364,71 @@ export const userService = {
       }
     } catch (error) {
       console.error('Error in getCurrentUserProfile:', error)
+      throw error
+    }
+  },
+
+  // User Acceptance operations
+  async getUsersWithStatus(): Promise<{ id: string; email: string; name: string; is_active: boolean; created_at: string }[]> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_users_with_status')
+
+      if (error) {
+        console.error('Error fetching users with status:', error)
+        throw error
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getUsersWithStatus:', error)
+      throw error
+    }
+  },
+
+  async getPendingUsers(): Promise<{ id: string; email: string; name: string; is_active: boolean; created_at: string }[]> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_pending_users')
+
+      if (error) {
+        console.error('Error fetching pending users:', error)
+        throw error
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getPendingUsers:', error)
+      throw error
+    }
+  },
+
+  async approveUser(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .rpc('approve_user', { user_id: userId })
+
+      if (error) {
+        console.error('Error approving user:', error)
+        throw error
+      }
+    } catch (error) {
+      console.error('Error in approveUser:', error)
+      throw error
+    }
+  },
+
+  async rejectUser(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .rpc('reject_user', { user_id: userId })
+
+      if (error) {
+        console.error('Error rejecting user:', error)
+        throw error
+      }
+    } catch (error) {
+      console.error('Error in rejectUser:', error)
       throw error
     }
   }
