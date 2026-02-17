@@ -49,13 +49,13 @@ const SidebarContent: MenuItem[] = [
           {
             id: uniqueId(),
             name: 'Blog Post',
-            url: '/apps/blog/post',
+            url: '/module-1/apps/blog/post',
             isPro: false,
           },
           {
             id: uniqueId(),
             name: 'Blog Detail',
-            url: '/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
+            url: '/module-1/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
             isPro: false,
           },
         ],

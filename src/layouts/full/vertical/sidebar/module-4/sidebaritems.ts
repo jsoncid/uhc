@@ -33,13 +33,13 @@ import { uniqueId } from 'lodash';
 
 const SidebarContent: MenuItem[] = [
   {
-    heading: 'Module 4 - HEALTH CARD',
+    heading: 'Module 4 - UNIVERSAL HEALTH CARD',
     children: [
       {
         name: 'Tables',
         icon: 'solar:server-linear',
         id: uniqueId(),
-        url: '/utilities/table',
+        url: '/module-4/table',
       },
       {
         name: 'Blogs',
@@ -49,13 +49,13 @@ const SidebarContent: MenuItem[] = [
           {
             id: uniqueId(),
             name: 'Blog Post',
-            url: '/apps/blog/post',
+            url: '/module-4/apps/blog/post',
             isPro: false,
           },
           {
             id: uniqueId(),
             name: 'Blog Detail',
-            url: '/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
+            url: '/module-4/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
             isPro: false,
           },
         ],

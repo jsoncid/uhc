@@ -33,7 +33,7 @@ import { uniqueId } from 'lodash';
 
 const SidebarContent: MenuItem[] = [
   {
-    heading: 'Module 3 - REPOSITORY',
+    heading: 'Module 3 - PATIENT REPOSITORY',
     children: [
       {
         name: 'Tables',
