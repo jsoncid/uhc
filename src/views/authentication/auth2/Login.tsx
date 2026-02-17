@@ -1,13 +1,21 @@
 import { Link } from "react-router";
+import { Navigate } from 'react-router';
 import CardBox from "src/components/shared/CardBox";
 
 import AuthLogin from "../authforms/AuthLogin";
-import SocialButtons from "../authforms/SocialButtons";
+// import SocialButtons from "../authforms/SocialButtons";
 
 import FullLogo from "src/layouts/full/shared/logo/FullLogo";
+import { useAuthStore } from '@/stores/useAuthStore';
 
 
 const Login = () => {
+  const { user } = useAuthStore();
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <>
       <div className="relative overflow-hidden h-screen bg-lightprimary dark:bg-darkprimary">
@@ -16,10 +24,10 @@ const Login = () => {
             <div className="mx-auto mb-6">
               <FullLogo />
             </div>
-            <SocialButtons title="or sign in with" />
+            {/* <SocialButtons title="or sign in with" /> */}
             <AuthLogin />
             <div className="flex gap-2 text-base text-ld font-medium mt-6 items-center justify-center">
-              <p>New to TailwindAdmin?</p>
+              
               <Link
                 to={"/auth/auth2/register"}
                 className="text-primary text-sm font-medium"

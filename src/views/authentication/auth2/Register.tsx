@@ -1,14 +1,22 @@
 import { Link } from "react-router";
+import { Navigate } from 'react-router';
 import CardBox from "src/components/shared/CardBox";
 
 import AuthRegister from "../authforms/AuthRegister";
-import SocialButtons from "../authforms/SocialButtons";
+// import SocialButtons from "../authforms/SocialButtons";
 
 import FullLogo from "src/layouts/full/shared/logo/FullLogo";
+import { useAuthStore } from '@/stores/useAuthStore';
 
 
 
 const Register = () => {
+  const { user } = useAuthStore();
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <>
       <div className="relative overflow-hidden h-screen bg-lightprimary dark:bg-darkprimary">
@@ -17,7 +25,7 @@ const Register = () => {
             <div className="mx-auto mb-6">
               <FullLogo />
             </div>
-            <SocialButtons title="or sign up with" />
+            {/* <SocialButtons title="or sign up with" /> */}
             <AuthRegister />
             <div className="flex gap-2 text-base text-ld font-medium mt-6 items-center justify-start">
               <p>Already have an Account?</p>
