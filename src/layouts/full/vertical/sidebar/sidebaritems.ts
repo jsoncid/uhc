@@ -75,7 +75,6 @@ const SidebarContent: MenuItem[] = [
           },
         ],
       },
-
     ],
   },
 
@@ -141,7 +140,7 @@ const SidebarContent: MenuItem[] = [
       },
     ],
   },
-  
+
   {
     heading: 'Icons',
     children: [
@@ -183,6 +182,13 @@ const SidebarContent: MenuItem[] = [
         name: 'User Management',
         icon: 'solar:users-group-rounded-linear',
         url: '/rbac/user-assignments',
+        isPro: false,
+      },
+      {
+        id: uniqueId(),
+        name: 'User Acceptance',
+        icon: 'solar:user-check-rounded-linear',
+        url: '/rbac/user-acceptance',
         isPro: false,
       },
     ],
