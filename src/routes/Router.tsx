@@ -27,6 +27,9 @@ const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/User
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
+const PatientProfiling = Loadable(
+  lazy(() => import('../views/apps/module-3/PatientProfiling')),
+);
 const Module4Member = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')));
 const Module4Operator = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')));
 const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
@@ -107,6 +110,14 @@ const Router = [
             <Module4Operator />
           </ProtectedRoute>
         )
+      },
+      {
+        path: '/module-3/patient-profiling',
+        element: (
+          <ProtectedRoute>
+            <PatientProfiling />
+          </ProtectedRoute>
+        ),
       },
       { 
         path: '/apps/tickets', 

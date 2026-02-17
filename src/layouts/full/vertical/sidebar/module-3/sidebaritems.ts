@@ -36,29 +36,16 @@ const SidebarContent: MenuItem[] = [
     heading: 'Module 3 - PATIENT REPOSITORY',
     children: [
       {
-        name: 'Tables',
+        name: 'Patient Profiling',
         icon: 'solar:server-linear',
         id: uniqueId(),
-        url: '/module-3/table',
+        url: '/module-3/patient-profiling',
       },
       {
-        name: 'Blogs',
+        name: 'Tagging',
         id: uniqueId(),
         icon: 'solar:sort-by-alphabet-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Blog Post',
-            url: '/module-3/apps/blog/post',
-            isPro: false,
-          },
-          {
-            id: uniqueId(),
-            name: 'Blog Detail',
-            url: '/module-3/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
-            isPro: false,
-          },
-        ],
+        url: '/module-3/tagging/overview',
       },
     ],
   },
