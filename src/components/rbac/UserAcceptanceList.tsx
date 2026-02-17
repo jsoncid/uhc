@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, UserCheck, UserX, Eye, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, UserCheck, UserX, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
