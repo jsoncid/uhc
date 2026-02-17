@@ -33,17 +33,17 @@ import { uniqueId } from 'lodash';
 
 const SidebarContent: MenuItem[] = [
   {
-    heading: 'Module 4 - UNIVERSAL HEALTH CARD',
+    heading: 'Module 4 - HEALTH CARD',
     children: [
       {
-        name: 'UHC MEMBER',
+        name: 'Health Card Holder',
         icon: 'line-md:account-small',
         id: uniqueId(),
         url: '/module-4/uhc-member',
         },
         
         {
-        name: 'UHC OPERATOR',
+        name: 'Health Card Operator',
         icon: 'line-md:person-filled',
         id: uniqueId(),
         url: '/module-4/uhc-operator',
