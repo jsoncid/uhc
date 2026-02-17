@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { Database } from '@/lib/supabase'
+import { userService } from './userService'
 
 type Role = Database['public']['Tables']['role']
 type RoleModuleAccess = Database['public']['Tables']['role_module_access']
@@ -221,13 +222,15 @@ export const roleService = {
       const userIds = [...new Set(userAssignments.map(ua => ua.user))]
       const assignmentIds = [...new Set(userAssignments.map(ua => ua.assignment))]
 
-      // Fetch users and assignments separately
-      const [usersResult, assignmentsResult] = await Promise.all([
-        supabase.from('users').select('id, email, username').in('id', userIds),
+      // Fetch users from backend API and assignments from Supabase
+      const [users, assignmentsResult] = await Promise.all([
+        userService.getUsersByIds(userIds).catch(err => {
+          console.warn('Failed to fetch users from API:', err)
+          return []
+        }),
         supabase.from('assignment').select('id, description').in('id', assignmentIds)
       ])
 
-      const users = usersResult.data || []
       const assignments = assignmentsResult.data || []
 
       // Map the data together

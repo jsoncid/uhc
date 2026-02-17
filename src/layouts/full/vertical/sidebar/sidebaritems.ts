@@ -79,39 +79,6 @@ const SidebarContent: MenuItem[] = [
     ],
   },
 
-    {
-    heading: 'Module 3 - Team3',
-    children: [
-      {
-        name: 'Tables',
-        icon: 'solar:server-linear',
-        id: uniqueId(),
-        url: '/utilities/table',
-      },
-
-      {
-        name: 'Blogs',
-        id: uniqueId(),
-        icon: 'solar:sort-by-alphabet-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Blog Post',
-            url: '/apps/blog/post',
-            isPro: false,
-          },
-          {
-            id: uniqueId(),
-            name: 'Blog Detail',
-            url: '/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
-            isPro: false,
-          },
-        ],
-      },
-
-    ],
-  },
-
   {
     heading: 'Module 1 - Queuing',
     children: [
