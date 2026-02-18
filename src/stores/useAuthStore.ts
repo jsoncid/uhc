@@ -64,7 +64,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  signUp: async (email: string, password: string, options?: { data?: { [key: string]: any } }) => {
+  signUp: async (email: string, password: string, options?: { data?: { [key: string]: any }, assignmentId?: string }) => {
     set({ isLoading: true, error: null })
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -89,6 +89,25 @@ export const useAuthStore = create<AuthState>((set) => ({
         if (insertError) {
           console.error('Error creating user_status:', insertError)
           throw insertError
+        }
+
+        // Insert user assignment if assignmentId was provided
+        if (options?.assignmentId) {
+          const { error: assignmentError } = await supabase
+            .from('user_assignment')
+            .insert([
+              {
+                user: data.user.id,
+                assignment: options.assignmentId
+              },
+            ])
+
+          if (assignmentError) {
+            console.error('Error creating user_assignment:', assignmentError)
+            throw assignmentError
+          }
+
+          console.log('Successfully created user assignment.')
         }
 
         console.log('Successfully created an account and saved user details.')
