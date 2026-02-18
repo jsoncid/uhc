@@ -75,7 +75,6 @@ const SidebarContent: MenuItem[] = [
           },
         ],
       },
-
     ],
   },
 
@@ -108,7 +107,6 @@ const SidebarContent: MenuItem[] = [
           },
         ],
       },
-
     ],
   },
 
@@ -174,7 +172,7 @@ const SidebarContent: MenuItem[] = [
       },
     ],
   },
-  
+
   {
     heading: 'Icons',
     children: [
