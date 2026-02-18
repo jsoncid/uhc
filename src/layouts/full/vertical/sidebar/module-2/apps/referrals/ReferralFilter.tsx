@@ -9,11 +9,51 @@ const ReferralFilter = () => {
     referrals.filter((r) => r.latest_status?.description === desc).length;
 
   const cards = [
-    { key: 'all', label: 'Total Referrals', value: referrals.length, icon: 'solar:clipboard-list-bold-duotone', text: 'text-primary', iconBg: 'bg-primary/10', bg: '' },
-    { key: 'Pending', label: 'Pending', value: count('Pending'), icon: 'solar:clock-circle-bold-duotone', text: 'text-warning', iconBg: 'bg-warning/10', bg: '' },
-    { key: 'Accepted', label: 'Accepted', value: count('Accepted'), icon: 'solar:check-circle-bold-duotone', text: 'text-success', iconBg: 'bg-success/10', bg: '' },
-    { key: 'In Transit', label: 'In Transit', value: count('In Transit'), icon: 'solar:routing-bold-duotone', text: 'text-info', iconBg: 'bg-info/10', bg: '' },
-    { key: 'Completed', label: 'Completed', value: count('Completed'), icon: 'solar:medal-ribbons-star-bold-duotone', text: 'text-secondary', iconBg: 'bg-secondary/10', bg: 'bg-lightsecondary' },
+    {
+      key: 'all',
+      label: 'Total Referrals',
+      value: referrals.length,
+      icon: 'solar:clipboard-list-bold-duotone',
+      text: 'text-primary',
+      iconBg: 'bg-primary/10',
+      bg: '',
+    },
+    {
+      key: 'Pending',
+      label: 'Pending',
+      value: count('Pending'),
+      icon: 'solar:clock-circle-bold-duotone',
+      text: 'text-warning',
+      iconBg: 'bg-warning/10',
+      bg: '',
+    },
+    {
+      key: 'Accepted',
+      label: 'Accepted',
+      value: count('Accepted'),
+      icon: 'solar:check-circle-bold-duotone',
+      text: 'text-success',
+      iconBg: 'bg-success/10',
+      bg: '',
+    },
+    {
+      key: 'In Transit',
+      label: 'In Transit',
+      value: count('In Transit'),
+      icon: 'solar:routing-bold-duotone',
+      text: 'text-info',
+      iconBg: 'bg-info/10',
+      bg: '',
+    },
+    {
+      key: 'Discharged',
+      label: 'Discharged',
+      value: count('Discharged'),
+      icon: 'solar:exit-bold-duotone',
+      text: 'text-secondary',
+      iconBg: 'bg-secondary/10',
+      bg: 'bg-lightsecondary',
+    },
   ];
 
   return (
@@ -29,7 +69,11 @@ const ReferralFilter = () => {
                 <Icon icon={card.icon} height={24} className={card.text} />
               </div>
               {filter === card.key && (
-                <Icon icon="solar:check-read-linear" height={16} className={`${card.text} opacity-70`} />
+                <Icon
+                  icon="solar:check-read-linear"
+                  height={16}
+                  className={`${card.text} opacity-70`}
+                />
               )}
             </div>
             <h3 className={`${card.text} text-3xl font-bold leading-none mb-1.5`}>{card.value}</h3>

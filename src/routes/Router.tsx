@@ -51,6 +51,9 @@ const CreateObGyneReferral = Loadable(
 const ReferralDetails = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralDetails')),
 );
+const ReferralHistory = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralHistory')),
+);
 
 // RBAC Pages
 const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
@@ -188,6 +191,14 @@ const Router = [
         element: (
           <ProtectedRoute>
             <ReferralDetails />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referral-history',
+        element: (
+          <ProtectedRoute>
+            <ReferralHistory />
           </ProtectedRoute>
         ),
       },

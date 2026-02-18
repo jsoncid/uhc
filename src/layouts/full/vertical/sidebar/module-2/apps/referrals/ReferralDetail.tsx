@@ -11,7 +11,7 @@ const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
-  Completed: 'bg-lightsecondary text-secondary',
+  Discharged: 'bg-lightsecondary text-secondary',
   Rejected: 'bg-lighterror text-error',
 };
 

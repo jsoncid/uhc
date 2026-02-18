@@ -41,6 +41,12 @@ const SidebarContent: MenuItem[] = [
         icon: 'solar:document-medicine-linear',
         url: '/module-2/referrals',
       },
+       {
+        name: 'Referral History',
+        id: uniqueId(),
+        icon: 'solar:history-2-bold',
+        url: '/module-2/referral-history',
+      },
     ],
   },
   // {

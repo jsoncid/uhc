@@ -19,12 +19,6 @@ import {
 } from 'src/components/ui/table';
 import { Badge } from 'src/components/ui/badge';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from 'src/components/ui/tooltip';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -43,7 +37,7 @@ const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
-  Completed: 'bg-lightsecondary text-secondary',
+  Discharged: 'bg-lightsecondary text-secondary',
   Rejected: 'bg-lighterror text-error',
 };
 
@@ -222,41 +216,37 @@ const ReferralListing = () => {
                     {format(new Date(referral.created_at), 'MMM dd, yyyy')}
                   </TableCell>
                   <TableCell className="text-right">
-                    <TooltipProvider>
-                      <div className="flex items-center justify-end gap-1">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-primary hover:bg-primary/10"
-                              onClick={() => navigate('/module-2/referrals/detail/' + referral.id)}
-                            >
-                              <Icon icon="solar:eye-linear" height={16} />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>View Details</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-error hover:bg-error/10"
-                              onClick={() =>
-                                handleDeactivateClick(
-                                  referral.id,
-                                  referral.patient_name ?? 'this referral',
-                                )
-                              }
-                            >
-                              <Icon icon="solar:trash-bin-minimalistic-linear" height={16} />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Deactivate</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </TooltipProvider>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Icon icon="solar:menu-dots-bold" height={16} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[160px]">
+                        <DropdownMenuItem
+                          onClick={() => navigate('/module-2/referrals/detail/' + referral.id)}
+                        >
+                          <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-error focus:text-error"
+                          onClick={() =>
+                            handleDeactivateClick(
+                              referral.id,
+                              referral.patient_name ?? 'this referral',
+                            )
+                          }
+                        >
+                          <Icon
+                            icon="solar:trash-bin-minimalistic-linear"
+                            height={15}
+                            className="mr-2"
+                          />
+                          Deactivate
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))

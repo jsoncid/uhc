@@ -9,6 +9,7 @@ import {
 
 export interface ReferralContextType {
   referrals: ReferralType[];
+  deactivatedReferrals: ReferralType[];
   statuses: ReferralStatus[];
   loading: boolean;
   error: string | Error | null;
@@ -19,13 +20,14 @@ export interface ReferralContextType {
   setReferralSearch: (term: string) => void;
   addReferral: (referral: ReferralType) => void;
   updateReferralStatus: (id: string, statusId: string) => void;
-  deactivateReferral: (id: string) => void;
+  deactivateReferral: (id: string, deactivatedBy?: string) => void;
 }
 
 export const ReferralContext = createContext<ReferralContextType>({} as ReferralContextType);
 
 export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [referrals, setReferrals] = useState<ReferralType[]>([]);
+  const [deactivatedReferrals, setDeactivatedReferrals] = useState<ReferralType[]>([]);
   const [statuses] = useState<ReferralStatus[]>(StatusData);
   const [referralSearch, setReferralSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -47,6 +49,18 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ),
       }));
       setReferrals(hydrated);
+
+      // Hydrate deactivated referrals (status === false)
+      const deactivated = ReferralData.filter((r) => r.status === false).map((r) => ({
+        ...r,
+        referral_info: ReferralInfoData.find((ri) => ri.referral === r.id),
+        history: ReferralHistoryData.filter((h) => h.referral === r.id),
+        latest_status: StatusData.find(
+          (s) =>
+            s.id === ReferralHistoryData.filter((h) => h.referral === r.id).slice(-1)[0]?.status,
+        ),
+      }));
+      setDeactivatedReferrals(deactivated);
     } catch (err) {
       setError(err instanceof Error ? err : String(err));
     } finally {
@@ -110,9 +124,24 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
-  const deactivateReferral = (id: string) => {
+  const deactivateReferral = (id: string, deactivatedBy = 'Current User') => {
+    const now = new Date().toISOString();
     const idx = ReferralData.findIndex((r) => r.id === id);
-    if (idx !== -1) ReferralData[idx].status = false;
+    if (idx !== -1) {
+      ReferralData[idx].status = false;
+      ReferralData[idx].deactivated_at = now;
+      ReferralData[idx].deactivated_by = deactivatedBy;
+    }
+    const deactivated = referrals.find((r) => r.id === id);
+    if (deactivated) {
+      const deactivatedRecord: ReferralType = {
+        ...deactivated,
+        status: false,
+        deactivated_at: now,
+        deactivated_by: deactivatedBy,
+      };
+      setDeactivatedReferrals((prev) => [deactivatedRecord, ...prev]);
+    }
     setReferrals((prev) => prev.filter((r) => r.id !== id));
   };
 
@@ -122,6 +151,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     <ReferralContext.Provider
       value={{
         referrals,
+        deactivatedReferrals,
         statuses,
         loading,
         error,

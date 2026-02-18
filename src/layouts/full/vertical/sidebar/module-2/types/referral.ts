@@ -10,6 +10,8 @@ export interface ReferralType {
   id: string; // uuid
   created_at: string;
   status: boolean | null; // active/inactive flag on the referral itself
+  deactivated_at?: string | null; // ISO string — when it was deactivated
+  deactivated_by?: string | null; // name/identifier of who deactivated it
   patient_profile: string | null; // uuid → module3.patient_profile.id
   from_assignment: string | null; // uuid → assignment.id
   to_assignment: string | null; // uuid → assignment.id (destination facility)
