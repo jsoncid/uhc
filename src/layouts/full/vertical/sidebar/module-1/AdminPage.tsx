@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Search, Trash2, Building2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Search, Trash2, Building2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,36 +13,56 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
-import { AddOfficeDialog, OfficeFormData } from './AddOfficeDialog';
+import { AddOfficeDialog } from './AddOfficeDialog';
+import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
+import { userService } from '@/services/userService';
 
-interface Office {
+interface Assignment {
   id: string;
-  name: string;
-  windows: { id: string; name: string }[];
-  createdAt: string;
+  description: string;
 }
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Admin Page' }];
 
 const AdminPage = () => {
-  const [offices, setOffices] = useState<Office[]>([]);
+  const { offices, isLoading, error, fetchOffices, deleteOffice } = useOfficeStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [error] = useState<string | null>(null);
+  const [userAssignment, setUserAssignment] = useState<Assignment | null>(null);
+  const [loadingAssignment, setLoadingAssignment] = useState(true);
 
-  const handleAddOffice = (data: OfficeFormData) => {
-    const newOffice: Office = {
-      id: crypto.randomUUID(),
-      name: data.officeName,
-      windows: data.windows,
-      createdAt: new Date().toISOString(),
+  useEffect(() => {
+    const loadUserAssignment = async () => {
+      try {
+        setLoadingAssignment(true);
+        const profile = await userService.getCurrentUserProfile();
+        if (profile && profile.assignments.length > 0) {
+          setUserAssignment(profile.assignments[0]);
+        }
+      } catch (err) {
+        console.error('Failed to load user assignment:', err);
+      } finally {
+        setLoadingAssignment(false);
+      }
     };
-    setOffices((prev) => [...prev, newOffice]);
+    loadUserAssignment();
+  }, []);
+
+  useEffect(() => {
+    if (userAssignment) {
+      fetchOffices(userAssignment.id);
+    }
+  }, [userAssignment, fetchOffices]);
+
+  const handleDeleteOffice = async (id: string) => {
+    if (confirm('Are you sure you want to remove this office?')) {
+      await deleteOffice(id);
+    }
   };
 
-  const handleDeleteOffice = (id: string) => {
-    if (confirm('Are you sure you want to remove this office?')) {
-      setOffices((prev) => prev.filter((o) => o.id !== id));
+  const handleRefresh = () => {
+    if (userAssignment) {
+      fetchOffices(userAssignment.id);
     }
   };
 
@@ -50,8 +70,8 @@ const AdminPage = () => {
     if (!searchTerm) return true;
     const lower = searchTerm.toLowerCase();
     return (
-      office.name.toLowerCase().includes(lower) ||
-      office.windows.some((w) => w.name.toLowerCase().includes(lower))
+      (office.description?.toLowerCase().includes(lower) ?? false) ||
+      (office.windows?.some((w) => w.description?.toLowerCase().includes(lower)) ?? false)
     );
   });
 
@@ -67,13 +87,26 @@ const AdminPage = () => {
                 <Building2 className="h-5 w-5" />
                 Office Management
               </CardTitle>
-              <Button onClick={() => setIsDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Office
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button onClick={() => setIsDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Office
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
+            {userAssignment && (
+              <div className="mb-4 p-3 bg-muted rounded-md">
+                <span className="text-sm text-muted-foreground">Assignment: </span>
+                <span className="text-sm font-medium">{userAssignment.description}</span>
+              </div>
+            )}
+
             <div className="flex items-center space-x-2 mb-4">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
@@ -101,7 +134,19 @@ const AdminPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOffices.length === 0 ? (
+                  {loadingAssignment || isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        {loadingAssignment ? 'Loading user assignment...' : 'Loading offices...'}
+                      </TableCell>
+                    </TableRow>
+                  ) : !userAssignment ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        No assignment found for your account. Please contact administrator.
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredOffices.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                         {searchTerm
@@ -112,22 +157,23 @@ const AdminPage = () => {
                   ) : (
                     filteredOffices.map((office) => (
                       <TableRow key={office.id}>
-                        <TableCell className="font-medium">{office.name}</TableCell>
+                        <TableCell className="font-medium">{office.description || 'Unnamed Office'}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {office.windows.map((w) => (
+                            {office.windows?.map((w) => (
                               <Badge key={w.id} variant="secondary">
-                                {w.name}
+                                {w.description || `Window ${w.id}`}
                               </Badge>
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell>{new Date(office.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{new Date(office.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleDeleteOffice(office.id)}
+                            disabled={isLoading}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -144,7 +190,8 @@ const AdminPage = () => {
         <AddOfficeDialog
           isOpen={isDialogOpen}
           onClose={() => setIsDialogOpen(false)}
-          onSubmit={handleAddOffice}
+          assignmentId={userAssignment?.id || ''}
+          onSuccess={handleRefresh}
         />
       </div>
     </>

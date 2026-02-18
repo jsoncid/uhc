@@ -161,6 +161,52 @@ export type Database = {
           assignment?: string
         }
       }
+      office: {
+        Row: {
+          id: string
+          created_at: string
+          assignment: string
+          status: boolean
+          description: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          assignment: string
+          status?: boolean
+          description?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          assignment?: string
+          status?: boolean
+          description?: string | null
+        }
+      }
+      window: {
+        Row: {
+          id: number
+          created_at: string
+          office: string
+          description: string | null
+          status: boolean
+        }
+        Insert: {
+          id?: number
+          created_at?: string
+          office: string
+          description?: string | null
+          status?: boolean
+        }
+        Update: {
+          id?: number
+          created_at?: string
+          office?: string
+          description?: string | null
+          status?: boolean
+        }
+      }
     }
   }
 }

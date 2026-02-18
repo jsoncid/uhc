@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 
 export interface WindowItem {
   id: string;
@@ -24,16 +25,17 @@ export interface OfficeFormData {
 interface AddOfficeDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: OfficeFormData) => void;
+  assignmentId: string;
+  onSuccess?: () => void;
 }
 
-export const AddOfficeDialog = ({ isOpen, onClose, onSubmit }: AddOfficeDialogProps) => {
+export const AddOfficeDialog = ({ isOpen, onClose, assignmentId, onSuccess }: AddOfficeDialogProps) => {
+  const { addOffice, isLoading: storeLoading, error: storeError } = useOfficeStore();
   const [formData, setFormData] = useState<OfficeFormData>({
     officeName: '',
     windows: [{ id: crypto.randomUUID(), name: '' }],
   });
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
 
   const handleAddWindow = () => {
     setFormData((prev) => ({
@@ -70,16 +72,15 @@ export const AddOfficeDialog = ({ isOpen, onClose, onSubmit }: AddOfficeDialogPr
       return;
     }
 
-    setIsLoading(true);
     setError(null);
 
     try {
-      onSubmit({ ...formData, windows: filledWindows });
+      const windowDescriptions = filledWindows.map((w) => w.name);
+      await addOffice(assignmentId, formData.officeName, windowDescriptions);
+      onSuccess?.();
       handleClose();
     } catch {
       setError('Failed to add office');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -151,12 +152,16 @@ export const AddOfficeDialog = ({ isOpen, onClose, onSubmit }: AddOfficeDialogPr
             </div>
           </div>
 
+          {storeError && (
+            <div className="bg-destructive/15 text-destructive px-4 py-2 rounded-md">{storeError}</div>
+          )}
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Adding...' : 'Add Office'}
+            <Button type="submit" disabled={storeLoading}>
+              {storeLoading ? 'Adding...' : 'Add Office'}
             </Button>
           </DialogFooter>
         </form>
