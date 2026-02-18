@@ -110,49 +110,22 @@ const UserProfile = () => {
                         </div>
                     </CardBox>
 
-                    {/* Roles & Assignments Combined */}
+                    {/* Assignments */}
                     <CardBox className="p-4 lg:p-5 lg:flex-1 min-h-0">
-                        <div className="space-y-4">
-                            {/* Roles */}
-                            <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Icon icon="solar:shield-user-bold-duotone" className="w-4 h-4 lg:w-5 lg:h-5 text-blue-500" />
-                                    <span className="text-xs lg:text-sm text-gray-500 font-medium uppercase tracking-wide">Roles</span>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5 lg:gap-2">
-                                    {profile?.roles && profile.roles.length > 0 ? (
-                                        profile.roles.map((role) => (
-                                            <Badge key={role.id} className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2.5 lg:px-3 py-1 lg:py-1.5 text-xs lg:text-sm font-medium">
-                                                {role.description}
-                                            </Badge>
-                                        ))
-                                    ) : (
-                                        <span className="text-xs lg:text-sm text-gray-400 italic">No roles assigned</span>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            {/* Divider */}
-                            <div className="border-t border-gray-100 dark:border-gray-800"></div>
-                            
-                            {/* Assignments */}
-                            <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Icon icon="solar:clipboard-list-bold-duotone" className="w-4 h-4 lg:w-5 lg:h-5 text-purple-500" />
-                                    <span className="text-xs lg:text-sm text-gray-500 font-medium uppercase tracking-wide">Assignments</span>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5 lg:gap-2">
-                                    {profile?.assignments && profile.assignments.length > 0 ? (
-                                        profile.assignments.map((assignment) => (
-                                            <Badge key={assignment.id} className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 px-2.5 lg:px-3 py-1 lg:py-1.5 text-xs lg:text-sm font-medium">
-                                                {assignment.description}
-                                            </Badge>
-                                        ))
-                                    ) : (
-                                        <span className="text-xs lg:text-sm text-gray-400 italic">No assignments</span>
-                                    )}
-                                </div>
-                            </div>
+                        <div className="flex items-center gap-2 mb-3 lg:mb-4">
+                            <Icon icon="solar:clipboard-list-bold-duotone" className="w-4 h-4 lg:w-5 lg:h-5 text-purple-500" />
+                            <h5 className="font-semibold text-sm lg:text-base">Assignments</h5>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 lg:gap-2">
+                            {profile?.assignments && profile.assignments.length > 0 ? (
+                                profile.assignments.map((assignment) => (
+                                    <Badge key={assignment.id} className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 px-2.5 lg:px-3 py-1 lg:py-1.5 text-xs lg:text-sm font-medium">
+                                        {assignment.description}
+                                    </Badge>
+                                ))
+                            ) : (
+                                <span className="text-xs lg:text-sm text-gray-400 italic">No assignments</span>
+                            )}
                         </div>
                     </CardBox>
                 </div>
@@ -160,72 +133,98 @@ const UserProfile = () => {
                 {/* Right Column - Module Access (spans 2 cols on lg) */}
                 <CardBox className="p-4 lg:p-5 lg:col-span-2 flex flex-col min-h-0 order-1 lg:order-2">
                     <div className="flex items-center gap-2 mb-3 lg:mb-4 flex-shrink-0">
-                        <Icon icon="solar:widget-2-bold-duotone" className="w-5 h-5 lg:w-6 lg:h-6 text-amber-500" />
-                        <h5 className="font-semibold text-sm lg:text-base">Module Access</h5>
-                        {profile?.modules && profile.modules.length > 0 && (
-                            <Badge variant="outline" className="ml-auto text-xs lg:text-sm">{profile.modules.length} Modules</Badge>
+                        <Icon icon="solar:shield-user-bold-duotone" className="w-5 h-5 lg:w-6 lg:h-6 text-blue-500" />
+                        <h5 className="font-semibold text-sm lg:text-base">Roles & Module Access</h5>
+                        {profile?.roles && profile.roles.length > 0 && (
+                            <Badge variant="outline" className="ml-auto text-xs lg:text-sm">{profile.roles.length} Roles</Badge>
                         )}
                     </div>
                     
-                    {profile?.modules && profile.modules.length > 0 ? (
-                        <div className="flex-1 overflow-auto min-h-0">
-                            <table className="w-full text-sm">
-                                <thead className="sticky top-0 bg-white dark:bg-gray-900">
-                                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                                        <th className="text-left py-2 lg:py-3 px-2 lg:px-3 text-xs lg:text-sm font-medium text-gray-500 uppercase">Module</th>
-                                        <th className="text-center py-2 lg:py-3 px-1 lg:px-2 text-xs lg:text-sm font-medium text-gray-500 uppercase w-12 lg:w-20">View</th>
-                                        <th className="text-center py-2 lg:py-3 px-1 lg:px-2 text-xs lg:text-sm font-medium text-gray-500 uppercase w-12 lg:w-20">Create</th>
-                                        <th className="text-center py-2 lg:py-3 px-1 lg:px-2 text-xs lg:text-sm font-medium text-gray-500 uppercase w-12 lg:w-20">Edit</th>
-                                        <th className="text-center py-2 lg:py-3 px-1 lg:px-2 text-xs lg:text-sm font-medium text-gray-500 uppercase w-12 lg:w-20">Delete</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                    {profile.modules.map((module) => (
-                                        <tr key={module.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                                            <td className="py-2 lg:py-3 px-2 lg:px-3">
-                                                <div className="flex items-center gap-2 lg:gap-3">
-                                                    <Icon icon="solar:widget-4-bold" className="w-4 h-4 lg:w-5 lg:h-5 text-amber-500 flex-shrink-0" />
-                                                    <span className="font-medium text-sm lg:text-base">{module.description}</span>
-                                                </div>
-                                            </td>
-                                            <td className="text-center py-2 lg:py-3 px-1 lg:px-2">
-                                                {module.permissions.is_select ? (
-                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-emerald-500 mx-auto" />
-                                                ) : (
-                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 dark:text-gray-600 mx-auto" />
-                                                )}
-                                            </td>
-                                            <td className="text-center py-2 lg:py-3 px-1 lg:px-2">
-                                                {module.permissions.is_insert ? (
-                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-emerald-500 mx-auto" />
-                                                ) : (
-                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 dark:text-gray-600 mx-auto" />
-                                                )}
-                                            </td>
-                                            <td className="text-center py-2 lg:py-3 px-1 lg:px-2">
-                                                {module.permissions.is_update ? (
-                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-emerald-500 mx-auto" />
-                                                ) : (
-                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 dark:text-gray-600 mx-auto" />
-                                                )}
-                                            </td>
-                                            <td className="text-center py-2 lg:py-3 px-1 lg:px-2">
-                                                {module.permissions.is_delete ? (
-                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-emerald-500 mx-auto" />
-                                                ) : (
-                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 dark:text-gray-600 mx-auto" />
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                    {profile?.roles && profile.roles.length > 0 ? (
+                        <div className="flex-1 overflow-auto min-h-0 space-y-4">
+                            {profile.roles.map((role) => (
+                                <div key={role.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 lg:p-4">
+                                    {/* Role Header */}
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Icon icon="solar:shield-check-bold" className="w-5 h-5 text-blue-500" />
+                                        <h6 className="font-semibold text-sm lg:text-base text-blue-700 dark:text-blue-400">
+                                            {role.description}
+                                        </h6>
+                                        {role.modules && role.modules.length > 0 && (
+                                            <Badge className="ml-auto bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs">
+                                                {role.modules.length} {role.modules.length === 1 ? 'Module' : 'Modules'}
+                                            </Badge>
+                                        )}
+                                    </div>
+
+                                    {/* Module Access Table */}
+                                    {role.modules && role.modules.length > 0 ? (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                                                        <th className="text-left py-2 px-2 text-xs font-medium text-gray-500 uppercase">Module</th>
+                                                        <th className="text-center py-2 px-1 text-xs font-medium text-gray-500 uppercase w-16">View</th>
+                                                        <th className="text-center py-2 px-1 text-xs font-medium text-gray-500 uppercase w-16">Create</th>
+                                                        <th className="text-center py-2 px-1 text-xs font-medium text-gray-500 uppercase w-16">Edit</th>
+                                                        <th className="text-center py-2 px-1 text-xs font-medium text-gray-500 uppercase w-16">Delete</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                    {role.modules.map((module) => (
+                                                        <tr key={module.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                                            <td className="py-2 px-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Icon icon="solar:widget-4-bold" className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                                                                    <span className="text-xs lg:text-sm">{module.description}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="text-center py-2 px-1">
+                                                                {module.permissions.is_select ? (
+                                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-emerald-500 mx-auto" />
+                                                                ) : (
+                                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                                )}
+                                                            </td>
+                                                            <td className="text-center py-2 px-1">
+                                                                {module.permissions.is_insert ? (
+                                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-emerald-500 mx-auto" />
+                                                                ) : (
+                                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                                )}
+                                                            </td>
+                                                            <td className="text-center py-2 px-1">
+                                                                {module.permissions.is_update ? (
+                                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-emerald-500 mx-auto" />
+                                                                ) : (
+                                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                                )}
+                                                            </td>
+                                                            <td className="text-center py-2 px-1">
+                                                                {module.permissions.is_delete ? (
+                                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-emerald-500 mx-auto" />
+                                                                ) : (
+                                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-4 text-gray-400">
+                                            <p className="text-xs">No modules assigned to this role</p>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
                     ) : (
                         <div className="flex-1 flex items-center justify-center text-gray-400 py-8">
                             <div className="text-center">
-                                <Icon icon="solar:widget-6-line-duotone" className="w-10 h-10 lg:w-12 lg:h-12 mx-auto mb-2 lg:mb-3 opacity-50" />
-                                <p className="text-xs lg:text-sm">No module access configured</p>
+                                <Icon icon="solar:shield-user-line-duotone" className="w-10 h-10 lg:w-12 lg:h-12 mx-auto mb-2 lg:mb-3 opacity-50" />
+                                <p className="text-xs lg:text-sm">No roles assigned</p>
                             </div>
                         </div>
                     )}
