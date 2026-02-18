@@ -7,8 +7,8 @@ interface AuthState {
   user: User | null
   isLoading: boolean
   error: string | null
-  signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, options?: { data?: { [key: string]: any }, assignmentId?: string }) => Promise<void>
+  signIn: (email: string, password: string) => Promise<boolean>
+  signUp: (email: string, password: string, options?: { data?: { [key: string]: any }, assignmentId?: string }) => Promise<boolean>
   signOut: () => Promise<void>
   setUser: (user: User | null) => void
   clearError: () => void
@@ -19,7 +19,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: false,
   error: null,
 
-  signIn: async (email: string, password: string) => {
+  signIn: async (email: string, password: string): Promise<boolean> => {
     set({ isLoading: true, error: null })
     try {
       console.log('Starting login for email:', email)
@@ -55,16 +55,18 @@ export const useAuthStore = create<AuthState>((set) => ({
       
       console.log('User status check passed, user is active')
       set({ user: data.user, isLoading: false })
+      return true
     } catch (error) {
       console.error('Login error:', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to sign in',
         isLoading: false 
       })
+      return false
     }
   },
 
-  signUp: async (email: string, password: string, options?: { data?: { [key: string]: any }, assignmentId?: string }) => {
+  signUp: async (email: string, password: string, options?: { data?: { [key: string]: any }, assignmentId?: string }): Promise<boolean> => {
     set({ isLoading: true, error: null })
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -119,11 +121,10 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       // Don't set user - registration successful but user needs to login manually after approval
       set({ user: null, isLoading: false })
-      
-      // Return success indication (caller can check isLoading: false and error: null)
-      return
+      return true
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to sign up', isLoading: false })
+      return false
     }
   },
 
