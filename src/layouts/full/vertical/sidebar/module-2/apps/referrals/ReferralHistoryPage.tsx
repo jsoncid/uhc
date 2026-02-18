@@ -230,12 +230,13 @@ const AllHistoryTab = ({
   referrals,
   deactivated,
   onView,
+  search,
 }: {
   referrals: ReferralType[];
   deactivated: ReferralType[];
   onView: (r: ReferralType) => void;
+  search: string;
 }) => {
-  const [search, setSearch] = useState('');
   const all = [...referrals, ...deactivated];
   const visible = all.filter((r) => {
     const q = search.toLowerCase();
@@ -248,10 +249,7 @@ const AllHistoryTab = ({
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <SearchBar value={search} onChange={setSearch} />
-      </div>
+    <div>
       <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
         <Table className="min-w-[860px]">
           <TableHeader>
@@ -343,11 +341,12 @@ const AllHistoryTab = ({
 const DischargedTab = ({
   referrals,
   onView,
+  search,
 }: {
   referrals: ReferralType[];
   onView: (r: ReferralType) => void;
+  search: string;
 }) => {
-  const [search, setSearch] = useState('');
   const discharged = referrals.filter((r) => r.latest_status?.description === 'Discharged');
   const visible = discharged.filter((r) => {
     const q = search.toLowerCase();
@@ -360,10 +359,7 @@ const DischargedTab = ({
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <SearchBar value={search} onChange={setSearch} />
-      </div>
+    <div>
       <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
         <Table className="min-w-[860px]">
           <TableHeader>
@@ -441,11 +437,12 @@ const DischargedTab = ({
 const DeactivatedTab = ({
   deactivated,
   onView,
+  search,
 }: {
   deactivated: ReferralType[];
   onView: (r: ReferralType) => void;
+  search: string;
 }) => {
-  const [search, setSearch] = useState('');
   const visible = deactivated.filter((r) => {
     const q = search.toLowerCase();
     return (
@@ -457,10 +454,7 @@ const DeactivatedTab = ({
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <SearchBar value={search} onChange={setSearch} />
-      </div>
+    <div>
       <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
         <Table className="min-w-[960px]">
           <TableHeader>
@@ -560,6 +554,8 @@ const DeactivatedTab = ({
 const ReferralHistoryPage = () => {
   const { referrals, deactivatedReferrals }: ReferralContextType = useContext(ReferralContext);
   const [selected, setSelected] = useState<ReferralType | null>(null);
+  const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('history');
 
   const dischargedCount = referrals.filter(
     (r) => r.latest_status?.description === 'Discharged',
@@ -568,58 +564,72 @@ const ReferralHistoryPage = () => {
   return (
     <>
       <CardBox>
-        <div>
+        <div className="flex flex-col gap-1">
           <h5 className="card-title">Referral History</h5>
           <p className="text-xs text-muted-foreground mt-0.5">
             Complete referral journey across facilities
           </p>
         </div>
 
-        <Tabs defaultValue="history">
-          <TabsList>
-            <TabsTrigger value="history" className="flex items-center gap-1.5">
-              <Icon icon="solar:history-bold-duotone" height={15} />
-              Referral History
-              <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 h-4">
-                {referrals.length + deactivatedReferrals.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="discharged" className="flex items-center gap-1.5">
-              <Icon icon="solar:exit-bold-duotone" height={15} />
-              Discharged
-              <Badge
-                variant="outline"
-                className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lightsecondary text-secondary border-secondary/20"
-              >
-                {dischargedCount}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="deactivated" className="flex items-center gap-1.5">
-              <Icon icon="solar:archive-minimalistic-bold-duotone" height={15} />
-              Deactivated
-              <Badge
-                variant="outline"
-                className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lighterror text-error border-error/20"
-              >
-                {deactivatedReferrals.length}
-              </Badge>
-            </TabsTrigger>
-          </TabsList>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => {
+            setActiveTab(v);
+            setSearch('');
+          }}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <TabsList>
+              <TabsTrigger value="history" className="flex items-center gap-1.5">
+                <Icon icon="solar:history-bold-duotone" height={15} />
+                Referral History
+                <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 h-4">
+                  {referrals.length + deactivatedReferrals.length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="discharged" className="flex items-center gap-1.5">
+                <Icon icon="solar:exit-bold-duotone" height={15} />
+                Discharged
+                <Badge
+                  variant="outline"
+                  className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lightsecondary text-secondary border-secondary/20"
+                >
+                  {dischargedCount}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="deactivated" className="flex items-center gap-1.5">
+                <Icon icon="solar:archive-minimalistic-bold-duotone" height={15} />
+                Deactivated
+                <Badge
+                  variant="outline"
+                  className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lighterror text-error border-error/20"
+                >
+                  {deactivatedReferrals.length}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+            <SearchBar value={search} onChange={setSearch} />
+          </div>
 
           <TabsContent value="history">
             <AllHistoryTab
               referrals={referrals}
               deactivated={deactivatedReferrals}
               onView={setSelected}
+              search={search}
             />
           </TabsContent>
 
           <TabsContent value="discharged">
-            <DischargedTab referrals={referrals} onView={setSelected} />
+            <DischargedTab referrals={referrals} onView={setSelected} search={search} />
           </TabsContent>
 
           <TabsContent value="deactivated">
-            <DeactivatedTab deactivated={deactivatedReferrals} onView={setSelected} />
+            <DeactivatedTab
+              deactivated={deactivatedReferrals}
+              onView={setSelected}
+              search={search}
+            />
           </TabsContent>
         </Tabs>
       </CardBox>
