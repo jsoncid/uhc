@@ -36,7 +36,6 @@ export interface ReferralHistory {
   to_assignment_name?: string;
   status_description?: string;
 }
-
 // ─── module2.referral_info ────────────────────────────────────────────────────
 export interface ReferralInfo {
   id: string; // uuid

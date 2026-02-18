@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { Icon } from '@iconify/react';
 import { ReferralContext, ReferralContextType } from '../../context/ReferralContext';
 import { ReferralType, ReferralInfo } from '../../types/referral';
+import { StatusData } from '../../data/referral-data';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
@@ -240,6 +241,7 @@ const CreateReferralForm = () => {
       from_assignment_name: referringFacility || undefined,
       to_assignment: null,
       to_assignment_name: referringTo || undefined,
+      latest_status: StatusData.find((s) => s.description === 'Pending'),
       referral_info: newInfo,
       history: [],
     };
