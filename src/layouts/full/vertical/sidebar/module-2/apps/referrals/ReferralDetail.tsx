@@ -77,49 +77,24 @@ const ReferralDetail = () => {
     <div className="grid grid-cols-12 gap-6">
       {/* ── Header banner ── */}
       <div className="col-span-12">
-        <CardBox className="bg-lightsecondary border-none shadow-none! relative overflow-hidden">
-          <div className="flex flex-wrap justify-between items-start gap-4">
+        <CardBox>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0">
-                <Icon icon="solar:user-bold-duotone" height={28} className="text-secondary" />
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Icon icon="solar:user-bold-duotone" height={24} className="text-primary" />
               </div>
               <div>
-                <h2 className="text-xl font-bold">{referral.patient_name ?? 'Patient'}</h2>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <Icon
-                    icon="solar:buildings-2-bold-duotone"
-                    height={14}
-                    className="text-muted-foreground"
-                  />
-                  <span className="text-sm text-muted-foreground">
-                    {referral.from_assignment_name ?? '—'}
-                  </span>
+                <h2 className="text-lg font-bold">{referral.patient_name ?? 'Patient'}</h2>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap text-sm text-muted-foreground">
+                  <span>{referral.from_assignment_name ?? '—'}</span>
                   {referral.to_assignment_name && (
                     <>
-                      <Icon
-                        icon="solar:arrow-right-linear"
-                        height={12}
-                        className="text-muted-foreground"
-                      />
-                      <Icon
-                        icon="solar:hospital-bold-duotone"
-                        height={14}
-                        className="text-muted-foreground"
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        {referral.to_assignment_name}
-                      </span>
+                      <Icon icon="solar:arrow-right-linear" height={12} />
+                      <span>{referral.to_assignment_name}</span>
                     </>
                   )}
-                  <span className="text-muted-foreground">·</span>
-                  <Icon
-                    icon="solar:calendar-bold-duotone"
-                    height={14}
-                    className="text-muted-foreground"
-                  />
-                  <span className="text-sm text-muted-foreground">
-                    {format(new Date(referral.created_at), 'MMM dd, yyyy')}
-                  </span>
+                  <span>·</span>
+                  <span>{format(new Date(referral.created_at), 'MMM dd, yyyy')}</span>
                 </div>
               </div>
             </div>
@@ -128,7 +103,6 @@ const ReferralDetail = () => {
                 variant="outline"
                 className={`text-sm px-3 py-1 font-semibold ${STATUS_STYLES[referral.latest_status?.description ?? ''] ?? 'bg-lightprimary text-primary'}`}
               >
-                <Icon icon="solar:circle-bottom-up-bold-duotone" height={12} className="mr-1.5" />
                 {referral.latest_status?.description ?? 'No Status'}
               </Badge>
               <Button variant="outline" size="sm" onClick={() => navigate('/module-2/referrals')}>

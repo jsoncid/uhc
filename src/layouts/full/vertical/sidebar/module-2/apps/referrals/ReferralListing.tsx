@@ -136,8 +136,8 @@ const ReferralListing = () => {
           </DropdownMenu>
         </div>
       </div>
-      <div className="rounded-md border border-ld overflow-hidden">
-        <Table>
+      <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
+        <Table className="min-w-[800px]">
           <TableHeader>
             <TableRow className="bg-muted/30">
               <TableHead className="font-semibold">Patient</TableHead>
