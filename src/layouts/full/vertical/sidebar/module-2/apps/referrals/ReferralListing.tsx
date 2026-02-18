@@ -67,12 +67,9 @@ const ReferralListing = () => {
 
   return (
     <CardBox>
-      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+      <div className="flex flex-wrap justify-between items-center gap-4 ">
         <div>
           <h5 className="card-title">Referral List</h5>
-          <p className="text-sm text-muted-foreground font-normal mt-0.5">
-            {visible.length} referral{visible.length !== 1 ? 's' : ''} found
-          </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative sm:w-60 w-full">
