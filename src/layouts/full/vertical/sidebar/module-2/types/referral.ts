@@ -64,21 +64,21 @@ export interface ReferralInfo {
   medications: string | null;
 
   // ── OB/GYNE fields (optional — only populated for OB/GYNE referrals) ─────
-  lmp?: string | null; // Last Menstrual Period
-  aog?: string | null; // Age of Gestation
-  edc?: string | null; // Expected Date of Confinement
-  fh?: string | null; // Fundal Height
-  fht?: string | null; // Fetal Heart Tone
-  ie?: string | null; // Internal Examination
+  lmp?: string | null; // date — Last Menstrual Period (YYYY-MM-DD)
+  aog?: string | null; // varchar — Age of Gestation (e.g. "36 weeks + 2 days")
+  edc?: string | null; // date — Expected Date of Confinement (YYYY-MM-DD)
+  fh?: string | null; // varchar — Fundal Height
+  fht?: string | null; // varchar — Fetal Heart Tone
+  ie?: string | null; // varchar — Internal Examination
   dilatation?: string | null;
   effacement?: string | null;
   station?: string | null;
   presenting_part?: string | null;
   prom_hours?: string | null; // PROM — hours
-  ultrasound_1st_date?: string | null;
-  ultrasound_1st_aog?: string | null;
-  ultrasound_latest_date?: string | null;
-  ultrasound_efw?: string | null; // Estimated Fetal Weight
+  ultrasound_1st_date?: string | null; // date (YYYY-MM-DD)
+  ultrasound_1st_aog?: string | null; // varchar — AOG by ultrasound (e.g. "8 weeks + 3 days")
+  ultrasound_latest_date?: string | null; // date (YYYY-MM-DD)
+  ultrasound_efw?: string | null; // varchar — Estimated Fetal Weight
   ultrasound_presentation?: string | null;
   ultrasound_impression?: string | null;
   gravida?: string | null;
