@@ -265,6 +265,188 @@ const ReferralDetail = () => {
               </p>
             </CardBox>
 
+            {/* ── OB/GYNE Section (only shown when OB fields are present) ── */}
+            {(info.gravida ||
+              info.lmp ||
+              info.ie ||
+              info.ultrasound_latest_date ||
+              info.comorbidity ||
+              info.lab_result) && (
+              <>
+                {/* Obstetric History */}
+                <CardBox>
+                  <SectionTitle
+                    icon="solar:heart-angle-bold-duotone"
+                    title="OB/GYNE — Obstetric History"
+                  />
+                  <div className="grid grid-cols-12 gap-y-4 gap-x-6">
+                    <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                      <Field label="Gravida" value={info.gravida} />
+                    </div>
+                    <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                      <Field label="Parity (TPAL)" value={info.parity} />
+                    </div>
+                    <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                      <Field label="Menarche" value={info.menarche} />
+                    </div>
+                  </div>
+                </CardBox>
+
+                {/* Current Pregnancy */}
+                <CardBox>
+                  <SectionTitle
+                    icon="solar:calendar-bold-duotone"
+                    title="OB/GYNE — Current Pregnancy"
+                  />
+                  <div className="grid grid-cols-12 gap-y-4 gap-x-6">
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field
+                        label="LMP"
+                        value={info.lmp ? format(new Date(info.lmp), 'MMM dd, yyyy') : info.lmp}
+                      />
+                    </div>
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field label="AOG" value={info.aog} />
+                    </div>
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field
+                        label="EDC"
+                        value={info.edc ? format(new Date(info.edc), 'MMM dd, yyyy') : info.edc}
+                      />
+                    </div>
+                    <div className="col-span-12">
+                      <Separator />
+                    </div>
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field label="Fundal Height (FH)" value={info.fh} />
+                    </div>
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field label="Fetal Heart Tone (FHT)" value={info.fht} />
+                    </div>
+                  </div>
+                </CardBox>
+
+                {/* IE Findings */}
+                <CardBox>
+                  <SectionTitle
+                    icon="solar:stethoscope-bold-duotone"
+                    title="OB/GYNE — IE Findings"
+                  />
+                  <div className="grid grid-cols-12 gap-y-4 gap-x-6">
+                    {info.ie && (
+                      <div className="col-span-12">
+                        <Field label="Internal Examination" value={info.ie} />
+                      </div>
+                    )}
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field label="Dilatation" value={info.dilatation} />
+                    </div>
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field label="Effacement" value={info.effacement} />
+                    </div>
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field label="Station" value={info.station} />
+                    </div>
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field label="Presenting Part" value={info.presenting_part} />
+                    </div>
+                    {info.prom_hours && (
+                      <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                        <Field label="PROM (Hours)" value={info.prom_hours} />
+                      </div>
+                    )}
+                  </div>
+                </CardBox>
+
+                {/* Ultrasound */}
+                <CardBox>
+                  <SectionTitle icon="solar:soundwave-bold-duotone" title="OB/GYNE — Ultrasound" />
+                  <div className="grid grid-cols-12 gap-y-4 gap-x-6">
+                    {(info.ultrasound_1st_date || info.ultrasound_1st_aog) && (
+                      <>
+                        <div className="col-span-12">
+                          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                            1st Ultrasound
+                          </p>
+                        </div>
+                        <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                          <Field
+                            label="Date"
+                            value={
+                              info.ultrasound_1st_date
+                                ? format(new Date(info.ultrasound_1st_date), 'MMM dd, yyyy')
+                                : null
+                            }
+                          />
+                        </div>
+                        <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                          <Field label="AOG by Ultrasound" value={info.ultrasound_1st_aog} />
+                        </div>
+                        <div className="col-span-12">
+                          <Separator />
+                        </div>
+                      </>
+                    )}
+                    <div className="col-span-12">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                        Latest Ultrasound
+                      </p>
+                    </div>
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field
+                        label="Date"
+                        value={
+                          info.ultrasound_latest_date
+                            ? format(new Date(info.ultrasound_latest_date), 'MMM dd, yyyy')
+                            : null
+                        }
+                      />
+                    </div>
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field label="EFW" value={info.ultrasound_efw} />
+                    </div>
+                    <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                      <Field label="Presentation" value={info.ultrasound_presentation} />
+                    </div>
+                    {info.ultrasound_impression && (
+                      <div className="col-span-12">
+                        <Field label="Impression" value={info.ultrasound_impression} />
+                      </div>
+                    )}
+                  </div>
+                </CardBox>
+
+                {/* Comorbidities & Surgical History */}
+                <CardBox>
+                  <SectionTitle
+                    icon="solar:hospital-bold-duotone"
+                    title="OB/GYNE — Comorbidities & Surgical History"
+                  />
+                  <div className="flex flex-col gap-4">
+                    <Field label="Comorbidity" value={info.comorbidity} />
+                    <Field label="Previous Surgeries" value={info.previous_surgeries} />
+                    <Field
+                      label="Previous CS (When / Where / Indication)"
+                      value={info.previous_cs}
+                    />
+                  </div>
+                </CardBox>
+
+                {/* Additional Diagnostics */}
+                <CardBox>
+                  <SectionTitle
+                    icon="solar:document-add-bold-duotone"
+                    title="OB/GYNE — Additional Diagnostics"
+                  />
+                  <div className="flex flex-col gap-4">
+                    <Field label="Lab Result" value={info.lab_result} />
+                    <Field label="X-Ray" value={info.xray} />
+                    <Field label="Other Diagnostics" value={info.other_diagnostics} />
+                  </div>
+                </CardBox>
+              </>
+            )}
+
             {/* COVID */}
             <CardBox>
               <SectionTitle icon="solar:virus-bold-duotone" title="COVID-19 Information" />

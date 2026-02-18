@@ -55,11 +55,25 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const addReferral = (newReferral: ReferralType) => {
-    // Attach empty related records
+    const pendingStatus = StatusData.find((s) => s.description === 'Pending');
+    const now = new Date().toISOString();
+
+    const pendingHistory: ReferralHistory = {
+      id: `rh-${Date.now()}`,
+      created_at: now,
+      referral: newReferral.id,
+      to_assignment: null,
+      status: pendingStatus?.id ?? 'st-0001',
+      is_active: true,
+      details: 'Referral created — status set to Pending.',
+      status_description: 'Pending',
+    };
+    ReferralHistoryData.push(pendingHistory);
+
     const withJoins: ReferralType = {
       ...newReferral,
-      history: [],
-      latest_status: StatusData.find((s) => s.id === 'st-0001'),
+      history: [pendingHistory],
+      latest_status: pendingStatus,
     };
     ReferralData.push(withJoins);
     setReferrals((prev) => [...prev, withJoins]);
