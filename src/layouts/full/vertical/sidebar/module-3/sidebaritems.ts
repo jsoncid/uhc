@@ -42,7 +42,7 @@ const SidebarContent: MenuItem[] = [
         url: '/module-3/patient-profiling',
       },
       {
-        name: 'Tagging',
+        name: 'Patient Tagging',
         id: uniqueId(),
         icon: 'solar:sort-by-alphabet-linear',
         url: '/module-3/tagging/overview',
