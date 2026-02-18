@@ -45,6 +45,9 @@ const Referrals = Loadable(
 const CreateReferral = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/CreateReferral')),
 );
+const CreateObGyneReferral = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/CreateObGyneReferral')),
+);
 const ReferralDetails = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralDetails')),
 );
@@ -169,6 +172,14 @@ const Router = [
         element: (
           <ProtectedRoute>
             <CreateReferral />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referrals/create-obgyne',
+        element: (
+          <ProtectedRoute>
+            <CreateObGyneReferral />
           </ProtectedRoute>
         ),
       },

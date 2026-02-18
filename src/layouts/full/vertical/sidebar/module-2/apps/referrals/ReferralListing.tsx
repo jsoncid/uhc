@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
 import { useNavigate } from 'react-router';
@@ -30,6 +30,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from 'src/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from 'src/components/ui/dialog';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
@@ -50,6 +58,20 @@ const ReferralListing = () => {
     deactivateReferral,
   }: ReferralContextType = useContext(ReferralContext);
   const navigate = useNavigate();
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [confirmName, setConfirmName] = useState<string>('');
+
+  const handleDeactivateClick = (id: string, name: string) => {
+    setConfirmId(id);
+    setConfirmName(name);
+  };
+
+  const handleConfirmDeactivate = () => {
+    if (confirmId) {
+      deactivateReferral(confirmId);
+      setConfirmId(null);
+    }
+  };
 
   const visible = referrals.filter((r) => {
     const search = referralSearch.toLowerCase();
@@ -85,14 +107,33 @@ const ReferralListing = () => {
               placeholder="Search patient, doctor..."
             />
           </div>
-          <Button
-            size="sm"
-            onClick={() => navigate('/module-2/referrals/create')}
-            className="whitespace-nowrap"
-          >
-            <Icon icon="solar:add-circle-outline" height={17} className="mr-1.5" />
-            New Referral
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="whitespace-nowrap">
+                <Icon icon="solar:add-circle-bold-duotone" height={17} className="mr-1.5" />
+                New Referral
+                <Icon icon="solar:alt-arrow-down-bold" height={14} className="ml-1.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[190px]">
+              <DropdownMenuItem onClick={() => navigate('/module-2/referrals/create')}>
+                <Icon
+                  icon="solar:document-medicine-bold-duotone"
+                  height={16}
+                  className="mr-2 text-primary"
+                />
+                Regular Referral
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/module-2/referrals/create-obgyne')}>
+                <Icon
+                  icon="solar:heart-angle-bold-duotone"
+                  height={16}
+                  className="mr-2 text-pink-500"
+                />
+                OB/GYNE Referral
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       <div className="rounded-md border border-ld overflow-hidden">
@@ -202,7 +243,12 @@ const ReferralListing = () => {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-error hover:bg-error/10"
-                              onClick={() => deactivateReferral(referral.id)}
+                              onClick={() =>
+                                handleDeactivateClick(
+                                  referral.id,
+                                  referral.patient_name ?? 'this referral',
+                                )
+                              }
                             >
                               <Icon icon="solar:trash-bin-minimalistic-linear" height={16} />
                             </Button>
@@ -218,6 +264,47 @@ const ReferralListing = () => {
           </TableBody>
         </Table>
       </div>
+      {/* Deactivate confirmation dialog */}
+      <Dialog
+        open={!!confirmId}
+        onOpenChange={(open) => {
+          if (!open) setConfirmId(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-full bg-lighterror flex items-center justify-center flex-shrink-0">
+                <Icon
+                  icon="solar:trash-bin-minimalistic-bold-duotone"
+                  height={22}
+                  className="text-error"
+                />
+              </div>
+              <DialogTitle className="text-base">Deactivate Referral</DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
+              Are you sure you want to deactivate the referral for{' '}
+              <span className="font-semibold text-foreground">{confirmName}</span>? This will mark
+              the referral as inactive and remove it from the active list. This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => setConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="bg-error hover:bg-error/90 text-white"
+              onClick={handleConfirmDeactivate}
+            >
+              <Icon icon="solar:trash-bin-minimalistic-linear" height={15} className="mr-1.5" />
+              Deactivate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </CardBox>
   );
 };

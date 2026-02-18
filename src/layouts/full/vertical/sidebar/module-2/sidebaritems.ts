@@ -41,31 +41,6 @@ const SidebarContent: MenuItem[] = [
         icon: 'solar:document-medicine-linear',
         url: '/module-2/referrals',
       },
-      {
-        name: 'Tables',
-        icon: 'solar:server-linear',
-        id: uniqueId(),
-        url: '/module-2/table',
-      },
-      {
-        name: 'Blogs',
-        id: uniqueId(),
-        icon: 'solar:sort-by-alphabet-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Blog Post',
-            url: '/module-2/apps/blog/post',
-            isPro: false,
-          },
-          {
-            id: uniqueId(),
-            name: 'Blog Detail',
-            url: '/module-2/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
-            isPro: false,
-          },
-        ],
-      },
     ],
   },
   // {

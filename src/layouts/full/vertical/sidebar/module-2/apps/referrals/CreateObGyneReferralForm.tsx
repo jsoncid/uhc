@@ -12,7 +12,6 @@ import { Separator } from 'src/components/ui/separator';
 import { Badge } from 'src/components/ui/badge';
 
 // ── Mock patient registry (simulates module3.patient_profile lookup) ──────────
-// Replace with: supabase.from('patient_profile').select('*').eq('id', id).single()
 const MOCK_PATIENT_DB: Record<
   string,
   {
@@ -89,7 +88,7 @@ const AutoField = ({ label, value }: { label: string; value: string }) => (
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-const CreateReferralForm = () => {
+const CreateObGyneReferralForm = () => {
   const { addReferral }: ReferralContextType = useContext(ReferralContext);
   const navigate = useNavigate();
 
@@ -107,7 +106,7 @@ const CreateReferralForm = () => {
   const [birthDate, setBirthDate] = useState('');
   const [completeAddress, setCompleteAddress] = useState('');
 
-  // ── Manual fields ─────────────────────────────────────────────────────────
+  // ── Standard referral fields ──────────────────────────────────────────────
   const [reasonReferral, setReasonReferral] = useState('');
   const [rtpcr, setRtpcr] = useState('');
   const [rtpcrDate, setRtpcrDate] = useState('');
@@ -131,9 +130,44 @@ const CreateReferralForm = () => {
   const [referringTo, setReferringTo] = useState('');
   const [referringDoctor, setReferringDoctor] = useState('');
   const [contactNo, setContactNo] = useState('');
-
-  // ── Vaccination dynamic rows ──────────────────────────────────────────────
   const [vaccinations, setVaccinations] = useState([{ description: '', date: '' }]);
+
+  // ── OB/GYNE fields ────────────────────────────────────────────────────────
+  // Obstetric History
+  const [gravida, setGravida] = useState('');
+  const [parity, setParity] = useState('');
+  const [menarche, setMenarche] = useState('');
+  // Current Pregnancy
+  const [lmp, setLmp] = useState('');
+  const [aog, setAog] = useState('');
+  const [edc, setEdc] = useState('');
+  const [fh, setFh] = useState('');
+  const [fht, setFht] = useState('');
+  // IE Findings
+  const [ie, setIe] = useState('');
+  const [dilatation, setDilatation] = useState('');
+  const [effacement, setEffacement] = useState('');
+  const [station, setStation] = useState('');
+  const [presentingPart, setPresentingPart] = useState('');
+  const [promHours, setPromHours] = useState('');
+  // Ultrasound — 1st
+  const [us1Date, setUs1Date] = useState('');
+  const [us1Aog, setUs1Aog] = useState('');
+  // Ultrasound — Latest
+  const [usLatestDate, setUsLatestDate] = useState('');
+  const [usLatestEfw, setUsLatestEfw] = useState('');
+  const [usLatestPresentation, setUsLatestPresentation] = useState('');
+  const [usLatestImpression, setUsLatestImpression] = useState('');
+  // Comorbidities & Surgical History
+  const [comorbidity, setComorbidity] = useState('');
+  const [previousSurgeries, setPreviousSurgeries] = useState('');
+  const [previousCs, setPreviousCs] = useState('');
+  // Additional Diagnostics
+  const [labResult, setLabResult] = useState('');
+  const [xray, setXray] = useState('');
+  const [otherDiagnostics, setOtherDiagnostics] = useState('');
+
+  // ── Vaccination helpers ───────────────────────────────────────────────────
   const addVaccinationRow = () => setVaccinations((p) => [...p, { description: '', date: '' }]);
   const removeVaccinationRow = (i: number) => setVaccinations((p) => p.filter((_, x) => x !== i));
   const updateVaccination = (i: number, field: 'description' | 'date', val: string) =>
@@ -217,6 +251,33 @@ const CreateReferralForm = () => {
       antigen: antigen || null,
       antigen_date: antigenDate || null,
       exposure_covid: exposureCovid || null,
+      // OB/GYNE
+      gravida: gravida || null,
+      parity: parity || null,
+      menarche: menarche || null,
+      lmp: lmp || null,
+      aog: aog || null,
+      edc: edc || null,
+      fh: fh || null,
+      fht: fht || null,
+      ie: ie || null,
+      dilatation: dilatation || null,
+      effacement: effacement || null,
+      station: station || null,
+      presenting_part: presentingPart || null,
+      prom_hours: promHours || null,
+      ultrasound_1st_date: us1Date || null,
+      ultrasound_1st_aog: us1Aog || null,
+      ultrasound_latest_date: usLatestDate || null,
+      ultrasound_efw: usLatestEfw || null,
+      ultrasound_presentation: usLatestPresentation || null,
+      ultrasound_impression: usLatestImpression || null,
+      comorbidity: comorbidity || null,
+      previous_surgeries: previousSurgeries || null,
+      previous_cs: previousCs || null,
+      lab_result: labResult || null,
+      xray: xray || null,
+      other_diagnostics: otherDiagnostics || null,
       diagnostics: [],
       vaccinations: vaccinations
         .filter((v) => v.description)
@@ -248,6 +309,7 @@ const CreateReferralForm = () => {
     navigate('/module-2/referrals');
   };
 
+  // ── Reset ─────────────────────────────────────────────────────────────────
   const resetForm = () => {
     handleClearPatient();
     setReasonReferral('');
@@ -274,6 +336,33 @@ const CreateReferralForm = () => {
     setReferringDoctor('');
     setContactNo('');
     setVaccinations([{ description: '', date: '' }]);
+    // OB/GYNE
+    setGravida('');
+    setParity('');
+    setMenarche('');
+    setLmp('');
+    setAog('');
+    setEdc('');
+    setFh('');
+    setFht('');
+    setIe('');
+    setDilatation('');
+    setEffacement('');
+    setStation('');
+    setPresentingPart('');
+    setPromHours('');
+    setUs1Date('');
+    setUs1Aog('');
+    setUsLatestDate('');
+    setUsLatestEfw('');
+    setUsLatestPresentation('');
+    setUsLatestImpression('');
+    setComorbidity('');
+    setPreviousSurgeries('');
+    setPreviousCs('');
+    setLabResult('');
+    setXray('');
+    setOtherDiagnostics('');
   };
 
   const patientConfirmed = !!confirmedPatientId;
@@ -698,6 +787,342 @@ const CreateReferralForm = () => {
               </CardBox>
             </div>
 
+            {/* ════════════════════════════════════════════════════════════════
+                OB/GYNE SECTION
+            ════════════════════════════════════════════════════════════════ */}
+
+            {/* ── OB Section 1: Obstetric History ──────────────────────────── */}
+            <div className="col-span-12">
+              <CardBox>
+                <SectionTitle
+                  icon="solar:heart-angle-bold-duotone"
+                  title="OB/GYNE — Obstetric History"
+                />
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                    <Label htmlFor="gravida">Gravida</Label>
+                    <Input
+                      id="gravida"
+                      value={gravida}
+                      onChange={(e) => setGravida(e.target.value)}
+                      placeholder="e.g. G3"
+                    />
+                  </div>
+                  <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                    <Label htmlFor="parity">Parity (TPAL)</Label>
+                    <Input
+                      id="parity"
+                      value={parity}
+                      onChange={(e) => setParity(e.target.value)}
+                      placeholder="e.g. P2 (2-0-0-2)"
+                    />
+                  </div>
+                  <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                    <Label htmlFor="menarche">Menarche</Label>
+                    <Input
+                      id="menarche"
+                      value={menarche}
+                      onChange={(e) => setMenarche(e.target.value)}
+                      placeholder="e.g. 12 years old, regular"
+                    />
+                  </div>
+                </div>
+              </CardBox>
+            </div>
+
+            {/* ── OB Section 2: Current Pregnancy ──────────────────────────── */}
+            <div className="col-span-12">
+              <CardBox>
+                <SectionTitle
+                  icon="solar:calendar-bold-duotone"
+                  title="OB/GYNE — Current Pregnancy"
+                />
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                    <Label htmlFor="lmp">LMP (Last Menstrual Period)</Label>
+                    <Input
+                      id="lmp"
+                      type="date"
+                      value={lmp}
+                      onChange={(e) => setLmp(e.target.value)}
+                    />
+                  </div>
+                  <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                    <Label htmlFor="aog">AOG (Age of Gestation)</Label>
+                    <Input
+                      id="aog"
+                      value={aog}
+                      onChange={(e) => setAog(e.target.value)}
+                      placeholder="e.g. 36 weeks + 2 days"
+                    />
+                  </div>
+                  <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                    <Label htmlFor="edc">EDC (Expected Date of Confinement)</Label>
+                    <Input
+                      id="edc"
+                      type="date"
+                      value={edc}
+                      onChange={(e) => setEdc(e.target.value)}
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <Separator />
+                  </div>
+                  <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                    <Label htmlFor="fh">FH (Fundal Height)</Label>
+                    <Input
+                      id="fh"
+                      value={fh}
+                      onChange={(e) => setFh(e.target.value)}
+                      placeholder="e.g. 34 cm"
+                    />
+                  </div>
+                  <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                    <Label htmlFor="fht">FHT (Fetal Heart Tone)</Label>
+                    <Input
+                      id="fht"
+                      value={fht}
+                      onChange={(e) => setFht(e.target.value)}
+                      placeholder="e.g. 148 bpm"
+                    />
+                  </div>
+                </div>
+              </CardBox>
+            </div>
+
+            {/* ── OB Section 3: Internal Examination (IE) Findings ─────────── */}
+            <div className="col-span-12">
+              <CardBox>
+                <SectionTitle
+                  icon="solar:stethoscope-bold-duotone"
+                  title="OB/GYNE — Internal Examination (IE) Findings"
+                />
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-12">
+                    <Label htmlFor="ie">IE (Internal Examination)</Label>
+                    <Textarea
+                      id="ie"
+                      value={ie}
+                      onChange={(e) => setIe(e.target.value)}
+                      placeholder="Describe internal examination findings"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                    <Label htmlFor="dilatation">Dilatation</Label>
+                    <Input
+                      id="dilatation"
+                      value={dilatation}
+                      onChange={(e) => setDilatation(e.target.value)}
+                      placeholder="e.g. 4 cm"
+                    />
+                  </div>
+                  <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                    <Label htmlFor="effacement">Effacement</Label>
+                    <Input
+                      id="effacement"
+                      value={effacement}
+                      onChange={(e) => setEffacement(e.target.value)}
+                      placeholder="e.g. 80%"
+                    />
+                  </div>
+                  <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                    <Label htmlFor="station">Station</Label>
+                    <Input
+                      id="station"
+                      value={station}
+                      onChange={(e) => setStation(e.target.value)}
+                      placeholder="e.g. -1"
+                    />
+                  </div>
+                  <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                    <Label htmlFor="presentingPart">Presenting Part</Label>
+                    <Input
+                      id="presentingPart"
+                      value={presentingPart}
+                      onChange={(e) => setPresentingPart(e.target.value)}
+                      placeholder="e.g. Cephalic, Breech..."
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <Separator />
+                  </div>
+                  <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                    <Label htmlFor="promHours">PROM — How Many Hours</Label>
+                    <Input
+                      id="promHours"
+                      value={promHours}
+                      onChange={(e) => setPromHours(e.target.value)}
+                      placeholder="e.g. 6 hours (if applicable)"
+                    />
+                  </div>
+                </div>
+              </CardBox>
+            </div>
+
+            {/* ── OB Section 4: Ultrasound ──────────────────────────────────── */}
+            <div className="col-span-12">
+              <CardBox>
+                <SectionTitle icon="solar:soundwave-bold-duotone" title="OB/GYNE — Ultrasound" />
+                <div className="grid grid-cols-12 gap-4">
+                  {/* 1st Ultrasound */}
+                  <div className="col-span-12">
+                    <p className="text-sm font-semibold text-muted-foreground mb-2">
+                      1st Ultrasound
+                    </p>
+                  </div>
+                  <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                    <Label htmlFor="us1Date">Date</Label>
+                    <Input
+                      id="us1Date"
+                      type="date"
+                      value={us1Date}
+                      onChange={(e) => setUs1Date(e.target.value)}
+                    />
+                  </div>
+                  <div className="lg:col-span-4 sm:col-span-6 col-span-12">
+                    <Label htmlFor="us1Aog">AOG by Ultrasound</Label>
+                    <Input
+                      id="us1Aog"
+                      value={us1Aog}
+                      onChange={(e) => setUs1Aog(e.target.value)}
+                      placeholder="e.g. 8 weeks + 3 days"
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <Separator />
+                  </div>
+                  {/* Latest Ultrasound */}
+                  <div className="col-span-12">
+                    <p className="text-sm font-semibold text-muted-foreground mb-2">
+                      Latest Ultrasound
+                    </p>
+                  </div>
+                  <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                    <Label htmlFor="usLatestDate">Date</Label>
+                    <Input
+                      id="usLatestDate"
+                      type="date"
+                      value={usLatestDate}
+                      onChange={(e) => setUsLatestDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                    <Label htmlFor="usLatestEfw">EFW (Estimated Fetal Weight)</Label>
+                    <Input
+                      id="usLatestEfw"
+                      value={usLatestEfw}
+                      onChange={(e) => setUsLatestEfw(e.target.value)}
+                      placeholder="e.g. 2.8 kg"
+                    />
+                  </div>
+                  <div className="lg:col-span-3 sm:col-span-6 col-span-12">
+                    <Label htmlFor="usLatestPresentation">Presentation</Label>
+                    <Input
+                      id="usLatestPresentation"
+                      value={usLatestPresentation}
+                      onChange={(e) => setUsLatestPresentation(e.target.value)}
+                      placeholder="e.g. Cephalic, Breech..."
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <Label htmlFor="usLatestImpression">Impression</Label>
+                    <Textarea
+                      id="usLatestImpression"
+                      value={usLatestImpression}
+                      onChange={(e) => setUsLatestImpression(e.target.value)}
+                      placeholder="Enter ultrasound impression"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+              </CardBox>
+            </div>
+
+            {/* ── OB Section 5: Comorbidities & Surgical History ───────────── */}
+            <div className="col-span-12">
+              <CardBox>
+                <SectionTitle
+                  icon="solar:hospital-bold-duotone"
+                  title="OB/GYNE — Comorbidities & Surgical History"
+                />
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-12">
+                    <Label htmlFor="comorbidity">Comorbidity</Label>
+                    <Textarea
+                      id="comorbidity"
+                      value={comorbidity}
+                      onChange={(e) => setComorbidity(e.target.value)}
+                      placeholder="e.g. Gestational DM, PIH, Anemia..."
+                      rows={3}
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <Label htmlFor="previousSurgeries">Previous Surgeries</Label>
+                    <Textarea
+                      id="previousSurgeries"
+                      value={previousSurgeries}
+                      onChange={(e) => setPreviousSurgeries(e.target.value)}
+                      placeholder="List previous surgeries with approximate year and hospital"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <Label htmlFor="previousCs">Previous CS (When / Where / Indication)</Label>
+                    <Textarea
+                      id="previousCs"
+                      value={previousCs}
+                      onChange={(e) => setPreviousCs(e.target.value)}
+                      placeholder="e.g. 2020 — Pasig General Hospital — Fetal Distress"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+              </CardBox>
+            </div>
+
+            {/* ── OB Section 6: Additional Diagnostics ─────────────────────── */}
+            <div className="col-span-12">
+              <CardBox>
+                <SectionTitle
+                  icon="solar:document-add-bold-duotone"
+                  title="OB/GYNE — Additional Diagnostics"
+                />
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-12">
+                    <Label htmlFor="labResult">Lab Result</Label>
+                    <Textarea
+                      id="labResult"
+                      value={labResult}
+                      onChange={(e) => setLabResult(e.target.value)}
+                      placeholder="e.g. CBC: Hgb 98 g/L, HCT 30%; Blood type: A+; Urinalysis: pus cells 5-10/hpf..."
+                      rows={4}
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <Label htmlFor="xray">X-Ray</Label>
+                    <Textarea
+                      id="xray"
+                      value={xray}
+                      onChange={(e) => setXray(e.target.value)}
+                      placeholder="Enter X-ray findings or indicate N/A"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <Label htmlFor="otherDiagnostics">Other Diagnostics</Label>
+                    <Textarea
+                      id="otherDiagnostics"
+                      value={otherDiagnostics}
+                      onChange={(e) => setOtherDiagnostics(e.target.value)}
+                      placeholder="Any other diagnostic results (ECG, 2D Echo, etc.)"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+              </CardBox>
+            </div>
+
             {/* ── Section 7: Referring Physician ───────────────────────────── */}
             <div className="col-span-12">
               <CardBox>
@@ -741,7 +1166,7 @@ const CreateReferralForm = () => {
           </Button>
           <Button type="submit" disabled={!patientConfirmed}>
             <Icon icon="solar:check-circle-bold-duotone" height={15} className="mr-1.5" />
-            Create Referral
+            Create OB/GYNE Referral
           </Button>
         </div>
       </div>
@@ -749,4 +1174,4 @@ const CreateReferralForm = () => {
   );
 };
 
-export default CreateReferralForm;
+export default CreateObGyneReferralForm;

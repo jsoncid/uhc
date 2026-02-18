@@ -94,6 +94,23 @@ const ReferralDetail = () => {
                   <span className="text-sm text-muted-foreground">
                     {referral.from_assignment_name ?? '—'}
                   </span>
+                  {referral.to_assignment_name && (
+                    <>
+                      <Icon
+                        icon="solar:arrow-right-linear"
+                        height={12}
+                        className="text-muted-foreground"
+                      />
+                      <Icon
+                        icon="solar:hospital-bold-duotone"
+                        height={14}
+                        className="text-muted-foreground"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {referral.to_assignment_name}
+                      </span>
+                    </>
+                  )}
                   <span className="text-muted-foreground">·</span>
                   <Icon
                     icon="solar:calendar-bold-duotone"
@@ -125,6 +142,44 @@ const ReferralDetail = () => {
 
       {/* ── Left column: clinical info ── */}
       <div className="lg:col-span-8 col-span-12 flex flex-col gap-6">
+        {/* Patient Profile */}
+        <CardBox>
+          <SectionTitle icon="solar:user-id-bold-duotone" title="Patient Information" />
+          <div className="grid grid-cols-12 gap-y-4 gap-x-6">
+            <div className="lg:col-span-6 col-span-12">
+              <Field
+                label="Referring Facility"
+                value={referral.from_assignment_name}
+                icon="solar:buildings-2-bold-duotone"
+              />
+            </div>
+            <div className="lg:col-span-6 col-span-12">
+              <Field
+                label="Referring To"
+                value={referral.to_assignment_name}
+                icon="solar:hospital-bold-duotone"
+              />
+            </div>
+            <div className="lg:col-span-6 col-span-12">
+              <Field
+                label="Name of Patient"
+                value={referral.patient_name}
+                icon="solar:user-bold-duotone"
+              />
+            </div>
+            <div className="lg:col-span-2 col-span-4">
+              <Field label="Patient ID" value={referral.patient_profile} />
+            </div>
+            <div className="lg:col-span-4 col-span-8">
+              <Field
+                label="Date Created"
+                value={format(new Date(referral.created_at), 'MMM dd, yyyy')}
+                icon="solar:calendar-bold-duotone"
+              />
+            </div>
+          </div>
+        </CardBox>
+
         {info && (
           <>
             {/* Referral Info */}
@@ -158,17 +213,16 @@ const ReferralDetail = () => {
                     icon="solar:phone-bold-duotone"
                   />
                 </div>
-                <div className="lg:col-span-4 sm:col-span-6 col-span-12">
-                  <Field
-                    label="Date Created"
-                    value={format(new Date(referral.created_at), 'MMM dd, yyyy')}
-                    icon="solar:calendar-bold-duotone"
-                  />
-                </div>
               </div>
             </CardBox>
 
-            {/* HPI + PE */}
+            {/* Chief Complaints + HPI + PE */}
+            <CardBox>
+              <SectionTitle icon="solar:notes-bold-duotone" title="Chief Complaints" />
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {info.chief_complaints ?? '—'}
+              </p>
+            </CardBox>
             <div className="grid grid-cols-12 gap-6">
               <div className="lg:col-span-6 col-span-12">
                 <CardBox className="h-full">
@@ -227,6 +281,14 @@ const ReferralDetail = () => {
                   <Field label="Motor" value={info.motor} />
                 </div>
               </div>
+            </CardBox>
+
+            {/* Medications */}
+            <CardBox>
+              <SectionTitle icon="solar:pill-bold-duotone" title="Medications" />
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {info.medications ?? '—'}
+              </p>
             </CardBox>
 
             {/* COVID */}

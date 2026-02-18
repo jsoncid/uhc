@@ -12,10 +12,12 @@ export interface ReferralType {
   status: boolean | null; // active/inactive flag on the referral itself
   patient_profile: string | null; // uuid → module3.patient_profile.id
   from_assignment: string | null; // uuid → assignment.id
+  to_assignment: string | null; // uuid → assignment.id (destination facility)
 
   // Joined / denormalized fields for display (populated from related tables)
   patient_name?: string; // from module3.patient_profile
   from_assignment_name?: string; // from assignment description
+  to_assignment_name?: string; // destination facility name
   latest_status?: ReferralStatus; // latest active referral_history.status
   referral_info?: ReferralInfo;
   history?: ReferralHistory[];
@@ -59,6 +61,37 @@ export interface ReferralInfo {
   o2_requirement: string | null;
   referring_doctor: string | null;
   contact_no: string | null;
+  chief_complaints: string | null;
+  medications: string | null;
+
+  // ── OB/GYNE fields (optional — only populated for OB/GYNE referrals) ─────
+  lmp?: string | null; // Last Menstrual Period
+  aog?: string | null; // Age of Gestation
+  edc?: string | null; // Expected Date of Confinement
+  fh?: string | null; // Fundal Height
+  fht?: string | null; // Fetal Heart Tone
+  ie?: string | null; // Internal Examination
+  dilatation?: string | null;
+  effacement?: string | null;
+  station?: string | null;
+  presenting_part?: string | null;
+  prom_hours?: string | null; // PROM — hours
+  ultrasound_1st_date?: string | null;
+  ultrasound_1st_aog?: string | null;
+  ultrasound_latest_date?: string | null;
+  ultrasound_efw?: string | null; // Estimated Fetal Weight
+  ultrasound_presentation?: string | null;
+  ultrasound_impression?: string | null;
+  gravida?: string | null;
+  parity?: string | null; // TPAL format
+  menarche?: string | null;
+  comorbidity?: string | null;
+  previous_surgeries?: string | null;
+  previous_cs?: string | null; // when, where, indication
+  lab_result?: string | null;
+  xray?: string | null;
+  other_diagnostics?: string | null;
+
   referral: string | null; // uuid → module2.referral.id
   // Joined
   diagnostics?: ReferralInfoDiagnostic[];
