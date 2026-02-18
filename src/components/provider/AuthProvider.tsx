@@ -41,7 +41,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // Listen for auth changes and verify user is active
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Skip handling for SIGNED_IN - useAuthStore.signIn already handles the active check
+      // This prevents a race condition where AuthProvider and signIn both check status
+      if (event === 'SIGNED_IN') {
+        return;
+      }
+      
       if (session?.user) {
         const isActive = await checkUserActiveStatus(session.user.id);
         if (isActive) {
