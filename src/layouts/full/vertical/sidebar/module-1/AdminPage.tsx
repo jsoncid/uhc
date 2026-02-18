@@ -16,7 +16,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { AddOfficeDialog } from './AddOfficeDialog';
 import { EditOfficeDialog } from './EditOfficeDialog';
+import { AssignUserToOfficeDialog } from './AssignUserToOfficeDialog';
 import { useOfficeStore, type Office } from '@/stores/module-1_stores/useOfficeStore';
+import { useOfficeUserAssignmentStore } from '@/stores/module-1_stores/useOfficeUserAssignmentStore';
 import { userService } from '@/services/userService';
 
 interface Assignment {
@@ -28,9 +30,18 @@ const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Admin Page' }];
 
 const AdminPage = () => {
   const { offices, isLoading, error, fetchOffices, deleteOffice } = useOfficeStore();
+  const {
+    assignments: officeUserAssignments,
+    isLoading: isLoadingUserAssignments,
+    error: userAssignmentError,
+    fetchOfficeUserAssignments,
+    removeUserFromOffice,
+  } = useOfficeUserAssignmentStore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [userAssignmentSearchTerm, setUserAssignmentSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isAssignUserDialogOpen, setIsAssignUserDialogOpen] = useState(false);
   const [editingOffice, setEditingOffice] = useState<Office | null>(null);
   const [userAssignment, setUserAssignment] = useState<Assignment | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
@@ -55,8 +66,9 @@ const AdminPage = () => {
   useEffect(() => {
     if (userAssignment) {
       fetchOffices(userAssignment.id);
+      fetchOfficeUserAssignments(userAssignment.id);
     }
-  }, [userAssignment, fetchOffices]);
+  }, [userAssignment, fetchOffices, fetchOfficeUserAssignments]);
 
   const handleDeleteOffice = async (id: string) => {
     if (confirm('Are you sure you want to remove this office?')) {
@@ -75,12 +87,33 @@ const AdminPage = () => {
     }
   };
 
+  const handleRefreshUserAssignments = () => {
+    if (userAssignment) {
+      fetchOfficeUserAssignments(userAssignment.id);
+    }
+  };
+
+  const handleRemoveUserFromOffice = async (assignmentId: string) => {
+    if (confirm('Are you sure you want to remove this user from the office?')) {
+      await removeUserFromOffice(assignmentId);
+    }
+  };
+
   const filteredOffices = offices.filter((office) => {
     if (!searchTerm) return true;
     const lower = searchTerm.toLowerCase();
     return (
       (office.description?.toLowerCase().includes(lower) ?? false) ||
       (office.windows?.some((w) => w.description?.toLowerCase().includes(lower)) ?? false)
+    );
+  });
+
+  const filteredUserAssignments = officeUserAssignments.filter((assignment) => {
+    if (!userAssignmentSearchTerm) return true;
+    const lower = userAssignmentSearchTerm.toLowerCase();
+    return (
+      (assignment.user_email?.toLowerCase().includes(lower) ?? false) ||
+      (assignment.office_description?.toLowerCase().includes(lower) ?? false)
     );
   });
 
@@ -215,19 +248,43 @@ const AdminPage = () => {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  User Assignment
+                  Office User Assignment
                 </CardTitle>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Assign User
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleRefreshUserAssignments} disabled={isLoadingUserAssignments}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingUserAssignments ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                  <Button onClick={() => setIsAssignUserDialogOpen(true)} disabled={!userAssignment || offices.length === 0}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Assign User
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
+              {userAssignment && (
+                <div className="mb-4 p-3 bg-muted rounded-md">
+                  <span className="text-sm text-muted-foreground">Assignment: </span>
+                  <span className="text-sm font-medium">{userAssignment.description}</span>
+                </div>
+              )}
+
               <div className="flex items-center space-x-2 mb-4">
                 <Search className="h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search user assignments..." className="max-w-sm" />
+                <Input
+                  placeholder="Search by user or office..."
+                  value={userAssignmentSearchTerm}
+                  onChange={(e) => setUserAssignmentSearchTerm(e.target.value)}
+                  className="max-w-sm"
+                />
               </div>
+
+              {userAssignmentError && (
+                <div className="bg-destructive/15 text-destructive px-4 py-2 rounded-md mb-4">
+                  {userAssignmentError}
+                </div>
+              )}
 
               <div className="rounded-md border">
                 <Table>
@@ -235,17 +292,60 @@ const AdminPage = () => {
                     <TableRow>
                       <TableHead>User</TableHead>
                       <TableHead>Office</TableHead>
-                      <TableHead>Window</TableHead>
                       <TableHead>Assigned At</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        No user assignments found.
-                      </TableCell>
-                    </TableRow>
+                    {loadingAssignment || isLoadingUserAssignments ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          {loadingAssignment ? 'Loading user assignment...' : 'Loading office user assignments...'}
+                        </TableCell>
+                      </TableRow>
+                    ) : !userAssignment ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          No assignment found for your account. Please contact administrator.
+                        </TableCell>
+                      </TableRow>
+                    ) : offices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          No offices found. Please create offices first in the Office Management tab.
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredUserAssignments.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          {userAssignmentSearchTerm
+                            ? 'No user assignments match your search'
+                            : 'No users assigned to offices yet. Click "Assign User" to get started.'}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredUserAssignments.map((assignment) => (
+                        <TableRow key={assignment.id}>
+                          <TableCell className="font-medium">
+                            {assignment.user_email || 'Unknown User'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{assignment.office_description || 'Unnamed Office'}</Badge>
+                          </TableCell>
+                          <TableCell>{new Date(assignment.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRemoveUserFromOffice(assignment.id)}
+                              disabled={isLoadingUserAssignments}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -268,6 +368,13 @@ const AdminPage = () => {
           setEditingOffice(null);
         }}
         office={editingOffice}
+      />
+
+      <AssignUserToOfficeDialog
+        isOpen={isAssignUserDialogOpen}
+        onClose={() => setIsAssignUserDialogOpen(false)}
+        assignmentId={userAssignment?.id || ''}
+        onSuccess={handleRefreshUserAssignments}
       />
     </>
   );
