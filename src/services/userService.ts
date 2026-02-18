@@ -37,7 +37,13 @@ export const userService = {
       if (!response.ok) {
         throw new Error(`Failed to fetch users: ${response.statusText}`)
       }
-      return await response.json()
+      const json = await response.json()
+      // Handle new backend response format: { success, count, data }
+      if (json.success && json.data) {
+        return json.data
+      }
+      // Fallback for old format (direct array)
+      return Array.isArray(json) ? json : []
     } catch (error) {
       console.error('Error fetching users from API:', error)
       throw error
@@ -57,7 +63,13 @@ export const userService = {
       if (!response.ok) {
         throw new Error(`Failed to fetch users: ${response.statusText}`)
       }
-      return await response.json()
+      const json = await response.json()
+      // Handle new backend response format: { success, count, data }
+      if (json.success && json.data) {
+        return json.data
+      }
+      // Fallback for old format (direct array)
+      return Array.isArray(json) ? json : []
     } catch (error) {
       console.error('Error fetching users by IDs:', error)
       throw error
