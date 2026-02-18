@@ -36,6 +36,25 @@ const SidebarContent: MenuItem[] = [
     heading: 'Module 2 - REFERRAL',
     children: [
       {
+        name: 'Referral Management',
+        id: uniqueId(),
+        icon: 'solar:document-medicine-linear',
+        children: [
+          {
+            id: uniqueId(),
+            name: 'All Referrals',
+            url: '/module-2/referrals',
+            isPro: false,
+          },
+          {
+            id: uniqueId(),
+            name: 'Create Referral',
+            url: '/module-2/referrals/create',
+            isPro: false,
+          },
+        ],
+      },
+      {
         name: 'Tables',
         icon: 'solar:server-linear',
         id: uniqueId(),
