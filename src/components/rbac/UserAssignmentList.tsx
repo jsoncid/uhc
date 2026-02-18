@@ -23,7 +23,6 @@ import { Database } from '@/lib/supabase'
 import { UserAssignmentDialog } from './UserAssignmentDialog.tsx'
 import { RoleModuleAccessDialog } from './RoleModuleAccessDialog.tsx'
 import { UserRoleDialog } from './UserRoleDialog.tsx'
-import { UserDialog } from './UserDialog.tsx'
 
 type UserAssignment = Database['public']['Tables']['user_assignment']['Row'] & {
   users?: { email?: string; username?: string }
@@ -59,9 +58,6 @@ export const UserAssignmentList = () => {
   const [isUsersLoading, setIsUsersLoading] = useState(true)
   const [userListError, setUserListError] = useState<string | null>(null)
   const [userSearchTerm, setUserSearchTerm] = useState('')
-  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
-  const [userDialogMode, setUserDialogMode] = useState<'add' | 'edit'>('add')
-  const [selectedUser, setSelectedUser] = useState<UserWithStatus | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<UserWithStatus | null>(null)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isDeletingUser, setIsDeletingUser] = useState(false)
@@ -148,46 +144,6 @@ export const UserAssignmentList = () => {
       }
     } catch (err) {
       console.error('Error fetching role module access:', err)
-    }
-  }
-
-  const openAddUserDialog = () => {
-    setUserDialogMode('add')
-    setSelectedUser(null)
-    setIsUserDialogOpen(true)
-  }
-
-  const openEditUserDialog = (user: UserWithStatus) => {
-    setUserDialogMode('edit')
-    setSelectedUser(user)
-    setIsUserDialogOpen(true)
-  }
-
-  const handleUserDialogClose = () => {
-    setIsUserDialogOpen(false)
-    setSelectedUser(null)
-    setUserDialogMode('add')
-  }
-
-  const handleUserDialogSubmit = async (values: { name: string; email: string; isActive: boolean }) => {
-    try {
-      setUserListError(null)
-      if (userDialogMode === 'add') {
-        await userService.createUserStatus({
-          email: values.email,
-          isActive: values.isActive
-        })
-      } else if (selectedUser) {
-        await userService.updateUserStatus(selectedUser.id, {
-          email: values.email,
-          isActive: values.isActive
-        })
-      }
-      await fetchUsersWithStatus()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save user'
-      setUserListError(message)
-      throw err
     }
   }
 
@@ -680,10 +636,6 @@ export const UserAssignmentList = () => {
                   <Users className="h-5 w-5" />
                   System Users
                 </CardTitle>
-                <Button onClick={openAddUserDialog}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add User
-                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -745,13 +697,6 @@ export const UserAssignmentList = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => openEditUserDialog(user)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
                                 onClick={() => openDeleteUserDialog(user)}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -768,14 +713,6 @@ export const UserAssignmentList = () => {
           </Card>
         </TabsContent>
       </Tabs>
-
-      <UserDialog
-        isOpen={isUserDialogOpen}
-        mode={userDialogMode}
-        initialData={selectedUser ?? undefined}
-        onClose={handleUserDialogClose}
-        onSubmit={handleUserDialogSubmit}
-      />
 
       <UserAssignmentDialog
         isOpen={isUserAssignmentDialogOpen}
