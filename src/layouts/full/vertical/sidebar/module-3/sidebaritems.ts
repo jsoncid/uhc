@@ -37,14 +37,14 @@ const SidebarContent: MenuItem[] = [
     children: [
       {
         name: 'Patient Profiling',
-        icon: 'solar:server-linear',
+        icon: 'solar:user-circle-linear',
         id: uniqueId(),
         url: '/module-3/patient-profiling',
       },
       {
         name: 'Patient Tagging',
         id: uniqueId(),
-        icon: 'solar:sort-by-alphabet-linear',
+        icon: 'solar:tag-linear',
         url: '/module-3/tagging/overview',
       },
     ],
