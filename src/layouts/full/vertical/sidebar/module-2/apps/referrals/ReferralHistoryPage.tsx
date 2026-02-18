@@ -96,9 +96,6 @@ const HistoryDialog = ({
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Icon icon="solar:user-bold-duotone" height={16} className="text-primary" />
-            </div>
             {referral.patient_name ?? '—'}
           </DialogTitle>
         </DialogHeader>
@@ -283,17 +280,6 @@ const AllHistoryTab = ({
                 <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          r.status === false ? 'bg-muted' : 'bg-primary/10'
-                        }`}
-                      >
-                        <Icon
-                          icon="solar:user-bold-duotone"
-                          height={16}
-                          className={r.status === false ? 'text-muted-foreground' : 'text-primary'}
-                        />
-                      </div>
                       <div>
                         <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                         {r.status === false && (
@@ -406,13 +392,6 @@ const DischargedTab = ({
                 <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-lightsecondary flex items-center justify-center flex-shrink-0">
-                        <Icon
-                          icon="solar:user-bold-duotone"
-                          height={16}
-                          className="text-secondary"
-                        />
-                      </div>
                       <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                     </div>
                   </TableCell>
@@ -515,13 +494,6 @@ const DeactivatedTab = ({
                 <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                        <Icon
-                          icon="solar:user-bold-duotone"
-                          height={16}
-                          className="text-muted-foreground"
-                        />
-                      </div>
                       <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                     </div>
                   </TableCell>

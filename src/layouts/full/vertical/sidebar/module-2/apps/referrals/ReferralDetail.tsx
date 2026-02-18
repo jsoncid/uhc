@@ -80,9 +80,7 @@ const ReferralDetail = () => {
         <CardBox>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Icon icon="solar:user-bold-duotone" height={24} className="text-primary" />
-              </div>
+       
               <div>
                 <h2 className="text-lg font-bold">{referral.patient_name ?? 'Patient'}</h2>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap text-sm text-muted-foreground">

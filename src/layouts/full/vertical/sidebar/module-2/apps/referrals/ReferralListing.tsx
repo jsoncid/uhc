@@ -162,9 +162,6 @@ const ReferralListing = () => {
                 <TableRow key={referral.id} className="hover:bg-muted/20 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Icon icon="solar:user-bold-duotone" height={16} className="text-primary" />
-                      </div>
                       <span className="font-medium text-sm">{referral.patient_name ?? '—'}</span>
                     </div>
                   </TableCell>
