@@ -10,15 +10,15 @@ import { AMLogo, AMMenu, AMMenuItem, AMSidebar, AMSubmenu } from 'tailwind-sideb
 import 'tailwind-sidebar/styles.css';
 
 interface SidebarItemType {
-  heading?: string
-  id?: number | string
-  name?: string
-  title?: string
-  icon?: string
-  url?: string
-  children?: SidebarItemType[]
-  disabled?: boolean
-  isPro?: boolean
+  heading?: string;
+  id?: number | string;
+  name?: string;
+  title?: string;
+  icon?: string;
+  url?: string;
+  children?: SidebarItemType[];
+  disabled?: boolean;
+  isPro?: boolean;
 }
 
 const renderSidebarItems = (
@@ -73,9 +73,8 @@ const renderSidebarItems = (
       : `mt-0.5 text-sidebar-foreground dark:text-sidebar-foreground`;
 
     return (
-      <div onClick={onClose}>
+      <div key={item.id} onClick={onClose}>
         <AMMenuItem
-          key={item.id}
           icon={iconElement}
           isSelected={isSelected}
           link={item.url || undefined}
@@ -111,6 +110,8 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
       width={'270px'}
       showTrigger={false}
       mode={sidebarMode}
+      themeColor="#2eb85c"
+      themeSecondaryColor="#ffd34a"
       className="fixed left-0 top-0 border border-border dark:border-border bg-sidebar dark:bg-sidebar z-10 h-screen"
     >
       {/* Logo */}
@@ -138,7 +139,7 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
           ))}
 
           {/* Promo Section */}
-          <div className="mt-9 overflow-hidden">
+          {/* <div className="mt-9 overflow-hidden">
             <div className="flex w-full bg-lightprimary rounded-lg p-6">
               <div className="lg:w-1/2 w-full">
                 <h5 className="text-base text-sidebar-foreground">Haven't Account?</h5>
@@ -148,7 +149,7 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
                 <img src={rocket} alt="rocket" />
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
       </SimpleBar>
     </AMSidebar>
