@@ -17,8 +17,13 @@ import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { AddOfficeDialog } from './AddOfficeDialog';
 import { EditOfficeDialog } from './EditOfficeDialog';
 import { AssignUserToOfficeDialog } from './AssignUserToOfficeDialog';
+import { EditUserOfficeAssignmentDialog } from './EditUserOfficeAssignmentDialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useOfficeStore, type Office } from '@/stores/module-1_stores/useOfficeStore';
-import { useOfficeUserAssignmentStore } from '@/stores/module-1_stores/useOfficeUserAssignmentStore';
+import {
+  useOfficeUserAssignmentStore,
+  type OfficeUserAssignment,
+} from '@/stores/module-1_stores/useOfficeUserAssignmentStore';
 import { userService } from '@/services/userService';
 
 interface Assignment {
@@ -42,9 +47,24 @@ const AdminPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAssignUserDialogOpen, setIsAssignUserDialogOpen] = useState(false);
+  const [isEditUserAssignmentDialogOpen, setIsEditUserAssignmentDialogOpen] = useState(false);
   const [editingOffice, setEditingOffice] = useState<Office | null>(null);
+  const [editingUserAssignment, setEditingUserAssignment] = useState<OfficeUserAssignment | null>(null);
   const [userAssignment, setUserAssignment] = useState<Assignment | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
+
+  // Delete confirmation states
+  const [deleteOfficeConfirm, setDeleteOfficeConfirm] = useState<{ isOpen: boolean; office: Office | null }>({
+    isOpen: false,
+    office: null,
+  });
+  const [deleteUserAssignmentConfirm, setDeleteUserAssignmentConfirm] = useState<{
+    isOpen: boolean;
+    assignment: OfficeUserAssignment | null;
+  }>({
+    isOpen: false,
+    assignment: null,
+  });
 
   useEffect(() => {
     const loadUserAssignment = async () => {
@@ -70,9 +90,14 @@ const AdminPage = () => {
     }
   }, [userAssignment, fetchOffices, fetchOfficeUserAssignments]);
 
-  const handleDeleteOffice = async (id: string) => {
-    if (confirm('Are you sure you want to remove this office?')) {
-      await deleteOffice(id);
+  const handleDeleteOfficeClick = (office: Office) => {
+    setDeleteOfficeConfirm({ isOpen: true, office });
+  };
+
+  const handleConfirmDeleteOffice = async () => {
+    if (deleteOfficeConfirm.office) {
+      await deleteOffice(deleteOfficeConfirm.office.id);
+      setDeleteOfficeConfirm({ isOpen: false, office: null });
     }
   };
 
@@ -93,10 +118,20 @@ const AdminPage = () => {
     }
   };
 
-  const handleRemoveUserFromOffice = async (assignmentId: string) => {
-    if (confirm('Are you sure you want to remove this user from the office?')) {
-      await removeUserFromOffice(assignmentId);
+  const handleRemoveUserFromOfficeClick = (assignment: OfficeUserAssignment) => {
+    setDeleteUserAssignmentConfirm({ isOpen: true, assignment });
+  };
+
+  const handleConfirmRemoveUserFromOffice = async () => {
+    if (deleteUserAssignmentConfirm.assignment) {
+      await removeUserFromOffice(deleteUserAssignmentConfirm.assignment.id);
+      setDeleteUserAssignmentConfirm({ isOpen: false, assignment: null });
     }
+  };
+
+  const handleEditUserAssignment = (assignment: OfficeUserAssignment) => {
+    setEditingUserAssignment(assignment);
+    setIsEditUserAssignmentDialogOpen(true);
   };
 
   const filteredOffices = offices.filter((office) => {
@@ -225,7 +260,7 @@ const AdminPage = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleDeleteOffice(office.id)}
+                                onClick={() => handleDeleteOfficeClick(office)}
                                 disabled={isLoading}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -334,14 +369,24 @@ const AdminPage = () => {
                           </TableCell>
                           <TableCell>{new Date(assignment.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleRemoveUserFromOffice(assignment.id)}
-                              disabled={isLoadingUserAssignments}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditUserAssignment(assignment)}
+                                disabled={isLoadingUserAssignments}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRemoveUserFromOfficeClick(assignment)}
+                                disabled={isLoadingUserAssignments}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -375,6 +420,36 @@ const AdminPage = () => {
         onClose={() => setIsAssignUserDialogOpen(false)}
         assignmentId={userAssignment?.id || ''}
         onSuccess={handleRefreshUserAssignments}
+      />
+
+      <EditUserOfficeAssignmentDialog
+        isOpen={isEditUserAssignmentDialogOpen}
+        onClose={() => {
+          setIsEditUserAssignmentDialogOpen(false);
+          setEditingUserAssignment(null);
+        }}
+        assignment={editingUserAssignment}
+        onSuccess={handleRefreshUserAssignments}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteOfficeConfirm.isOpen}
+        onClose={() => setDeleteOfficeConfirm({ isOpen: false, office: null })}
+        onConfirm={handleConfirmDeleteOffice}
+        title="Delete Office"
+        description={`Are you sure you want to delete "${deleteOfficeConfirm.office?.description || 'this office'}"? This will also remove all windows and user assignments associated with this office. This action cannot be undone.`}
+        confirmText="Delete"
+        isLoading={isLoading}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteUserAssignmentConfirm.isOpen}
+        onClose={() => setDeleteUserAssignmentConfirm({ isOpen: false, assignment: null })}
+        onConfirm={handleConfirmRemoveUserFromOffice}
+        title="Remove User from Office"
+        description={`Are you sure you want to remove "${deleteUserAssignmentConfirm.assignment?.user_email || 'this user'}" from "${deleteUserAssignmentConfirm.assignment?.office_description || 'this office'}"?`}
+        confirmText="Remove"
+        isLoading={isLoadingUserAssignments}
       />
     </>
   );

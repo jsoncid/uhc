@@ -51,6 +51,7 @@ interface OfficeUserAssignmentState {
   fetchOfficeUserAssignments: (assignmentId: string) => Promise<void>;
   fetchUsersInAssignment: (assignmentId: string) => Promise<void>;
   assignUserToOffice: (userId: string, officeId: string) => Promise<void>;
+  updateUserOfficeAssignment: (assignmentId: string, newOfficeId: string) => Promise<void>;
   removeUserFromOffice: (assignmentId: string) => Promise<void>;
   clearError: () => void;
 }
@@ -178,6 +179,47 @@ export const useOfficeUserAssignmentStore = create<OfficeUserAssignmentState>((s
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to assign user to office',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  updateUserOfficeAssignment: async (assignmentId: string, newOfficeId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      // Get the current assignment to check the user
+      const currentAssignment = get().assignments.find((a) => a.id === assignmentId);
+      if (!currentAssignment) {
+        throw new Error('Assignment not found');
+      }
+
+      // Check if user is already assigned to the new office
+      const { data: existing, error: checkError } = await module1
+        .from('office_user_assignment')
+        .select('id')
+        .eq('user', currentAssignment.user)
+        .eq('office', newOfficeId)
+        .neq('id', assignmentId)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existing) {
+        throw new Error('User is already assigned to this office');
+      }
+
+      const { error: updateError } = await module1
+        .from('office_user_assignment')
+        .update({ office: newOfficeId })
+        .eq('id', assignmentId);
+
+      if (updateError) throw updateError;
+
+      set({ isLoading: false });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to update office assignment',
         isLoading: false,
       });
       throw error;
