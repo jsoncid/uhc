@@ -47,6 +47,24 @@ const SidebarContent: MenuItem[] = [
         id: uniqueId(),
         url: '/module-1/admin',
       },
+      {
+        name: 'Queue Generator',
+        icon: 'solar:ticket-linear',
+        id: uniqueId(),
+        url: '/module-1/queue-generator',
+      },
+      {
+        name: 'Queue Display',
+        icon: 'solar:monitor-linear',
+        id: uniqueId(),
+        url: '/module-1/queue-display',
+      },
+      {
+        name: 'Staff Queue Manager',
+        icon: 'solar:user-check-linear',
+        id: uniqueId(),
+        url: '/module-1/staff-queue-manager',
+      },
     ],
   },
   // {
