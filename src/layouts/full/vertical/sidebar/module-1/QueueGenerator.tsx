@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,42 +17,56 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
+import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
+import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Generator' }];
 
-// Sample offices
-const offices = [
-  { id: '1', name: 'Emergency Room' },
-  { id: '2', name: 'Billing & Payment' },
-  { id: '3', name: 'Laboratory' },
-  { id: '4', name: 'Pharmacy' },
-  { id: '5', name: 'Registration' },
-];
-
 const QueueGenerator = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [queueNumber, setQueueNumber] = useState('');
-  const [queueType, setQueueType] = useState<'regular' | 'priority'>('regular');
+  const [queueCode, setQueueCode] = useState('');
+  const [selectedPriorityName, setSelectedPriorityName] = useState('');
   const [selectedOffice, setSelectedOffice] = useState('');
   const [selectedOfficeName, setSelectedOfficeName] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const handleGetQueueNumber = (type: 'regular' | 'priority') => {
+  const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
+  const { priorities, fetchPriorities, generateQueueCode, isLoading: queueLoading } = useQueueStore();
+
+  useEffect(() => {
+    fetchOffices();
+    fetchPriorities();
+  }, [fetchOffices, fetchPriorities]);
+
+  const handleGetQueueNumber = async (priorityId: string) => {
     if (!selectedOffice) return;
 
-    // Generate a sample queue number based on type
-    const number = Math.floor(Math.random() * 100) + 1;
-    const prefix = type === 'regular' ? 'R' : 'P';
-    setQueueNumber(`${prefix}-${String(number).padStart(3, '0')}`);
-    setQueueType(type);
+    setIsGenerating(true);
+    const code = await generateQueueCode(selectedOffice, priorityId);
+    setIsGenerating(false);
 
-    const office = offices.find((o) => o.id === selectedOffice);
-    setSelectedOfficeName(office?.name || '');
-
-    setIsDialogOpen(true);
+    if (code) {
+      setQueueCode(code);
+      const office = offices.find((o) => o.id === selectedOffice);
+      setSelectedOfficeName(office?.description || '');
+      const priority = priorities.find((p) => p.id === priorityId);
+      setSelectedPriorityName(priority?.description || '');
+      setIsDialogOpen(true);
+    }
   };
 
   const isOfficeSelected = !!selectedOffice;
+  const isLoading = officesLoading || queueLoading || isGenerating;
+
+  const getPriorityColor = (description: string | null) => {
+    const desc = description?.toLowerCase() || '';
+    if (desc.includes('priority') || desc.includes('urgent')) {
+      return { bg: 'bg-red-600 hover:bg-red-700', text: 'text-red-600', badge: 'bg-red-100 text-red-700' };
+    }
+    return { bg: 'bg-green-600 hover:bg-green-700', text: 'text-green-600', badge: 'bg-green-100 text-green-700' };
+  };
 
   return (
     <>
@@ -67,14 +81,14 @@ const QueueGenerator = () => {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Select Office</Label>
-              <Select value={selectedOffice} onValueChange={setSelectedOffice}>
+              <Select value={selectedOffice} onValueChange={setSelectedOffice} disabled={isLoading}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose an office" />
                 </SelectTrigger>
                 <SelectContent>
-                  {offices.map((office) => (
+                  {offices.filter(o => o.status).map((office) => (
                     <SelectItem key={office.id} value={office.id}>
-                      {office.name}
+                      {office.description || office.id}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -82,20 +96,35 @@ const QueueGenerator = () => {
             </div>
 
             <div className="space-y-3 pt-2">
-              <Button
-                className="w-full bg-green-600 hover:bg-green-700"
-                onClick={() => handleGetQueueNumber('regular')}
-                disabled={!isOfficeSelected}
-              >
-                Regular
-              </Button>
-              <Button
-                className="w-full bg-red-600 hover:bg-red-700"
-                onClick={() => handleGetQueueNumber('priority')}
-                disabled={!isOfficeSelected}
-              >
-                Priority
-              </Button>
+              {priorities.length > 0 ? (
+                priorities.map((priority) => {
+                  const colors = getPriorityColor(priority.description);
+                  return (
+                    <Button
+                      key={priority.id}
+                      className={`w-full ${colors.bg}`}
+                      onClick={() => handleGetQueueNumber(priority.id)}
+                      disabled={!isOfficeSelected || isLoading}
+                    >
+                      {isGenerating ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : null}
+                      {priority.description || priority.id}
+                    </Button>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  {queueLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading queue types...
+                    </span>
+                  ) : (
+                    'No queue types available. Please contact an administrator to set up priority types.'
+                  )}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -104,24 +133,22 @@ const QueueGenerator = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-center">Your Queue Number</DialogTitle>
+            <DialogTitle className="text-center">Your Queue Code</DialogTitle>
             <DialogDescription className="text-center">
-              Please wait for your number to be called.
+              Please wait for your code to be called.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center py-8 space-y-4">
             <span className="text-sm text-muted-foreground">{selectedOfficeName}</span>
             <span
-              className={`text-6xl font-bold ${queueType === 'regular' ? 'text-green-600' : 'text-red-600'}`}
+              className={`text-6xl font-bold tracking-widest ${getPriorityColor(selectedPriorityName).text}`}
             >
-              {queueNumber}
+              {queueCode}
             </span>
             <span
-              className={`text-sm font-medium px-3 py-1 rounded-full ${
-                queueType === 'regular' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}
+              className={`text-sm font-medium px-3 py-1 rounded-full ${getPriorityColor(selectedPriorityName).badge}`}
             >
-              {queueType === 'regular' ? 'Regular' : 'Priority'}
+              {selectedPriorityName}
             </span>
           </div>
           <DialogFooter className="sm:justify-center">

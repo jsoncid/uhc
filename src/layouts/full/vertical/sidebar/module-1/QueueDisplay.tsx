@@ -1,59 +1,35 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
+import { useOfficeStore, Office } from '@/stores/module-1_stores/useOfficeStore';
+import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
-// Sample queue data
-const queueList = [
-  { id: 1, number: 'P-001', type: 'priority' },
-  { id: 2, number: 'R-002', type: 'regular' },
-  { id: 3, number: 'R-003', type: 'regular' },
-  { id: 4, number: 'P-004', type: 'priority' },
-  { id: 5, number: 'R-005', type: 'regular' },
-];
-
-// Sample offices with their windows
-const offices = [
-  {
-    name: 'Registration Office',
-    windows: [
-      { name: 'Window 1', number: 'P-001' },
-      { name: 'Window 2', number: 'R-002' },
-      { name: 'Window 3', number: null },
-      { name: 'Window 4', number: null },
-    ],
-  },
-  {
-    name: 'Cashier',
-    windows: [
-      { name: 'Window 1', number: 'R-003' },
-      { name: 'Window 2', number: null },
-      { name: 'Window 3', number: null },
-      { name: 'Window 4', number: null },
-    ],
-  },
-  {
-    name: 'Pharmacy',
-    windows: [
-      { name: 'Window 1', number: 'P-004' },
-      { name: 'Window 2', number: null },
-      { name: 'Window 3', number: null },
-      { name: 'Window 4', number: null },
-    ],
-  },
-  {
-    name: 'Laboratory',
-    windows: [
-      { name: 'Window 1', number: null },
-      { name: 'Window 2', number: null },
-      { name: 'Window 3', number: null },
-      { name: 'Window 4', number: null },
-    ],
-  },
-];
 
 const QueueDisplay = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
+  const {
+    sequences,
+    statuses,
+    fetchSequences,
+    fetchStatuses,
+    subscribeToSequences,
+    isLoading: queueLoading,
+  } = useQueueStore();
+
+  useEffect(() => {
+    fetchOffices();
+    fetchStatuses();
+    fetchSequences();
+  }, [fetchOffices, fetchStatuses, fetchSequences]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToSequences();
+    return () => unsubscribe();
+  }, [subscribeToSequences]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -70,6 +46,48 @@ const QueueDisplay = () => {
     });
   };
 
+  const getStatusByDescription = (description: string) => {
+    return statuses.find((s) => s.description?.toLowerCase().includes(description.toLowerCase()));
+  };
+
+  const getPendingAndServingSequences = (): Sequence[] => {
+    const pendingStatus = getStatusByDescription('pending');
+    const servingStatus = getStatusByDescription('serving');
+    return sequences.filter(
+      (seq) => seq.status === pendingStatus?.id || seq.status === servingStatus?.id,
+    );
+  };
+
+  const getServingSequenceForOffice = (officeId: string): Sequence | undefined => {
+    const servingStatus = getStatusByDescription('serving');
+    return sequences.find(
+      (seq) => seq.office === officeId && seq.status === servingStatus?.id,
+    );
+  };
+
+  const getPriorityColor = (priority: string | null | undefined) => {
+    const desc = priority?.toLowerCase() || '';
+    if (desc.includes('priority') || desc.includes('urgent')) {
+      return 'text-red-600';
+    }
+    return 'text-green-600';
+  };
+
+  const activeOffices = offices.filter((o) => o.status);
+  const queueList = getPendingAndServingSequences();
+  const isLoading = officesLoading || queueLoading;
+
+  if (isLoading && activeOffices.length === 0) {
+    return (
+      <>
+        <BreadcrumbComp title="Queue Display" items={BCrumb} />
+        <div className="flex justify-center items-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <BreadcrumbComp title="Queue Display" items={BCrumb} />
@@ -80,18 +98,24 @@ const QueueDisplay = () => {
             <CardTitle className="text-center text-xl">Queue</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y">
-              {queueList.map((item) => (
-                <div
-                  key={item.id}
-                  className={`py-4 text-center text-2xl font-bold ${
-                    item.type === 'priority' ? 'text-red-600' : 'text-green-600'
-                  }`}
-                >
-                  {item.number}
-                </div>
-              ))}
-            </div>
+            {queueList.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                No customers in queue
+              </div>
+            ) : (
+              <div className="divide-y max-h-[70vh] overflow-y-auto">
+                {queueList.map((seq) => (
+                  <div
+                    key={seq.id}
+                    className={`py-4 text-center text-2xl font-bold tracking-widest ${getPriorityColor(
+                      seq.priority_data?.description,
+                    )}`}
+                  >
+                    {seq.queue}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -104,28 +128,37 @@ const QueueDisplay = () => {
             </span>
           </div>
           <div className="space-y-6">
-            {offices.map((office, index) => (
-              <Card key={index}>
-                <CardHeader className="bg-primary/10 py-3">
-                  <CardTitle className="text-xl">{office.name}</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="grid grid-cols-4 divide-x">
-                    {office.windows.map((window, wIndex) => (
-                      <div
-                        key={wIndex}
-                        className="flex flex-col items-center justify-center py-6 px-4"
-                      >
-                        <span className="text-sm text-muted-foreground mb-1">{window.name}</span>
-                        <span className="text-3xl font-bold text-primary">
-                          {window.number || '-'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {activeOffices.map((office: Office) => {
+              const servingSequence = getServingSequenceForOffice(office.id);
+
+              return (
+                <Card key={office.id}>
+                  <CardHeader className="bg-primary/10 py-3">
+                    <CardTitle className="text-xl">{office.description || office.id}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="flex flex-col items-center justify-center py-6 px-4">
+                      {servingSequence ? (
+                        <>
+                          <span
+                            className={`text-5xl font-bold tracking-widest ${getPriorityColor(
+                              servingSequence.priority_data?.description,
+                            )}`}
+                          >
+                            {servingSequence.queue}
+                          </span>
+                          <span className="text-sm text-muted-foreground mt-2">
+                            {servingSequence.priority_data?.description || 'Regular'}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-3xl font-bold text-muted-foreground">-</span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       </div>
