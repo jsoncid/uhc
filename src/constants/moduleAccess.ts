@@ -15,4 +15,5 @@ export const ROLE_IDS = {
   infoUser: env.VITE_INFO_USER_ID,
   module1Admin: env.VITE_MODULE_1_ADMIN,
   module4Operator: env.VITE_MODULE_4_OPERATOR,
+  module4Member: env.VITE_MODULE_4_MEMBER,
 };

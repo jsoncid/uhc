@@ -35,18 +35,21 @@ import { uniqueId } from 'lodash';
 import { MODULE_IDS, ROLE_IDS } from 'src/constants/moduleAccess';
 
 export const getModule4Items = (userRoleId: string, userModuleId: string) => {
-  const allowedRoles = [ROLE_IDS.module4Operator]; //
+  if (userModuleId !== MODULE_IDS.module4) return [];
 
-  const hasAccess =
-    userModuleId === MODULE_IDS.module4 &&
-    allowedRoles.includes(userRoleId);
+  const items = [];
 
-  if (!hasAccess) return [];
+  // module4Operator can only see operator page
+  if (userRoleId === ROLE_IDS.module4Operator) {
+    items.push({ id: 'operator', title: 'Health Card Operator', href: '/module-4/operator' });
+  }
 
-  return [
-    { id: 'member', title: 'Health Card Holder', href: '/module-4/member' },
-    { id: 'operator', title: 'Health Card Operator', href: '/module-4/operator' },
-  ];
+  // module4Member can only see member page
+  if (userRoleId === ROLE_IDS.module4Member) {
+    items.push({ id: 'member', title: 'Health Card Holder', href: '/module-4/member' });
+  }
+
+  return items;
 };
 
 const SidebarContent: MenuItem[] = [

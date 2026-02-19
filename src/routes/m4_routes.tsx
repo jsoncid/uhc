@@ -12,7 +12,7 @@ export const m4Routes = [
     element: (
       <ProtectedRoute>
         <ModuleGuard
-           requiredRoleIds={[ROLE_IDS.module4Operator]}
+           requiredRoleIds={[ROLE_IDS.module4Member]}
             requiredModuleId={MODULE_IDS.module4}
         >
           <Suspense fallback={<div>Loading...</div>}>
