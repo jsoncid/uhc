@@ -27,6 +27,24 @@ const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/User
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
+const Module1Admin = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-1/AdminPage')),
+);
+const QueueGenerator = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-1/QueueGenerator')),
+);
+const QueueDisplay = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-1/QueueDisplay')),
+);
+const StaffQueueManager = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-1/StaffQueueManager')),
+);
+const Module4Member = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')),
+);
+const Module4Operator = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')),
+);
 const Module4Member = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')),
 );
@@ -113,14 +131,47 @@ const Router = [
         ),
       },
       {
+        path: '/module-1/admin',
+        element: (
+          <ProtectedRoute>
+            <Module1Admin />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-1/queue-generator',
+        element: (
+          <ProtectedRoute>
+            <QueueGenerator />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-1/queue-display',
+        element: <QueueDisplay />,
+      },
+      {
+        path: '/module-1/staff-queue-manager',
+        element: (
+          <ProtectedRoute>
+            <StaffQueueManager />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-4/member',
+      {
         path: '/module-4/member',
         element: (
           <ProtectedRoute>
             <Module4Member />
           </ProtectedRoute>
         ),
+        ),
       },
 
+      {
+        path: '/module-4/operator',
       {
         path: '/module-4/operator',
         element: (
@@ -128,7 +179,10 @@ const Router = [
             <Module4Operator />
           </ProtectedRoute>
         ),
+        ),
       },
+      {
+        path: '/apps/tickets',
       {
         path: '/apps/tickets',
         element: (
