@@ -160,7 +160,6 @@ const Router = [
           </ProtectedRoute>
         ),
       },
-
       {
         path: '/module-4/operator',
         element: (
