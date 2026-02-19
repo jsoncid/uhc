@@ -3,16 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  db: {
-    schema: 'module3'
-  }
-})
+// Create Supabase client without default schema to access both public and module3
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export type Database = {
-  module3: {
+  public: {
     Tables: {
-      // Add your database types here
+      // RBAC and User Management Tables (in public schema)
       users: {
         Row: {
           id: string
@@ -165,6 +162,11 @@ export type Database = {
           assignment?: string
         }
       }
+    }
+  }
+  module3: {
+    Tables: {
+      // Patient and Location Tables (in module3 schema)
       patient_profile: {
         Row: {
           id: string
@@ -300,6 +302,10 @@ export type Database = {
           hpercode?: string | null
         }
       }
+    }
+  }
+  module1: {
+    Tables: {
       office: {
         Row: {
           id: string
@@ -346,10 +352,6 @@ export type Database = {
           status?: boolean
         }
       }
-    }
-  }
-  module1: {
-    Tables: {
       priority: {
         Row: {
           id: string

@@ -7,7 +7,7 @@ import { roleService } from '@/services/roleService'
 import { userService } from '@/services/userService'
 import { Database } from '@/lib/supabase'
 
-type Assignment = Database['module3']['Tables']['assignment']['Row']
+type Assignment = Database['public']['Tables']['assignment']['Row']
 
 interface AuthUser {
   id: string

@@ -24,13 +24,13 @@ import { UserAssignmentDialog } from './UserAssignmentDialog.tsx'
 import { RoleModuleAccessDialog } from './RoleModuleAccessDialog.tsx'
 import { UserRoleDialog } from './UserRoleDialog.tsx'
 
-type UserAssignment = Database['module3']['Tables']['user_assignment']['Row'] & {
+type UserAssignment = Database['public']['Tables']['user_assignment']['Row'] & {
   users?: { email?: string; username?: string }
   assignment?: { description?: string; id: string }
 }
-type Assignment = Database['module3']['Tables']['assignment']['Row']
-type RoleModuleAccess = Database['module3']['Tables']['role_module_access']['Row']
-type Role = Database['module3']['Tables']['role']['Row']
+type Assignment = Database['public']['Tables']['assignment']['Row']
+type RoleModuleAccess = Database['public']['Tables']['role_module_access']['Row']
+type Role = Database['public']['Tables']['role']['Row']
 type UserRole = {
   id: string
   user: string

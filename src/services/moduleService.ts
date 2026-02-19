@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { Database } from '@/lib/supabase'
 
-type Module = Database['module3']['Tables']['module']
+type Module = Database['public']['Tables']['module']
 
 export const moduleService = {
   async getAllModules(): Promise<Module['Row'][]> {

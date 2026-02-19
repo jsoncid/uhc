@@ -12,7 +12,7 @@ import {
 import { roleService } from '@/services/roleService'
 import { Database } from '@/lib/supabase'
 
-type Role = Database['module3']['Tables']['role']['Row']
+type Role = Database['public']['Tables']['role']['Row']
 
 interface RoleDialogProps {
   isOpen: boolean

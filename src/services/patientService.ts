@@ -8,7 +8,7 @@ import { Database } from '@/lib/supabase';
 type PatientProfileDB = Database['module3']['Tables']['patient_profile'];
 
 // Get API URL from environment or use default backend URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://uhc-backend.180.232.187.222.sslip.io/api';
 
 export interface PatientProfile {
   id: string;
@@ -269,6 +269,7 @@ class PatientService {
       let regionId: string | null = null;
       if (locationData.region_name) {
         const { data: existingRegion } = await supabase
+          .schema('module3')
           .from('region')
           .select('id')
           .ilike('description', locationData.region_name)
@@ -279,6 +280,7 @@ class PatientService {
           console.log('Found existing region:', regionId);
         } else {
           const { data: newRegion, error } = await supabase
+            .schema('module3')
             .from('region')
             .insert({ description: locationData.region_name })
             .select('id')
@@ -297,6 +299,7 @@ class PatientService {
       let provinceId: string | null = null;
       if (locationData.province_name) {
         const { data: existingProvince } = await supabase
+          .schema('module3')
           .from('province')
           .select('id')
           .ilike('description', locationData.province_name)
@@ -308,6 +311,7 @@ class PatientService {
           console.log('Found existing province:', provinceId);
         } else {
           const { data: newProvince, error } = await supabase
+            .schema('module3')
             .from('province')
             .insert({ 
               description: locationData.province_name,
@@ -329,6 +333,7 @@ class PatientService {
       let cityId: string | null = null;
       if (locationData.city_name) {
         const { data: existingCity } = await supabase
+          .schema('module3')
           .from('city_municipality')
           .select('id')
           .ilike('description', locationData.city_name)
@@ -340,6 +345,7 @@ class PatientService {
           console.log('Found existing city:', cityId);
         } else {
           const { data: newCity, error } = await supabase
+            .schema('module3')
             .from('city_municipality')
             .insert({ 
               description: locationData.city_name,
@@ -360,6 +366,7 @@ class PatientService {
       // Step 4: Find or create Barangay
       if (locationData.brgy_name) {
         const { data: existingBrgy } = await supabase
+          .schema('module3')
           .from('brgy')
           .select('id')
           .ilike('description', locationData.brgy_name)
@@ -371,6 +378,7 @@ class PatientService {
           return existingBrgy.id;
         } else {
           const { data: newBrgy, error } = await supabase
+            .schema('module3')
             .from('brgy')
             .insert({
               description: locationData.brgy_name,
@@ -480,6 +488,7 @@ class PatientService {
       if (patientIdToUse) {
         console.log('Checking if patient exists by UUID:', patientIdToUse);
         const { data: checkById, error: checkError } = await supabase
+          .schema('module3')
           .from('patient_profile')
           .select('*')
           .eq('id', patientIdToUse)
@@ -499,6 +508,7 @@ class PatientService {
       if (!existingPatient && patientData.first_name && patientData.last_name && patientData.birth_date) {
         console.log('Checking if patient exists by name and birth date');
         const { data: checkByName, error: checkError } = await supabase
+          .schema('module3')
           .from('patient_profile')
           .select('*')
           .eq('first_name', patientData.first_name.trim())
@@ -520,6 +530,7 @@ class PatientService {
         console.log('Patient exists, updating:', existingPatient.id);
         // Update existing patient
         const { data, error } = await supabase
+          .schema('module3')
           .from('patient_profile')
           .update(supabaseData)
           .eq('id', existingPatient.id)
@@ -572,6 +583,7 @@ class PatientService {
         
         // Insert new patient
         const { data, error } = await supabase
+          .schema('module3')
           .from('patient_profile')
           .insert(supabaseData)
           .select()
@@ -648,6 +660,7 @@ class PatientService {
       
       // Check if repository record exists for this patient_profile
       const { data: existingRepo } = await supabase
+        .schema('module3')
         .from('patient_repository')
         .select('id')
         .eq('patient_profile', data.patient_profile_id)
@@ -656,6 +669,7 @@ class PatientService {
       if (existingRepo) {
         // Update existing record
         const { error } = await supabase
+          .schema('module3')
           .from('patient_repository')
           .update({
             hpercode: data.hpercode,
@@ -671,6 +685,7 @@ class PatientService {
       } else {
         // Insert new record
         const { error } = await supabase
+          .schema('module3')
           .from('patient_repository')
           .insert({
             patient_profile: data.patient_profile_id,

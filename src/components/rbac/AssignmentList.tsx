@@ -17,7 +17,7 @@ import { assignmentService } from '@/services/assignmentService'
 import { Database } from '@/lib/supabase'
 import { AssignmentDialog } from './AssignmentDialog'
 
-type Assignment = Database['module3']['Tables']['assignment']['Row']
+type Assignment = Database['public']['Tables']['assignment']['Row']
 
 export const AssignmentList = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([])

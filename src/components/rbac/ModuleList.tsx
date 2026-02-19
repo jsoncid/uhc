@@ -17,7 +17,7 @@ import { moduleService } from '@/services/moduleService'
 import { Database } from '@/lib/supabase'
 import { ModuleDialog } from './ModuleDialog'
 
-type Module = Database['module3']['Tables']['module']['Row']
+type Module = Database['public']['Tables']['module']['Row']
 
 export const ModuleList = () => {
   const [modules, setModules] = useState<Module[]>([])

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { moduleService } from '@/services/moduleService'
 import { Database } from '@/lib/supabase'
 
-type Module = Database['module3']['Tables']['module']['Row']
+type Module = Database['public']['Tables']['module']['Row']
 
 interface ModuleDialogProps {
   isOpen: boolean
