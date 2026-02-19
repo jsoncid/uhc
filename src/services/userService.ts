@@ -84,6 +84,9 @@ export const userService = {
       if (!response.ok) {
         throw new Error(`Failed to fetch users: ${response.statusText}`)
       }
+      const data = await response.json()
+      // Handle various API response formats (raw array, { users: [...] }, { data: [...] })
+      return Array.isArray(data) ? data : (data?.users ?? data?.data ?? [])
       const json = await response.json()
       // Handle new backend response format: { success, count, data }
       if (json.success && json.data) {
