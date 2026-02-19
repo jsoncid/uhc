@@ -82,8 +82,40 @@ export const RoleList = () => {
     )
   }
 
+  // Calculate stats
+  const totalRoles = roles.length
+  const activeRoles = roles.filter(role => role.is_active).length
+  const inactiveRoles = totalRoles - activeRoles
+
   return (
     <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Total Roles</p>
+            <p className="text-3xl font-semibold">
+              {isLoading ? '...' : totalRoles}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Active Roles</p>
+            <p className="text-3xl font-semibold text-emerald-500">
+              {isLoading ? '...' : activeRoles}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Inactive Roles</p>
+            <p className="text-3xl font-semibold text-amber-500">
+              {isLoading ? '...' : inactiveRoles}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
