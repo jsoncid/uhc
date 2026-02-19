@@ -135,11 +135,12 @@ const ReferralListing = () => {
         </div>
       </div>
       <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
-        <Table className="min-w-[800px]">
+        <Table className="min-w-[960px]">
           <TableHeader>
             <TableRow className="bg-muted/30">
               <TableHead className="font-semibold">Patient</TableHead>
               <TableHead className="font-semibold">From Assignment</TableHead>
+              <TableHead className="font-semibold">Referred To</TableHead>
               <TableHead className="font-semibold">Referring Doctor</TableHead>
               <TableHead className="font-semibold">Reason for Referral</TableHead>
               <TableHead className="font-semibold">Status</TableHead>
@@ -150,7 +151,7 @@ const ReferralListing = () => {
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon
                       icon="solar:clipboard-remove-bold-duotone"
@@ -171,6 +172,9 @@ const ReferralListing = () => {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {referral.from_assignment_name ?? '—'}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {referral.to_assignment_name ?? '—'}
                   </TableCell>
                   <TableCell className="text-sm">
                     {referral.referral_info?.referring_doctor ?? '—'}
