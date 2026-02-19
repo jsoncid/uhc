@@ -36,29 +36,16 @@ const SidebarContent: MenuItem[] = [
     heading: 'Module 2 - REFERRAL',
     children: [
       {
-        name: 'Tables',
-        icon: 'solar:server-linear',
+        name: 'Referral Management',
         id: uniqueId(),
-        url: '/module-2/table',
+        icon: 'solar:document-medicine-linear',
+        url: '/module-2/referrals',
       },
-      {
-        name: 'Blogs',
+       {
+        name: 'Referral History',
         id: uniqueId(),
-        icon: 'solar:sort-by-alphabet-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Blog Post',
-            url: '/module-2/apps/blog/post',
-            isPro: false,
-          },
-          {
-            id: uniqueId(),
-            name: 'Blog Detail',
-            url: '/module-2/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
-            isPro: false,
-          },
-        ],
+        icon: 'solar:history-2-bold',
+        url: '/module-2/referral-history',
       },
     ],
   },
