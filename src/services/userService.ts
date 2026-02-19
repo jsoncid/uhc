@@ -35,7 +35,7 @@ export interface UserProfileData {
   modules: Array<{ id: string; description: string; permissions: { is_select: boolean; is_insert: boolean; is_update: boolean; is_delete: boolean } }>
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+const API_URL = import.meta.env.VITE_API_URL || 'http://uhc-backend.180.232.187.222.sslip.io/api'
 
 export const userService = {
   // Fetch users from backend API (connects to auth.users via PostgreSQL)
