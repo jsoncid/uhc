@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { Input } from 'src/components/ui/input';
 import { Button } from 'src/components/ui/button';
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import QRCodeLib from 'qrcode';
+import { useUserProfile } from 'src/hooks/useUserProfile';
 // Canvas-based card rendering (no html2canvas needed)
 
 // ─── Supabase Client ───────────────────────────────────────────────────────────
@@ -484,6 +485,167 @@ const CardPreviewModal = ({
   </div>
 );
 
+// ─── PIN Authentication Modal (for verifying PIN on entry) ──────────────────
+const PinAuthModal = ({
+  onConfirm,
+  isLoading,
+  error,
+  hasExistingPin,
+}: {
+  onConfirm: (pin: string) => void;
+  isLoading: boolean;
+  error: string;
+  hasExistingPin: boolean;
+}) => {
+  const [pin, setPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [localErr, setLocalErr] = useState(error);
+
+  const handleDigit = (d: string) => {
+    if (pin.length < 4) setPin(pin + d);
+  };
+
+  const handleBack = () => {
+    if (pin.length > 0) setPin(pin.slice(0, -1));
+  };
+
+  const handleSubmit = () => {
+    setLocalErr('');
+    if (pin.length < 4) {
+      setLocalErr('Please enter your 4-digit PIN.');
+      return;
+    }
+    onConfirm(pin);
+  };
+
+  const handleClear = () => {
+    setPin('');
+    setLocalErr('');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-br from-green-700 to-green-900 px-7 py-6 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
+            <Lock className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="font-bold text-white text-lg leading-none">
+              {hasExistingPin ? 'Verify PIN' : 'Set Your PIN'}
+            </h2>
+            <p className="text-green-100 text-xs mt-1">Health Card Authentication</p>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-7 py-8">
+          <p className="text-gray-700 text-sm mb-6 leading-relaxed">
+            {hasExistingPin
+              ? 'Enter your 4-digit PIN to access your health card information.'
+              : 'Create a 4-digit PIN to secure your health card. Share this PIN only with your health center operator when needed.'}
+          </p>
+
+          {/* PIN Display */}
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 mb-6 border border-gray-200">
+            <div className="flex items-center justify-center gap-3">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="w-14 h-14 rounded-2xl border-2 border-gray-300 flex items-center justify-center text-2xl font-bold transition-all"
+                  style={{
+                    borderColor: pin.length > i ? '#15803d' : '#d1d5db',
+                    backgroundColor: pin.length > i ? '#f0fdf4' : '#f3f4f6',
+                  }}
+                >
+                  {showPin ? pin[i] || '' : pin[i] ? '•' : ''}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Show/Hide PIN toggle */}
+          <button
+            type="button"
+            onClick={() => setShowPin(!showPin)}
+            className="flex items-center justify-center gap-2 mx-auto text-sm text-green-700 hover:text-green-900 mb-6 transition-colors"
+          >
+            {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {showPin ? 'Hide PIN' : 'Show PIN'}
+          </button>
+
+          {/* Error */}
+          {(localErr || error) && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-red-700 text-sm">{localErr || error}</p>
+            </div>
+          )}
+
+          {/* Keypad */}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, 'Back'].map((digit) => (
+              <button
+                key={digit}
+                type="button"
+                onClick={() => {
+                  if (digit === 'Back') handleBack();
+                  else if (digit !== '') handleDigit(String(digit));
+                }}
+                disabled={isLoading}
+                className={`py-3 rounded-xl font-semibold transition-all ${
+                  digit === ''
+                    ? ''
+                    : isLoading
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-gray-100 active:bg-gray-200'
+                } ${
+                  digit === 'Back'
+                    ? 'col-span-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                    : 'bg-gray-100 text-gray-900 border border-gray-200'
+                }`}
+              >
+                {digit === 'Back' ? '←' : digit}
+              </button>
+            ))}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleClear}
+              disabled={isLoading || pin.length === 0}
+              className="flex-1 px-4 py-3 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isLoading || pin.length < 4}
+              className="flex-1 px-4 py-3 rounded-xl bg-green-700 text-white font-semibold hover:bg-green-800 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />
+                  Verify
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── PIN Modal ────────────────────────────────────────────────────────────────
 const PinModal = ({
   mode,
@@ -653,6 +815,8 @@ const PinModal = ({
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════════════
 const UhcMember = () => {
+  const userProfile = useUserProfile();
+  
   const [activeTab,       setActiveTab]       = useState('documents');
   const [searchQuery,     setSearchQuery]     = useState('');
   const [searchResults,   setSearchResults]   = useState<PatientProfile[]>([]);
@@ -676,12 +840,18 @@ const UhcMember = () => {
   const [printModalImg,  setPrintModalImg]  = useState<string | null>(null);
 
   // ── PIN states ─────────────────────────────────────────────────────────────
-  const [healthCardId,   setHealthCardId]   = useState<string | null>(null);
-  const [hasPin,         setHasPin]         = useState(false);
-  const [pinModalMode,   setPinModalMode]   = useState<'set' | 'change' | null>(null);
-  const [isPinLoading,   setIsPinLoading]   = useState(false);
-  const [pinError,       setPinError]       = useState('');
-  const [pinSuccess,     setPinSuccess]     = useState('');
+  const [healthCardId,           setHealthCardId]           = useState<string | null>(null);
+  const [hasPin,                 setHasPin]                 = useState(false);
+  const [pinModalMode,           setPinModalMode]           = useState<'set' | 'change' | null>(null);
+  const [isPinLoading,           setIsPinLoading]           = useState(false);
+  const [pinError,               setPinError]               = useState('');
+  const [pinSuccess,             setPinSuccess]             = useState('');
+  const [isAuthenticated,        setIsAuthenticated]        = useState(false);
+  const [showPinAuthModal,       setShowPinAuthModal]       = useState(false);
+  const [isCheckingHealth,       setIsCheckingHealth]       = useState(true);
+  const [pinAuthError,           setPinAuthError]           = useState('');
+  const [isPinAuthLoading,       setIsPinAuthLoading]       = useState(false);
+  const [currentUserPatient,     setCurrentUserPatient]     = useState<PatientProfile | null>(null);
 
   const cardRef = useRef<HTMLDivElement>(null);
 
