@@ -6,6 +6,7 @@ import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { MODULE_IDS, ROLE_IDS } from '../constants/moduleAccess';
 import { ModuleGuard } from '../components/ModuleGuard';
+import { m4Routes } from './m4_routes';
 
 
 /* ***Layouts**** */
@@ -30,8 +31,6 @@ const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/User
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
-const Module4Member = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')));
-const Module4Operator = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')));
 const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
 const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
@@ -163,22 +162,7 @@ const Router = [
           </ProtectedRoute>
         ),
       },
-      {
-        path: '/module-4/member',
-        element: (
-          <ProtectedRoute>
-            <Module4Member />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-4/operator',
-        element: (
-          <ProtectedRoute>
-            <Module4Operator />
-          </ProtectedRoute>
-        ),
-      },
+      ...m4Routes,
       { 
         path: '/apps/tickets', 
         element: (
