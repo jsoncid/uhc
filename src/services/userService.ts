@@ -1,6 +1,14 @@
 import { supabase } from '@/lib/supabase'
 import { Database } from '@/lib/supabase'
 
+export interface UserWithStatus {
+  id: string
+  email: string
+  name?: string
+  is_active: boolean
+  created_at: string
+}
+
 type UserStatus = Database['public']['Tables']['user_status']
 
 // Custom UserRole type since user_role table may not be in generated types yet
@@ -40,7 +48,7 @@ export interface UserProfileData {
   modules: Array<{ id: string; description: string; permissions: { is_select: boolean; is_insert: boolean; is_update: boolean; is_delete: boolean } }>
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+const API_URL = import.meta.env.VITE_API_URL || 'http://uhc-backend.180.232.187.222.sslip.io/api'
 
 export const userService = {
   // Fetch users from backend API (connects to auth.users via PostgreSQL)
@@ -50,7 +58,13 @@ export const userService = {
       if (!response.ok) {
         throw new Error(`Failed to fetch users: ${response.statusText}`)
       }
-      return await response.json()
+      const json = await response.json()
+      // Handle new backend response format: { success, count, data }
+      if (json.success && json.data) {
+        return json.data
+      }
+      // Fallback for old format (direct array)
+      return Array.isArray(json) ? json : []
     } catch (error) {
       console.error('Error fetching users from API:', error)
       throw error
@@ -73,22 +87,31 @@ export const userService = {
       const data = await response.json()
       // Handle various API response formats (raw array, { users: [...] }, { data: [...] })
       return Array.isArray(data) ? data : (data?.users ?? data?.data ?? [])
+      const json = await response.json()
+      // Handle new backend response format: { success, count, data }
+      if (json.success && json.data) {
+        return json.data
+      }
+      // Fallback for old format (direct array)
+      return Array.isArray(json) ? json : []
     } catch (error) {
       console.error('Error fetching users by IDs:', error)
       throw error
     }
   },
 
-  async createUserStatus(email: string): Promise<void> {
+  async createUserStatus(payload: { email: string; isActive?: boolean }): Promise<void> {
     try {
-      console.log('Attempting to create user status for email:', email)
+      console.log('Attempting to create user status for email:', payload.email)
       
+      const insertPayload: UserStatus['Insert'] = {
+        email: payload.email,
+        is_active: payload.isActive ?? false
+      }
+
       const { error } = await supabase
         .from('user_status')
-        .insert({
-          email,
-          is_active: false
-        } as UserStatus['Insert'])
+        .insert(insertPayload)
 
       if (error) {
         console.error('Error creating user status:', error)
@@ -103,11 +126,21 @@ export const userService = {
     }
   },
 
-  async updateUserStatus(userId: string, isActive: boolean): Promise<void> {
+  async updateUserStatus(userId: string, updates: { isActive?: boolean; email?: string }): Promise<void> {
     try {
+      const updatePayload: Partial<UserStatus['Update']> = {}
+
+      if (updates.email) {
+        updatePayload.email = updates.email
+      }
+
+      if (updates.isActive !== undefined) {
+        updatePayload.is_active = updates.isActive
+      }
+
       const { error } = await supabase
         .from('user_status')
-        .update({ is_active: isActive } as UserStatus['Update'])
+        .update(updatePayload)
         .eq('id', userId)
 
       if (error) {
@@ -116,6 +149,23 @@ export const userService = {
       }
     } catch (error) {
       console.error('Error in updateUserStatus:', error)
+      throw error
+    }
+  },
+
+  async deleteUserStatus(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('user_status')
+        .delete()
+        .eq('id', userId)
+
+      if (error) {
+        console.error('Error deleting user status:', error)
+        throw error
+      }
+    } catch (error) {
+      console.error('Error in deleteUserStatus:', error)
       throw error
     }
   },
@@ -402,7 +452,7 @@ export const userService = {
   },
 
   // User Acceptance operations
-  async getUsersWithStatus(): Promise<{ id: string; email: string; name: string; is_active: boolean; created_at: string }[]> {
+  async getUsersWithStatus(): Promise<UserWithStatus[]> {
     try {
       const { data, error } = await supabase
         .rpc('get_users_with_status')

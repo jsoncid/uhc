@@ -7,3 +7,4 @@ export { UserAssignmentList } from './UserAssignmentList';
 export { UserAssignmentDialog } from './UserAssignmentDialog';
 export { UserAcceptanceList } from './UserAcceptanceList';
 export { RoleModuleAccessDialog } from './RoleModuleAccessDialog';
+export { UserDialog } from './UserDialog';

@@ -27,6 +27,14 @@ const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/User
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
+const Module4Member = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')));
+const Module4Operator = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')));
+const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
+const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
+const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
+const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')));
+
+// Module 1 - Queue Management System
 const Module1Admin = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-1/AdminPage')),
 );
@@ -39,16 +47,6 @@ const QueueDisplay = Loadable(
 const StaffQueueManager = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-1/StaffQueueManager')),
 );
-const Module4Member = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')),
-);
-const Module4Operator = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')),
-);
-const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
-const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
-const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
-const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')));
 
 // Referral Pages (Module 2)
 const Referrals = Loadable(
@@ -65,6 +63,11 @@ const ReferralDetails = Loadable(
 );
 const ReferralHistory = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralHistory')),
+);
+
+// Module 3 - Patient Profiling
+const PatientProfiling = Loadable(
+  lazy(() => import('../views/apps/module-3/PatientProfiling')),
 );
 
 // RBAC Pages
@@ -97,9 +100,6 @@ const Router = [
           </ProtectedRoute>
         ),
       },
-      // { path: '/', exact: true, element: <SamplePage /> },
-      { path: '*', element: <Navigate to="/auth/404" /> },
-
       {
         path: '/apps/notes',
         element: (
@@ -168,8 +168,8 @@ const Router = [
           </ProtectedRoute>
         ),
       },
-      {
-        path: '/apps/tickets',
+      { 
+        path: '/apps/tickets', 
         element: (
           <ProtectedRoute>
             <Tickets />
@@ -241,6 +241,15 @@ const Router = [
           </ProtectedRoute>
         ),
       },
+      // Module 3 - Patient Profiling
+      {
+        path: '/module-3/patient-profiling',
+        element: (
+          <ProtectedRoute>
+            <PatientProfiling />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: '/user-profile',
         element: (
@@ -298,6 +307,7 @@ const Router = [
           </ProtectedRoute>
         ),
       },
+      { path: '*', element: <Navigate to="/auth/404" /> },
     ],
   },
   {
