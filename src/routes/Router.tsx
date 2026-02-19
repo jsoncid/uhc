@@ -11,11 +11,8 @@ import { module2Routes } from './m2_routes';
 import { module3Routes } from './m3_routes';
 import { module4Routes } from './m4_routes';
 import { module5Routes } from './m5_routes';
-import { m4Routes } from './m4_routes';
 
-
-
-/* ***Layouts**** */
+/* **Layouts*** */
 const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
 const BlankLayout = Loadable(lazy(() => import('../layouts/blank/BlankLayout')));
 
@@ -33,7 +30,7 @@ const Modern = Loadable(lazy(() => import('../views/dashboards/Modern')));
 //pages
 const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/UserProfile')));
 
-/* ****Apps***** */
+/* ***Apps**** */
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
@@ -108,60 +105,6 @@ const Router = [
       ...module5Routes,
       {
         path: '/apps/tickets',
-      {
-        path: '/module-1/admin',
-        element: (
-          <ProtectedRoute>
-            <Module1Admin />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-1/queue-generator',
-        element: (
-          <ProtectedRoute>
-            <QueueGenerator />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-1/queue-display',
-        element: <QueueDisplay />,
-      },
-      {
-        path: '/module-1/staff-queue-manager',
-        element: (
-          <ProtectedRoute>
-            <StaffQueueManager />
-          </ProtectedRoute>
-        ),
-      },
-      { 
-        path: '/apps/tickets', 
-         ...m4Routes,
-      },
-      {
-        path: '/module-4/member',
-        element: (
-          <ProtectedRoute>
-            <Module4Member />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-4/operator',
-        element: (
-          <ProtectedRoute>
-            <Module4Operator />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/apps/tickets',
-      ...m4Routes,
-      },
-      { 
-        path: '/apps/tickets', 
         element: (
           <ProtectedRoute>
             <Tickets />
