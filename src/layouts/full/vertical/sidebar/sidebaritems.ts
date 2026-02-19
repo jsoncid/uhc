@@ -117,7 +117,7 @@ const SidebarContent: MenuItem[] = [
       },
     ],
   },
-  
+
   {
     heading: 'Apps',
     children: [
@@ -169,7 +169,7 @@ const SidebarContent: MenuItem[] = [
       },
     ],
   },
-  
+
   {
     heading: 'Role-Based Access Control',
     children: [
@@ -201,10 +201,21 @@ const SidebarContent: MenuItem[] = [
         url: '/rbac/user-assignments',
         isPro: false,
       },
-
     ],
   },
-  
+
+  {
+    heading: 'About',
+    children: [
+      {
+        id: uniqueId(),
+        name: 'About / Teams',
+        icon: 'solar:users-group-two-rounded-linear',
+        url: '/about',
+        isPro: false,
+      },
+    ],
+  },
   {
     heading: 'Auth',
     children: [
