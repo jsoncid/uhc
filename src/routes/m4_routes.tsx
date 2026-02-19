@@ -1,12 +1,18 @@
-import { lazy, Suspense } from 'react';
-import { ProtectedRoute } from '../components/ProtectedRoute'; 
-import { MODULE_IDS, ROLE_IDS } from '../constants/moduleAccess';
-import { ModuleGuard } from '../components/ModuleGuard';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { lazy } from 'react';
+import Loadable from '../layouts/full/shared/loadable/Loadable';
+import { ProtectedRoute } from '../components/ProtectedRoute';
 
-const UhcMember = lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember'));
-const UhcOperator = lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator'));
+// Module 4 Components
+const Module4Member = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')),
+);
+const Module4Operator = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')),
+);
 
-export const m4Routes = [
+export const module4Routes = [
   {
     path: '/module-4/member',
     element: (
@@ -26,14 +32,7 @@ export const m4Routes = [
     path: '/module-4/operator',
     element: (
       <ProtectedRoute>
-        <ModuleGuard
-          requiredRoleIds={[ROLE_IDS.module4Operator]}
-          requiredModuleId={MODULE_IDS.module4}
-        >
-          <Suspense fallback={<div>Loading...</div>}>
-            <UhcOperator />
-          </Suspense>
-        </ModuleGuard>
+        <Module4Operator />
       </ProtectedRoute>
     ),
   },
