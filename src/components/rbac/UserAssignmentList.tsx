@@ -61,6 +61,15 @@ export const UserAssignmentList = () => {
   const [deleteTarget, setDeleteTarget] = useState<UserWithStatus | null>(null)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isDeletingUser, setIsDeletingUser] = useState(false)
+  const [deleteUserAssignmentTarget, setDeleteUserAssignmentTarget] = useState<UserAssignment | null>(null)
+  const [isDeleteUserAssignmentOpen, setIsDeleteUserAssignmentOpen] = useState(false)
+  const [isDeletingUserAssignment, setIsDeletingUserAssignment] = useState(false)
+  const [deleteRoleModuleTarget, setDeleteRoleModuleTarget] = useState<RoleModuleAccess | null>(null)
+  const [isDeleteRoleModuleOpen, setIsDeleteRoleModuleOpen] = useState(false)
+  const [isDeletingRoleModule, setIsDeletingRoleModule] = useState(false)
+  const [deleteUserRoleTarget, setDeleteUserRoleTarget] = useState<UserRole | null>(null)
+  const [isDeleteUserRoleOpen, setIsDeleteUserRoleOpen] = useState(false)
+  const [isDeletingUserRole, setIsDeletingUserRole] = useState(false)
 
   const fetchData = async () => {
     try {
@@ -188,27 +197,53 @@ export const UserAssignmentList = () => {
     }
   }, [roles])
 
-  const handleDeleteUserAssignment = async (id: string) => {
-    if (confirm('Are you sure you want to remove this user assignment?')) {
-      try {
-        await roleService.deleteUserAssignment(id)
-        await fetchUserAssignments()
-      } catch (err) {
-        setError('Failed to delete user assignment')
-        console.error('Error deleting user assignment:', err)
-      }
+  const handleDeleteUserAssignment = (assignment: UserAssignment) => {
+    setDeleteUserAssignmentTarget(assignment)
+    setIsDeleteUserAssignmentOpen(true)
+  }
+
+  const closeDeleteUserAssignmentDialog = () => {
+    setIsDeleteUserAssignmentOpen(false)
+    setDeleteUserAssignmentTarget(null)
+  }
+
+  const confirmDeleteUserAssignment = async () => {
+    if (!deleteUserAssignmentTarget) return
+    try {
+      setIsDeletingUserAssignment(true)
+      await roleService.deleteUserAssignment(deleteUserAssignmentTarget.id)
+      await fetchUserAssignments()
+      closeDeleteUserAssignmentDialog()
+    } catch (err) {
+      setError('Failed to delete user assignment')
+      console.error('Error deleting user assignment:', err)
+    } finally {
+      setIsDeletingUserAssignment(false)
     }
   }
 
-  const handleDeleteRoleModuleAccess = async (id: string) => {
-    if (confirm('Are you sure you want to remove this role module access?')) {
-      try {
-        await roleService.deleteRoleModuleAccess(id)
-        await fetchRoleModuleAccess()
-      } catch (err) {
-        setError('Failed to delete role module access')
-        console.error('Error deleting role module access:', err)
-      }
+  const handleDeleteRoleModuleAccess = (access: RoleModuleAccess) => {
+    setDeleteRoleModuleTarget(access)
+    setIsDeleteRoleModuleOpen(true)
+  }
+
+  const closeDeleteRoleModuleDialog = () => {
+    setIsDeleteRoleModuleOpen(false)
+    setDeleteRoleModuleTarget(null)
+  }
+
+  const confirmDeleteRoleModule = async () => {
+    if (!deleteRoleModuleTarget) return
+    try {
+      setIsDeletingRoleModule(true)
+      await roleService.deleteRoleModuleAccess(deleteRoleModuleTarget.id)
+      await fetchRoleModuleAccess()
+      closeDeleteRoleModuleDialog()
+    } catch (err) {
+      setError('Failed to delete role module access')
+      console.error('Error deleting role module access:', err)
+    } finally {
+      setIsDeletingRoleModule(false)
     }
   }
 
@@ -222,15 +257,28 @@ export const UserAssignmentList = () => {
     }
   }
 
-  const handleDeleteUserRole = async (id: string) => {
-    if (confirm('Are you sure you want to remove this user role assignment?')) {
-      try {
-        await userService.deleteUserRole(id)
-        await fetchData()
-      } catch (err) {
-        setError('Failed to delete user role')
-        console.error('Error deleting user role:', err)
-      }
+  const handleDeleteUserRole = (userRole: UserRole) => {
+    setDeleteUserRoleTarget(userRole)
+    setIsDeleteUserRoleOpen(true)
+  }
+
+  const closeDeleteUserRoleDialog = () => {
+    setIsDeleteUserRoleOpen(false)
+    setDeleteUserRoleTarget(null)
+  }
+
+  const confirmDeleteUserRole = async () => {
+    if (!deleteUserRoleTarget) return
+    try {
+      setIsDeletingUserRole(true)
+      await userService.deleteUserRole(deleteUserRoleTarget.id)
+      await fetchData()
+      closeDeleteUserRoleDialog()
+    } catch (err) {
+      setError('Failed to delete user role')
+      console.error('Error deleting user role:', err)
+    } finally {
+      setIsDeletingUserRole(false)
     }
   }
 
@@ -406,7 +454,7 @@ export const UserAssignmentList = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleDeleteUserAssignment(assignment.id)}
+                              onClick={() => handleDeleteUserAssignment(assignment)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -485,7 +533,7 @@ export const UserAssignmentList = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleDeleteUserRole(userRole.id)}
+                              onClick={() => handleDeleteUserRole(userRole)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -611,7 +659,7 @@ export const UserAssignmentList = () => {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleDeleteRoleModuleAccess(access.id)}
+                                    onClick={() => handleDeleteRoleModuleAccess(access)}
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -739,6 +787,63 @@ export const UserAssignmentList = () => {
             </Button>
             <Button variant="destructive" onClick={confirmDeleteUser} disabled={isDeletingUser}>
               {isDeletingUser ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteUserAssignmentOpen} onOpenChange={closeDeleteUserAssignmentDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete User Assignment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this user assignment? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteUserAssignmentDialog} disabled={isDeletingUserAssignment}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteUserAssignment} disabled={isDeletingUserAssignment}>
+              {isDeletingUserAssignment ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteUserRoleOpen} onOpenChange={closeDeleteUserRoleDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete User Role</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this user role assignment? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteUserRoleDialog} disabled={isDeletingUserRole}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteUserRole} disabled={isDeletingUserRole}>
+              {isDeletingUserRole ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteRoleModuleOpen} onOpenChange={closeDeleteRoleModuleDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete Role Module Access</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this role module access? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteRoleModuleDialog} disabled={isDeletingRoleModule}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteRoleModule} disabled={isDeletingRoleModule}>
+              {isDeletingRoleModule ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>

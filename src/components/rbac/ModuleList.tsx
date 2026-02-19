@@ -5,6 +5,14 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { moduleService } from '@/services/moduleService'
 import { Database } from '@/lib/supabase'
 import { ModuleDialog } from './ModuleDialog'
@@ -19,6 +27,9 @@ export const ModuleList = () => {
   const [error, setError] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedModule, setSelectedModule] = useState<Module | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Module | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const fetchModules = async () => {
     try {
@@ -55,15 +66,28 @@ export const ModuleList = () => {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this module?')) {
-      try {
-        await moduleService.deleteModule(id)
-        await fetchModules()
-      } catch (err) {
-        setError('Failed to delete module')
-        console.error('Error deleting module:', err)
-      }
+  const openDeleteDialog = (module: Module) => {
+    setDeleteTarget(module)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const closeDeleteDialog = () => {
+    setIsDeleteDialogOpen(false)
+    setDeleteTarget(null)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      setIsDeleting(true)
+      await moduleService.deleteModule(deleteTarget.id)
+      await fetchModules()
+      closeDeleteDialog()
+    } catch (err) {
+      setError('Failed to delete module')
+      console.error('Error deleting module:', err)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -189,7 +213,7 @@ export const ModuleList = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDelete(module.id)}
+                            onClick={() => openDeleteDialog(module)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -209,6 +233,25 @@ export const ModuleList = () => {
         onClose={handleDialogClose}
         module={selectedModule}
       />
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={closeDeleteDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete Module</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete module "{deleteTarget?.id}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteDialog} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

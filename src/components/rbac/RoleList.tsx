@@ -5,6 +5,14 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { roleService } from '@/services/roleService'
 import { Database } from '@/lib/supabase'
 import { RoleDialog } from './RoleDialog'
@@ -18,6 +26,9 @@ export const RoleList = () => {
   const [error, setError] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Role | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const fetchRoles = async () => {
     try {
@@ -47,15 +58,28 @@ export const RoleList = () => {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this role? This action cannot be undone.')) {
-      try {
-        await roleService.deleteRole(id)
-        await fetchRoles()
-      } catch (err) {
-        setError('Failed to delete role')
-        console.error('Error deleting role:', err)
-      }
+  const openDeleteDialog = (role: Role) => {
+    setDeleteTarget(role)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const closeDeleteDialog = () => {
+    setIsDeleteDialogOpen(false)
+    setDeleteTarget(null)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      setIsDeleting(true)
+      await roleService.deleteRole(deleteTarget.id)
+      await fetchRoles()
+      closeDeleteDialog()
+    } catch (err) {
+      setError('Failed to delete role')
+      console.error('Error deleting role:', err)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -189,7 +213,7 @@ export const RoleList = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDelete(role.id)}
+                            onClick={() => openDeleteDialog(role)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -209,6 +233,25 @@ export const RoleList = () => {
         onClose={handleDialogClose}
         role={selectedRole}
       />
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={closeDeleteDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete Role</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete role "{deleteTarget?.id}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteDialog} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
