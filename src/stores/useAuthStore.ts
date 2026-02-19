@@ -7,8 +7,8 @@ interface AuthState {
   user: User | null
   isLoading: boolean
   error: string | null
-  signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, options?: { data?: { [key: string]: any } }) => Promise<void>
+  signIn: (email: string, password: string) => Promise<boolean>
+  signUp: (email: string, password: string, options?: { data?: { [key: string]: any }, assignmentId?: string }) => Promise<boolean>
   signOut: () => Promise<void>
   setUser: (user: User | null) => void
   clearError: () => void
@@ -64,61 +64,60 @@ export const useAuthStore = create<AuthState>((set, get) => {
     error: null,
     sessionExpiry: null,
 
-    signIn: async (email: string, password: string) => {
-      set({ isLoading: true, error: null })
-      try {
-        console.log('Starting login for email:', email)
-
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-
-        if (error) {
-          console.error('Supabase signIn error:', error)
-          throw error
-        }
-
-        console.log('Supabase auth successful, checking user status...')
-
-        // Check if user is active in user_status table (using user id as primary key)
-        const userStatus = await userService.getUserStatus(data.user.id)
-
-        // if (!userStatus) {
-        //   console.error('User status not found for email:', email)
-        //   // Sign out the user since they shouldn't be logged in
-        //   await supabase.auth.signOut()
-        //   throw new Error('Account not found. Please contact administrator.')
-        // }
-
-        // if (!userStatus.is_active) {
-        //   console.error('User account is inactive for email:', email)
-        //   // Sign out the user since they shouldn't be logged in
-        //   await supabase.auth.signOut()
-        //   throw new Error('Account is inactive. Please contact administrator to activate your account.')
-        // }
-
-        console.log('User status check passed, user is active')
-        applySessionState(data.session ?? null)
-        set({ isLoading: false })
-      } catch (error) {
-        console.error('Login error:', error)
-        set({ 
-          error: error instanceof Error ? error.message : 'Failed to sign in',
-          isLoading: false 
-        })
+  signIn: async (email: string, password: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      console.log('Starting login for email:', email)
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      
+      if (error) {
+        console.error('Supabase signIn error:', error)
+        throw error
       }
-    },
+      
+      console.log('Supabase auth successful, checking user status...')
+      
+      // Check if user is active in user_status table (using user id as primary key)
+      const userStatus = await userService.getUserStatus(data.user.id)
+      
+      // if (!userStatus) {
+      //   console.error('User status not found for email:', email)
+      //   // Sign out the user since they shouldn't be logged in
+      //   await supabase.auth.signOut()
+      //   throw new Error('Account not found. Please contact administrator.')
+      // }
+      
+      // if (!userStatus.is_active) {
+      //   console.error('User account is inactive for email:', email)
+      //   // Sign out the user since they shouldn't be logged in
+      //   await supabase.auth.signOut()
+      //   throw new Error('Account is inactive. Please contact administrator to activate your account.')
+      // }
+      
+      console.log('User status check passed, user is active')
+      set({ user: data.user, isLoading: false })
+    } catch (error) {
+      console.error('Login error:', error)
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to sign in',
+        isLoading: false 
+      })
+    }
+  },
 
-    signUp: async (email: string, password: string, options?: { data?: { [key: string]: any } }) => {
-      set({ isLoading: true, error: null })
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: options ? { data: options.data } : undefined
-        })
-        if (error) throw error
+  signUp: async (email: string, password: string, options?: { data?: { [key: string]: any } }) => {
+    set({ isLoading: true, error: null })
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: options ? { data: options.data } : undefined
+      })
+      if (error) throw error
 
         if (data?.user) {
           // After successful signup, insert user details into user_status table
@@ -132,10 +131,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
               },
             ])
 
-          if (insertError) {
-            console.error('Error creating user_status:', insertError)
-            throw insertError
-          }
+        if (insertError) {
+          console.error('Error creating user_status:', insertError)
+          throw insertError
+        }
 
           console.log('Successfully created an account and saved user details.')
 
@@ -144,15 +143,15 @@ export const useAuthStore = create<AuthState>((set, get) => {
           await supabase.auth.signOut()
         }
 
-        // Don't set user - registration successful but user needs to login manually after approval
-        set({ user: null, sessionExpiry: null, isLoading: false })
-
-        // Return success indication (caller can check isLoading: false and error: null)
-        return
-      } catch (error) {
-        set({ error: error instanceof Error ? error.message : 'Failed to sign up', isLoading: false })
-      }
-    },
+      // Don't set user - registration successful but user needs to login manually after approval
+      set({ user: null, isLoading: false })
+      
+      // Return success indication (caller can check isLoading: false and error: null)
+      return
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to sign up', isLoading: false })
+    }
+  },
 
     signOut: async () => {
       set({ isLoading: true, error: null })

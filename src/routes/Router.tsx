@@ -27,15 +27,29 @@ const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/User
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
-const PatientProfiling = Loadable(
-  lazy(() => import('../views/apps/module-3/PatientProfiling')),
-);
 const Module4Member = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')));
 const Module4Operator = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')));
 const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
 const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
 const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')));
+
+// Referral Pages (Module 2)
+const Referrals = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/Referrals')),
+);
+const CreateReferral = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/CreateReferral')),
+);
+const CreateObGyneReferral = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/CreateObGyneReferral')),
+);
+const ReferralDetails = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralDetails')),
+);
+const ReferralHistory = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralHistory')),
+);
 
 // RBAC Pages
 const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
@@ -94,28 +108,47 @@ const Router = [
           </ProtectedRoute>
         ),
       },
-      { 
-        path: '/module-4/member', 
+      {
+        path: '/module-1/admin',
+        element: (
+          <ProtectedRoute>
+            <Module1Admin />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-1/queue-generator',
+        element: (
+          <ProtectedRoute>
+            <QueueGenerator />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-1/queue-display',
+        element: <QueueDisplay />,
+      },
+      {
+        path: '/module-1/staff-queue-manager',
+        element: (
+          <ProtectedRoute>
+            <StaffQueueManager />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-4/member',
         element: (
           <ProtectedRoute>
             <Module4Member />
           </ProtectedRoute>
-        )
+        ),
       },
-
-      { 
-        path: '/module-4/operator', 
+      {
+        path: '/module-4/operator',
         element: (
           <ProtectedRoute>
             <Module4Operator />
-          </ProtectedRoute>
-        )
-      },
-      {
-        path: '/module-3/patient-profiling',
-        element: (
-          <ProtectedRoute>
-            <PatientProfiling />
           </ProtectedRoute>
         ),
       },
@@ -148,6 +181,47 @@ const Router = [
         element: (
           <ProtectedRoute>
             <BlogDetail />
+          </ProtectedRoute>
+        ),
+      },
+      // Module 2 - Referral System Routes
+      {
+        path: '/module-2/referrals',
+        element: (
+          <ProtectedRoute>
+            <Referrals />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referrals/create',
+        element: (
+          <ProtectedRoute>
+            <CreateReferral />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referrals/create-obgyne',
+        element: (
+          <ProtectedRoute>
+            <CreateObGyneReferral />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referrals/detail/:id',
+        element: (
+          <ProtectedRoute>
+            <ReferralDetails />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referral-history',
+        element: (
+          <ProtectedRoute>
+            <ReferralHistory />
           </ProtectedRoute>
         ),
       },

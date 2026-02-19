@@ -30,7 +30,20 @@ export interface UserProfileData {
   id: string
   email: string
   isActive: boolean
-  roles: Array<{ id: string; description: string }>
+  roles: Array<{ 
+    id: string; 
+    description: string;
+    modules: Array<{ 
+      id: string; 
+      description: string; 
+      permissions: { 
+        is_select: boolean; 
+        is_insert: boolean; 
+        is_update: boolean; 
+        is_delete: boolean 
+      } 
+    }>
+  }>
   assignments: Array<{ id: string; description: string }>
   modules: Array<{ id: string; description: string; permissions: { is_select: boolean; is_insert: boolean; is_update: boolean; is_delete: boolean } }>
 }
@@ -342,11 +355,12 @@ export const userService = {
       // Get modules the user can access based on their roles
       const roleIds = userRoles?.map((ur: any) => ur.role?.id).filter(Boolean) || []
       
-      let userModules: any[] = []
+      let roleModuleAccess: any[] = []
       if (roleIds.length > 0) {
         const { data: moduleAccess } = await supabase
           .from('role_module_access')
           .select(`
+            role,
             is_select,
             is_insert,
             is_update,
@@ -359,16 +373,33 @@ export const userService = {
           `)
           .in('role', roleIds)
 
-        userModules = moduleAccess || []
+        roleModuleAccess = moduleAccess || []
       }
 
-      // Transform the data
+      // Transform the data - map modules to roles
       const roles = userRoles
         ?.filter((ur: any) => ur.role?.is_active)
-        .map((ur: any) => ({
-          id: ur.role.id,
-          description: ur.role.description || 'No description'
-        })) || []
+        .map((ur: any) => {
+          const roleId = ur.role.id
+          const roleModules = roleModuleAccess
+            .filter((ma: any) => ma.role === roleId && ma.module?.is_active)
+            .map((ma: any) => ({
+              id: ma.module.id,
+              description: ma.module.description || 'No description',
+              permissions: {
+                is_select: ma.is_select,
+                is_insert: ma.is_insert,
+                is_update: ma.is_update,
+                is_delete: ma.is_delete
+              }
+            }))
+
+          return {
+            id: roleId,
+            description: ur.role.description || 'No description',
+            modules: roleModules
+          }
+        }) || []
 
       const assignments = userAssignments
         ?.filter((ua: any) => ua.assignment?.is_active)
@@ -377,9 +408,9 @@ export const userService = {
           description: ua.assignment.description || 'No description'
         })) || []
 
-      // Dedupe modules and merge permissions
+      // Dedupe modules and merge permissions (for backward compatibility)
       const moduleMap = new Map<string, any>()
-      userModules.forEach((ma: any) => {
+      roleModuleAccess.forEach((ma: any) => {
         if (ma.module?.is_active) {
           const existing = moduleMap.get(ma.module.id)
           if (existing) {
