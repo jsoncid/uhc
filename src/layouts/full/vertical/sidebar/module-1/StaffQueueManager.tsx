@@ -119,12 +119,15 @@ const StaffQueueManager = () => {
     const completedStatus = getStatusByDescription('completed');
     
     if (!servingStatus) {
-      console.error('Serving status not found');
+      console.error('Serving status not found. Available statuses:', statuses);
       return;
     }
 
+    console.log('📞 Calling next - servingStatus:', servingStatus, 'completedStatus:', completedStatus);
+
     const currentServing = getServingSequence(officeId);
     if (currentServing && completedStatus) {
+      console.log('🔄 Marking current serving as completed:', currentServing.id);
       await updateSequenceStatus(currentServing.id, completedStatus.id);
     }
 
@@ -133,7 +136,10 @@ const StaffQueueManager = () => {
 
     if (nextInQueue) {
       const windowId = selectedWindowByOffice[officeId];
+      console.log('➡️ Calling next in queue:', nextInQueue.id, 'to window:', windowId);
       await updateSequenceStatus(nextInQueue.id, servingStatus.id, windowId ?? undefined);
+    } else {
+      console.log('ℹ️ No one waiting in queue');
     }
   };
 

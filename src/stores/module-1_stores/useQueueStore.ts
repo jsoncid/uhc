@@ -390,15 +390,36 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   updateSequenceStatus: async (sequenceId: number, statusId: string, windowId?: number | null) => {
     set({ error: null });
     try {
-      const updatePayload: { status: string; window_id?: number | null } = { status: statusId };
-      if (windowId !== undefined) updatePayload.window_id = windowId;
+      // Build update payload - only include window_id if column exists and value is provided
+      const updatePayload: Record<string, unknown> = { status: statusId };
+      if (windowId !== undefined) {
+        updatePayload.window_id = windowId;
+      }
 
-      const { error: updateError } = await module1
+      console.log('📝 Updating sequence:', { sequenceId, updatePayload });
+
+      const { data, error: updateError } = await module1
         .from('sequence')
         .update(updatePayload)
-        .eq('id', sequenceId);
+        .eq('id', sequenceId)
+        .select();
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('❌ Sequence update error:', updateError);
+        // If window_id column doesn't exist, retry without it
+        if (updateError.message?.includes('window_id') || updateError.code === 'PGRST204') {
+          console.log('⚠️ Retrying without window_id...');
+          const { error: retryError } = await module1
+            .from('sequence')
+            .update({ status: statusId })
+            .eq('id', sequenceId);
+          if (retryError) throw retryError;
+        } else {
+          throw updateError;
+        }
+      } else {
+        console.log('✅ Sequence updated:', data);
+      }
 
       set((state) => ({
         sequences: state.sequences.map((seq) =>
@@ -409,9 +430,13 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       }));
 
       await get().fetchSequences();
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error('❌ Failed to update sequence status:', error);
+      const errorObj = error as { message?: string; code?: string; details?: string; hint?: string };
+      const errorMessage = errorObj.message || 
+        (error instanceof Error ? error.message : 'Failed to update sequence status');
       set({
-        error: error instanceof Error ? error.message : 'Failed to update sequence status',
+        error: errorMessage,
       });
     }
   },
