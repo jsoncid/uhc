@@ -1,4 +1,4 @@
-import { ChangeEvent, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
@@ -29,11 +29,8 @@ import {
   User,
   Calendar,
   MapPin,
-  Fingerprint,
-  Clock,
   Search,
   Building2,
-  Download,
   RotateCcw,
   Save,
   CheckCircle2,
@@ -43,7 +40,9 @@ import {
   ChevronRight,
   X,
   Loader2,
+  Users,
 } from 'lucide-react';
+import patientService, { PatientProfile as APIPatientProfile, Facility } from 'src/services/patientService';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -65,6 +64,14 @@ interface PatientProfile {
   sex: string;
   birth_date: string;
   brgy: string;
+  brgy_name?: string;
+  street?: string;
+  city_code?: string;
+  city_name?: string;
+  province_code?: string;
+  province_name?: string;
+  region_name?: string;
+  zip_code?: string;
 }
 
 const INITIAL_PROFILE: PatientProfile = {
@@ -77,14 +84,26 @@ const INITIAL_PROFILE: PatientProfile = {
   sex: '',
   birth_date: '',
   brgy: '',
+  brgy_name: '',
+  street: '',
+  city_code: '',
+  city_name: '',
+  province_code: '',
+  province_name: '',
+  region_name: '',
+  zip_code: '',
 };
 
-const FACILITY_OPTIONS = [
-  { id: 'fac-metro-health', name: 'Metro Health Center', type: 'Primary', icon: '🏥' },
-  { id: 'fac-rural-institute', name: 'Rural Health Institute', type: 'Rural', icon: '🌿' },
-  { id: 'fac-urban-clinic', name: 'Urban Care Clinic', type: 'Urban', icon: '🏙️' },
-  { id: 'fac-specialty', name: 'Specialty Hospital', type: 'Specialist', icon: '⚕️' },
-];
+// Facility icon based on type
+const getFacilityIcon = (type: string): string => {
+  const typeUpper = type?.toUpperCase() || '';
+  if (typeUpper.includes('HOSPITAL')) return '🏥';
+  if (typeUpper.includes('RURAL') || typeUpper.includes('RHU')) return '🌿';
+  if (typeUpper.includes('BARANGAY') || typeUpper.includes('BHS')) return '🏘️';
+  if (typeUpper.includes('CLINIC')) return '⚕️';
+  if (typeUpper.includes('CENTER')) return '🏛️';
+  return '🏥';
+};
 
 /* ------------------------------------------------------------------ */
 /*  Helper: Section Header                                             */
@@ -185,10 +204,42 @@ const PatientProfiling = () => {
   const [modalFacilityId, setModalFacilityId] = useState('');
   const [modalSearchName, setModalSearchName] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('success');
   const [isSaving, setIsSaving] = useState(false);
-  const [modalStep, setModalStep] = useState<1 | 2>(1);
+  const [modalStep, setModalStep] = useState<1 | 2 | 3>(1);
+  
+  // Search state
+  const [searchResults, setSearchResults] = useState<APIPatientProfile[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(null);
+  
+  // Facilities state - loaded from MySQL database
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
 
   const completion = useProfileCompletion(patient);
+
+  // Check backend connection and load facilities on mount
+  useEffect(() => {
+    const initialize = async () => {
+      // Check connection
+      const health = await patientService.checkHealth();
+      const connected = health.status === 'healthy' && health.database === 'connected';
+      setIsBackendConnected(connected);
+      
+      // Load facilities if connected
+      if (connected) {
+        setIsLoadingFacilities(true);
+        const result = await patientService.getFacilities();
+        if (result.success) {
+          setFacilities(result.data);
+        }
+        setIsLoadingFacilities(false);
+      }
+    };
+    initialize();
+  }, []);
 
   const handleInputChange =
     (key: keyof PatientProfile) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -220,10 +271,73 @@ const PatientProfiling = () => {
     setModalStep(1);
     setModalFacilityId('');
     setModalSearchName('');
+    setSearchResults([]);
+    setSearchError(null);
     setIsRepositoryModalOpen(true);
   };
 
-  const selectedFacility = FACILITY_OPTIONS.find((f) => f.id === modalFacilityId);
+  // Search patients from MySQL database
+  const handleSearch = async () => {
+    if (!modalSearchName.trim() || modalSearchName.trim().length < 2) {
+      setSearchError('Please enter at least 2 characters to search');
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError(null);
+    setSearchResults([]);
+
+    const result = await patientService.searchPatients(modalSearchName.trim(), {
+      facility: modalFacilityId || undefined,
+      limit: 50,
+    });
+
+    setIsSearching(false);
+
+    if (result.success) {
+      setSearchResults(result.data);
+      if (result.data.length === 0) {
+        setSearchError('No patients found matching your search criteria');
+      } else {
+        setModalStep(3); // Move to results step
+      }
+    } else {
+      setSearchError(result.message || 'Failed to search patients');
+    }
+  };
+
+  // Select a patient from search results
+  const handleSelectPatient = (selectedPatient: APIPatientProfile) => {
+    setPatient({
+      id: selectedPatient.hpercode || selectedPatient.id || '',
+      created_at: selectedPatient.created_at || '',
+      first_name: selectedPatient.first_name || '',
+      middle_name: selectedPatient.middle_name || '',
+      last_name: selectedPatient.last_name || '',
+      ext_name: selectedPatient.ext_name || '',
+      sex: selectedPatient.sex || '',
+      birth_date: selectedPatient.birth_date || '',
+      brgy: selectedPatient.brgy || '',
+      brgy_name: selectedPatient.brgy_name || '',
+      street: selectedPatient.street || '',
+      city_code: selectedPatient.city_code || '',
+      city_name: selectedPatient.city_name || '',
+      province_code: selectedPatient.province_code || '',
+      province_name: selectedPatient.province_name || '',
+      region_name: selectedPatient.region_name || '',
+      zip_code: selectedPatient.zip_code || '',
+    });
+
+    setIsRepositoryModalOpen(false);
+    setStatusMessage(`Patient data loaded: ${selectedPatient.first_name} ${selectedPatient.last_name}`);
+    setStatusType('success');
+    setModalStep(1);
+    setSearchResults([]);
+    setModalSearchName('');
+  };
+
+  // Find selected facility from loaded facilities
+  const selectedFacility = facilities.find((f) => f.facility_code === modalFacilityId);
 
   return (
     <>
@@ -268,13 +382,41 @@ const PatientProfiling = () => {
               </div>
             </div>
 
+            {/* Backend connection indicator */}
+            {isBackendConnected !== null && (
+              <div className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs ${
+                isBackendConnected 
+                  ? 'bg-lightsuccess text-success' 
+                  : 'bg-lighterror text-error'
+              }`}>
+                <div className={`h-2 w-2 rounded-full ${
+                  isBackendConnected ? 'bg-success' : 'bg-error'
+                }`} />
+                <span>{isBackendConnected ? 'MySQL Connected' : 'MySQL Offline'}</span>
+              </div>
+            )}
+
             {statusMessage && (
-              <div className="flex items-center gap-2 rounded-lg bg-lightsuccess px-3 py-2 text-success">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
+                statusType === 'success' ? 'bg-lightsuccess text-success' :
+                statusType === 'error' ? 'bg-lighterror text-error' :
+                'bg-lightinfo text-info'
+              }`}>
+                {statusType === 'success' ? (
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                ) : statusType === 'error' ? (
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                ) : (
+                  <Info className="h-4 w-4 shrink-0" />
+                )}
                 <span className="text-sm font-medium">{statusMessage}</span>
                 <button
                   onClick={() => setStatusMessage(null)}
-                  className="ml-1 rounded-full p-0.5 hover:bg-success/10 transition-colors"
+                  className={`ml-1 rounded-full p-0.5 transition-colors ${
+                    statusType === 'success' ? 'hover:bg-success/10' :
+                    statusType === 'error' ? 'hover:bg-error/10' :
+                    'hover:bg-info/10'
+                  }`}
                   title="Dismiss"
                   aria-label="Dismiss notification"
                 >
@@ -343,53 +485,7 @@ const PatientProfiling = () => {
 
       {/* ── Form Sections ── */}
       <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
-        {/* ─── Section 1: Record Information ─── */}
-        <CardBox className="p-6">
-          <SectionHeader
-            icon={Fingerprint}
-            title="Record Information"
-            description="System-managed identifiers and timestamps for this patient record."
-            badge={{ label: 'System', variant: 'lightInfo' }}
-          />
-          <Separator className="my-5" />
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <FormField
-              label="Patient ID"
-              htmlFor="patient-id"
-              hint="Use the stored UUID value for the patient."
-            >
-              <div className="relative">
-                <Fingerprint className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="patient-id"
-                  value={patient.id}
-                  onChange={handleInputChange('id')}
-                  placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
-                  className="pl-10 font-mono text-sm"
-                />
-              </div>
-            </FormField>
-
-            <FormField
-              label="Created At"
-              htmlFor="created-at"
-              hint="Timestamp with timezone for when the profile was created."
-            >
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="created-at"
-                  type="datetime-local"
-                  value={patient.created_at}
-                  onChange={handleInputChange('created_at')}
-                  className="pl-10"
-                />
-              </div>
-            </FormField>
-          </div>
-        </CardBox>
-
-        {/* ─── Section 2: Personal Information ─── */}
+        {/* ─── Section 1: Personal Information ─── */}
         <CardBox className="p-6">
           <SectionHeader
             icon={User}
@@ -491,22 +587,115 @@ const PatientProfiling = () => {
             description="Geographic assignment and barangay link."
           />
           <Separator className="my-5" />
-          <FormField
-            label="Barangay ID"
-            htmlFor="brgy"
-            hint="Link this record to the barangay UUID."
-          >
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-              <Input
-                id="brgy"
-                value={patient.brgy}
-                onChange={handleInputChange('brgy')}
-                placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
-                className="pl-10 font-mono text-sm"
-              />
+          
+          {/* Street Address */}
+          {patient.street && (
+            <div className="mb-6">
+              <FormField label="Street Address" htmlFor="street">
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                  <Input
+                    id="street"
+                    value={patient.street || ''}
+                    readOnly
+                    className="pl-10 bg-muted/30"
+                  />
+                </div>
+              </FormField>
             </div>
-          </FormField>
+          )}
+
+          {/* Barangay and City */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              label="Barangay"
+              htmlFor="brgy_name"
+              hint="Barangay name from the database."
+            >
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                <Input
+                  id="brgy_name"
+                  value={patient.brgy_name || ''}
+                  readOnly
+                  placeholder="Barangay name"
+                  className="pl-10 bg-muted/30"
+                />
+              </div>
+            </FormField>
+            <FormField
+              label="City / Municipality"
+              htmlFor="city_name"
+              hint="City or municipality name."
+            >
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                <Input
+                  id="city_name"
+                  value={patient.city_name || ''}
+                  readOnly
+                  placeholder="City / Municipality"
+                  className="pl-10 bg-muted/30"
+                />
+              </div>
+            </FormField>
+          </div>
+
+          {/* Province and Region */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <FormField
+              label="Province"
+              htmlFor="province_name"
+              hint="Province name from the database."
+            >
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                <Input
+                  id="province_name"
+                  value={patient.province_name || ''}
+                  readOnly
+                  placeholder="Province name"
+                  className="pl-10 bg-muted/30"
+                />
+              </div>
+            </FormField>
+            <FormField
+              label="Region"
+              htmlFor="region_name"
+              hint="Region name from the database."
+            >
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                <Input
+                  id="region_name"
+                  value={patient.region_name || ''}
+                  readOnly
+                  placeholder="Region name"
+                  className="pl-10 bg-muted/30"
+                />
+              </div>
+            </FormField>
+          </div>
+
+          {/* ZIP Code */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <FormField
+              label="ZIP Code"
+              htmlFor="zip_code"
+              hint="Postal ZIP code."
+            >
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                <Input
+                  id="zip_code"
+                  value={patient.zip_code || ''}
+                  readOnly
+                  placeholder="ZIP Code"
+                  className="pl-10 font-mono text-sm bg-muted/30"
+                />
+              </div>
+            </FormField>
+          </div>
         </CardBox>
       </form>
 
@@ -519,10 +708,12 @@ const PatientProfiling = () => {
             setModalStep(1);
             setModalFacilityId('');
             setModalSearchName('');
+            setSearchResults([]);
+            setSearchError(null);
           }
         }}
       >
-        <DialogContent className="sm:max-w-xl p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-xl p-0 overflow-hidden max-h-[90vh]">
           {/* Modal header with gradient */}
           <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-6 pt-6 pb-4">
             <DialogHeader>
@@ -549,7 +740,7 @@ const PatientProfiling = () => {
                 }`}
               >
                 <Building2 className="h-3.5 w-3.5" />
-                1. Select Facility
+                1. Facility
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
               <div
@@ -560,7 +751,18 @@ const PatientProfiling = () => {
                 }`}
               >
                 <Search className="h-3.5 w-3.5" />
-                2. Search Patient
+                2. Search
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <div
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  modalStep >= 3
+                    ? 'bg-primary text-white'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                3. Results
               </div>
             </div>
           </div>
@@ -570,34 +772,57 @@ const PatientProfiling = () => {
             {modalStep === 1 && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Choose the healthcare facility to search from.
+                  Choose the healthcare facility (database) to search from.
                 </p>
-                <div className="grid gap-2">
-                  {FACILITY_OPTIONS.map((facility) => {
-                    const isSelected = modalFacilityId === facility.id;
-                    return (
-                      <button
-                        key={facility.id}
-                        type="button"
-                        onClick={() => setModalFacilityId(facility.id)}
-                        className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-left transition-all ${
-                          isSelected
-                            ? 'border-primary bg-primary/5 shadow-sm'
-                            : 'border-border hover:border-primary/30 hover:bg-muted/50'
-                        }`}
-                      >
-                        <span className="text-xl">{facility.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">{facility.name}</p>
-                          <p className="text-xs text-muted-foreground">{facility.type} facility</p>
-                        </div>
-                        {isSelected && (
-                          <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                
+                {isLoadingFacilities ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="ml-2 text-sm text-muted-foreground">Loading facilities...</span>
+                  </div>
+                ) : facilities.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Database className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">No facilities found</p>
+                    <p className="text-xs mt-1">
+                      {isBackendConnected === false 
+                        ? 'Backend server is offline' 
+                        : 'Check database connection'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-2 max-h-[300px] overflow-y-auto pr-1">
+                    {facilities.map((facility) => {
+                      const isSelected = modalFacilityId === facility.facility_code;
+                      return (
+                        <button
+                          key={facility.facility_code}
+                          type="button"
+                          onClick={() => setModalFacilityId(facility.facility_code)}
+                          className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-left transition-all ${
+                            isSelected
+                              ? 'border-primary bg-primary/5 shadow-sm'
+                              : 'border-border hover:border-primary/30 hover:bg-muted/50'
+                          }`}
+                        >
+                          <span className="text-xl">{getFacilityIcon(facility.facility_type)}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {facility.facility_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {facility.facility_type} • {facility.patient_count.toLocaleString()} patients
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                
                 <div className="flex justify-end pt-2">
                   <Button
                     onClick={() => setModalStep(2)}
@@ -617,8 +842,11 @@ const PatientProfiling = () => {
                 {/* Selected facility chip */}
                 {selectedFacility && (
                   <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2">
-                    <span className="text-base">{selectedFacility.icon}</span>
-                    <span className="text-sm font-medium">{selectedFacility.name}</span>
+                    <span className="text-base">{getFacilityIcon(selectedFacility.facility_type)}</span>
+                    <span className="text-sm font-medium">{selectedFacility.facility_name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      ({selectedFacility.patient_count.toLocaleString()} patients)
+                    </span>
                     <button
                       type="button"
                       onClick={() => setModalStep(1)}
@@ -632,27 +860,44 @@ const PatientProfiling = () => {
                 <FormField
                   label="Search Patient Name"
                   htmlFor="modal-search-name"
-                  hint="Enter full or partial patient name to search."
+                  hint="Enter full or partial patient name (last name, first name, or hpercode)."
                 >
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                     <Input
                       id="modal-search-name"
                       value={modalSearchName}
-                      onChange={(e) => setModalSearchName(e.target.value)}
-                      placeholder="e.g. Dela Cruz, Juan"
+                      onChange={(e) => {
+                        setModalSearchName(e.target.value);
+                        setSearchError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSearch();
+                        }
+                      }}
+                      placeholder="e.g. Dela Cruz, Juan or HPERCODE"
                       className="pl-10"
                       autoFocus
                     />
                   </div>
                 </FormField>
 
+                {/* Search error */}
+                {searchError && (
+                  <div className="flex items-start gap-2 rounded-lg bg-lighterror px-3 py-2.5">
+                    <AlertCircle className="h-4 w-4 text-error shrink-0 mt-0.5" />
+                    <p className="text-xs text-error">{searchError}</p>
+                  </div>
+                )}
+
                 {/* Quick info */}
                 <div className="flex items-start gap-2 rounded-lg bg-lightinfo px-3 py-2.5">
-                  <AlertCircle className="h-4 w-4 text-info shrink-0 mt-0.5" />
+                  <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
                   <p className="text-xs text-info">
-                    The search will query the selected facility's repository. Matching records will
-                    populate the patient profile form automatically.
+                    Search the MySQL database (iHOMIS Plus) for existing patient records. 
+                    Matching records will be shown for selection.
                   </p>
                 </div>
 
@@ -661,23 +906,93 @@ const PatientProfiling = () => {
                     Back
                   </Button>
                   <Button
-                    onClick={() => {
-                      const facilityLabel = selectedFacility?.name || 'the selected facility';
-                      const queryName = modalSearchName.trim() || 'all patients';
-                      setStatusMessage(
-                        `Repository data requested for "${queryName}" at ${facilityLabel}.`,
-                      );
-                      setModalFacilityId('');
-                      setModalSearchName('');
-                      setModalStep(1);
-                      setIsRepositoryModalOpen(false);
-                    }}
+                    onClick={handleSearch}
+                    disabled={isSearching || modalSearchName.trim().length < 2}
                     className="gap-2"
                   >
-                    <Download className="h-4 w-4" />
-                    Pull Data
+                    {isSearching ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Searching...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4" />
+                        Search Database
+                      </>
+                    )}
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {/* Step 3: Search Results */}
+            {modalStep === 3 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Found <span className="font-semibold text-foreground">{searchResults.length}</span> patients
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setModalStep(2)}
+                    className="gap-2"
+                  >
+                    <Search className="h-4 w-4" />
+                    New Search
+                  </Button>
+                </div>
+
+                {/* Results list */}
+                <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+                  {searchResults.map((p) => (
+                    <button
+                      key={p.hpercode || p.id}
+                      type="button"
+                      onClick={() => handleSelectPatient(p)}
+                      className="w-full flex items-center gap-3 rounded-lg border border-border px-4 py-3 text-left transition-all hover:border-primary hover:bg-primary/5"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <User className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {p.last_name}, {p.first_name} {p.middle_name}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{p.hpercode}</span>
+                          {p.sex && (
+                            <>
+                              <span>•</span>
+                              <span className="capitalize">{p.sex}</span>
+                            </>
+                          )}
+                          {p.birth_date && (
+                            <>
+                              <span>•</span>
+                              <span>{p.birth_date}</span>
+                            </>
+                          )}
+                        </div>
+                        {p.brgy_name && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            📍 {p.brgy_name}
+                          </p>
+                        )}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
+
+                {searchResults.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">No patients found</p>
+                    <p className="text-xs mt-1">Try a different search term</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
