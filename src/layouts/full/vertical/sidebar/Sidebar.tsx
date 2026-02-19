@@ -41,15 +41,15 @@ const Sidebar = () => {
 };
 
 interface SidebarItemType {
-  heading?: string
-  id?: number | string
-  name?: string
-  title?: string
-  icon?: string
-  url?: string
-  children?: SidebarItemType[]
-  disabled?: boolean
-  isPro?: boolean
+  heading?: string;
+  id?: number | string;
+  name?: string;
+  title?: string;
+  icon?: string;
+  url?: string;
+  children?: SidebarItemType[];
+  disabled?: boolean;
+  isPro?: boolean;
 }
 
 const renderSidebarItems = (
@@ -141,6 +141,8 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
       width={'270px'}
       showTrigger={false}
       mode={sidebarMode}
+      themeColor="#2eb85c"
+      themeSecondaryColor="#ffd34a"
       className="fixed left-0 top-0 border border-border dark:border-border bg-sidebar dark:bg-sidebar z-10 h-screen"
     >
       {/* Logo */}

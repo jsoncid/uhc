@@ -31,6 +31,12 @@ const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/User
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
+const Module4Member = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')),
+);
+const Module4Operator = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')),
+);
 const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
 const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
@@ -74,9 +80,10 @@ const IncomingReferralDetails = Loadable(
 );
 
 // Module 3 - Patient Profiling
-const PatientProfiling = Loadable(
-  lazy(() => import('../views/apps/module-3/PatientProfiling')),
-);
+const PatientProfiling = Loadable(lazy(() => import('../views/apps/module-3/PatientProfiling')));
+
+// About Page
+const About = Loadable(lazy(() => import('../views/about/About')));
 
 // RBAC Pages
 const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
@@ -89,7 +96,6 @@ const UserAcceptance = Loadable(lazy(() => import('../views/rbac/UserAcceptance'
 
 const Error = Loadable(lazy(() => import('../views/authentication/Error')));
 const Unauthorized = Loadable(lazy(() => import('../views/authentication/Unauthorized')));
-
 
 // // icons
 const SolarIcon = Loadable(lazy(() => import('../views/icons/SolarIcon')));
@@ -165,6 +171,24 @@ const Router = [
       ...m4Routes,
       { 
         path: '/apps/tickets', 
+      {
+        path: '/module-4/member',
+        element: (
+          <ProtectedRoute>
+            <Module4Member />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-4/operator',
+        element: (
+          <ProtectedRoute>
+            <Module4Operator />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/apps/tickets',
         element: (
           <ProtectedRoute>
             <Tickets />
@@ -274,6 +298,15 @@ const Router = [
         element: (
           <ProtectedRoute>
             <SolarIcon />
+          </ProtectedRoute>
+        ),
+      },
+      // About
+      {
+        path: '/about',
+        element: (
+          <ProtectedRoute>
+            <About />
           </ProtectedRoute>
         ),
       },

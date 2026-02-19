@@ -110,9 +110,9 @@ body {
   --card-foreground: var(--link);
   --popover: var(--white);
   --popover-foreground: var(--link);
-  --primary: #5d87ff;
+  --primary: #2eb85c;
   --primary-foreground: var(--white);
-  --secondary: #49beff;
+  --secondary: #ffd34a;
   --secondary-foreground: var(--white);
   --muted: #f5f5f5;
   --muted-foreground: #5a6a85bf;
@@ -143,7 +143,7 @@ body {
   --warning: #f6b51e;
   --error: #ef4444;
   --white: #ffffff;
-  --dark: #1c2536;
+  --dark: #171717;
   --bodytext: #5a6a85bf;
 
   /* Light Variants */
@@ -168,18 +168,18 @@ body {
   --foreground: var(--white);
   --card: var(--dark);
   --card-foreground: var(--white);
-  --popover: #333f55;
+  --popover: #262626;
   --popover-foreground: var(--white);
-  --primary: #5d87ff;
+  --primary: #2eb85c;
   --primary-foreground: var(--white);
-  --secondary: #49beff;
+  --secondary: #ffd34a;
   --secondary-foreground: var(--white);
-  --muted: #2a3851;
-  --muted-foreground: #7c8fac;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
   --accent: var(--accent);
   --accent-foreground: var(--accent-foreground);
   --destructive: var(--error);
-  --border: #333f55;
+  --border: #262626;
   --input: var(--border);
   --ring: var(--lightprimary);
   --chart-1: var(--primary);
@@ -188,7 +188,7 @@ body {
   --chart-4: var(--warning);
   --chart-5: var(--error);
   --sidebar: var(--dark);
-  --sidebar-foreground: #7c8fac;
+  --sidebar-foreground: #a3a3a3;
   --sidebar-primary: var(--sidebar-primary);
   --sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --sidebar-accent: var(--sidebar-accent);
@@ -202,8 +202,8 @@ body {
   --warning: #f6b51e;
   --error: #ef4444;
   --white: #ffffff;
-  --dark: #1c2536;
-  --bodytext: #5a6a85bf;
+  --dark: #171717;
+  --bodytext: #a3a3a3;
 
   /* Light Variants */
   --lightprimary: color-mix(in oklab, var(--primary) 20%, transparent);

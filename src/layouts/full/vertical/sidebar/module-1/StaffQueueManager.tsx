@@ -1,17 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronRight, Check, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Staff Queue Manager' }];
 
 const StaffQueueManager = () => {
   const [activeTab, setActiveTab] = useState<string>('');
+  const [selectedWindowByOffice, setSelectedWindowByOffice] = useState<Record<string, number>>({});
 
+  const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
   const {
     sequences,
@@ -23,11 +28,22 @@ const StaffQueueManager = () => {
     isLoading: queueLoading,
   } = useQueueStore();
 
+  // Get assignment IDs from user profile
+  const userAssignmentIds = useMemo(() => {
+    return profile?.assignments?.map((a) => a.id) || [];
+  }, [profile?.assignments]);
+
   useEffect(() => {
-    fetchOffices();
     fetchStatuses();
     fetchSequences();
-  }, [fetchOffices, fetchStatuses, fetchSequences]);
+  }, [fetchStatuses, fetchSequences]);
+
+  // Fetch offices filtered by user's assignments
+  useEffect(() => {
+    if (!profileLoading) {
+      fetchOffices(userAssignmentIds.length > 0 ? userAssignmentIds : undefined);
+    }
+  }, [profileLoading, userAssignmentIds, fetchOffices]);
 
   useEffect(() => {
     const unsubscribe = subscribeToSequences();
@@ -39,6 +55,20 @@ const StaffQueueManager = () => {
       setActiveTab(offices[0].id);
     }
   }, [offices, activeTab]);
+
+  // Default selected window to first active window per office
+  useEffect(() => {
+    setSelectedWindowByOffice((prev) => {
+      const next = { ...prev };
+      offices.forEach((office) => {
+        const activeWindows = (office.windows || []).filter((w) => w.status);
+        if (activeWindows.length > 0 && next[office.id] === undefined) {
+          next[office.id] = activeWindows[0].id;
+        }
+      });
+      return next;
+    });
+  }, [offices]);
 
   const getStatusByDescription = (description: string) => {
     return statuses.find((s) => s.description?.toLowerCase().includes(description.toLowerCase()));
@@ -102,7 +132,8 @@ const StaffQueueManager = () => {
     const nextInQueue = waiting[0]; // Already sorted by priority
 
     if (nextInQueue) {
-      await updateSequenceStatus(nextInQueue.id, servingStatus.id);
+      const windowId = selectedWindowByOffice[officeId];
+      await updateSequenceStatus(nextInQueue.id, servingStatus.id, windowId ?? undefined);
     }
   };
 
@@ -123,7 +154,7 @@ const StaffQueueManager = () => {
     return 'text-green-600';
   };
 
-  const isLoading = officesLoading || queueLoading;
+  const isLoading = profileLoading || officesLoading || queueLoading;
   const activeOffices = offices.filter((o) => o.status);
 
   if (isLoading && activeOffices.length === 0) {
@@ -165,16 +196,42 @@ const StaffQueueManager = () => {
               <TabsContent key={office.id} value={office.id}>
                 <Card>
                   <CardHeader>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
                       <CardTitle>{office.description || office.id} Queue</CardTitle>
-                      <Button onClick={() => handleCallNext(office.id)} disabled={isLoading}>
-                        {isLoading ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 mr-2" />
+                      <div className="flex items-center gap-3">
+                        {(office.windows || []).filter((w) => w.status).length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm text-muted-foreground whitespace-nowrap">Call to window</Label>
+                            <Select
+                              value={selectedWindowByOffice[office.id]?.toString() ?? ''}
+                              onValueChange={(v) =>
+                                setSelectedWindowByOffice((prev) => ({ ...prev, [office.id]: Number(v) }))
+                              }
+                            >
+                              <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Select window" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(office.windows || [])
+                                  .filter((w) => w.status)
+                                  .map((w) => (
+                                    <SelectItem key={w.id} value={w.id.toString()}>
+                                      {w.description || `Window ${w.id}`}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         )}
-                        Call Next
-                      </Button>
+                        <Button onClick={() => handleCallNext(office.id)} disabled={isLoading}>
+                          {isLoading ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 mr-2" />
+                          )}
+                          Call Next
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
