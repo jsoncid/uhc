@@ -161,6 +161,139 @@ export type Database = {
           assignment?: string
         }
       }
+      office: {
+        Row: {
+          id: string
+          created_at: string
+          assignment: string
+          status: boolean
+          description: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          assignment: string
+          status?: boolean
+          description?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          assignment?: string
+          status?: boolean
+          description?: string | null
+        }
+      }
+      window: {
+        Row: {
+          id: number
+          created_at: string
+          office: string
+          description: string | null
+          status: boolean
+        }
+        Insert: {
+          id?: number
+          created_at?: string
+          office: string
+          description?: string | null
+          status?: boolean
+        }
+        Update: {
+          id?: number
+          created_at?: string
+          office?: string
+          description?: string | null
+          status?: boolean
+        }
+      }
+    }
+  }
+  module1: {
+    Tables: {
+      priority: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+          status: boolean
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          status?: boolean
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          status?: boolean
+        }
+      }
+      status: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+        }
+      }
+      queue: {
+        Row: {
+          id: number
+          created_at: string
+          code: string
+          status: boolean
+        }
+        Insert: {
+          id?: number
+          created_at?: string
+          code: string
+          status?: boolean
+        }
+        Update: {
+          id?: number
+          created_at?: string
+          code?: string
+          status?: boolean
+        }
+      }
+      sequence: {
+        Row: {
+          id: number
+          created_at: string
+          office: string
+          queue: string
+          priority: string
+          status: string
+        }
+        Insert: {
+          id?: number
+          created_at?: string
+          office: string
+          queue: string
+          priority: string
+          status: string
+        }
+        Update: {
+          id?: number
+          created_at?: string
+          office?: string
+          queue?: string
+          priority?: string
+          status?: string
+        }
+      }
     }
   }
 }
