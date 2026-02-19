@@ -9,7 +9,7 @@ export interface UserWithStatus {
   created_at: string
 }
 
-type UserStatus = Database['public']['Tables']['user_status']
+type UserStatus = Database['module3']['Tables']['user_status']
 
 // Custom UserRole type since user_role table may not be in generated types yet
 type UserRole = {

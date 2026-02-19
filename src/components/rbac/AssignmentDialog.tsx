@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { assignmentService } from '@/services/assignmentService'
 import { Database } from '@/lib/supabase'
 
-type Assignment = Database['public']['Tables']['assignment']['Row']
+type Assignment = Database['module3']['Tables']['assignment']['Row']
 
 interface AssignmentDialogProps {
   isOpen: boolean

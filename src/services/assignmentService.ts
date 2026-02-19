@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { Database } from '@/lib/supabase'
 
-type Assignment = Database['public']['Tables']['assignment']
+type Assignment = Database['module3']['Tables']['assignment']
 
 export const assignmentService = {
   async getAllAssignments(): Promise<Assignment['Row'][]> {

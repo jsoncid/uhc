@@ -17,7 +17,7 @@ import { roleService } from '@/services/roleService'
 import { Database } from '@/lib/supabase'
 import { RoleDialog } from './RoleDialog'
 
-type Role = Database['public']['Tables']['role']['Row']
+type Role = Database['module3']['Tables']['role']['Row']
 
 export const RoleList = () => {
   const [roles, setRoles] = useState<Role[]>([])

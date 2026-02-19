@@ -9,9 +9,9 @@ import { roleService } from '@/services/roleService'
 import { moduleService } from '@/services/moduleService'
 import { Database } from '@/lib/supabase'
 
-type Role = Database['public']['Tables']['role']['Row']
-type Module = Database['public']['Tables']['module']['Row']
-type RoleModuleAccess = Database['public']['Tables']['role_module_access']['Row']
+type Role = Database['module3']['Tables']['role']['Row']
+type Module = Database['module3']['Tables']['module']['Row']
+type RoleModuleAccess = Database['module3']['Tables']['role_module_access']['Row']
 
 interface RoleModuleAccessDialogProps {
   isOpen: boolean

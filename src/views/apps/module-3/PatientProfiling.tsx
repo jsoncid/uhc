@@ -72,6 +72,9 @@ interface PatientProfile {
   province_name?: string;
   region_name?: string;
   zip_code?: string;
+  // Repository fields (from MySQL)
+  hpercode?: string;
+  facility_code?: string;
 }
 
 const INITIAL_PROFILE: PatientProfile = {
@@ -92,6 +95,8 @@ const INITIAL_PROFILE: PatientProfile = {
   province_name: '',
   region_name: '',
   zip_code: '',
+  hpercode: '',
+  facility_code: '',
 };
 
 // Facility icon based on type
@@ -258,11 +263,50 @@ const PatientProfiling = () => {
   };
 
   const handleSave = async () => {
+    // Validate required fields
+    if (!patient.first_name || !patient.last_name || !patient.sex || !patient.birth_date) {
+      setStatusMessage('Please fill in all required fields (First Name, Last Name, Sex, Birth Date)');
+      setStatusType('error');
+      return;
+    }
+
     setIsSaving(true);
-    // Simulate save delay
-    await new Promise((r) => setTimeout(r, 800));
-    setIsSaving(false);
-    setStatusMessage('Patient profile saved successfully.');
+    setStatusMessage(null);
+    
+    try {
+      // Save patient data to Supabase (location fields are used to find/create brgy UUID)
+      const result = await patientService.saveToSupabase(patient);
+      
+      if (result.success) {
+        setStatusMessage(result.message || 'Patient profile saved successfully to Supabase');
+        setStatusType('success');
+        
+        // Update the patient state with the saved data while preserving location display fields
+        if (result.data) {
+          setPatient({
+            ...patient, // Keep all existing fields including location data
+            id: result.data.id,
+            created_at: result.data.created_at,
+            first_name: result.data.first_name,
+            middle_name: result.data.middle_name || '',
+            last_name: result.data.last_name,
+            ext_name: result.data.ext_name || '',
+            sex: result.data.sex,
+            birth_date: result.data.birth_date,
+            brgy: result.data.brgy || patient.brgy,
+          });
+        }
+      } else {
+        setStatusMessage(result.message || 'Failed to save patient profile');
+        setStatusType('error');
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      setStatusMessage(error instanceof Error ? error.message : 'An error occurred while saving');
+      setStatusType('error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const isDirty = JSON.stringify(patient) !== JSON.stringify(INITIAL_PROFILE);
@@ -309,7 +353,7 @@ const PatientProfiling = () => {
   // Select a patient from search results
   const handleSelectPatient = (selectedPatient: APIPatientProfile) => {
     setPatient({
-      id: selectedPatient.hpercode || selectedPatient.id || '',
+      id: '', // Will be set by Supabase when saving
       created_at: selectedPatient.created_at || '',
       first_name: selectedPatient.first_name || '',
       middle_name: selectedPatient.middle_name || '',
@@ -326,6 +370,9 @@ const PatientProfiling = () => {
       province_name: selectedPatient.province_name || '',
       region_name: selectedPatient.region_name || '',
       zip_code: selectedPatient.zip_code || '',
+      // Store repository data from MySQL
+      hpercode: selectedPatient.hpercode || '',
+      facility_code: selectedPatient.facility_code || modalFacilityId,
     });
 
     setIsRepositoryModalOpen(false);

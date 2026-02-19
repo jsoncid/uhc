@@ -2,9 +2,9 @@ import { supabase } from '@/lib/supabase'
 import { Database } from '@/lib/supabase'
 import { userService } from './userService'
 
-type Role = Database['public']['Tables']['role']
-type RoleModuleAccess = Database['public']['Tables']['role_module_access']
-type UserAssignment = Database['public']['Tables']['user_assignment']
+type Role = Database['module3']['Tables']['role']
+type RoleModuleAccess = Database['module3']['Tables']['role_module_access']
+type UserAssignment = Database['module3']['Tables']['user_assignment']
 
 export const roleService = {
   // Role CRUD operations

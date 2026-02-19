@@ -3,10 +3,14 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  db: {
+    schema: 'module3'
+  }
+})
 
 export type Database = {
-  public: {
+  module3: {
     Tables: {
       // Add your database types here
       users: {
@@ -159,6 +163,141 @@ export type Database = {
           created_at?: string
           user?: string
           assignment?: string
+        }
+      }
+      patient_profile: {
+        Row: {
+          id: string
+          created_at: string
+          first_name: string
+          middle_name: string | null
+          last_name: string
+          ext_name: string | null
+          sex: string
+          birth_date: string
+          brgy: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          first_name: string
+          middle_name?: string | null
+          last_name: string
+          ext_name?: string | null
+          sex: string
+          birth_date: string
+          brgy?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          first_name?: string
+          middle_name?: string | null
+          last_name?: string
+          ext_name?: string | null
+          sex?: string
+          birth_date?: string
+          brgy?: string | null
+        }
+      }
+      brgy: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+          city_municipality: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          city_municipality?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          city_municipality?: string | null
+        }
+      }
+      city_municipality: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+          province: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          province?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          province?: string | null
+        }
+      }
+      province: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+          region: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          region?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          region?: string | null
+        }
+      }
+      region: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+        }
+      }
+      patient_repository: {
+        Row: {
+          id: string
+          created_at: string
+          patient_profile: string | null
+          facility_code: string | null
+          hpercode: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          patient_profile?: string | null
+          facility_code?: string | null
+          hpercode?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          patient_profile?: string | null
+          facility_code?: string | null
+          hpercode?: string | null
         }
       }
       office: {
