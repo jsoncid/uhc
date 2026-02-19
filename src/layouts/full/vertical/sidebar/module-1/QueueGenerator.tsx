@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +21,7 @@ import { Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Generator' }];
 
@@ -72,13 +73,25 @@ const QueueGenerator = () => {
   const [selectedOfficeName, setSelectedOfficeName] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
   const { priorities, fetchPriorities, generateQueueCode, isLoading: queueLoading } = useQueueStore();
 
+  // Get assignment IDs from user profile
+  const userAssignmentIds = useMemo(() => {
+    return profile?.assignments?.map((a) => a.id) || [];
+  }, [profile?.assignments]);
+
   useEffect(() => {
-    fetchOffices();
     fetchPriorities();
-  }, [fetchOffices, fetchPriorities]);
+  }, [fetchPriorities]);
+
+  // Fetch offices filtered by user's assignments
+  useEffect(() => {
+    if (!profileLoading) {
+      fetchOffices(userAssignmentIds.length > 0 ? userAssignmentIds : undefined);
+    }
+  }, [profileLoading, userAssignmentIds, fetchOffices]);
 
   const getPriorityColor = (description: string | null) => {
     const desc = description?.toLowerCase() || '';
@@ -108,7 +121,7 @@ const QueueGenerator = () => {
   };
 
   const isFormValid = !!selectedOffice && !!selectedPriority;
-  const isLoading = officesLoading || queueLoading || isGenerating;
+  const isLoading = profileLoading || officesLoading || queueLoading || isGenerating;
 
   const selectedPriorityData = priorities.find((p) => p.id === selectedPriority);
   const selectedPriorityColors = selectedPriorityData

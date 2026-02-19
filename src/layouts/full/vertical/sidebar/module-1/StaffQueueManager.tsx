@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronRight, Check, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,12 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Staff Queue Manager' }];
 
 const StaffQueueManager = () => {
   const [activeTab, setActiveTab] = useState<string>('');
 
+  const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
   const {
     sequences,
@@ -23,11 +25,22 @@ const StaffQueueManager = () => {
     isLoading: queueLoading,
   } = useQueueStore();
 
+  // Get assignment IDs from user profile
+  const userAssignmentIds = useMemo(() => {
+    return profile?.assignments?.map((a) => a.id) || [];
+  }, [profile?.assignments]);
+
   useEffect(() => {
-    fetchOffices();
     fetchStatuses();
     fetchSequences();
-  }, [fetchOffices, fetchStatuses, fetchSequences]);
+  }, [fetchStatuses, fetchSequences]);
+
+  // Fetch offices filtered by user's assignments
+  useEffect(() => {
+    if (!profileLoading) {
+      fetchOffices(userAssignmentIds.length > 0 ? userAssignmentIds : undefined);
+    }
+  }, [profileLoading, userAssignmentIds, fetchOffices]);
 
   useEffect(() => {
     const unsubscribe = subscribeToSequences();
@@ -123,7 +136,7 @@ const StaffQueueManager = () => {
     return 'text-green-600';
   };
 
-  const isLoading = officesLoading || queueLoading;
+  const isLoading = profileLoading || officesLoading || queueLoading;
   const activeOffices = offices.filter((o) => o.status);
 
   if (isLoading && activeOffices.length === 0) {

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore, Office } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 
@@ -19,6 +20,7 @@ const PRIORITY_LEGEND = [
 const QueueDisplay = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
   const {
     sequences,
@@ -29,12 +31,24 @@ const QueueDisplay = () => {
     isLoading: queueLoading,
   } = useQueueStore();
 
+  // Get assignment IDs from user profile
+  const userAssignmentIds = useMemo(() => {
+    return profile?.assignments?.map((a) => a.id) || [];
+  }, [profile?.assignments]);
+
   useEffect(() => {
-    fetchOffices();
     fetchStatuses();
     fetchSequences();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Fetch offices filtered by user's assignments
+  useEffect(() => {
+    if (!profileLoading) {
+      fetchOffices(userAssignmentIds.length > 0 ? userAssignmentIds : undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileLoading, userAssignmentIds]);
 
   useEffect(() => {
     const unsubscribe = subscribeToSequences();
@@ -73,7 +87,12 @@ const QueueDisplay = () => {
 
   const getPendingSequences = (): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
-    const pending = sequences.filter((seq) => seq.status === pendingStatus?.id);
+    // Get office IDs that the user has access to
+    const assignedOfficeIds = new Set(activeOffices.map((o) => o.id));
+    // Filter pending sequences by assigned offices
+    const pending = sequences.filter(
+      (seq) => seq.status === pendingStatus?.id && assignedOfficeIds.has(seq.office)
+    );
     
     // Sort by priority weight (lower = higher priority), then by created_at (FIFO within same priority)
     return pending.sort((a, b) => {
@@ -108,7 +127,7 @@ const QueueDisplay = () => {
 
   const activeOffices = offices.filter((o) => o.status);
   const pendingQueueList = getPendingSequences();
-  const isLoading = officesLoading || queueLoading;
+  const isLoading = profileLoading || officesLoading || queueLoading;
 
   if (isLoading && activeOffices.length === 0) {
     return (
