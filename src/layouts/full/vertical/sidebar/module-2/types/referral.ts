@@ -7,22 +7,27 @@ export interface ReferralStatus {
 
 // ─── module2.referral ─────────────────────────────────────────────────────────
 export interface ReferralType {
+  // ── Columns that exist in Supabase module2.referral ─────────────────────
   id: string; // uuid
   created_at: string;
   status: boolean | null; // active/inactive flag on the referral itself
+  patient_profile: string | null; // uuid → module3.patient_profile.id
+  from_assignment: string | null; // uuid → assignment.id (origin facility/dept)
+  to_assignment: string | null; // uuid → assignment.id (destination facility/dept)
   deactivated_at?: string | null; // ISO string — when it was deactivated
   deactivated_by?: string | null; // name/identifier of who deactivated it
-  patient_profile: string | null; // uuid → module3.patient_profile.id
-  from_assignment: string | null; // uuid → assignment.id
-  to_assignment: string | null; // uuid → assignment.id (destination facility)
+  rejection_reason?: string | null; // text — reason if incoming referral was declined
+  accepted_by?: string | null; // varchar — receiving doctor who accepted (incoming)
+  redirect_to?: string | null; // varchar — suggested redirect hospital when declined
 
-  // Joined / denormalized fields for display (populated from related tables)
-  patient_name?: string; // from module3.patient_profile
-  from_assignment_name?: string; // from assignment description
-  to_assignment_name?: string; // destination facility name
-  latest_status?: ReferralStatus; // latest active referral_history.status
-  referral_info?: ReferralInfo;
-  history?: ReferralHistory[];
+  // ── Frontend-only / query-time fields (NOT stored in DB) ────────────────
+  direction?: 'outgoing' | 'incoming'; // derived: 'incoming' if to_assignment = our facility
+  patient_name?: string; // joined from module3.patient_profile
+  from_assignment_name?: string; // joined from assignment table
+  to_assignment_name?: string; // joined from assignment table
+  latest_status?: ReferralStatus; // joined from latest active referral_history.status
+  referral_info?: ReferralInfo; // joined from module2.referral_info
+  history?: ReferralHistory[]; // joined from module2.referral_history
 }
 
 // ─── module2.referral_history ─────────────────────────────────────────────────
@@ -65,33 +70,34 @@ export interface ReferralInfo {
   chief_complaints: string | null;
   medications: string | null;
 
-  // ── OB/GYNE fields (optional — only populated for OB/GYNE referrals) ─────
-  lmp?: string | null; // date — Last Menstrual Period (YYYY-MM-DD)
-  aog?: string | null; // varchar — Age of Gestation (e.g. "36 weeks + 2 days")
-  edc?: string | null; // date — Expected Date of Confinement (YYYY-MM-DD)
-  fh?: string | null; // varchar — Fundal Height
-  fht?: string | null; // varchar — Fetal Heart Tone
-  ie?: string | null; // varchar — Internal Examination
-  dilatation?: string | null;
-  effacement?: string | null;
-  station?: string | null;
-  presenting_part?: string | null;
-  prom_hours?: string | null; // PROM — hours
-  ultrasound_1st_date?: string | null; // date (YYYY-MM-DD)
-  ultrasound_1st_aog?: string | null; // varchar — AOG by ultrasound (e.g. "8 weeks + 3 days")
-  ultrasound_latest_date?: string | null; // date (YYYY-MM-DD)
-  ultrasound_efw?: string | null; // varchar — Estimated Fetal Weight
-  ultrasound_presentation?: string | null;
-  ultrasound_impression?: string | null;
-  gravida?: string | null;
-  parity?: string | null; // TPAL format
-  menarche?: string | null;
-  comorbidity?: string | null;
-  previous_surgeries?: string | null;
-  previous_cs?: string | null; // when, where, indication
-  lab_result?: string | null;
-  xray?: string | null;
-  other_diagnostics?: string | null;
+  // ── OB/GYNE fields — real nullable columns in module2.referral_info ──────
+  // All are `null` for non-OB/GYNE referrals; populated only for OB/GYNE.
+  lmp: string | null; // date — Last Menstrual Period
+  aog: string | null; // varchar — Age of Gestation
+  edc: string | null; // date — Expected Date of Confinement
+  fh: string | null; // varchar — Fundal Height
+  fht: string | null; // varchar — Fetal Heart Tone
+  ie: string | null; // varchar — Internal Examination
+  dilatation: string | null;
+  effacement: string | null;
+  station: string | null;
+  presenting_part: string | null;
+  prom_hours: string | null; // varchar — PROM hours
+  ultrasound_1st_date: string | null; // date
+  ultrasound_1st_aog: string | null; // varchar — AOG by 1st ultrasound
+  ultrasound_latest_date: string | null; // date
+  ultrasound_efw: string | null; // varchar — Estimated Fetal Weight
+  ultrasound_presentation: string | null;
+  ultrasound_impression: string | null;
+  gravida: string | null;
+  parity: string | null; // varchar — TPAL format
+  menarche: string | null;
+  comorbidity: string | null;
+  previous_surgeries: string | null;
+  previous_cs: string | null; // when, where, indication
+  lab_result: string | null;
+  xray: string | null;
+  other_diagnostics: string | null;
 
   referral: string | null; // uuid → module2.referral.id
   // Joined

@@ -1,14 +1,18 @@
 import { Link } from 'react-router';
-import ReferralHistoryPage from '../apps/referrals/ReferralHistoryPage';
+import IncomingReferralPage from '../apps/referrals/IncomingReferralPage';
 import { ReferralProvider } from '../context/ReferralContext';
 
-const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Referral History' }];
+const BCrumb = [
+  { to: '/', title: 'Home' },
+  { to: '/module-2/referrals', title: 'Referrals' },
+  { title: 'Incoming Referrals' },
+];
 
-const ReferralHistory = () => {
+const IncomingReferrals = () => {
   return (
     <ReferralProvider>
       <div className="mb-6 py-4">
-        <h4 className="font-semibold text-xl mb-3">Referral History</h4>
+        <h4 className="font-semibold text-xl mb-3">Incoming Referrals</h4>
         <ol className="flex items-center whitespace-nowrap" aria-label="Breadcrumb">
           {BCrumb.map((item, index) => {
             const isLast = index === BCrumb.length - 1;
@@ -35,9 +39,9 @@ const ReferralHistory = () => {
           })}
         </ol>
       </div>
-      <ReferralHistoryPage />
+      <IncomingReferralPage />
     </ReferralProvider>
   );
 };
 
-export default ReferralHistory;
+export default IncomingReferrals;

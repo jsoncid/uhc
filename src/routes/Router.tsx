@@ -67,6 +67,12 @@ const ReferralDetails = Loadable(
 const ReferralHistory = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralHistory')),
 );
+const IncomingReferrals = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/IncomingReferrals')),
+);
+const IncomingReferralDetails = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/IncomingReferralDetails')),
+);
 
 // Module 3 - Patient Profiling
 const PatientProfiling = Loadable(
@@ -252,6 +258,22 @@ const Router = [
         element: (
           <ProtectedRoute>
             <PatientProfiling />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referrals/incoming',
+        element: (
+          <ProtectedRoute>
+            <IncomingReferrals />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referrals/incoming/detail/:id',
+        element: (
+          <ProtectedRoute>
+            <IncomingReferralDetails />
           </ProtectedRoute>
         ),
       },

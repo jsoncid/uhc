@@ -57,7 +57,13 @@ const SidebarContent: MenuItem[] = [
         icon: 'solar:document-medicine-linear',
         url: '/module-2/referrals',
       },
-       {
+      {
+        name: 'Incoming Referrals',
+        id: uniqueId(),
+        icon: 'solar:inbox-linear',
+        url: '/module-2/referrals/incoming',
+      },
+      {
         name: 'Referral History',
         id: uniqueId(),
         icon: 'solar:history-2-bold',
