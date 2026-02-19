@@ -133,9 +133,19 @@ const RejectDialog = ({
   open: boolean;
   patientName?: string;
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, redirectHospital?: string) => void;
 }) => {
   const [reason, setReason] = useState('');
+  const [redirectHospital, setRedirectHospital] = useState('');
+
+  const handleConfirm = () => {
+    if (reason.trim()) {
+      onConfirm(reason.trim(), redirectHospital.trim() || undefined);
+      setReason('');
+      setRedirectHospital('');
+      onClose();
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -149,21 +159,39 @@ const RejectDialog = ({
           </div>
           <DialogDescription className="text-sm text-muted-foreground">
             Decline this referral for{' '}
-            <span className="font-semibold text-foreground">{patientName}</span>. A reason is
-            required.
+            <span className="font-semibold text-foreground">{patientName}</span>. The referring
+            hospital will be notified and updated immediately.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-1.5 mt-2">
-          <Label className="text-sm font-medium">
-            Reason for Declining <span className="text-error">*</span>
-          </Label>
-          <Textarea
-            placeholder="e.g. No available ICU bed. No specialist on duty."
-            className="resize-none"
-            rows={3}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
+        <div className="flex flex-col gap-3 mt-2">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium">
+              Reason for Declining <span className="text-error">*</span>
+            </Label>
+            <Textarea
+              placeholder="e.g. No available ICU bed. No specialist on duty."
+              className="resize-none"
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium">Redirect to Hospital (optional)</Label>
+            <div className="relative">
+              <Icon
+                icon="solar:buildings-2-bold-duotone"
+                height={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                placeholder="e.g. St. Luke's Medical Center"
+                className="pl-8"
+                value={redirectHospital}
+                onChange={(e) => setRedirectHospital(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
         <DialogFooter className="gap-2 mt-4">
           <Button variant="outline" size="sm" onClick={onClose}>
@@ -172,13 +200,7 @@ const RejectDialog = ({
           <Button
             size="sm"
             className="bg-error hover:bg-error/90 text-white"
-            onClick={() => {
-              if (reason.trim()) {
-                onConfirm(reason.trim());
-                setReason('');
-                onClose();
-              }
-            }}
+            onClick={handleConfirm}
             disabled={!reason.trim()}
           >
             <Icon icon="solar:close-circle-bold-duotone" height={15} className="mr-1.5" />
@@ -326,11 +348,28 @@ const IncomingReferralDetail = () => {
             </div>
           )}
           {isDeclined && referral.rejection_reason && (
-            <div className="mt-4 p-3 rounded-lg bg-lighterror border border-error/20">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
-                Decline Reason
-              </p>
-              <p className="text-sm font-medium text-error">{referral.rejection_reason}</p>
+            <div className="mt-4 p-3 rounded-lg bg-lighterror border border-error/20 flex flex-col gap-2">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
+                  Decline Reason
+                </p>
+                <p className="text-sm font-medium text-error">{referral.rejection_reason}</p>
+              </div>
+              {referral.redirect_to && (
+                <div className="flex items-center gap-2 pt-2 border-t border-error/20">
+                  <Icon
+                    icon="solar:buildings-2-bold-duotone"
+                    height={14}
+                    className="text-error flex-shrink-0"
+                  />
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                      Suggested Redirect
+                    </p>
+                    <p className="text-sm font-semibold text-error">{referral.redirect_to}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardBox>
@@ -793,8 +832,8 @@ const IncomingReferralDetail = () => {
         open={showReject}
         patientName={referral.patient_name ?? undefined}
         onClose={() => setShowReject(false)}
-        onConfirm={(reason) => {
-          if (id) declineIncomingReferral(id, reason);
+        onConfirm={(reason, redirectHospital) => {
+          if (id) declineIncomingReferral(id, reason, redirectHospital);
         }}
       />
     </div>

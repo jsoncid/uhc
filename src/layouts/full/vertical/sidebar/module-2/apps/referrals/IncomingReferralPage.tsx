@@ -223,14 +223,16 @@ const RejectDialog = ({
   open: boolean;
   referral: ReferralType | null;
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, redirectHospital?: string) => void;
 }) => {
   const [reason, setReason] = useState('');
+  const [redirectHospital, setRedirectHospital] = useState('');
 
   const handleConfirm = () => {
     if (!reason.trim()) return;
-    onConfirm(reason.trim());
+    onConfirm(reason.trim(), redirectHospital.trim() || undefined);
     setReason('');
+    setRedirectHospital('');
     onClose();
   };
 
@@ -246,23 +248,49 @@ const RejectDialog = ({
           </div>
           <DialogDescription className="text-sm text-muted-foreground">
             Decline the incoming referral for{' '}
-            <span className="font-semibold text-foreground">{referral?.patient_name}</span>. Please
-            provide a reason so the referring hospital can redirect accordingly.
+            <span className="font-semibold text-foreground">{referral?.patient_name}</span>. The
+            referring hospital will be notified and updated immediately.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-1.5 mt-2">
-          <Label htmlFor="reject-reason" className="text-sm font-medium">
-            Reason for Declining <span className="text-error">*</span>
-          </Label>
-          <Textarea
-            id="reject-reason"
-            placeholder="e.g. No available ICU bed. No available specialist on duty."
-            className="resize-none"
-            rows={3}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
+        <div className="flex flex-col gap-4 mt-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="reject-reason" className="text-sm font-medium">
+              Reason for Declining <span className="text-error">*</span>
+            </Label>
+            <Textarea
+              id="reject-reason"
+              placeholder="e.g. No available ICU bed. No available specialist on duty."
+              className="resize-none"
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="redirect-hospital" className="text-sm font-medium">
+              Redirect to Hospital{' '}
+              <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <div className="relative">
+              <Icon
+                icon="solar:buildings-2-bold-duotone"
+                height={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id="redirect-hospital"
+                className="pl-9"
+                placeholder="e.g. Jose Reyes Memorial Medical Center"
+                value={redirectHospital}
+                onChange={(e) => setRedirectHospital(e.target.value)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Suggest a nearby facility so the referring hospital can re-route the patient.
+            </p>
+          </div>
         </div>
 
         <DialogFooter className="gap-2 mt-4">
@@ -593,7 +621,15 @@ const DeclinedTab = ({ referrals, search }: { referrals: ReferralType[]; search:
                 </TableCell>
                 <TableCell className="text-sm max-w-xs">
                   {r.rejection_reason ? (
-                    <span className="text-error line-clamp-2">{r.rejection_reason}</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-error line-clamp-2">{r.rejection_reason}</span>
+                      {r.redirect_to && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Icon icon="solar:buildings-2-bold-duotone" height={11} />
+                          {r.redirect_to}
+                        </span>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
@@ -752,8 +788,8 @@ const IncomingReferralPage = () => {
         open={!!rejectTarget}
         referral={rejectTarget}
         onClose={() => setRejectTarget(null)}
-        onConfirm={(reason) => {
-          if (rejectTarget) declineIncomingReferral(rejectTarget.id, reason);
+        onConfirm={(reason, redirectHospital) => {
+          if (rejectTarget) declineIncomingReferral(rejectTarget.id, reason, redirectHospital);
         }}
       />
     </>

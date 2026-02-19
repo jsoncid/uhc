@@ -18,6 +18,7 @@ export interface ReferralType {
   deactivated_by?: string | null; // name/identifier of who deactivated it
   rejection_reason?: string | null; // text — reason if incoming referral was declined
   accepted_by?: string | null; // varchar — receiving doctor who accepted (incoming)
+  redirect_to?: string | null; // varchar — suggested redirect hospital when declined
 
   // ── Frontend-only / query-time fields (NOT stored in DB) ────────────────
   direction?: 'outgoing' | 'incoming'; // derived: 'incoming' if to_assignment = our facility

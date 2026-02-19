@@ -109,6 +109,33 @@ const ReferralDetail = () => {
               </Button>
             </div>
           </div>
+
+          {/* Decline info bar — shown to requesting hospital when their referral was declined */}
+          {referral.latest_status?.description === 'Declined' && referral.rejection_reason && (
+            <div className="mt-4 p-3 rounded-lg bg-lighterror border border-error/20 flex flex-col gap-2">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
+                  Decline Reason
+                </p>
+                <p className="text-sm font-medium text-error">{referral.rejection_reason}</p>
+              </div>
+              {referral.redirect_to && (
+                <div className="flex items-center gap-2 pt-2 border-t border-error/20">
+                  <Icon
+                    icon="solar:buildings-2-bold-duotone"
+                    height={14}
+                    className="text-error flex-shrink-0"
+                  />
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                      Suggested Redirect
+                    </p>
+                    <p className="text-sm font-semibold text-error">{referral.redirect_to}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </CardBox>
       </div>
 

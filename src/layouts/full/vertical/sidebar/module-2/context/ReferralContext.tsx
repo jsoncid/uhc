@@ -24,7 +24,7 @@ export interface ReferralContextType {
   updateReferralStatus: (id: string, statusId: string) => void;
   deactivateReferral: (id: string, deactivatedBy?: string) => void;
   acceptIncomingReferral: (id: string, acceptedBy: string) => void;
-  declineIncomingReferral: (id: string, declineReason: string) => void;
+  declineIncomingReferral: (id: string, declineReason: string, redirectHospital?: string) => void;
   updateIncomingStatus: (id: string, statusId: string) => void;
 }
 
@@ -185,9 +185,14 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
-  const declineIncomingReferral = (id: string, declineReason: string) => {
+  const declineIncomingReferral = (
+    id: string,
+    declineReason: string,
+    redirectHospital?: string,
+  ) => {
     const declinedStatus = StatusData.find((s) => s.description === 'Declined');
     const now = new Date().toISOString();
+    const detailText = `Declined — ${declineReason}${redirectHospital ? ` Suggested redirect: ${redirectHospital}.` : ''}`;
     const historyEntry: ReferralHistory = {
       id: `rh-${Date.now()}`,
       created_at: now,
@@ -195,15 +200,20 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       to_assignment: null,
       status: declinedStatus?.id ?? 'st-0005',
       is_active: true,
-      details: `Declined — ${declineReason}`,
+      details: detailText,
       status_description: 'Declined',
     };
+
+    // Find the incoming referral before updating state (for cross-notification)
+    const incomingRef = incomingReferrals.find((r) => r.id === id);
+
     setIncomingReferrals((prev) =>
       prev.map((r) =>
         r.id === id
           ? {
               ...r,
               rejection_reason: declineReason,
+              redirect_to: redirectHospital ?? null,
               latest_status: declinedStatus,
               history: [
                 ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
@@ -213,6 +223,41 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           : r,
       ),
     );
+
+    // Cross-notify the requesting side — find matching outgoing referral by patient name.
+    // In real Supabase both parties query the same record; here we sync in local state.
+    if (incomingRef?.patient_name) {
+      const outgoingHistoryEntry: ReferralHistory = {
+        id: `rh-${Date.now() + 1}`,
+        created_at: now,
+        referral: id,
+        to_assignment: null,
+        status: declinedStatus?.id ?? 'st-0005',
+        is_active: true,
+        details: detailText,
+        status_description: 'Declined',
+      };
+      setReferrals((prev) =>
+        prev.map((r) => {
+          if (
+            r.patient_name === incomingRef.patient_name &&
+            r.latest_status?.description === 'Pending'
+          ) {
+            return {
+              ...r,
+              rejection_reason: declineReason,
+              redirect_to: redirectHospital ?? null,
+              latest_status: declinedStatus,
+              history: [
+                ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
+                outgoingHistoryEntry,
+              ],
+            };
+          }
+          return r;
+        }),
+      );
+    }
   };
 
   const updateIncomingStatus = (id: string, statusId: string) => {
