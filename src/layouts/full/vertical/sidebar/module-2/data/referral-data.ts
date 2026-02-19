@@ -437,7 +437,7 @@ export let ReferralData: ReferralType[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 export const getReferralById = (id: string): ReferralType | undefined =>
-  ReferralData.find((r) => r.id === id && r.status !== false);
+  ReferralData.find((r) => r.id === id);
 
 export const getStatusById = (id: string): ReferralStatus | undefined =>
   StatusData.find((s) => s.id === id);

@@ -3,6 +3,7 @@
 import { useContext, useState } from 'react';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
+import { useNavigate } from 'react-router';
 
 import { ReferralContext, ReferralContextType } from '../../context/ReferralContext';
 import { ReferralType, ReferralHistory } from '../../types/referral';
@@ -27,6 +28,12 @@ import {
   TooltipTrigger,
 } from 'src/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'src/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from 'src/components/ui/dropdown-menu';
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
@@ -238,15 +245,17 @@ const AllHistoryTab = ({
   search: string;
 }) => {
   const all = [...referrals, ...deactivated];
-  const visible = all.filter((r) => {
-    const q = search.toLowerCase();
-    return (
-      !q ||
-      (r.patient_name ?? '').toLowerCase().includes(q) ||
-      (r.from_assignment_name ?? '').toLowerCase().includes(q) ||
-      (r.referral_info?.referring_doctor ?? '').toLowerCase().includes(q)
-    );
-  });
+  const visible = all
+    .filter((r) => {
+      const q = search.toLowerCase();
+      return (
+        !q ||
+        (r.patient_name ?? '').toLowerCase().includes(q) ||
+        (r.from_assignment_name ?? '').toLowerCase().includes(q) ||
+        (r.referral_info?.referring_doctor ?? '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <div>
@@ -323,7 +332,7 @@ const AllHistoryTab = ({
                             <Icon icon="solar:history-bold-duotone" height={16} />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>View Journey</TooltipContent>
+                        <TooltipContent>View History</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </TableCell>
@@ -348,15 +357,17 @@ const DischargedTab = ({
   search: string;
 }) => {
   const discharged = referrals.filter((r) => r.latest_status?.description === 'Discharged');
-  const visible = discharged.filter((r) => {
-    const q = search.toLowerCase();
-    return (
-      !q ||
-      (r.patient_name ?? '').toLowerCase().includes(q) ||
-      (r.from_assignment_name ?? '').toLowerCase().includes(q) ||
-      (r.referral_info?.referring_doctor ?? '').toLowerCase().includes(q)
-    );
-  });
+  const visible = discharged
+    .filter((r) => {
+      const q = search.toLowerCase();
+      return (
+        !q ||
+        (r.patient_name ?? '').toLowerCase().includes(q) ||
+        (r.from_assignment_name ?? '').toLowerCase().includes(q) ||
+        (r.referral_info?.referring_doctor ?? '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <div>
@@ -419,7 +430,7 @@ const DischargedTab = ({
                             <Icon icon="solar:history-bold-duotone" height={16} />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>View Journey</TooltipContent>
+                        <TooltipContent>View History</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </TableCell>
@@ -443,15 +454,18 @@ const DeactivatedTab = ({
   onView: (r: ReferralType) => void;
   search: string;
 }) => {
-  const visible = deactivated.filter((r) => {
-    const q = search.toLowerCase();
-    return (
-      !q ||
-      (r.patient_name ?? '').toLowerCase().includes(q) ||
-      (r.from_assignment_name ?? '').toLowerCase().includes(q) ||
-      (r.deactivated_by ?? '').toLowerCase().includes(q)
-    );
-  });
+  const navigate = useNavigate();
+  const visible = deactivated
+    .filter((r) => {
+      const q = search.toLowerCase();
+      return (
+        !q ||
+        (r.patient_name ?? '').toLowerCase().includes(q) ||
+        (r.from_assignment_name ?? '').toLowerCase().includes(q) ||
+        (r.deactivated_by ?? '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <div>
@@ -466,7 +480,7 @@ const DeactivatedTab = ({
               <TableHead className="font-semibold">Deactivated By</TableHead>
               <TableHead className="font-semibold">Deactivated At</TableHead>
               <TableHead className="font-semibold">Journey</TableHead>
-              <TableHead className="font-semibold text-right">History</TableHead>
+              <TableHead className="font-semibold text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -524,21 +538,29 @@ const DeactivatedTab = ({
                     <StopBadges history={r.history ?? []} />
                   </TableCell>
                   <TableCell className="text-right">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-primary hover:bg-primary/10"
-                            onClick={() => onView(r)}
-                          >
-                            <Icon icon="solar:history-bold-duotone" height={16} />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>View Journey</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Icon icon="solar:menu-dots-bold" height={16} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[160px]">
+                        <DropdownMenuItem
+                          onClick={() => navigate('/module-2/referrals/detail/' + r.id)}
+                        >
+                          <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onView(r)}>
+                          <Icon
+                            icon="solar:history-bold-duotone"
+                            height={15}
+                            className="mr-2 text-muted-foreground"
+                          />
+                          View History
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))
