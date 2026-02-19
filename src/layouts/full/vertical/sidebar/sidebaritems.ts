@@ -219,6 +219,18 @@ const SidebarContent: MenuItem[] = [
     ],
   },
   {
+    heading: 'About',
+    children: [
+      {
+        id: uniqueId(),
+        name: 'About / Teams',
+        icon: 'solar:users-group-two-rounded-linear',
+        url: '/about',
+        isPro: false,
+      },
+    ],
+  },
+  {
     heading: 'Auth',
     children: [
       {
