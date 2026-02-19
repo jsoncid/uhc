@@ -32,6 +32,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from 'src/components/ui/dialog';
+import ReferralPrintDocument from './ReferralPrintDocument';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
@@ -54,6 +55,7 @@ const ReferralListing = () => {
   const navigate = useNavigate();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState<string>('');
+  const [printReferral, setPrintReferral] = useState<ReferralType | null>(null);
 
   const handleDeactivateClick = (id: string, name: string) => {
     setConfirmId(id);
@@ -226,6 +228,14 @@ const ReferralListing = () => {
                           <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
                           View Details
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setPrintReferral(referral)}>
+                          <Icon
+                            icon="solar:printer-minimalistic-bold-duotone"
+                            height={15}
+                            className="mr-2 text-muted-foreground"
+                          />
+                          Print Referral
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-error focus:text-error"
                           onClick={() =>
@@ -251,6 +261,11 @@ const ReferralListing = () => {
           </TableBody>
         </Table>
       </div>
+      {/* Print document (hidden, triggers window.print()) */}
+      {printReferral && (
+        <ReferralPrintDocument referral={printReferral} onClose={() => setPrintReferral(null)} />
+      )}
+
       {/* Deactivate confirmation dialog */}
       <Dialog
         open={!!confirmId}
