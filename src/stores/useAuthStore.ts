@@ -45,8 +45,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
   const ensureSessionValid = async (options?: { refreshOnExpired?: boolean }): Promise<boolean> => {
     const expiry = get().sessionExpiry
     const isExpired = expiry ? Date.now() >= expiry : false
+    const shouldRefresh = isExpired && expiry && (Date.now() >= expiry - SESSION_EXPIRY_BUFFER_MS)
 
-    if (isExpired && options?.refreshOnExpired) {
+    if (shouldRefresh && options?.refreshOnExpired) {
       try {
         await refreshSessionFromSupabase()
         return true
@@ -98,14 +99,16 @@ export const useAuthStore = create<AuthState>((set, get) => {
       //   throw new Error('Account is inactive. Please contact administrator to activate your account.')
       // }
       
-      console.log('User status check passed, user is active')
+      console.log('User status check passed, user is active', userStatus)
       set({ user: data.user, isLoading: false })
+      return true
     } catch (error) {
       console.error('Login error:', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to sign in',
         isLoading: false 
       })
+      return false
     }
   },
 
@@ -146,10 +149,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
       // Don't set user - registration successful but user needs to login manually after approval
       set({ user: null, isLoading: false })
       
-      // Return success indication (caller can check isLoading: false and error: null)
-      return
+      // Return success indication
+      return true
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to sign up', isLoading: false })
+      return false
     }
   },
 
