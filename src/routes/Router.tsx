@@ -187,6 +187,7 @@ const Router = [
       {
         path: '/apps/tickets',
       ...m4Routes,
+      },
       { 
         path: '/apps/tickets', 
         element: (
