@@ -24,7 +24,7 @@ export default defineConfig({
                     name: 'load-js-files-as-tsx',
                     setup(build) {
                         build.onLoad(
-                            { filter: /src\\.*\.js$/ },
+                            { filter: /src\.*\.js$/ },
                             async (args) => ({
                                 loader: 'tsx',
                                 contents: await fs.readFile(args.path, 'utf8'),

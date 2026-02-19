@@ -18,17 +18,15 @@ const checkUserActiveStatus = async (userId: string): Promise<boolean> => {
 };
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const { setUser } = useAuthStore();
+  const { setUser, initialize } = useAuthStore();
 
   useEffect(() => {
-    // Get initial session and verify user is active
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         const isActive = await checkUserActiveStatus(session.user.id);
         if (isActive) {
-          setUser(session.user);
+          await initialize(); 
         } else {
-          // User is not active, sign them out
           console.log('User is not active, signing out...');
           await supabase.auth.signOut();
           setUser(null);
@@ -38,22 +36,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     });
 
-    // Listen for auth changes and verify user is active
+    // Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Skip handling for SIGNED_IN - useAuthStore.signIn already handles the active check
-      // This prevents a race condition where AuthProvider and signIn both check status
-      if (event === 'SIGNED_IN') {
-        return;
-      }
-      
+      if (event === 'SIGNED_IN') return;
+
       if (session?.user) {
         const isActive = await checkUserActiveStatus(session.user.id);
         if (isActive) {
-          setUser(session.user);
+          await initialize(); 
         } else {
-          // User is not active, sign them out
           console.log('User is not active, signing out...');
           await supabase.auth.signOut();
           setUser(null);
@@ -64,7 +57,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     });
 
     return () => subscription.unsubscribe();
-  }, [setUser]);
+  }, []); 
 
   return <>{children}</>;
 };

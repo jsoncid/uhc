@@ -6,10 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { roleService } from '@/services/roleService'
 import { assignmentService } from '@/services/assignmentService'
 import { moduleService } from '@/services/moduleService'
 import { userService } from '@/services/userService'
+import type { UserWithStatus } from '@/services/userService'
 import { Database } from '@/lib/supabase'
 import { UserAssignmentDialog } from './UserAssignmentDialog.tsx'
 import { RoleModuleAccessDialog } from './RoleModuleAccessDialog.tsx'
@@ -45,6 +54,22 @@ export const UserAssignmentList = () => {
   const [isUserRoleDialogOpen, setIsUserRoleDialogOpen] = useState(false)
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [selectedAccess, setSelectedAccess] = useState<RoleModuleAccess | null>(null)
+  const [usersWithStatus, setUsersWithStatus] = useState<UserWithStatus[]>([])
+  const [isUsersLoading, setIsUsersLoading] = useState(true)
+  const [userListError, setUserListError] = useState<string | null>(null)
+  const [userSearchTerm, setUserSearchTerm] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<UserWithStatus | null>(null)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [isDeletingUser, setIsDeletingUser] = useState(false)
+  const [deleteUserAssignmentTarget, setDeleteUserAssignmentTarget] = useState<UserAssignment | null>(null)
+  const [isDeleteUserAssignmentOpen, setIsDeleteUserAssignmentOpen] = useState(false)
+  const [isDeletingUserAssignment, setIsDeletingUserAssignment] = useState(false)
+  const [deleteRoleModuleTarget, setDeleteRoleModuleTarget] = useState<RoleModuleAccess | null>(null)
+  const [isDeleteRoleModuleOpen, setIsDeleteRoleModuleOpen] = useState(false)
+  const [isDeletingRoleModule, setIsDeletingRoleModule] = useState(false)
+  const [deleteUserRoleTarget, setDeleteUserRoleTarget] = useState<UserRole | null>(null)
+  const [isDeleteUserRoleOpen, setIsDeleteUserRoleOpen] = useState(false)
+  const [isDeletingUserRole, setIsDeletingUserRole] = useState(false)
 
   const fetchData = async () => {
     try {
@@ -74,6 +99,20 @@ export const UserAssignmentList = () => {
     } catch (err) {
       setError('Failed to fetch user assignments')
       console.error('Error fetching user assignments:', err)
+    }
+  }
+
+  const fetchUsersWithStatus = async () => {
+    try {
+      setIsUsersLoading(true)
+      setUserListError(null)
+      const users = await userService.getUsersWithStatus()
+      setUsersWithStatus(users)
+    } catch (err) {
+      setUserListError('Failed to load users')
+      console.error('Error fetching users with status:', err)
+    } finally {
+      setIsUsersLoading(false)
     }
   }
 
@@ -117,8 +156,39 @@ export const UserAssignmentList = () => {
     }
   }
 
+  const openDeleteUserDialog = (user: UserWithStatus) => {
+    setDeleteTarget(user)
+    setIsDeleteConfirmOpen(true)
+  }
+
+  const closeDeleteUserDialog = () => {
+    setIsDeleteConfirmOpen(false)
+    setDeleteTarget(null)
+  }
+
+  const confirmDeleteUser = async () => {
+    if (!deleteTarget) return
+    try {
+      setIsDeletingUser(true)
+      setUserListError(null)
+      await userService.deleteUserStatus(deleteTarget.id)
+      await fetchUsersWithStatus()
+      closeDeleteUserDialog()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete user'
+      setUserListError(message)
+      console.error('Error deleting user status:', err)
+    } finally {
+      setIsDeletingUser(false)
+    }
+  }
+
   useEffect(() => {
     fetchData()
+  }, [])
+
+  useEffect(() => {
+    fetchUsersWithStatus()
   }, [])
 
   useEffect(() => {
@@ -127,27 +197,53 @@ export const UserAssignmentList = () => {
     }
   }, [roles])
 
-  const handleDeleteUserAssignment = async (id: string) => {
-    if (confirm('Are you sure you want to remove this user assignment?')) {
-      try {
-        await roleService.deleteUserAssignment(id)
-        await fetchUserAssignments()
-      } catch (err) {
-        setError('Failed to delete user assignment')
-        console.error('Error deleting user assignment:', err)
-      }
+  const handleDeleteUserAssignment = (assignment: UserAssignment) => {
+    setDeleteUserAssignmentTarget(assignment)
+    setIsDeleteUserAssignmentOpen(true)
+  }
+
+  const closeDeleteUserAssignmentDialog = () => {
+    setIsDeleteUserAssignmentOpen(false)
+    setDeleteUserAssignmentTarget(null)
+  }
+
+  const confirmDeleteUserAssignment = async () => {
+    if (!deleteUserAssignmentTarget) return
+    try {
+      setIsDeletingUserAssignment(true)
+      await roleService.deleteUserAssignment(deleteUserAssignmentTarget.id)
+      await fetchUserAssignments()
+      closeDeleteUserAssignmentDialog()
+    } catch (err) {
+      setError('Failed to delete user assignment')
+      console.error('Error deleting user assignment:', err)
+    } finally {
+      setIsDeletingUserAssignment(false)
     }
   }
 
-  const handleDeleteRoleModuleAccess = async (id: string) => {
-    if (confirm('Are you sure you want to remove this role module access?')) {
-      try {
-        await roleService.deleteRoleModuleAccess(id)
-        await fetchRoleModuleAccess()
-      } catch (err) {
-        setError('Failed to delete role module access')
-        console.error('Error deleting role module access:', err)
-      }
+  const handleDeleteRoleModuleAccess = (access: RoleModuleAccess) => {
+    setDeleteRoleModuleTarget(access)
+    setIsDeleteRoleModuleOpen(true)
+  }
+
+  const closeDeleteRoleModuleDialog = () => {
+    setIsDeleteRoleModuleOpen(false)
+    setDeleteRoleModuleTarget(null)
+  }
+
+  const confirmDeleteRoleModule = async () => {
+    if (!deleteRoleModuleTarget) return
+    try {
+      setIsDeletingRoleModule(true)
+      await roleService.deleteRoleModuleAccess(deleteRoleModuleTarget.id)
+      await fetchRoleModuleAccess()
+      closeDeleteRoleModuleDialog()
+    } catch (err) {
+      setError('Failed to delete role module access')
+      console.error('Error deleting role module access:', err)
+    } finally {
+      setIsDeletingRoleModule(false)
     }
   }
 
@@ -161,15 +257,28 @@ export const UserAssignmentList = () => {
     }
   }
 
-  const handleDeleteUserRole = async (id: string) => {
-    if (confirm('Are you sure you want to remove this user role assignment?')) {
-      try {
-        await userService.deleteUserRole(id)
-        await fetchData()
-      } catch (err) {
-        setError('Failed to delete user role')
-        console.error('Error deleting user role:', err)
-      }
+  const handleDeleteUserRole = (userRole: UserRole) => {
+    setDeleteUserRoleTarget(userRole)
+    setIsDeleteUserRoleOpen(true)
+  }
+
+  const closeDeleteUserRoleDialog = () => {
+    setIsDeleteUserRoleOpen(false)
+    setDeleteUserRoleTarget(null)
+  }
+
+  const confirmDeleteUserRole = async () => {
+    if (!deleteUserRoleTarget) return
+    try {
+      setIsDeletingUserRole(true)
+      await userService.deleteUserRole(deleteUserRoleTarget.id)
+      await fetchData()
+      closeDeleteUserRoleDialog()
+    } catch (err) {
+      setError('Failed to delete user role')
+      console.error('Error deleting user role:', err)
+    } finally {
+      setIsDeletingUserRole(false)
     }
   }
 
@@ -221,6 +330,18 @@ export const UserAssignmentList = () => {
            roleId.includes(lowerSearchTerm)
   })
 
+  const filteredUsers = usersWithStatus.filter((user) => {
+    if (!userSearchTerm) return true
+    const lowerSearch = userSearchTerm.toLowerCase()
+    const name = user.name?.toLowerCase() || ''
+    const email = user.email.toLowerCase()
+    return name.includes(lowerSearch) || email.includes(lowerSearch)
+  })
+
+  const totalUsers = usersWithStatus.length
+  const activeUsers = usersWithStatus.filter((user) => user.is_active).length
+  const inactiveUsers = totalUsers - activeUsers
+
   if (isLoading) {
     return (
       <Card>
@@ -235,8 +356,35 @@ export const UserAssignmentList = () => {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="user-assignments" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Total Users</p>
+            <p className="text-3xl font-semibold">
+              {isUsersLoading ? '...' : totalUsers}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Active Users</p>
+            <p className="text-3xl font-semibold text-emerald-500">
+              {isUsersLoading ? '...' : activeUsers}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Inactive Users</p>
+            <p className="text-3xl font-semibold text-amber-500">
+              {isUsersLoading ? '...' : inactiveUsers}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="user-assignments">User Assignments</TabsTrigger>
           <TabsTrigger value="user-roles">User Roles</TabsTrigger>
           <TabsTrigger value="role-access">Role Module Access</TabsTrigger>
@@ -306,7 +454,7 @@ export const UserAssignmentList = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleDeleteUserAssignment(assignment.id)}
+                              onClick={() => handleDeleteUserAssignment(assignment)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -385,7 +533,7 @@ export const UserAssignmentList = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleDeleteUserRole(userRole.id)}
+                              onClick={() => handleDeleteUserRole(userRole)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -511,7 +659,7 @@ export const UserAssignmentList = () => {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleDeleteRoleModuleAccess(access.id)}
+                                    onClick={() => handleDeleteRoleModuleAccess(access)}
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -528,6 +676,90 @@ export const UserAssignmentList = () => {
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="users" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  System Users
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <div className="flex items-center space-x-2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users..."
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+              </div>
+
+              {userListError && (
+                <div className="bg-destructive/15 text-destructive px-4 py-2 rounded-md mb-4">
+                  {userListError}
+                </div>
+              )}
+
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Registered</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isUsersLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          Loading users...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredUsers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          No users found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium">{user.name || user.email}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <Badge variant={user.is_active ? 'default' : 'secondary'}>
+                              {user.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openDeleteUserDialog(user)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       <UserAssignmentDialog
@@ -540,6 +772,82 @@ export const UserAssignmentList = () => {
         isOpen={isUserRoleDialogOpen}
         onClose={handleDialogClose}
       />
+
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={closeDeleteUserDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete user</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove {deleteTarget?.email || 'this user'}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteUserDialog} disabled={isDeletingUser}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteUser} disabled={isDeletingUser}>
+              {isDeletingUser ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteUserAssignmentOpen} onOpenChange={closeDeleteUserAssignmentDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete User Assignment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this user assignment? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteUserAssignmentDialog} disabled={isDeletingUserAssignment}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteUserAssignment} disabled={isDeletingUserAssignment}>
+              {isDeletingUserAssignment ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteUserRoleOpen} onOpenChange={closeDeleteUserRoleDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete User Role</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this user role assignment? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteUserRoleDialog} disabled={isDeletingUserRole}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteUserRole} disabled={isDeletingUserRole}>
+              {isDeletingUserRole ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteRoleModuleOpen} onOpenChange={closeDeleteRoleModuleDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete Role Module Access</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this role module access? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteRoleModuleDialog} disabled={isDeletingRoleModule}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteRoleModule} disabled={isDeletingRoleModule}>
+              {isDeletingRoleModule ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <RoleModuleAccessDialog
         isOpen={isRoleModuleDialogOpen}
