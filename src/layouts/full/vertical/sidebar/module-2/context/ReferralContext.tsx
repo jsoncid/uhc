@@ -5,11 +5,13 @@ import {
   StatusData,
   ReferralInfoData,
   ReferralHistoryData,
+  IncomingReferralData,
 } from '../data/referral-data';
 
 export interface ReferralContextType {
   referrals: ReferralType[];
   deactivatedReferrals: ReferralType[];
+  incomingReferrals: ReferralType[];
   statuses: ReferralStatus[];
   loading: boolean;
   error: string | Error | null;
@@ -21,6 +23,9 @@ export interface ReferralContextType {
   addReferral: (referral: ReferralType) => void;
   updateReferralStatus: (id: string, statusId: string) => void;
   deactivateReferral: (id: string, deactivatedBy?: string) => void;
+  acceptIncomingReferral: (id: string, acceptedBy: string) => void;
+  rejectIncomingReferral: (id: string, rejectionReason: string) => void;
+  updateIncomingStatus: (id: string, statusId: string) => void;
 }
 
 export const ReferralContext = createContext<ReferralContextType>({} as ReferralContextType);
@@ -28,6 +33,7 @@ export const ReferralContext = createContext<ReferralContextType>({} as Referral
 export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [referrals, setReferrals] = useState<ReferralType[]>([]);
   const [deactivatedReferrals, setDeactivatedReferrals] = useState<ReferralType[]>([]);
+  const [incomingReferrals, setIncomingReferrals] = useState<ReferralType[]>([]);
   const [statuses] = useState<ReferralStatus[]>(StatusData);
   const [referralSearch, setReferralSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -36,7 +42,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     try {
-      // Hydrate referrals with joined data from their related tables
+      // Hydrate outgoing referrals
       const hydrated = ReferralData.filter((r) => r.status !== false).map((r) => ({
         ...r,
         referral_info: ReferralInfoData.find((ri) => ri.referral === r.id),
@@ -50,7 +56,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }));
       setReferrals(hydrated);
 
-      // Hydrate deactivated referrals (status === false)
+      // Hydrate deactivated referrals
       const deactivated = ReferralData.filter((r) => r.status === false).map((r) => ({
         ...r,
         referral_info: ReferralInfoData.find((ri) => ri.referral === r.id),
@@ -61,6 +67,9 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ),
       }));
       setDeactivatedReferrals(deactivated);
+
+      // Hydrate incoming referrals (already have history/referral_info embedded)
+      setIncomingReferrals([...IncomingReferralData]);
     } catch (err) {
       setError(err instanceof Error ? err : String(err));
     } finally {
@@ -145,6 +154,96 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setReferrals((prev) => prev.filter((r) => r.id !== id));
   };
 
+  // ── Incoming referral actions ───────────────────────────────────────────────
+  const acceptIncomingReferral = (id: string, acceptedBy: string) => {
+    const acceptedStatus = StatusData.find((s) => s.description === 'Accepted');
+    const now = new Date().toISOString();
+    const historyEntry: ReferralHistory = {
+      id: `rh-${Date.now()}`,
+      created_at: now,
+      referral: id,
+      to_assignment: null,
+      status: acceptedStatus?.id ?? 'st-0002',
+      is_active: true,
+      details: `Accepted by ${acceptedBy}.`,
+      status_description: 'Accepted',
+    };
+    setIncomingReferrals((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              accepted_by: acceptedBy,
+              latest_status: acceptedStatus,
+              history: [
+                ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
+                historyEntry,
+              ],
+            }
+          : r,
+      ),
+    );
+  };
+
+  const rejectIncomingReferral = (id: string, rejectionReason: string) => {
+    const rejectedStatus = StatusData.find((s) => s.description === 'Rejected');
+    const now = new Date().toISOString();
+    const historyEntry: ReferralHistory = {
+      id: `rh-${Date.now()}`,
+      created_at: now,
+      referral: id,
+      to_assignment: null,
+      status: rejectedStatus?.id ?? 'st-0005',
+      is_active: true,
+      details: `Rejected — ${rejectionReason}`,
+      status_description: 'Rejected',
+    };
+    setIncomingReferrals((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              rejection_reason: rejectionReason,
+              latest_status: rejectedStatus,
+              history: [
+                ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
+                historyEntry,
+              ],
+            }
+          : r,
+      ),
+    );
+  };
+
+  const updateIncomingStatus = (id: string, statusId: string) => {
+    const newStatus = StatusData.find((s) => s.id === statusId);
+    const now = new Date().toISOString();
+    const historyEntry: ReferralHistory = {
+      id: `rh-${Date.now()}`,
+      created_at: now,
+      referral: id,
+      to_assignment: null,
+      status: statusId,
+      is_active: true,
+      details: `Status updated to ${newStatus?.description ?? statusId}`,
+      status_description: newStatus?.description ?? undefined,
+    };
+    setIncomingReferrals((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              latest_status: newStatus,
+              history: [
+                ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
+                historyEntry,
+              ],
+            }
+          : r,
+      ),
+    );
+  };
+
   const searchReferrals = (term: string) => setReferralSearch(term);
 
   return (
@@ -152,6 +251,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       value={{
         referrals,
         deactivatedReferrals,
+        incomingReferrals,
         statuses,
         loading,
         error,
@@ -163,6 +263,9 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         addReferral,
         updateReferralStatus,
         deactivateReferral,
+        acceptIncomingReferral,
+        rejectIncomingReferral,
+        updateIncomingStatus,
       }}
     >
       {children}
