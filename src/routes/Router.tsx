@@ -9,6 +9,7 @@ import { ModuleGuard } from '../components/ModuleGuard';
 import { m4Routes } from './m4_routes';
 
 
+
 /* ***Layouts**** */
 const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
 const BlankLayout = Loadable(lazy(() => import('../layouts/blank/BlankLayout')));
@@ -167,6 +168,10 @@ const Router = [
             <StaffQueueManager />
           </ProtectedRoute>
         ),
+      },
+      { 
+        path: '/apps/tickets', 
+         ...m4Routes,
       },
       {
         path: '/module-4/member',
