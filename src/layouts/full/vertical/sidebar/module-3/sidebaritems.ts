@@ -60,7 +60,7 @@ const SidebarContent: MenuItem[] = [
       {
         name: 'Patient Tagging',
         id: uniqueId(),
-        icon: 'solar:tag-linear',
+        icon: 'solar:history-linear',
         url: '/module-3/tagging/overview',
       },
     ],

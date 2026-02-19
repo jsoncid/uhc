@@ -81,6 +81,126 @@ export interface Facility {
   patient_count: number;
 }
 
+export interface PatientTag {
+  id: string;
+  patient_id: string;
+  tag_name: string;
+  tag_category: string;
+  tag_color: string;
+  notes?: string;
+  created_at: string;
+  created_by: string;
+  updated_at?: string;
+}
+
+export interface PatientHistory {
+  // hadmlog fields
+  enccode: string;
+  hpercode: string;
+  upicode?: string;
+  casenum?: string;
+  patage?: string;
+  newold?: string;
+  tacode?: string;
+  tscode?: string;
+  admdate: string;
+  admtime?: string;
+  diagcode?: string;
+  admnotes?: string;
+  licno?: string;
+  diagfin?: string;
+  disnotes?: string;
+  admmode?: string;
+  admpreg?: string;
+  disdate?: string;
+  distime?: string;
+  dispcode?: string;
+  condcode?: string;
+  licnof?: string;
+  licncons?: string;
+  cbcode?: string;
+  dcspinst?: string;
+  admstat?: string;
+  admlock?: string;
+  datemod?: string;
+  updsw?: string;
+  confdl?: string;
+  admtxt?: string;
+  admclerk?: string;
+  licno2?: string;
+  licno3?: string;
+  licno4?: string;
+  licno5?: string;
+  patagemo?: string;
+  patagedy?: string;
+  patagehr?: string;
+  admphic?: string;
+  disnotice?: string;
+  treatment?: string;
+  hsepriv?: string;
+  licno6?: string;
+  licno7?: string;
+  licno8?: string;
+  licno9?: string;
+  licno10?: string;
+  itisind?: string;
+  entryby?: string;
+  pexpireddate?: string;
+  acis?: string;
+  watchid?: string;
+  lockby?: string;
+  lockdte?: string;
+  typadm?: string;
+  pho_hospital_number?: string;
+  nbind?: string;
+  foradmcode?: string;
+  is_smoker?: string;
+  smoker_cigarette_pack?: string;
+  deleted_at?: string;
+  created_at?: string;
+  discharge_by?: string;
+  // henctr fields (encounter data)
+  encounter_fhud?: string;
+  encounter_hpercode?: string;
+  encounter_date?: string;
+  encounter_time?: string;
+  encounter_toecode?: string;
+  encounter_sopcode1?: string;
+  encounter_sopcode2?: string;
+  encounter_sopcode3?: string;
+  encounter_patinform?: string;
+  encounter_patinfadd?: string;
+  encounter_patinftel?: string;
+  encounter_lock?: string;
+  encounter_datemod?: string;
+  encounter_updsw?: string;
+  encounter_confdl?: string;
+  encounter_acctno?: string;
+  encounter_entryby?: string;
+  encounter_casetype?: string;
+  encounter_tacode?: string;
+  encounter_consentphie?: string;
+  encounter_cf4attendprov?: string;
+}
+
+export interface PatientTagResult {
+  success: boolean;
+  data: PatientTag[];
+  message?: string;
+}
+
+export interface PatientHistoryResult {
+  success: boolean;
+  data: PatientHistory[];
+  message?: string;
+  pagination?: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
 class PatientService {
   private baseUrl: string;
 
@@ -707,6 +827,192 @@ class PatientService {
     } catch (error) {
       console.error('Error in savePatientRepository:', error);
       // Don't throw - repository link is optional
+    }
+  }
+
+  /**
+   * Get patient tags from MySQL
+   */
+  async getPatientTags(hpercode: string): Promise<PatientTagResult> {
+    try {
+      const response = await fetch(`${this.baseUrl}/${encodeURIComponent(hpercode)}/tags`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return {
+        success: true,
+        data: result.data || [],
+      };
+    } catch (error) {
+      console.error('Get patient tags error:', error);
+      return {
+        success: false,
+        data: [],
+        message: error instanceof Error ? error.message : 'Failed to get patient tags',
+      };
+    }
+  }
+
+  /**
+   * Add patient tag to MySQL
+   */
+  async addPatientTag(hpercode: string, tag: Omit<PatientTag, 'id' | 'created_at' | 'patient_id' | 'hpercode'>): Promise<{
+    success: boolean;
+    data?: PatientTag;
+    message?: string;
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/${encodeURIComponent(hpercode)}/tags`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(tag),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return {
+        success: true,
+        data: result.data,
+        message: 'Tag added successfully',
+      };
+    } catch (error) {
+      console.error('Add patient tag error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to add patient tag',
+      };
+    }
+  }
+
+  /**
+   * Remove patient tag from MySQL
+   */
+  async removePatientTag(hpercode: string, tagId: string): Promise<{
+    success: boolean;
+    message?: string;
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/${encodeURIComponent(hpercode)}/tags/${encodeURIComponent(tagId)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error: ${response.status}`);
+      }
+
+      return {
+        success: true,
+        message: 'Tag removed successfully',
+      };
+    } catch (error) {
+      console.error('Remove patient tag error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to remove patient tag',
+      };
+    }
+  }
+
+  /**
+   * Get patient history from MySQL (hadmlog table)
+   */
+  async getPatientHistory(hpercode: string, options?: {
+    limit?: number;
+    offset?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<PatientHistoryResult> {
+    try {
+      const params = new URLSearchParams();
+      if (options?.limit) params.append('limit', String(options.limit));
+      if (options?.offset) params.append('offset', String(options.offset));
+      if (options?.startDate) params.append('startDate', options.startDate);
+      if (options?.endDate) params.append('endDate', options.endDate);
+
+      const queryString = params.toString();
+      const url = `${this.baseUrl}/history/${encodeURIComponent(hpercode)}${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return {
+        success: true,
+        data: result.data || [],
+        pagination: result.pagination,
+      };
+    } catch (error) {
+      console.error('Get patient history error:', error);
+      return {
+        success: false,
+        data: [],
+        message: error instanceof Error ? error.message : 'Failed to get patient history',
+      };
+    }
+  }
+
+  /**
+   * Add patient history record to MySQL
+   */
+  async addPatientHistory(hpercode: string, history: Omit<PatientHistory, 'id' | 'created_at' | 'patient_id' | 'hpercode'>): Promise<{
+    success: boolean;
+    data?: PatientHistory;
+    message?: string;
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/${encodeURIComponent(hpercode)}/history`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(history),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return {
+        success: true,
+        data: result.data,
+        message: 'History record added successfully',
+      };
+    } catch (error) {
+      console.error('Add patient history error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to add patient history',
+      };
     }
   }
 }

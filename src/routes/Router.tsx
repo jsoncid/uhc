@@ -6,6 +6,7 @@ import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { MODULE_IDS, ROLE_IDS } from '../constants/moduleAccess';
 import { ModuleGuard } from '../components/ModuleGuard';
+import { m3_routes } from './m3_routes';
 
 
 /* ***Layouts**** */
@@ -72,11 +73,6 @@ const IncomingReferrals = Loadable(
 );
 const IncomingReferralDetails = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/IncomingReferralDetails')),
-);
-
-// Module 3 - Patient Profiling
-const PatientProfiling = Loadable(
-  lazy(() => import('../views/apps/module-3/PatientProfiling')),
 );
 
 // RBAC Pages
@@ -252,15 +248,8 @@ const Router = [
           </ProtectedRoute>
         ),
       },
-      // Module 3 - Patient Profiling
-      {
-        path: '/module-3/patient-profiling',
-        element: (
-          <ProtectedRoute>
-            <PatientProfiling />
-          </ProtectedRoute>
-        ),
-      },
+      // Module 3 - Patient Repository
+      ...m3_routes,
       {
         path: '/module-2/referrals/incoming',
         element: (
