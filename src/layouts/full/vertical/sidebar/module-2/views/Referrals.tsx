@@ -1,11 +1,7 @@
 import { Link } from 'react-router';
 import ReferralsApp from '../apps/referrals';
 
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { to: '/module-2', title: 'Module 2' },
-  { title: 'Referrals' },
-];
+const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Referrals' }];
 
 const Referrals = () => {
   return (

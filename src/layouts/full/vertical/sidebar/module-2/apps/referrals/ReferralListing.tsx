@@ -39,7 +39,7 @@ const STATUS_STYLES: Record<string, string> = {
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Discharged: 'bg-lightsecondary text-secondary',
-  Rejected: 'bg-lighterror text-error',
+  Declined: 'bg-lighterror text-error',
 };
 
 const ReferralListing = () => {

@@ -4,6 +4,8 @@ import { lazy } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { MODULE_IDS, ROLE_IDS } from '../constants/moduleAccess';
+import { ModuleGuard } from '../components/ModuleGuard';
 
 /* ***Layouts**** */
 const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
@@ -27,8 +29,12 @@ const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/User
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
-const Module4Member = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')));
-const Module4Operator = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')));
+const Module4Member = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')),
+);
+const Module4Operator = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')),
+);
 const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
 const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
@@ -64,11 +70,18 @@ const ReferralDetails = Loadable(
 const ReferralHistory = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralHistory')),
 );
+const IncomingReferrals = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/IncomingReferrals')),
+);
+const IncomingReferralDetails = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/IncomingReferralDetails')),
+);
 
 // Module 3 - Patient Profiling
-const PatientProfiling = Loadable(
-  lazy(() => import('../views/apps/module-3/PatientProfiling')),
-);
+const PatientProfiling = Loadable(lazy(() => import('../views/apps/module-3/PatientProfiling')));
+
+// About Page
+const About = Loadable(lazy(() => import('../views/about/About')));
 
 // RBAC Pages
 const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
@@ -80,6 +93,7 @@ const UserAssignmentManagement = Loadable(
 const UserAcceptance = Loadable(lazy(() => import('../views/rbac/UserAcceptance')));
 
 const Error = Loadable(lazy(() => import('../views/authentication/Error')));
+const Unauthorized = Loadable(lazy(() => import('../views/authentication/Unauthorized')));
 
 // // icons
 const SolarIcon = Loadable(lazy(() => import('../views/icons/SolarIcon')));
@@ -168,8 +182,8 @@ const Router = [
           </ProtectedRoute>
         ),
       },
-      { 
-        path: '/apps/tickets', 
+      {
+        path: '/apps/tickets',
         element: (
           <ProtectedRoute>
             <Tickets />
@@ -251,6 +265,22 @@ const Router = [
         ),
       },
       {
+        path: '/module-2/referrals/incoming',
+        element: (
+          <ProtectedRoute>
+            <IncomingReferrals />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referrals/incoming/detail/:id',
+        element: (
+          <ProtectedRoute>
+            <IncomingReferralDetails />
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: '/user-profile',
         element: (
           <ProtectedRoute>
@@ -263,6 +293,15 @@ const Router = [
         element: (
           <ProtectedRoute>
             <SolarIcon />
+          </ProtectedRoute>
+        ),
+      },
+      // About
+      {
+        path: '/about',
+        element: (
+          <ProtectedRoute>
+            <About />
           </ProtectedRoute>
         ),
       },
@@ -317,6 +356,8 @@ const Router = [
       { path: '/auth/auth2/login', element: <Login2 /> },
 
       { path: '/auth/auth2/register', element: <Register2 /> },
+
+      { path: '/auth/unauthorized', element: <Unauthorized /> },
 
       { path: '/auth/maintenance', element: <Maintainance /> },
       { path: '404', element: <Error /> },

@@ -31,6 +31,22 @@ export interface MenuItem {
 
 import { uniqueId } from 'lodash';
 
+//RESTRICTION: This is to prevent unauthorized users from even seeing the menu items of modules they don't have access to.
+
+// import { MODULE_IDS, ROLE_IDS } from 'src/constants/moduleAccess';
+
+// export const getModule3Items = (userRoleId: string, userModuleId: string) => {
+//   const hasAccess =
+//     userModuleId === MODULE_IDS.module3 &&
+//     [ROLE_IDS.administrator, ROLE_IDS.infoOfficer].includes(userRoleId);
+
+//   if (!hasAccess) return [];
+
+//   return [
+//     { id: 'module3-page', title: 'Module 3 Page', href: '/module-3' },
+//   ];
+// };
+
 const SidebarContent: MenuItem[] = [
   {
     heading: 'Module 3 - PATIENT REPOSITORY',

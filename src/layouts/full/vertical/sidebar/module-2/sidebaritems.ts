@@ -31,6 +31,22 @@ export interface MenuItem {
 
 import { uniqueId } from 'lodash';
 
+//RESTRICTION: This is to prevent unauthorized users from even seeing the menu items of modules they don't have access to.
+
+// import { MODULE_IDS, ROLE_IDS } from 'src/constants/moduleAccess';
+
+// export const getModule2Items = (userRoleId: string, userModuleId: string) => {
+//   const hasAccess =
+//     userModuleId === MODULE_IDS.module2 &&
+//     [ROLE_IDS.administrator, ROLE_IDS.encoder].includes(userRoleId);
+
+//   if (!hasAccess) return [];
+
+//   return [
+//     { id: 'module2-page', title: 'Module 2 Page', href: '/module-2' },
+//   ];
+// };
+
 const SidebarContent: MenuItem[] = [
   {
     heading: 'Module 2 - REFERRAL',
@@ -41,7 +57,13 @@ const SidebarContent: MenuItem[] = [
         icon: 'solar:document-medicine-linear',
         url: '/module-2/referrals',
       },
-       {
+      {
+        name: 'Incoming Referrals',
+        id: uniqueId(),
+        icon: 'solar:inbox-linear',
+        url: '/module-2/referrals/incoming',
+      },
+      {
         name: 'Referral History',
         id: uniqueId(),
         icon: 'solar:history-2-bold',

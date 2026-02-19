@@ -6,19 +6,50 @@ import FullLogo from '../../shared/logo/FullLogo';
 import { Link, useLocation } from 'react-router';
 import { Button } from 'src/components/ui/button';
 import { useTheme } from 'src/components/provider/theme-provider';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import { AMLogo, AMMenu, AMMenuItem, AMSidebar, AMSubmenu } from 'tailwind-sidebar';
 import 'tailwind-sidebar/styles.css';
 
+
+// import { getModule1Items } from './module-1/sidebaritems';
+// import { getModule2Items } from './module-2/sidebaritems';
+// import { getModule3Items } from './module-3/sidebaritems';
+import { getModule4Items } from './module-4/sidebaritems';
+// import { getModule5Items } from './module-5/sidebaritems';
+
+const Sidebar = () => {
+  const userModuleId = useAuthStore((state) => state.userModuleId); 
+  const userRoleId = useAuthStore((state) => state.userRoleId);    
+
+  const navItems = [
+    // ...getModule1Items(roleId, moduleId),
+    // ...getModule2Items(roleId, moduleId),
+    // ...getModule3Items(roleId, moduleId),
+    ...getModule4Items(userRoleId ?? '', userModuleId ?? ''),
+    // ...getModule5Items(roleId, moduleId),
+  ];
+
+  return (
+    <nav>
+      {navItems.map((item) => (
+        <a key={item.id} href={item.href}>
+          {item.title}
+        </a>
+      ))}
+    </nav>
+  );
+};
+
 interface SidebarItemType {
-  heading?: string
-  id?: number | string
-  name?: string
-  title?: string
-  icon?: string
-  url?: string
-  children?: SidebarItemType[]
-  disabled?: boolean
-  isPro?: boolean
+  heading?: string;
+  id?: number | string;
+  name?: string;
+  title?: string;
+  icon?: string;
+  url?: string;
+  children?: SidebarItemType[];
+  disabled?: boolean;
+  isPro?: boolean;
 }
 
 const renderSidebarItems = (
@@ -110,6 +141,8 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
       width={'270px'}
       showTrigger={false}
       mode={sidebarMode}
+      themeColor="#2eb85c"
+      themeSecondaryColor="#ffd34a"
       className="fixed left-0 top-0 border border-border dark:border-border bg-sidebar dark:bg-sidebar z-10 h-screen"
     >
       {/* Logo */}

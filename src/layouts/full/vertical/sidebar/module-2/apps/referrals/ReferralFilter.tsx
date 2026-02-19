@@ -78,10 +78,23 @@ const ReferralFilter = () => {
       accent: 'border-t-secondary',
       activeBg: 'bg-lightsecondary',
     },
+    {
+      key: 'Declined',
+      label: 'Declined',
+      value: count('Declined'),
+      pct: pct(count('Declined')),
+      icon: 'solar:close-circle-bold-duotone',
+      color: 'error',
+      text: 'text-error',
+      iconBg: 'bg-lighterror',
+      bar: 'bg-error',
+      accent: 'border-t-error',
+      activeBg: 'bg-lighterror',
+    },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
       {cards.map((card) => {
         const isActive = filter === card.key;
         return (
