@@ -6,6 +6,11 @@ import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { MODULE_IDS, ROLE_IDS } from '../constants/moduleAccess';
 import { ModuleGuard } from '../components/ModuleGuard';
+import { module1Routes } from './m1_routes';
+import { module2Routes } from './m2_routes';
+import { module3Routes } from './m3_routes';
+import { module4Routes } from './m4_routes';
+import { module5Routes } from './m5_routes';
 
 /* ***Layouts**** */
 const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
@@ -29,56 +34,10 @@ const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/User
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
-const Module4Member = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')),
-);
-const Module4Operator = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')),
-);
 const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
 const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
 const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')));
-
-// Module 1 - Queue Management System
-const Module1Admin = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-1/AdminPage')),
-);
-const QueueGenerator = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-1/QueueGenerator')),
-);
-const QueueDisplay = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-1/QueueDisplay')),
-);
-const StaffQueueManager = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-1/StaffQueueManager')),
-);
-
-// Referral Pages (Module 2)
-const Referrals = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/Referrals')),
-);
-const CreateReferral = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/CreateReferral')),
-);
-const CreateObGyneReferral = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/CreateObGyneReferral')),
-);
-const ReferralDetails = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralDetails')),
-);
-const ReferralHistory = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralHistory')),
-);
-const IncomingReferrals = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/IncomingReferrals')),
-);
-const IncomingReferralDetails = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/IncomingReferralDetails')),
-);
-
-// Module 3 - Patient Profiling
-const PatientProfiling = Loadable(lazy(() => import('../views/apps/module-3/PatientProfiling')));
 
 // About Page
 const About = Loadable(lazy(() => import('../views/about/About')));
@@ -138,50 +97,12 @@ const Router = [
           </ProtectedRoute>
         ),
       },
-      {
-        path: '/module-1/admin',
-        element: (
-          <ProtectedRoute>
-            <Module1Admin />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-1/queue-generator',
-        element: (
-          <ProtectedRoute>
-            <QueueGenerator />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-1/queue-display',
-        element: <QueueDisplay />,
-      },
-      {
-        path: '/module-1/staff-queue-manager',
-        element: (
-          <ProtectedRoute>
-            <StaffQueueManager />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-4/member',
-        element: (
-          <ProtectedRoute>
-            <Module4Member />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-4/operator',
-        element: (
-          <ProtectedRoute>
-            <Module4Operator />
-          </ProtectedRoute>
-        ),
-      },
+      // Module Routes
+      ...module1Routes,
+      ...module2Routes,
+      ...module3Routes,
+      ...module4Routes,
+      ...module5Routes,
       {
         path: '/apps/tickets',
         element: (
@@ -211,72 +132,6 @@ const Router = [
         element: (
           <ProtectedRoute>
             <BlogDetail />
-          </ProtectedRoute>
-        ),
-      },
-      // Module 2 - Referral System Routes
-      {
-        path: '/module-2/referrals',
-        element: (
-          <ProtectedRoute>
-            <Referrals />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-2/referrals/create',
-        element: (
-          <ProtectedRoute>
-            <CreateReferral />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-2/referrals/create-obgyne',
-        element: (
-          <ProtectedRoute>
-            <CreateObGyneReferral />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-2/referrals/detail/:id',
-        element: (
-          <ProtectedRoute>
-            <ReferralDetails />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-2/referral-history',
-        element: (
-          <ProtectedRoute>
-            <ReferralHistory />
-          </ProtectedRoute>
-        ),
-      },
-      // Module 3 - Patient Profiling
-      {
-        path: '/module-3/patient-profiling',
-        element: (
-          <ProtectedRoute>
-            <PatientProfiling />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-2/referrals/incoming',
-        element: (
-          <ProtectedRoute>
-            <IncomingReferrals />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-2/referrals/incoming/detail/:id',
-        element: (
-          <ProtectedRoute>
-            <IncomingReferralDetails />
           </ProtectedRoute>
         ),
       },
