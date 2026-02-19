@@ -65,6 +65,8 @@ const UserAssignmentManagement = Loadable(
 const UserAcceptance = Loadable(lazy(() => import('../views/rbac/UserAcceptance')));
 
 const Error = Loadable(lazy(() => import('../views/authentication/Error')));
+const Unauthorized = Loadable(lazy(() => import('../views/authentication/Unauthorized')));
+
 
 // // icons
 const SolarIcon = Loadable(lazy(() => import('../views/icons/SolarIcon')));
@@ -281,6 +283,8 @@ const Router = [
       { path: '/auth/auth2/login', element: <Login2 /> },
 
       { path: '/auth/auth2/register', element: <Register2 /> },
+
+      { path: '/auth/unauthorized', element: <Unauthorized /> },
 
       { path: '/auth/maintenance', element: <Maintainance /> },
       { path: '404', element: <Error /> },

@@ -35,9 +35,11 @@ import { uniqueId } from 'lodash';
 import { MODULE_IDS, ROLE_IDS } from 'src/constants/moduleAccess';
 
 export const getModule4Items = (userRoleId: string, userModuleId: string) => {
+  const allowedRoles = [ROLE_IDS.module4Operator]; //
+
   const hasAccess =
     userModuleId === MODULE_IDS.module4 &&
-    [ROLE_IDS.module4Operator].includes(userRoleId);
+    allowedRoles.includes(userRoleId);
 
   if (!hasAccess) return [];
 

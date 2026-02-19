@@ -15,25 +15,24 @@ export const ModuleGuard = ({
   children,
 }: ModuleGuardProps) => {
   const user = useAuthStore((state) => state.user);
+  const userModuleId = useAuthStore((state) => state.userModuleId);
+  const userRoleId = useAuthStore((state) => state.userRoleId);     
 
   if (!user) {
     return <Navigate to="/auth/auth2/login" replace />;
   }
-
-  const userModuleId = user.user_metadata?.module_id;
-  const userRoleId = user.user_metadata?.role_id;
 
   console.log('userModuleId:', userModuleId);
   console.log('userRoleId:', userRoleId);
   console.log('requiredModuleId:', requiredModuleId);
   console.log('requiredRoleIds:', requiredRoleIds);
 
-  const hasAccess =
+   const hasAccess =
     userModuleId === requiredModuleId &&
-    requiredRoleIds.includes(userRoleId);
+    requiredRoleIds.includes(userRoleId ?? '');
 
   if (!hasAccess) {
-    return <Navigate to="/auth/404" replace />;
+    return <Navigate to="/auth/unauthorized" replace />;
   }
 
   return <>{children}</>;
