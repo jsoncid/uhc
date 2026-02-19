@@ -30,9 +30,11 @@ export interface Sequence {
   queue: string;
   priority: string;
   status: string;
+  window_id?: number | null;
   office_data?: { id: string; description: string };
   priority_data?: Priority;
   status_data?: Status;
+  window_data?: { id: number; description: string | null };
 }
 
 interface QueueState {
@@ -54,7 +56,7 @@ interface QueueState {
   deleteStatus: (id: string) => Promise<void>;
   fetchSequences: (officeId?: string) => Promise<void>;
   generateQueueCode: (officeId: string, priorityId: string) => Promise<string | null>;
-  updateSequenceStatus: (sequenceId: number, statusId: string) => Promise<void>;
+  updateSequenceStatus: (sequenceId: number, statusId: string, windowId?: number | null) => Promise<void>;
   subscribeToSequences: () => () => void;
   clearError: () => void;
 }
@@ -281,23 +283,31 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       const officeIds = [...new Set(sequencesData.map((s) => s.office))];
       const priorityIds = [...new Set(sequencesData.map((s) => s.priority))];
       const statusIds = [...new Set(sequencesData.map((s) => s.status))];
+      const windowIds = [...new Set((sequencesData as { window_id?: number | null }[]).map((s) => s.window_id).filter((id): id is number => id != null))];
 
-      const [officesResult, prioritiesResult, statusesResult] = await Promise.all([
+      const [officesResult, prioritiesResult, statusesResult, windowsResult] = await Promise.all([
         module1.from('office').select('id, description').in('id', officeIds),
         module1.from('priority').select('*').in('id', priorityIds),
         module1.from('status').select('*').in('id', statusIds),
+        windowIds.length > 0 ? module1.from('window').select('id, description').in('id', windowIds) : Promise.resolve({ data: [] }),
       ]);
 
       const officesMap = new Map(officesResult.data?.map((o) => [o.id, o]) || []);
       const prioritiesMap = new Map(prioritiesResult.data?.map((p) => [p.id, p]) || []);
       const statusesMap = new Map(statusesResult.data?.map((s) => [s.id, s]) || []);
+      const windowsMap = new Map((windowsResult.data || []).map((w) => [w.id, w]));
 
-      const enrichedSequences: Sequence[] = sequencesData.map((seq) => ({
-        ...seq,
-        office_data: officesMap.get(seq.office),
-        priority_data: prioritiesMap.get(seq.priority),
-        status_data: statusesMap.get(seq.status),
-      }));
+      const enrichedSequences: Sequence[] = sequencesData.map((seq) => {
+        const row = seq as { window_id?: number | null };
+        return {
+          ...seq,
+          window_id: row.window_id ?? null,
+          office_data: officesMap.get(seq.office),
+          priority_data: prioritiesMap.get(seq.priority),
+          status_data: statusesMap.get(seq.status),
+          window_data: row.window_id != null ? windowsMap.get(row.window_id) : undefined,
+        };
+      });
 
       set({ sequences: enrichedSequences, isLoading: false });
     } catch (error) {
@@ -377,12 +387,15 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     }
   },
 
-  updateSequenceStatus: async (sequenceId: number, statusId: string) => {
+  updateSequenceStatus: async (sequenceId: number, statusId: string, windowId?: number | null) => {
     set({ error: null });
     try {
+      const updatePayload: { status: string; window_id?: number | null } = { status: statusId };
+      if (windowId !== undefined) updatePayload.window_id = windowId;
+
       const { error: updateError } = await module1
         .from('sequence')
-        .update({ status: statusId })
+        .update(updatePayload)
         .eq('id', sequenceId);
 
       if (updateError) throw updateError;
@@ -390,7 +403,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       set((state) => ({
         sequences: state.sequences.map((seq) =>
           seq.id === sequenceId
-            ? { ...seq, status: statusId, status_data: state.statuses.find((s) => s.id === statusId) }
+            ? { ...seq, status: statusId, status_data: state.statuses.find((s) => s.id === statusId), window_id: windowId ?? seq.window_id }
             : seq,
         ),
       }));
@@ -411,18 +424,22 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       queue: string;
       priority: string;
       status: string;
+      window_id?: number | null;
     }): Promise<Sequence> => {
-      const [officeRes, priorityRes, statusRes] = await Promise.all([
+      const [officeRes, priorityRes, statusRes, windowRes] = await Promise.all([
         module1.from('office').select('id, description').eq('id', row.office).single(),
         module1.from('priority').select('*').eq('id', row.priority).single(),
         module1.from('status').select('*').eq('id', row.status).single(),
+        row.window_id != null ? module1.from('window').select('id, description').eq('id', row.window_id).single() : Promise.resolve({ data: null }),
       ]);
 
       return {
         ...row,
+        window_id: row.window_id ?? null,
         office_data: officeRes.data || undefined,
         priority_data: priorityRes.data || undefined,
         status_data: statusRes.data || undefined,
+        window_data: windowRes.data || undefined,
       };
     };
 
@@ -446,6 +463,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             queue: string;
             priority: string;
             status: string;
+            window_id?: number | null;
           };
           const enriched = await enrichRow(newRow);
           set((state) => {
@@ -470,6 +488,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             queue: string;
             priority: string;
             status: string;
+            window_id?: number | null;
           };
           const enriched = await enrichRow(updatedRow);
           set((state) => ({

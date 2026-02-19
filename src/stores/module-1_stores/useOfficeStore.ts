@@ -25,7 +25,7 @@ interface OfficeState {
   isLoading: boolean;
   error: string | null;
 
-  fetchOffices: (assignmentIds?: string[]) => Promise<void>;
+  fetchOffices: (assignmentIds?: string[] | string) => Promise<void>;
   addOffice: (
     assignmentId: string,
     description: string,
@@ -44,13 +44,19 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchOffices: async (assignmentIds?: string[]) => {
+  fetchOffices: async (assignmentIds?: string[] | string) => {
     set({ isLoading: true, error: null });
     try {
+      const ids = assignmentIds == null
+        ? undefined
+        : Array.isArray(assignmentIds)
+          ? assignmentIds
+          : [assignmentIds];
+
       let query = module1.from('office').select('*').order('created_at', { ascending: false });
 
-      if (assignmentIds && assignmentIds.length > 0) {
-        query = query.in('assignment', assignmentIds);
+      if (ids && ids.length > 0) {
+        query = query.in('assignment', ids);
       }
 
       const { data: officesData, error: officesError } = await query;
