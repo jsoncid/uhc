@@ -11,6 +11,7 @@ const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
+  Arrived: 'bg-lightprimary text-primary',
   Discharged: 'bg-lightsecondary text-secondary',
   Rejected: 'bg-lighterror text-error',
 };
@@ -80,7 +81,6 @@ const ReferralDetail = () => {
         <CardBox>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-       
               <div>
                 <h2 className="text-lg font-bold">{referral.patient_name ?? 'Patient'}</h2>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap text-sm text-muted-foreground">
