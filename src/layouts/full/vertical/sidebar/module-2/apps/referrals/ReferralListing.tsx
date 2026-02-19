@@ -69,16 +69,18 @@ const ReferralListing = () => {
     }
   };
 
-  const visible = referrals.filter((r) => {
-    const search = referralSearch.toLowerCase();
-    const matchSearch =
-      !search ||
-      (r.patient_name ?? '').toLowerCase().includes(search) ||
-      (r.from_assignment_name ?? '').toLowerCase().includes(search) ||
-      (r.referral_info?.referring_doctor ?? '').toLowerCase().includes(search);
-    const matchFilter = filter === 'all' || (r.latest_status?.description ?? '') === filter;
-    return matchSearch && matchFilter;
-  });
+  const visible = referrals
+    .filter((r) => {
+      const search = referralSearch.toLowerCase();
+      const matchSearch =
+        !search ||
+        (r.patient_name ?? '').toLowerCase().includes(search) ||
+        (r.from_assignment_name ?? '').toLowerCase().includes(search) ||
+        (r.referral_info?.referring_doctor ?? '').toLowerCase().includes(search);
+      const matchFilter = filter === 'all' || (r.latest_status?.description ?? '') === filter;
+      return matchSearch && matchFilter;
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const getStatusStyle = (d?: string | null) =>
     STATUS_STYLES[d ?? ''] ?? 'bg-lightprimary text-primary';
