@@ -9,7 +9,7 @@ import { ModuleGuard } from '../components/ModuleGuard';
 import { module1Routes } from './m1_routes';
 import { module2Routes } from './m2_routes';
 import { module3Routes } from './m3_routes';
-import { module4Routes } from './m4_routes';
+import { m4Routes } from './m4_routes';
 import { module5Routes } from './m5_routes';
 
 /* **Layouts*** */
@@ -101,7 +101,7 @@ const Router = [
       ...module1Routes,
       ...module2Routes,
       ...module3Routes,
-      ...module4Routes,
+      ...m4Routes,
       ...module5Routes,
       {
         path: '/apps/tickets',
