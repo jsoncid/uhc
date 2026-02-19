@@ -2,12 +2,7 @@ import { Link } from 'react-router';
 import ReferralHistoryPage from '../apps/referrals/ReferralHistoryPage';
 import { ReferralProvider } from '../context/ReferralContext';
 
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { to: '/module-2', title: 'Module 2' },
-  { to: '/module-2/referrals', title: 'Referrals' },
-  { title: 'Referral History' },
-];
+const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Referral History' }];
 
 const ReferralHistory = () => {
   return (

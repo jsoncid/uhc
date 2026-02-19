@@ -3,7 +3,6 @@ import ReferralDetail from '../apps/referrals/ReferralDetail';
 
 const BCrumb = [
   { to: '/', title: 'Home' },
-  { to: '/module-2', title: 'Module 2' },
   { to: '/module-2/referrals', title: 'Referrals' },
   { title: 'Referral Details' },
 ];
