@@ -33,12 +33,14 @@ const QueueDisplay = () => {
     fetchOffices();
     fetchStatuses();
     fetchSequences();
-  }, [fetchOffices, fetchStatuses, fetchSequences]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const unsubscribe = subscribeToSequences();
     return () => unsubscribe();
-  }, [subscribeToSequences]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {

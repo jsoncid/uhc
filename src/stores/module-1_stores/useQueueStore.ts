@@ -404,22 +404,108 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   subscribeToSequences: () => {
+    const enrichRow = async (row: {
+      id: number;
+      created_at: string;
+      office: string;
+      queue: string;
+      priority: string;
+      status: string;
+    }): Promise<Sequence> => {
+      const [officeRes, priorityRes, statusRes] = await Promise.all([
+        module1.from('office').select('id, description').eq('id', row.office).single(),
+        module1.from('priority').select('*').eq('id', row.priority).single(),
+        module1.from('status').select('*').eq('id', row.status).single(),
+      ]);
+
+      return {
+        ...row,
+        office_data: officeRes.data || undefined,
+        priority_data: priorityRes.data || undefined,
+        status_data: statusRes.data || undefined,
+      };
+    };
+
+    console.log('🔌 Setting up realtime subscription for module1.sequence...');
+
     const channel = supabase
       .channel('sequence-changes')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'module1',
           table: 'sequence',
         },
-        () => {
-          get().fetchSequences();
+        async (payload) => {
+          console.log('🟢 INSERT event received:', payload);
+          const newRow = payload.new as {
+            id: number;
+            created_at: string;
+            office: string;
+            queue: string;
+            priority: string;
+            status: string;
+          };
+          const enriched = await enrichRow(newRow);
+          set((state) => {
+            if (state.sequences.some((seq) => seq.id === newRow.id)) return state;
+            return { sequences: [...state.sequences, enriched] };
+          });
         },
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'module1',
+          table: 'sequence',
+        },
+        async (payload) => {
+          console.log('🟡 UPDATE event received:', payload);
+          const updatedRow = payload.new as {
+            id: number;
+            created_at: string;
+            office: string;
+            queue: string;
+            priority: string;
+            status: string;
+          };
+          const enriched = await enrichRow(updatedRow);
+          set((state) => ({
+            sequences: state.sequences.map((seq) =>
+              seq.id === updatedRow.id ? enriched : seq,
+            ),
+          }));
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'module1',
+          table: 'sequence',
+        },
+        (payload) => {
+          console.log('🔴 DELETE event received:', payload);
+          const deletedRow = payload.old as { id: number };
+          set((state) => ({
+            sequences: state.sequences.filter((seq) => seq.id !== deletedRow.id),
+          }));
+        },
+      )
+      .subscribe((status, err) => {
+        console.log('📡 Subscription status:', status);
+        if (err) {
+          console.error('❌ Subscription error:', err);
+        }
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to module1.sequence changes');
+        }
+      });
 
     return () => {
+      console.log('🔌 Unsubscribing from realtime...');
       supabase.removeChannel(channel);
     };
   },
