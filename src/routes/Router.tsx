@@ -45,12 +45,6 @@ const Module4Member = Loadable(
 const Module4Operator = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')),
 );
-const Module4Member = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')),
-);
-const Module4Operator = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')),
-);
 const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
 const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
@@ -160,18 +154,12 @@ const Router = [
       },
       {
         path: '/module-4/member',
-      {
-        path: '/module-4/member',
         element: (
           <ProtectedRoute>
             <Module4Member />
           </ProtectedRoute>
         ),
-        ),
       },
-
-      {
-        path: '/module-4/operator',
       {
         path: '/module-4/operator',
         element: (
@@ -179,10 +167,7 @@ const Router = [
             <Module4Operator />
           </ProtectedRoute>
         ),
-        ),
       },
-      {
-        path: '/apps/tickets',
       {
         path: '/apps/tickets',
         element: (
