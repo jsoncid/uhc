@@ -8,8 +8,8 @@ interface AuthState {
   userRoleId: string | null
   isLoading: boolean
   error: string | null
-  signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, options?: { data?: { [key: string]: any } }) => Promise<void>
+  signIn: (email: string, password: string) => Promise<boolean>
+  signUp: (email: string, password: string, options?: { data?: { [key: string]: any }, assignmentId?: string }) => Promise<boolean>
   signOut: () => Promise<void>
   setUser: (user: User | null) => void
   clearError: () => void
@@ -22,7 +22,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: false,
   error: null,
 
-  signIn: async (email: string, password: string) => {
+  signIn: async (email: string, password: string): Promise<boolean> => {
     set({ isLoading: true, error: null })
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -52,10 +52,11 @@ export const useAuthStore = create<AuthState>((set) => ({
         error: error instanceof Error ? error.message : 'Failed to sign in',
         isLoading: false,
       })
+      return false
     }
   },
 
-  signUp: async (email: string, password: string, options?: { data?: { [key: string]: any } }) => {
+  signUp: async (email: string, password: string, options?: { data?: { [key: string]: any }, assignmentId?: string }): Promise<boolean> => {
     set({ isLoading: true, error: null })
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -78,6 +79,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: null, userModuleId: null, userRoleId: null, isLoading: false })
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to sign up', isLoading: false })
+      return false
     }
   },
 

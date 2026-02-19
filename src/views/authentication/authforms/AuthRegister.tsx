@@ -1,26 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "src/components/ui/select";
 import { useAuthStore } from '@/stores/useAuthStore';
+import { assignmentService } from '@/services/assignmentService';
+
+interface Assignment {
+  id: string;
+  description: string | null;
+  is_active: boolean | null;
+  created_at: string;
+}
 
 const AuthRegister = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [selectedAssignment, setSelectedAssignment] = useState('');
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(true);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const { signUp, isLoading, error, clearError } = useAuthStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchAssignments = async () => {
+      try {
+        const data = await assignmentService.getAllAssignments();
+        setAssignments(data);
+      } catch (err) {
+        console.error('Failed to fetch assignments:', err);
+      } finally {
+        setLoadingAssignments(false);
+      }
+    };
+    fetchAssignments();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
     
+    if (!selectedAssignment) {
+      return;
+    }
+    
     await signUp(email, password, {
       data: {
         display_name: name
-      }
+      },
+      assignmentId: selectedAssignment
     });
     
     // Check the store state after signUp completes
@@ -86,7 +117,7 @@ const AuthRegister = () => {
             required
           />
         </div>
-        <div className="mb-6">
+        <div className="mb-4">
           <div className="mb-2 block">
             <Label htmlFor="password" className="font-semibold">Password</Label>
           </div>
@@ -97,6 +128,27 @@ const AuthRegister = () => {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+        </div>
+        <div className="mb-6">
+          <div className="mb-2 block">
+            <Label htmlFor="assignment" className="font-semibold">Assignment</Label>
+          </div>
+          <Select
+            value={selectedAssignment}
+            onValueChange={setSelectedAssignment}
+            disabled={loadingAssignments}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={loadingAssignments ? "Loading..." : "Select an assignment"} />
+            </SelectTrigger>
+            <SelectContent>
+              {assignments.map((assignment) => (
+                <SelectItem key={assignment.id} value={assignment.id}>
+                  {assignment.description || 'Unnamed Assignment'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         {error && (
           <div className="mb-4 text-red-500 text-sm">

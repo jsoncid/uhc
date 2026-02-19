@@ -38,6 +38,23 @@ const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTi
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
 const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')));
 
+// Referral Pages (Module 2)
+const Referrals = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/Referrals')),
+);
+const CreateReferral = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/CreateReferral')),
+);
+const CreateObGyneReferral = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/CreateObGyneReferral')),
+);
+const ReferralDetails = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralDetails')),
+);
+const ReferralHistory = Loadable(
+  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralHistory')),
+);
+
 // RBAC Pages
 const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
 const ModuleManagement = Loadable(lazy(() => import('../views/rbac/ModuleManagement')));
@@ -154,6 +171,47 @@ const Router = [
         element: (
           <ProtectedRoute>
             <BlogDetail />
+          </ProtectedRoute>
+        ),
+      },
+      // Module 2 - Referral System Routes
+      {
+        path: '/module-2/referrals',
+        element: (
+          <ProtectedRoute>
+            <Referrals />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referrals/create',
+        element: (
+          <ProtectedRoute>
+            <CreateReferral />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referrals/create-obgyne',
+        element: (
+          <ProtectedRoute>
+            <CreateObGyneReferral />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referrals/detail/:id',
+        element: (
+          <ProtectedRoute>
+            <ReferralDetails />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/module-2/referral-history',
+        element: (
+          <ProtectedRoute>
+            <ReferralHistory />
           </ProtectedRoute>
         ),
       },
