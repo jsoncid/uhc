@@ -13,7 +13,7 @@ const STATUS_STYLES: Record<string, string> = {
   'In Transit': 'bg-lightinfo text-info',
   Arrived: 'bg-lightprimary text-primary',
   Discharged: 'bg-lightsecondary text-secondary',
-  Rejected: 'bg-lighterror text-error',
+  Declined: 'bg-lighterror text-error',
 };
 
 const Field = ({

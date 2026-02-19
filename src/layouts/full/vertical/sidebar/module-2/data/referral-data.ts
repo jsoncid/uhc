@@ -13,7 +13,7 @@ export const StatusData: ReferralStatus[] = [
   { id: 'st-0002', created_at: '2026-01-01T00:00:00Z', description: 'Accepted' },
   { id: 'st-0003', created_at: '2026-01-01T00:00:00Z', description: 'In Transit' },
   { id: 'st-0004', created_at: '2026-01-01T00:00:00Z', description: 'Discharged' },
-  { id: 'st-0005', created_at: '2026-01-01T00:00:00Z', description: 'Rejected' },
+  { id: 'st-0005', created_at: '2026-01-01T00:00:00Z', description: 'Declined' },
   { id: 'st-0006', created_at: '2026-01-01T00:00:00Z', description: 'Arrived' },
 ];
 
@@ -338,8 +338,8 @@ export const ReferralHistoryData: ReferralHistory[] = [
     status: 'st-0005',
     is_active: false,
     to_assignment_name: 'East Avenue Medical Center – Neurology',
-    status_description: 'Rejected',
-    details: 'Referral rejected — patient did not meet criteria.',
+    status_description: 'Declined',
+    details: 'Referral declined — patient did not meet criteria.',
   },
 ];
 
@@ -490,8 +490,8 @@ const IncomingHistoryData: ReferralHistory[] = [
     status: 'st-0005',
     is_active: true,
     to_assignment_name: 'Our Hospital – Emergency',
-    status_description: 'Rejected',
-    details: 'Rejected — no available trauma bed. Patient redirected to JRMMMC.',
+    status_description: 'Declined',
+    details: 'Declined — no available trauma bed. Patient redirected to JRMMMC.',
   },
   {
     id: 'rh-in-0006',

@@ -43,7 +43,7 @@ const STATUS_STYLES: Record<string, string> = {
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Discharged: 'bg-lightsecondary text-secondary',
-  Rejected: 'bg-lighterror text-error',
+  Declined: 'bg-lighterror text-error',
   Arrived: 'bg-lightprimary text-primary',
 };
 
@@ -102,9 +102,9 @@ const IncomingStatCards = ({ referrals }: { referrals: ReferralType[] }) => {
       accent: 'border-t-primary',
     },
     {
-      label: 'Rejected',
-      value: count('Rejected'),
-      pct: pct(count('Rejected')),
+      label: 'Declined',
+      value: count('Declined'),
+      pct: pct(count('Declined')),
       icon: 'solar:close-circle-bold-duotone',
       text: 'text-error',
       iconBg: 'bg-lighterror',
@@ -242,10 +242,10 @@ const RejectDialog = ({
             <div className="w-10 h-10 rounded-full bg-lighterror flex items-center justify-center flex-shrink-0">
               <Icon icon="solar:close-circle-bold-duotone" height={22} className="text-error" />
             </div>
-            <DialogTitle className="text-base">Reject Referral</DialogTitle>
+            <DialogTitle className="text-base">Decline Referral</DialogTitle>
           </div>
           <DialogDescription className="text-sm text-muted-foreground">
-            Reject the incoming referral for{' '}
+            Decline the incoming referral for{' '}
             <span className="font-semibold text-foreground">{referral?.patient_name}</span>. Please
             provide a reason so the referring hospital can redirect accordingly.
           </DialogDescription>
@@ -253,7 +253,7 @@ const RejectDialog = ({
 
         <div className="flex flex-col gap-1.5 mt-2">
           <Label htmlFor="reject-reason" className="text-sm font-medium">
-            Reason for Rejection <span className="text-error">*</span>
+            Reason for Declining <span className="text-error">*</span>
           </Label>
           <Textarea
             id="reject-reason"
@@ -276,7 +276,7 @@ const RejectDialog = ({
             disabled={!reason.trim()}
           >
             <Icon icon="solar:close-circle-bold-duotone" height={15} className="mr-1.5" />
-            Confirm Reject
+            Confirm Decline
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -391,7 +391,7 @@ const PendingTab = ({
                           height={15}
                           className="mr-2 text-error"
                         />
-                        Reject
+                        Decline
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -537,11 +537,11 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
   );
 };
 
-// ─── Rejected tab ─────────────────────────────────────────────────────────────
-const RejectedTab = ({ referrals, search }: { referrals: ReferralType[]; search: string }) => {
+// ─── Declined tab ─────────────────────────────────────────────────────────────
+const DeclinedTab = ({ referrals, search }: { referrals: ReferralType[]; search: string }) => {
   const navigate = useNavigate();
-  const rejected = referrals.filter((r) => r.latest_status?.description === 'Rejected');
-  const visible = rejected
+  const declined = referrals.filter((r) => r.latest_status?.description === 'Declined');
+  const visible = declined
     .filter((r) => {
       const q = search.toLowerCase();
       return (
@@ -561,7 +561,7 @@ const RejectedTab = ({ referrals, search }: { referrals: ReferralType[]; search:
             <TableHead className="font-semibold">Referring Hospital</TableHead>
             <TableHead className="font-semibold">Our Dept.</TableHead>
             <TableHead className="font-semibold">Referring Doctor</TableHead>
-            <TableHead className="font-semibold">Rejection Reason</TableHead>
+            <TableHead className="font-semibold">Decline Reason</TableHead>
             <TableHead className="font-semibold">Date</TableHead>
             <TableHead className="font-semibold text-right">Actions</TableHead>
           </TableRow>
@@ -572,7 +572,7 @@ const RejectedTab = ({ referrals, search }: { referrals: ReferralType[]; search:
               <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
                 <div className="flex flex-col items-center gap-2">
                   <Icon icon="solar:close-circle-bold-duotone" height={44} className="opacity-25" />
-                  <p className="text-sm">No rejected referrals</p>
+                  <p className="text-sm">No declined referrals</p>
                 </div>
               </TableCell>
             </TableRow>
@@ -620,8 +620,11 @@ const RejectedTab = ({ referrals, search }: { referrals: ReferralType[]; search:
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 const IncomingReferralPage = () => {
-  const { incomingReferrals, acceptIncomingReferral, rejectIncomingReferral }: ReferralContextType =
-    useContext(ReferralContext);
+  const {
+    incomingReferrals,
+    acceptIncomingReferral,
+    declineIncomingReferral,
+  }: ReferralContextType = useContext(ReferralContext);
 
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('pending');
@@ -634,8 +637,8 @@ const IncomingReferralPage = () => {
   const activeCount = incomingReferrals.filter((r) =>
     ['Accepted', 'In Transit', 'Arrived'].includes(r.latest_status?.description ?? ''),
   ).length;
-  const rejectedCount = incomingReferrals.filter(
-    (r) => r.latest_status?.description === 'Rejected',
+  const declinedCount = incomingReferrals.filter(
+    (r) => r.latest_status?.description === 'Declined',
   ).length;
 
   return (
@@ -684,15 +687,15 @@ const IncomingReferralPage = () => {
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="rejected" className="flex items-center gap-1.5">
+              <TabsTrigger value="declined" className="flex items-center gap-1.5">
                 <Icon icon="solar:close-circle-bold-duotone" height={15} />
-                Rejected
-                {rejectedCount > 0 && (
+                Declined
+                {declinedCount > 0 && (
                   <Badge
                     variant="outline"
                     className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lighterror text-error border-error/20"
                   >
-                    {rejectedCount}
+                    {declinedCount}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -728,8 +731,8 @@ const IncomingReferralPage = () => {
             <ActiveTab referrals={incomingReferrals} search={search} />
           </TabsContent>
 
-          <TabsContent value="rejected">
-            <RejectedTab referrals={incomingReferrals} search={search} />
+          <TabsContent value="declined">
+            <DeclinedTab referrals={incomingReferrals} search={search} />
           </TabsContent>
         </Tabs>
       </CardBox>
@@ -750,7 +753,7 @@ const IncomingReferralPage = () => {
         referral={rejectTarget}
         onClose={() => setRejectTarget(null)}
         onConfirm={(reason) => {
-          if (rejectTarget) rejectIncomingReferral(rejectTarget.id, reason);
+          if (rejectTarget) declineIncomingReferral(rejectTarget.id, reason);
         }}
       />
     </>

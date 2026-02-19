@@ -16,7 +16,7 @@ export interface ReferralType {
   to_assignment: string | null; // uuid → assignment.id (destination facility/dept)
   deactivated_at?: string | null; // ISO string — when it was deactivated
   deactivated_by?: string | null; // name/identifier of who deactivated it
-  rejection_reason?: string | null; // text — reason if incoming referral was rejected
+  rejection_reason?: string | null; // text — reason if incoming referral was declined
   accepted_by?: string | null; // varchar — receiving doctor who accepted (incoming)
 
   // ── Frontend-only / query-time fields (NOT stored in DB) ────────────────

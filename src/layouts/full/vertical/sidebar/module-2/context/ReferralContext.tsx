@@ -24,7 +24,7 @@ export interface ReferralContextType {
   updateReferralStatus: (id: string, statusId: string) => void;
   deactivateReferral: (id: string, deactivatedBy?: string) => void;
   acceptIncomingReferral: (id: string, acceptedBy: string) => void;
-  rejectIncomingReferral: (id: string, rejectionReason: string) => void;
+  declineIncomingReferral: (id: string, declineReason: string) => void;
   updateIncomingStatus: (id: string, statusId: string) => void;
 }
 
@@ -185,26 +185,26 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
-  const rejectIncomingReferral = (id: string, rejectionReason: string) => {
-    const rejectedStatus = StatusData.find((s) => s.description === 'Rejected');
+  const declineIncomingReferral = (id: string, declineReason: string) => {
+    const declinedStatus = StatusData.find((s) => s.description === 'Declined');
     const now = new Date().toISOString();
     const historyEntry: ReferralHistory = {
       id: `rh-${Date.now()}`,
       created_at: now,
       referral: id,
       to_assignment: null,
-      status: rejectedStatus?.id ?? 'st-0005',
+      status: declinedStatus?.id ?? 'st-0005',
       is_active: true,
-      details: `Rejected — ${rejectionReason}`,
-      status_description: 'Rejected',
+      details: `Declined — ${declineReason}`,
+      status_description: 'Declined',
     };
     setIncomingReferrals((prev) =>
       prev.map((r) =>
         r.id === id
           ? {
               ...r,
-              rejection_reason: rejectionReason,
-              latest_status: rejectedStatus,
+              rejection_reason: declineReason,
+              latest_status: declinedStatus,
               history: [
                 ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
                 historyEntry,
@@ -264,7 +264,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updateReferralStatus,
         deactivateReferral,
         acceptIncomingReferral,
-        rejectIncomingReferral,
+        declineIncomingReferral,
         updateIncomingStatus,
       }}
     >

@@ -25,7 +25,7 @@ const STATUS_STYLES: Record<string, string> = {
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Discharged: 'bg-lightsecondary text-secondary',
-  Rejected: 'bg-lighterror text-error',
+  Declined: 'bg-lighterror text-error',
   Arrived: 'bg-lightprimary text-primary',
 };
 
@@ -145,17 +145,17 @@ const RejectDialog = ({
             <div className="w-10 h-10 rounded-full bg-lighterror flex items-center justify-center">
               <Icon icon="solar:close-circle-bold-duotone" height={22} className="text-error" />
             </div>
-            <DialogTitle className="text-base">Reject Referral</DialogTitle>
+            <DialogTitle className="text-base">Decline Referral</DialogTitle>
           </div>
           <DialogDescription className="text-sm text-muted-foreground">
-            Reject this referral for{' '}
+            Decline this referral for{' '}
             <span className="font-semibold text-foreground">{patientName}</span>. A reason is
             required.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5 mt-2">
           <Label className="text-sm font-medium">
-            Rejection Reason <span className="text-error">*</span>
+            Reason for Declining <span className="text-error">*</span>
           </Label>
           <Textarea
             placeholder="e.g. No available ICU bed. No specialist on duty."
@@ -182,7 +182,7 @@ const RejectDialog = ({
             disabled={!reason.trim()}
           >
             <Icon icon="solar:close-circle-bold-duotone" height={15} className="mr-1.5" />
-            Confirm Reject
+            Confirm Decline
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -194,7 +194,7 @@ const RejectDialog = ({
 const IncomingReferralDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { acceptIncomingReferral, rejectIncomingReferral, incomingReferrals } =
+  const { acceptIncomingReferral, declineIncomingReferral, incomingReferrals } =
     useContext<ReferralContextType>(ReferralContext);
 
   // Look up from live context first (reflects accept/reject state changes), fallback to data helper
@@ -208,7 +208,7 @@ const IncomingReferralDetail = () => {
   const [showReject, setShowReject] = useState(false);
 
   const isPending = referral?.latest_status?.description === 'Pending';
-  const isRejected = referral?.latest_status?.description === 'Rejected';
+  const isDeclined = referral?.latest_status?.description === 'Declined';
 
   if (!referral) {
     return (
@@ -289,7 +289,7 @@ const IncomingReferralDetail = () => {
                     onClick={() => setShowReject(true)}
                   >
                     <Icon icon="solar:close-circle-linear" height={15} className="mr-1.5" />
-                    Reject
+                    Decline
                   </Button>
                 </>
               )}
@@ -304,7 +304,7 @@ const IncomingReferralDetail = () => {
             </div>
           </div>
 
-          {/* Accepted / Rejection info bar */}
+          {/* Accepted / Decline info bar */}
           {referral.accepted_by && (
             <div className="mt-4 flex flex-wrap gap-6 p-3 rounded-lg bg-lightsuccess border border-success/20">
               <div>
@@ -325,10 +325,10 @@ const IncomingReferralDetail = () => {
               )}
             </div>
           )}
-          {isRejected && referral.rejection_reason && (
+          {isDeclined && referral.rejection_reason && (
             <div className="mt-4 p-3 rounded-lg bg-lighterror border border-error/20">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
-                Rejection Reason
+                Decline Reason
               </p>
               <p className="text-sm font-medium text-error">{referral.rejection_reason}</p>
             </div>
@@ -794,7 +794,7 @@ const IncomingReferralDetail = () => {
         patientName={referral.patient_name ?? undefined}
         onClose={() => setShowReject(false)}
         onConfirm={(reason) => {
-          if (id) rejectIncomingReferral(id, reason);
+          if (id) declineIncomingReferral(id, reason);
         }}
       />
     </div>
