@@ -85,8 +85,40 @@ export const ModuleList = () => {
     )
   }
 
+  // Calculate stats
+  const totalModules = modules.length
+  const activeModules = modules.filter(m => m.is_active).length
+  const inactiveModules = totalModules - activeModules
+
   return (
     <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Total Modules</p>
+            <p className="text-3xl font-semibold">
+              {isLoading ? '...' : totalModules}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Active Modules</p>
+            <p className="text-3xl font-semibold text-emerald-500">
+              {isLoading ? '...' : activeModules}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Inactive Modules</p>
+            <p className="text-3xl font-semibold text-amber-500">
+              {isLoading ? '...' : inactiveModules}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
