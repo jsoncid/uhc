@@ -8,7 +8,7 @@ import { Database } from '@/lib/supabase';
 type PatientProfileDB = Database['module3']['Tables']['patient_profile'];
 
 // Get API URL from environment or use default backend URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://uhc-backend.180.232.187.222.sslip.io/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://uhc-backend.180.232.187.222.sslip.io';
 
 export interface PatientProfile {
   id: string;
@@ -217,9 +217,14 @@ class PatientService {
   /**
    * Check backend health
    */
-  async checkHealth(): Promise<{ status: string; database: string }> {
+  async checkHealth(): Promise<{ 
+    status: string; 
+    databases?: { postgres?: string; mysql?: string };
+    timestamp?: string;
+    uptime?: number;
+  }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`, {
+      const response = await fetch(`${API_BASE_URL}/api/health`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -234,8 +239,8 @@ class PatientService {
     } catch (error) {
       console.error('Health check error:', error);
       return {
-        status: 'unhealthy',
-        database: 'unknown',
+        status: 'error',
+        databases: {},
       };
     }
   }

@@ -228,19 +228,30 @@ const PatientProfiling = () => {
   // Check backend connection and load facilities on mount
   useEffect(() => {
     const initialize = async () => {
-      // Check connection
-      const health = await patientService.checkHealth();
-      const connected = health.status === 'healthy' && health.database === 'connected';
-      setIsBackendConnected(connected);
-      
-      // Load facilities if connected
-      if (connected) {
-        setIsLoadingFacilities(true);
-        const result = await patientService.getFacilities();
-        if (result.success) {
-          setFacilities(result.data);
+      try {
+        // Check connection
+        const health = await patientService.checkHealth();
+        const connected = health.status === 'ok' && health.databases?.mysql === 'connected';
+        setIsBackendConnected(connected);
+        
+        // Try to load facilities if connected (non-blocking)
+        if (connected) {
+          setIsLoadingFacilities(true);
+          try {
+            const result = await patientService.getFacilities();
+            if (result.success && result.data) {
+              setFacilities(result.data);
+            }
+          } catch (error) {
+            console.warn('Failed to load facilities, but continuing:', error);
+            // Don't block the UI if facilities fail to load
+          } finally {
+            setIsLoadingFacilities(false);
+          }
         }
-        setIsLoadingFacilities(false);
+      } catch (error) {
+        console.error('Initialization error:', error);
+        setIsBackendConnected(false);
       }
     };
     initialize();
