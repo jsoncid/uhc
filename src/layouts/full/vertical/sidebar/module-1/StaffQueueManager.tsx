@@ -48,11 +48,33 @@ const StaffQueueManager = () => {
     return sequences.filter((seq) => seq.office === officeId);
   };
 
+  const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
+    const desc = priorityDescription?.toLowerCase() || '';
+    if (desc.includes('urgent')) return 1;
+    if (desc.includes('vip')) return 2;
+    if (desc.includes('priority')) return 3;
+    if (desc.includes('pwd')) return 4;
+    if (desc.includes('senior')) return 5;
+    return 10; // Regular/default - lowest priority
+  };
+
   const getWaitingSequences = (officeId: string): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
-    return getSequencesForOffice(officeId).filter(
+    const pending = getSequencesForOffice(officeId).filter(
       (seq) => seq.status === pendingStatus?.id,
     );
+    
+    // Sort by priority weight (lower = higher priority), then by created_at (FIFO within same priority)
+    return pending.sort((a, b) => {
+      const priorityA = getPriorityWeight(a.priority_data?.description);
+      const priorityB = getPriorityWeight(b.priority_data?.description);
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
   };
 
   const getServingSequence = (officeId: string): Sequence | undefined => {
@@ -77,14 +99,7 @@ const StaffQueueManager = () => {
     }
 
     const waiting = getWaitingSequences(officeId);
-    const priorityWaiting = waiting.filter((seq) =>
-      seq.priority_data?.description?.toLowerCase().includes('priority'),
-    );
-    const regularWaiting = waiting.filter(
-      (seq) => !seq.priority_data?.description?.toLowerCase().includes('priority'),
-    );
-
-    const nextInQueue = priorityWaiting[0] || regularWaiting[0];
+    const nextInQueue = waiting[0]; // Already sorted by priority
 
     if (nextInQueue) {
       await updateSequenceStatus(nextInQueue.id, servingStatus.id);
@@ -100,9 +115,11 @@ const StaffQueueManager = () => {
 
   const getPriorityColor = (priority: string | null | undefined) => {
     const desc = priority?.toLowerCase() || '';
-    if (desc.includes('priority') || desc.includes('urgent')) {
-      return 'text-red-600';
-    }
+    if (desc.includes('senior')) return 'text-blue-600';
+    if (desc.includes('pwd')) return 'text-purple-600';
+    if (desc.includes('priority')) return 'text-red-600';
+    if (desc.includes('urgent')) return 'text-orange-600';
+    if (desc.includes('vip')) return 'text-yellow-600';
     return 'text-green-600';
   };
 

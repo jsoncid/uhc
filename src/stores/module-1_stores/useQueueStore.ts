@@ -38,12 +38,20 @@ export interface Sequence {
 interface QueueState {
   sequences: Sequence[];
   priorities: Priority[];
+  allPriorities: Priority[];
   statuses: Status[];
   isLoading: boolean;
   error: string | null;
 
   fetchPriorities: () => Promise<void>;
+  fetchAllPriorities: () => Promise<void>;
+  addPriority: (description: string) => Promise<void>;
+  updatePriority: (id: string, description: string, status: boolean) => Promise<void>;
+  deletePriority: (id: string) => Promise<void>;
   fetchStatuses: () => Promise<void>;
+  addStatus: (description: string) => Promise<void>;
+  updateStatus: (id: string, description: string) => Promise<void>;
+  deleteStatus: (id: string) => Promise<void>;
   fetchSequences: (officeId?: string) => Promise<void>;
   generateQueueCode: (officeId: string, priorityId: string) => Promise<string | null>;
   updateSequenceStatus: (sequenceId: number, statusId: string) => Promise<void>;
@@ -63,6 +71,7 @@ const generateThreeLetterCode = (): string => {
 export const useQueueStore = create<QueueState>((set, get) => ({
   sequences: [],
   priorities: [],
+  allPriorities: [],
   statuses: [],
   isLoading: false,
   error: null,
@@ -84,7 +93,90 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     }
   },
 
+  fetchAllPriorities: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data, error } = await module1
+        .from('priority')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      set({ allPriorities: data || [], isLoading: false });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch priorities',
+        isLoading: false,
+      });
+    }
+  },
+
+  addPriority: async (description: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error: insertError } = await module1
+        .from('priority')
+        .insert({ description, status: true });
+
+      if (insertError) throw insertError;
+
+      await get().fetchAllPriorities();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to add priority',
+        isLoading: false,
+      });
+    }
+  },
+
+  updatePriority: async (id: string, description: string, status: boolean) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error: updateError } = await module1
+        .from('priority')
+        .update({ description, status })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      set((state) => ({
+        allPriorities: state.allPriorities.map((p) =>
+          p.id === id ? { ...p, description, status } : p,
+        ),
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to update priority',
+        isLoading: false,
+      });
+    }
+  },
+
+  deletePriority: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error: deleteError } = await module1
+        .from('priority')
+        .delete()
+        .eq('id', id);
+
+      if (deleteError) throw deleteError;
+
+      set((state) => ({
+        allPriorities: state.allPriorities.filter((p) => p.id !== id),
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to delete priority',
+        isLoading: false,
+      });
+    }
+  },
+
   fetchStatuses: async () => {
+    set({ isLoading: true, error: null });
     try {
       const { data, error } = await module1
         .from('status')
@@ -92,10 +184,75 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      set({ statuses: data || [] });
+      set({ statuses: data || [], isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch statuses',
+        isLoading: false,
+      });
+    }
+  },
+
+  addStatus: async (description: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error: insertError } = await module1
+        .from('status')
+        .insert({ description });
+
+      if (insertError) throw insertError;
+
+      await get().fetchStatuses();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to add status',
+        isLoading: false,
+      });
+    }
+  },
+
+  updateStatus: async (id: string, description: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error: updateError } = await module1
+        .from('status')
+        .update({ description })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      set((state) => ({
+        statuses: state.statuses.map((s) =>
+          s.id === id ? { ...s, description } : s,
+        ),
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to update status',
+        isLoading: false,
+      });
+    }
+  },
+
+  deleteStatus: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error: deleteError } = await module1
+        .from('status')
+        .delete()
+        .eq('id', id);
+
+      if (deleteError) throw deleteError;
+
+      set((state) => ({
+        statuses: state.statuses.filter((s) => s.id !== id),
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to delete status',
+        isLoading: false,
       });
     }
   },
@@ -221,7 +378,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   updateSequenceStatus: async (sequenceId: number, statusId: string) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       const { error: updateError } = await module1
         .from('sequence')
@@ -236,12 +393,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             ? { ...seq, status: statusId, status_data: state.statuses.find((s) => s.id === statusId) }
             : seq,
         ),
-        isLoading: false,
       }));
+
+      await get().fetchSequences();
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to update sequence status',
-        isLoading: false,
       });
     }
   },
