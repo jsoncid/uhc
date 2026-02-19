@@ -19,14 +19,6 @@ export const m4Routes = [
             <UhcMember />
           </Suspense>
         </ModuleGuard>
-        <ModuleGuard
-           requiredRoleIds={[ROLE_IDS.module4Operator]}
-            requiredModuleId={MODULE_IDS.module4}
-        >
-          <Suspense fallback={<div>Loading...</div>}>
-            <UhcMember />
-          </Suspense>
-        </ModuleGuard>
       </ProtectedRoute>
     ),
   },
