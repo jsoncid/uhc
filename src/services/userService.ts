@@ -1,6 +1,14 @@
 import { supabase } from '@/lib/supabase'
 import { Database } from '@/lib/supabase'
 
+export interface UserWithStatus {
+  id: string
+  email: string
+  name?: string
+  is_active: boolean
+  created_at: string
+}
+
 type UserStatus = Database['public']['Tables']['user_status']
 
 // Custom UserRole type since user_role table may not be in generated types yet
@@ -15,19 +23,92 @@ interface AuthUser {
   id: string
   email?: string
   created_at: string
+  username?: string | null
 }
 
+export interface UserProfileData {
+  id: string
+  email: string
+  isActive: boolean
+  roles: Array<{ 
+    id: string; 
+    description: string;
+    modules: Array<{ 
+      id: string; 
+      description: string; 
+      permissions: { 
+        is_select: boolean; 
+        is_insert: boolean; 
+        is_update: boolean; 
+        is_delete: boolean 
+      } 
+    }>
+  }>
+  assignments: Array<{ id: string; description: string }>
+  modules: Array<{ id: string; description: string; permissions: { is_select: boolean; is_insert: boolean; is_update: boolean; is_delete: boolean } }>
+}
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://uhc-backend.180.232.187.222.sslip.io/api'
+
 export const userService = {
-  async createUserStatus(email: string): Promise<void> {
+  // Fetch users from backend API (connects to auth.users via PostgreSQL)
+  async getAllUsersFromAPI(): Promise<AuthUser[]> {
     try {
-      console.log('Attempting to create user status for email:', email)
+      const response = await fetch(`${API_URL}/api/users`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.statusText}`)
+      }
+      const json = await response.json()
+      // Handle new backend response format: { success, count, data }
+      if (json.success && json.data) {
+        return json.data
+      }
+      // Fallback for old format (direct array)
+      return Array.isArray(json) ? json : []
+    } catch (error) {
+      console.error('Error fetching users from API:', error)
+      throw error
+    }
+  },
+
+  async getUsersByIds(ids: string[]): Promise<AuthUser[]> {
+    try {
+      if (!ids || ids.length === 0) return []
       
+      const response = await fetch(`${API_URL}/api/users/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.statusText}`)
+      }
+      const json = await response.json()
+      // Handle new backend response format: { success, count, data }
+      if (json.success && json.data) {
+        return json.data
+      }
+      // Fallback for old format (direct array)
+      return Array.isArray(json) ? json : []
+    } catch (error) {
+      console.error('Error fetching users by IDs:', error)
+      throw error
+    }
+  },
+
+  async createUserStatus(payload: { email: string; isActive?: boolean }): Promise<void> {
+    try {
+      console.log('Attempting to create user status for email:', payload.email)
+      
+      const insertPayload: UserStatus['Insert'] = {
+        email: payload.email,
+        is_active: payload.isActive ?? false
+      }
+
       const { error } = await supabase
         .from('user_status')
-        .insert({
-          email,
-          is_active: false
-        } as UserStatus['Insert'])
+        .insert(insertPayload)
 
       if (error) {
         console.error('Error creating user status:', error)
@@ -42,12 +123,22 @@ export const userService = {
     }
   },
 
-  async updateUserStatus(email: string, isActive: boolean): Promise<void> {
+  async updateUserStatus(userId: string, updates: { isActive?: boolean; email?: string }): Promise<void> {
     try {
+      const updatePayload: Partial<UserStatus['Update']> = {}
+
+      if (updates.email) {
+        updatePayload.email = updates.email
+      }
+
+      if (updates.isActive !== undefined) {
+        updatePayload.is_active = updates.isActive
+      }
+
       const { error } = await supabase
         .from('user_status')
-        .update({ is_active: isActive } as UserStatus['Update'])
-        .eq('email', email)
+        .update(updatePayload)
+        .eq('id', userId)
 
       if (error) {
         console.error('Error updating user status:', error)
@@ -59,12 +150,29 @@ export const userService = {
     }
   },
 
-  async getUserStatus(email: string): Promise<UserStatus['Row'] | null> {
+  async deleteUserStatus(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('user_status')
+        .delete()
+        .eq('id', userId)
+
+      if (error) {
+        console.error('Error deleting user status:', error)
+        throw error
+      }
+    } catch (error) {
+      console.error('Error in deleteUserStatus:', error)
+      throw error
+    }
+  },
+
+  async getUserStatus(userId: string): Promise<UserStatus['Row'] | null> {
     try {
       const { data, error } = await supabase
         .from('user_status')
         .select('*')
-        .eq('email', email)
+        .eq('id', userId)
         .single()
 
       if (error) {
@@ -85,16 +193,23 @@ export const userService = {
 
   async getAllUsers(): Promise<AuthUser[]> {
     try {
-      // Get current authenticated user as a fallback
+      // First try to fetch from backend API (preferred method)
+      try {
+        const users = await this.getAllUsersFromAPI()
+        if (users && users.length > 0) {
+          return users
+        }
+      } catch (apiError) {
+        console.warn('Could not fetch from API, falling back to current user:', apiError)
+      }
+
+      // Fallback: Get current authenticated user
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
         throw new Error('No authenticated user found')
       }
 
-      // For now, return the current user. In a production environment,
-      // you would need to create a server-side endpoint or use RLS policies
-      // to fetch all users safely.
       return [{
         id: user.id,
         email: user.email || '',
@@ -107,7 +222,7 @@ export const userService = {
   },
 
   // User Role operations
-  async getAllUserRoles(): Promise<UserRole[]> {
+  async getAllUserRoles(): Promise<any[]> {
     try {
       const { data, error } = await supabase
         .from('user_role')
@@ -119,7 +234,33 @@ export const userService = {
         throw error
       }
 
-      return data || []
+      if (!data || data.length === 0) {
+        return []
+      }
+
+      // Get unique user IDs and role IDs
+      const userIds = [...new Set(data.map((ur: UserRole) => ur.user))]
+      const roleIds = [...new Set(data.map((ur: UserRole) => ur.role))]
+
+      // Fetch users from backend API and roles from Supabase
+      const [users, rolesResult] = await Promise.all([
+        this.getUsersByIds(userIds).catch(err => {
+          console.warn('Failed to fetch users from API:', err)
+          return []
+        }),
+        supabase.from('role').select('id, description').in('id', roleIds)
+      ])
+
+      const roles = rolesResult.data || []
+
+      // Map the data together
+      const enrichedUserRoles = data.map((ur: UserRole) => ({
+        ...ur,
+        users: users.find(u => u.id === ur.user),
+        roleData: roles.find(r => r.id === ur.role)
+      }))
+
+      return enrichedUserRoles
     } catch (error) {
       console.error('Error in getAllUserRoles:', error)
       throw error
@@ -159,6 +300,215 @@ export const userService = {
       }
     } catch (error) {
       console.error('Error in deleteUserRole:', error)
+      throw error
+    }
+  },
+
+  // Get current user's complete profile from RBAC tables
+  async getCurrentUserProfile(): Promise<UserProfileData | null> {
+    try {
+      // Get current authenticated user
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        console.log('No authenticated user')
+        return null
+      }
+
+      // Get user status by email from user_status table
+      // Using maybeSingle() to avoid 406 error when no row exists
+      const { data: statusData } = await supabase
+        .from('user_status')
+        .select('is_active')
+        .eq('email', user.email)
+        .maybeSingle()
+
+      // Default to false if no status record found
+      const isActive = statusData?.is_active ?? false
+
+      // Get user's roles with role descriptions
+      const { data: userRoles } = await supabase
+        .from('user_role')
+        .select(`
+          id,
+          role (
+            id,
+            description,
+            is_active
+          )
+        `)
+        .eq('user', user.id)
+
+      // Get user's assignments with assignment descriptions  
+      const { data: userAssignments } = await supabase
+        .from('user_assignment')
+        .select(`
+          id,
+          assignment (
+            id,
+            description,
+            is_active
+          )
+        `)
+        .eq('user', user.id)
+
+      // Get modules the user can access based on their roles
+      const roleIds = userRoles?.map((ur: any) => ur.role?.id).filter(Boolean) || []
+      
+      let roleModuleAccess: any[] = []
+      if (roleIds.length > 0) {
+        const { data: moduleAccess } = await supabase
+          .from('role_module_access')
+          .select(`
+            role,
+            is_select,
+            is_insert,
+            is_update,
+            is_delete,
+            module (
+              id,
+              description,
+              is_active
+            )
+          `)
+          .in('role', roleIds)
+
+        roleModuleAccess = moduleAccess || []
+      }
+
+      // Transform the data - map modules to roles
+      const roles = userRoles
+        ?.filter((ur: any) => ur.role?.is_active)
+        .map((ur: any) => {
+          const roleId = ur.role.id
+          const roleModules = roleModuleAccess
+            .filter((ma: any) => ma.role === roleId && ma.module?.is_active)
+            .map((ma: any) => ({
+              id: ma.module.id,
+              description: ma.module.description || 'No description',
+              permissions: {
+                is_select: ma.is_select,
+                is_insert: ma.is_insert,
+                is_update: ma.is_update,
+                is_delete: ma.is_delete
+              }
+            }))
+
+          return {
+            id: roleId,
+            description: ur.role.description || 'No description',
+            modules: roleModules
+          }
+        }) || []
+
+      const assignments = userAssignments
+        ?.filter((ua: any) => ua.assignment?.is_active)
+        .map((ua: any) => ({
+          id: ua.assignment.id,
+          description: ua.assignment.description || 'No description'
+        })) || []
+
+      // Dedupe modules and merge permissions (for backward compatibility)
+      const moduleMap = new Map<string, any>()
+      roleModuleAccess.forEach((ma: any) => {
+        if (ma.module?.is_active) {
+          const existing = moduleMap.get(ma.module.id)
+          if (existing) {
+            // Merge permissions (OR)
+            existing.permissions.is_select = existing.permissions.is_select || ma.is_select
+            existing.permissions.is_insert = existing.permissions.is_insert || ma.is_insert
+            existing.permissions.is_update = existing.permissions.is_update || ma.is_update
+            existing.permissions.is_delete = existing.permissions.is_delete || ma.is_delete
+          } else {
+            moduleMap.set(ma.module.id, {
+              id: ma.module.id,
+              description: ma.module.description || 'No description',
+              permissions: {
+                is_select: ma.is_select,
+                is_insert: ma.is_insert,
+                is_update: ma.is_update,
+                is_delete: ma.is_delete
+              }
+            })
+          }
+        }
+      })
+
+      return {
+        id: user.id,
+        email: user.email || '',
+        isActive,
+        roles,
+        assignments,
+        modules: Array.from(moduleMap.values())
+      }
+    } catch (error) {
+      console.error('Error in getCurrentUserProfile:', error)
+      throw error
+    }
+  },
+
+  // User Acceptance operations
+  async getUsersWithStatus(): Promise<UserWithStatus[]> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_users_with_status')
+
+      if (error) {
+        console.error('Error fetching users with status:', error)
+        throw error
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getUsersWithStatus:', error)
+      throw error
+    }
+  },
+
+  async getPendingUsers(): Promise<{ id: string; email: string; name: string; is_active: boolean; created_at: string }[]> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_pending_users')
+
+      if (error) {
+        console.error('Error fetching pending users:', error)
+        throw error
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getPendingUsers:', error)
+      throw error
+    }
+  },
+
+  async approveUser(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .rpc('approve_user', { user_id: userId })
+
+      if (error) {
+        console.error('Error approving user:', error)
+        throw error
+      }
+    } catch (error) {
+      console.error('Error in approveUser:', error)
+      throw error
+    }
+  },
+
+  async rejectUser(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .rpc('reject_user', { user_id: userId })
+
+      if (error) {
+        console.error('Error rejecting user:', error)
+        throw error
+      }
+    } catch (error) {
+      console.error('Error in rejectUser:', error)
       throw error
     }
   }

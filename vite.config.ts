@@ -22,18 +22,21 @@ export default defineConfig({
       plugins: [
         {
           name: 'load-js-files-as-tsx',
-          setup(build) {
-            build.onLoad({ filter: /src\\.*\.js$/ }, async (args) => ({
-              loader: 'tsx',
-              contents: await fs.readFile(args.path, 'utf8'),
-            }));
+          setup(build: import('esbuild').PluginBuild) {
+            build.onLoad(
+              { filter: /src\\.*\.js$/ },
+              async (args: import('esbuild').OnLoadArgs) => ({
+                loader: 'tsx' as const,
+                contents: await fs.readFile(args.path, 'utf8'),
+              }),
+            );
           },
         },
       ],
     },
   },
   build: {
-    outDir: 'dist', // ✅ this is required for Netlify
+    outDir: 'dist',
   },
-  plugins: [svgr({ include: '**/*.svg?react' }), react()],
+  plugins: [svgr(), react()],
 });

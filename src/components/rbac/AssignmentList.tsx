@@ -5,6 +5,14 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { assignmentService } from '@/services/assignmentService'
 import { Database } from '@/lib/supabase'
 import { AssignmentDialog } from './AssignmentDialog'
@@ -19,6 +27,9 @@ export const AssignmentList = () => {
   const [error, setError] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Assignment | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const fetchAssignments = async () => {
     try {
@@ -55,15 +66,28 @@ export const AssignmentList = () => {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this assignment?')) {
-      try {
-        await assignmentService.deleteAssignment(id)
-        await fetchAssignments()
-      } catch (err) {
-        setError('Failed to delete assignment')
-        console.error('Error deleting assignment:', err)
-      }
+  const openDeleteDialog = (assignment: Assignment) => {
+    setDeleteTarget(assignment)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const closeDeleteDialog = () => {
+    setIsDeleteDialogOpen(false)
+    setDeleteTarget(null)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      setIsDeleting(true)
+      await assignmentService.deleteAssignment(deleteTarget.id)
+      await fetchAssignments()
+      closeDeleteDialog()
+    } catch (err) {
+      setError('Failed to delete assignment')
+      console.error('Error deleting assignment:', err)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -85,8 +109,40 @@ export const AssignmentList = () => {
     )
   }
 
+  // Calculate stats
+  const totalAssignments = assignments.length
+  const activeAssignments = assignments.filter(a => a.is_active).length
+  const inactiveAssignments = totalAssignments - activeAssignments
+
   return (
     <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Total Assignments</p>
+            <p className="text-3xl font-semibold">
+              {isLoading ? '...' : totalAssignments}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Active Status</p>
+            <p className="text-3xl font-semibold text-emerald-500">
+              {isLoading ? '...' : activeAssignments}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border">
+          <CardContent className="space-y-1">
+            <p className="text-sm text-muted-foreground">Inactive Status</p>
+            <p className="text-3xl font-semibold text-amber-500">
+              {isLoading ? '...' : inactiveAssignments}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -157,7 +213,7 @@ export const AssignmentList = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDelete(assignment.id)}
+                            onClick={() => openDeleteDialog(assignment)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -177,6 +233,25 @@ export const AssignmentList = () => {
         onClose={handleDialogClose}
         assignment={selectedAssignment}
       />
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={closeDeleteDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete Assignment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete assignment "{deleteTarget?.id}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteDialog} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
