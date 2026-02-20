@@ -440,20 +440,6 @@ const PatientProfiling = () => {
               </div>
             </div>
 
-            {/* Backend connection indicator */}
-            {isBackendConnected !== null && (
-              <div className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs ${
-                isBackendConnected 
-                  ? 'bg-lightsuccess text-success' 
-                  : 'bg-lighterror text-error'
-              }`}>
-                <div className={`h-2 w-2 rounded-full ${
-                  isBackendConnected ? 'bg-success' : 'bg-error'
-                }`} />
-                <span>{isBackendConnected ? 'MySQL Connected' : 'MySQL Offline'}</span>
-              </div>
-            )}
-
             {statusMessage && (
               <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
                 statusType === 'success' ? 'bg-lightsuccess text-success' :
