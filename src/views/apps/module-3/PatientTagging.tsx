@@ -155,6 +155,15 @@ const PatientTagging = () => {
     });
   };
 
+  const formatDateOnly = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${month}/${day}/${year}`;
+  };
+
   const formatDateTime = (dateString?: string, timeString?: string) => {
     if (!dateString) return 'N/A';
     let formatted = formatDate(dateString);
@@ -736,6 +745,32 @@ const PatientTagging = () => {
                                       </div>
                                     )}
 
+                                    {/* Condition & Disposition */}
+                                    {(record.condcode || record.dispcode) && (
+                                      <div className="mb-3 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                                        <div className="flex items-start gap-2 mb-3">
+                                          <Activity className="h-4 w-4 text-green-700 dark:text-green-400 mt-0.5" />
+                                          <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">
+                                            Condition & Disposition
+                                          </p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                          {record.condcode && (
+                                            <div>
+                                              <p className="text-xs text-green-600 dark:text-green-500 font-medium">Condition</p>
+                                              <Badge variant="secondary" className="font-semibold">{record.condcode}</Badge>
+                                            </div>
+                                          )}
+                                          {record.dispcode && (
+                                            <div>
+                                              <p className="text-xs text-green-600 dark:text-green-500 font-medium">Disposition</p>
+                                              <Badge variant="secondary" className="font-semibold">{record.dispcode}</Badge>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
                                     {/* Encounter Details */}
                                     {(record.encounter_casetype || record.encounter_cf4attendprov || record.encounter_date || record.encounter_toecode) && (
                                       <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -857,8 +892,8 @@ const PatientTagging = () => {
                                   <TableHead className="font-bold">Admission</TableHead>
                                   <TableHead className="font-bold">Discharge</TableHead>
                                   <TableHead className="font-bold">Diagnosis</TableHead>
-                                  <TableHead className="font-bold">Case Type</TableHead>
-                                  <TableHead className="font-bold">Provider</TableHead>
+                                  <TableHead className="font-bold">Condition</TableHead>
+                                  <TableHead className="font-bold">Disposition</TableHead>
                                   <TableHead className="font-bold">Status</TableHead>
                                   <TableHead className="font-bold">Notes</TableHead>
                                 </TableRow>
@@ -873,11 +908,11 @@ const PatientTagging = () => {
                                       {record.casenum || <span className="text-muted-foreground">N/A</span>}
                                     </TableCell>
                                     <TableCell className="text-sm">
-                                      {formatDateTime(record.admdate, record.admtime)}
+                                      {formatDateOnly(record.admdate)}
                                     </TableCell>
                                     <TableCell className="text-sm">
                                       {record.disdate ? (
-                                        formatDateTime(record.disdate, record.distime)
+                                        formatDateOnly(record.disdate)
                                       ) : (
                                         <Badge variant="default" className="bg-orange-500">
                                           Active
@@ -896,16 +931,18 @@ const PatientTagging = () => {
                                       </div>
                                     </TableCell>
                                     <TableCell>
-                                      {record.encounter_casetype ? (
-                                        <Badge variant="outline">{record.encounter_casetype}</Badge>
+                                      {record.condcode ? (
+                                        <Badge variant="outline" className="font-semibold">{record.condcode}</Badge>
                                       ) : (
                                         <span className="text-muted-foreground text-sm">-</span>
                                       )}
                                     </TableCell>
                                     <TableCell>
-                                      <div className="max-w-[150px] truncate text-sm" title={record.encounter_cf4attendprov || '-'}>
-                                        {record.encounter_cf4attendprov || <span className="text-muted-foreground">-</span>}
-                                      </div>
+                                      {record.dispcode ? (
+                                        <Badge variant="outline" className="font-semibold">{record.dispcode}</Badge>
+                                      ) : (
+                                        <span className="text-muted-foreground text-sm">-</span>
+                                      )}
                                     </TableCell>
                                     <TableCell>{getStatusBadge(record.admstat)}</TableCell>
                                     <TableCell>
