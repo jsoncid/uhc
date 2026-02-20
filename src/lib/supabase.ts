@@ -417,6 +417,7 @@ export type Database = {
           queue: string
           priority: string
           status: string
+          window_id: number | null
         }
         Insert: {
           id?: number
@@ -425,6 +426,7 @@ export type Database = {
           queue: string
           priority: string
           status: string
+          window_id?: number | null
         }
         Update: {
           id?: number
@@ -433,6 +435,7 @@ export type Database = {
           queue?: string
           priority?: string
           status?: string
+          window_id?: number | null
         }
       }
     }

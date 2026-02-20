@@ -6,37 +6,37 @@ import svgr from '@svgr/rollup';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-    resolve: {
-        alias: {
-            src: resolve(__dirname, 'src'),
-            '@': resolve(__dirname, 'src'),
+  resolve: {
+    alias: {
+      src: resolve(__dirname, 'src'),
+      '@': resolve(__dirname, 'src'),
+    },
+  },
+  esbuild: {
+    loader: 'tsx',
+    include: /src\/.*\.tsx?$/,
+    exclude: [],
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      plugins: [
+        {
+          name: 'load-js-files-as-tsx',
+          setup(build: import('esbuild').PluginBuild) {
+            build.onLoad(
+              { filter: /src\\.*\.js$/ },
+              async (args: import('esbuild').OnLoadArgs) => ({
+                loader: 'tsx' as const,
+                contents: await fs.readFile(args.path, 'utf8'),
+              }),
+            );
+          },
         },
+      ],
     },
-    esbuild: {
-        loader: 'tsx',
-        include: /src\/.*\.tsx?$/,
-        exclude: [],
-    },
-    optimizeDeps: {
-        esbuildOptions: {
-            plugins: [
-                {
-                    name: 'load-js-files-as-tsx',
-                    setup(build) {
-                        build.onLoad(
-                            { filter: /src\.*\.js$/ },
-                            async (args) => ({
-                                loader: 'tsx',
-                                contents: await fs.readFile(args.path, 'utf8'),
-                            })
-                        );
-                    },
-                },
-            ],
-        },
-    },
-    build: {
-        outDir: 'dist', // ✅ this is required for Netlify
-    },
-    plugins: [svgr(), react()],
+  },
+  build: {
+    outDir: 'dist',
+  },
+  plugins: [svgr(), react()],
 });
