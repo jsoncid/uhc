@@ -1,5 +1,12 @@
 import { createContext, useState, useEffect } from 'react';
-import { ReferralType, ReferralStatus, ReferralHistory } from '../types/referral';
+import {
+  ReferralType,
+  ReferralStatus,
+  ReferralHistory,
+  ReferralInfo,
+  ReferralInfoDiagnostic,
+  ReferralInfoVaccination,
+} from '../types/referral';
 import {
   ReferralData,
   StatusData,
@@ -26,6 +33,32 @@ export interface ReferralContextType {
   acceptIncomingReferral: (id: string, acceptedBy: string) => void;
   declineIncomingReferral: (id: string, declineReason: string, redirectHospital?: string) => void;
   updateIncomingStatus: (id: string, statusId: string) => void;
+  markOutgoingInTransit: (id: string) => void;
+  updateReferralInfo: (id: string, updated: Partial<ReferralInfo>) => void;
+  saveDischargeNotes: (id: string, notes: string) => void;
+  addDiagnostic: (
+    referralId: string,
+    diag: { diagnostics: string; date?: string | null; attachment?: string | null },
+  ) => void;
+  deleteDiagnostic: (diagId: string, referralId: string) => void;
+  updateDiagnosticAttachment: (diagId: string, referralId: string, attachment: string) => void;
+  addVaccination: (referralId: string, vac: { description: string; date?: string | null }) => void;
+  deleteVaccination: (vacId: string, referralId: string) => void;
+  addOutgoingDiagnostic: (
+    referralId: string,
+    diag: { diagnostics: string; date?: string | null; attachment?: string | null },
+  ) => void;
+  deleteOutgoingDiagnostic: (diagId: string, referralId: string) => void;
+  updateOutgoingDiagnosticAttachment: (
+    diagId: string,
+    referralId: string,
+    attachment: string,
+  ) => void;
+  addOutgoingVaccination: (
+    referralId: string,
+    vac: { description: string; date?: string | null },
+  ) => void;
+  deleteOutgoingVaccination: (vacId: string, referralId: string) => void;
 }
 
 export const ReferralContext = createContext<ReferralContextType>({} as ReferralContextType);
@@ -168,6 +201,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       details: `Accepted by ${acceptedBy}.`,
       status_description: 'Accepted',
     };
+    // Find the incoming referral before updating state (for cross-notification)
+    const incomingRef = incomingReferrals.find((r) => r.id === id);
     setIncomingReferrals((prev) =>
       prev.map((r) =>
         r.id === id
@@ -183,6 +218,16 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           : r,
       ),
     );
+    // Cross-notify the requesting side — mirror accepted_by onto matching outgoing referral
+    if (incomingRef?.patient_name) {
+      setReferrals((prev) =>
+        prev.map((r) =>
+          r.patient_name === incomingRef.patient_name && r.latest_status?.description === 'Pending'
+            ? { ...r, accepted_by: acceptedBy, latest_status: acceptedStatus }
+            : r,
+        ),
+      );
+    }
   };
 
   const declineIncomingReferral = (
@@ -260,6 +305,59 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  // Sending facility marks their referral as In Transit, cross-syncs to incoming side
+  const markOutgoingInTransit = (id: string) => {
+    const inTransitStatus = StatusData.find((s) => s.description === 'In Transit');
+    const now = new Date().toISOString();
+    const historyEntry: ReferralHistory = {
+      id: `rh-${Date.now()}`,
+      created_at: now,
+      referral: id,
+      to_assignment: null,
+      status: inTransitStatus?.id ?? 'st-0003',
+      is_active: true,
+      details: 'Patient dispatched — In Transit',
+      status_description: 'In Transit',
+    };
+    // Update outgoing referral
+    const outgoingRef = referrals.find((r) => r.id === id);
+    setReferrals((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              latest_status: inTransitStatus,
+              history: [
+                ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
+                historyEntry,
+              ],
+            }
+          : r,
+      ),
+    );
+    // Cross-sync to the matching incoming referral on the receiving side
+    if (outgoingRef?.patient_name) {
+      const crossHistoryEntry: ReferralHistory = {
+        ...historyEntry,
+        id: `rh-${Date.now() + 1}`,
+      };
+      setIncomingReferrals((prev) =>
+        prev.map((r) =>
+          r.patient_name === outgoingRef.patient_name && r.latest_status?.description === 'Accepted'
+            ? {
+                ...r,
+                latest_status: inTransitStatus,
+                history: [
+                  ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
+                  crossHistoryEntry,
+                ],
+              }
+            : r,
+        ),
+      );
+    }
+  };
+
   const updateIncomingStatus = (id: string, statusId: string) => {
     const newStatus = StatusData.find((s) => s.id === statusId);
     const now = new Date().toISOString();
@@ -289,7 +387,269 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
+  const updateReferralInfo = (id: string, updated: Partial<ReferralInfo>) => {
+    setReferrals((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              referral_info: r.referral_info ? { ...r.referral_info, ...updated } : r.referral_info,
+            }
+          : r,
+      ),
+    );
+    const idx = ReferralInfoData.findIndex((ri) => ri.referral === id);
+    if (idx !== -1) Object.assign(ReferralInfoData[idx], updated);
+  };
+
+  const saveDischargeNotes = (id: string, notes: string) => {
+    const dischargedStatus = StatusData.find((s) => s.description === 'Discharged');
+    const now = new Date().toISOString();
+    const historyEntry: ReferralHistory = {
+      id: `rh-${Date.now()}`,
+      created_at: now,
+      referral: id,
+      to_assignment: null,
+      status: dischargedStatus?.id ?? 'st-0004',
+      is_active: true,
+      details: notes, // stored in referral_history.details — no separate DB column needed
+      status_description: 'Discharged',
+    };
+    setIncomingReferrals((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              latest_status: dischargedStatus,
+              history: [
+                ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
+                historyEntry,
+              ],
+            }
+          : r,
+      ),
+    );
+  };
+
+  // ── Diagnostic CRUD ————————————————————————————————————————————————————
+  const addDiagnostic = (
+    referralId: string,
+    diag: { diagnostics: string; date?: string | null; attachment?: string | null },
+  ) => {
+    const newDiag: ReferralInfoDiagnostic = {
+      id: `diag-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      referral_info: null,
+      diagnostics: diag.diagnostics,
+      date: diag.date ?? null,
+      attachment: diag.attachment ?? null,
+      status: true,
+    };
+    setIncomingReferrals((prev) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                diagnostics: [...(r.referral_info.diagnostics ?? []), newDiag],
+              },
+            }
+          : r,
+      ),
+    );
+  };
+
+  const deleteDiagnostic = (diagId: string, referralId: string) => {
+    setIncomingReferrals((prev) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                diagnostics: (r.referral_info.diagnostics ?? []).filter((d) => d.id !== diagId),
+              },
+            }
+          : r,
+      ),
+    );
+  };
+
+  const updateDiagnosticAttachment = (diagId: string, referralId: string, attachment: string) => {
+    setIncomingReferrals((prev) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                diagnostics: (r.referral_info.diagnostics ?? []).map((d) =>
+                  d.id === diagId ? { ...d, attachment } : d,
+                ),
+              },
+            }
+          : r,
+      ),
+    );
+  };
+
+  // ── Vaccination CRUD ———————————————————————————————————————————————————
+  const addVaccination = (
+    referralId: string,
+    vac: { description: string; date?: string | null },
+  ) => {
+    const newVac: ReferralInfoVaccination = {
+      id: `vac-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      referral_info: null,
+      description: vac.description,
+      date: vac.date ?? null,
+      status: true,
+    };
+    setIncomingReferrals((prev) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                vaccinations: [...(r.referral_info.vaccinations ?? []), newVac],
+              },
+            }
+          : r,
+      ),
+    );
+  };
+
+  const deleteVaccination = (vacId: string, referralId: string) => {
+    setIncomingReferrals((prev) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                vaccinations: (r.referral_info.vaccinations ?? []).filter((v) => v.id !== vacId),
+              },
+            }
+          : r,
+      ),
+    );
+  };
+
   const searchReferrals = (term: string) => setReferralSearch(term);
+
+  // ── Outgoing Diagnostic CRUD ────────────────────────────────────────────────
+  const addOutgoingDiagnostic = (
+    referralId: string,
+    diag: { diagnostics: string; date?: string | null; attachment?: string | null },
+  ) => {
+    const newDiag: ReferralInfoDiagnostic = {
+      id: `diag-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      referral_info: null,
+      diagnostics: diag.diagnostics,
+      date: diag.date ?? null,
+      attachment: diag.attachment ?? null,
+      status: true,
+    };
+    setReferrals((prev) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                diagnostics: [...(r.referral_info.diagnostics ?? []), newDiag],
+              },
+            }
+          : r,
+      ),
+    );
+  };
+
+  const deleteOutgoingDiagnostic = (diagId: string, referralId: string) => {
+    setReferrals((prev) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                diagnostics: (r.referral_info.diagnostics ?? []).filter((d) => d.id !== diagId),
+              },
+            }
+          : r,
+      ),
+    );
+  };
+
+  const updateOutgoingDiagnosticAttachment = (
+    diagId: string,
+    referralId: string,
+    attachment: string,
+  ) => {
+    setReferrals((prev) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                diagnostics: (r.referral_info.diagnostics ?? []).map((d) =>
+                  d.id === diagId ? { ...d, attachment } : d,
+                ),
+              },
+            }
+          : r,
+      ),
+    );
+  };
+
+  // ── Outgoing Vaccination CRUD ───────────────────────────────────────────────
+  const addOutgoingVaccination = (
+    referralId: string,
+    vac: { description: string; date?: string | null },
+  ) => {
+    const newVac: ReferralInfoVaccination = {
+      id: `vac-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      referral_info: null,
+      description: vac.description,
+      date: vac.date ?? null,
+      status: true,
+    };
+    setReferrals((prev) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                vaccinations: [...(r.referral_info.vaccinations ?? []), newVac],
+              },
+            }
+          : r,
+      ),
+    );
+  };
+
+  const deleteOutgoingVaccination = (vacId: string, referralId: string) => {
+    setReferrals((prev) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                vaccinations: (r.referral_info.vaccinations ?? []).filter((v) => v.id !== vacId),
+              },
+            }
+          : r,
+      ),
+    );
+  };
 
   return (
     <ReferralContext.Provider
@@ -311,6 +671,19 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         acceptIncomingReferral,
         declineIncomingReferral,
         updateIncomingStatus,
+        markOutgoingInTransit,
+        updateReferralInfo,
+        saveDischargeNotes,
+        addDiagnostic,
+        deleteDiagnostic,
+        updateDiagnosticAttachment,
+        addVaccination,
+        deleteVaccination,
+        addOutgoingDiagnostic,
+        deleteOutgoingDiagnostic,
+        updateOutgoingDiagnosticAttachment,
+        addOutgoingVaccination,
+        deleteOutgoingVaccination,
       }}
     >
       {children}

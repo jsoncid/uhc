@@ -1,11 +1,16 @@
 import { useParams, useNavigate } from 'react-router';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
+import { useContext, useState } from 'react';
 import { getReferralById } from '../../data/referral-data';
+import { ReferralContext, ReferralContextType } from '../../context/ReferralContext';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Badge } from 'src/components/ui/badge';
 import { Separator } from 'src/components/ui/separator';
+import { Input } from 'src/components/ui/input';
+import { Label } from 'src/components/ui/label';
+import { Textarea } from 'src/components/ui/textarea';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
@@ -46,9 +51,60 @@ const SectionTitle = ({ icon, title }: { icon: string; title: string }) => (
 const ReferralDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const referral = getReferralById(id ?? '');
+  const {
+    referrals,
+    markOutgoingInTransit,
+    addOutgoingDiagnostic,
+    deleteOutgoingDiagnostic,
+    updateOutgoingDiagnosticAttachment,
+    addOutgoingVaccination,
+    deleteOutgoingVaccination,
+  } = useContext<ReferralContextType>(ReferralContext);
+
+  // Live context first, fall back to static data (e.g. deactivated referrals)
+  const referral = referrals.find((r) => r.id === id) ?? getReferralById(id ?? '');
   const info = referral?.referral_info;
   const history = referral?.history ?? [];
+
+  // ── Diagnostic inline-add form state
+  const [diagForm, setDiagForm] = useState({ diagnostics: '', date: '' });
+  const [showDiagForm, setShowDiagForm] = useState(false);
+
+  // ── Vaccination inline-add form state
+  const [vacForm, setVacForm] = useState({ description: '', date: '' });
+  const [showVacForm, setShowVacForm] = useState(false);
+
+  const handleAddDiagnostic = () => {
+    if (!diagForm.diagnostics.trim() || !id) return;
+    addOutgoingDiagnostic(id, {
+      diagnostics: diagForm.diagnostics.trim(),
+      date: diagForm.date || null,
+    });
+    setDiagForm({ diagnostics: '', date: '' });
+    setShowDiagForm(false);
+  };
+
+  const handleDiagFileChange = (diagId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string')
+        updateOutgoingDiagnosticAttachment(diagId, id, reader.result);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleAddVaccination = () => {
+    if (!vacForm.description.trim() || !id) return;
+    addOutgoingVaccination(id, {
+      description: vacForm.description.trim(),
+      date: vacForm.date || null,
+    });
+    setVacForm({ description: '', date: '' });
+    setShowVacForm(false);
+  };
 
   if (!referral) {
     return (
@@ -96,19 +152,52 @@ const ReferralDetail = () => {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Badge
                 variant="outline"
                 className={`text-sm px-3 py-1 font-semibold ${STATUS_STYLES[referral.latest_status?.description ?? ''] ?? 'bg-lightprimary text-primary'}`}
               >
                 {referral.latest_status?.description ?? 'No Status'}
               </Badge>
+              {/* Sending facility dispatches the patient once receiver has accepted */}
+              {referral.latest_status?.description === 'Accepted' && (
+                <Button
+                  size="sm"
+                  className="bg-info hover:bg-info/90 text-white gap-1.5"
+                  onClick={() => id && markOutgoingInTransit(id)}
+                >
+                  <Icon icon="solar:routing-bold-duotone" height={15} />
+                  Mark as In Transit
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => navigate('/module-2/referrals')}>
                 <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
                 Back
               </Button>
             </div>
           </div>
+
+          {/* Accepted-by bar — shown when receiver has accepted */}
+          {referral.accepted_by && (
+            <div className="mt-4 flex flex-wrap gap-6 p-3 rounded-lg bg-lightsuccess border border-success/20">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                  Accepted By
+                </p>
+                <p className="text-sm font-semibold text-success">{referral.accepted_by}</p>
+              </div>
+              {referral.to_assignment_name && (
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                    Receiving Dept.
+                  </p>
+                  <p className="text-sm font-semibold text-success">
+                    {referral.to_assignment_name}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Decline info bar — shown to requesting hospital when their referral was declined */}
           {referral.latest_status?.description === 'Declined' && referral.rejection_reason && (
@@ -555,54 +644,226 @@ const ReferralDetail = () => {
 
         {info && (
           <>
-            {/* Diagnostics */}
-            {info.diagnostics && info.diagnostics.filter((d) => d.status).length > 0 && (
-              <CardBox>
-                <SectionTitle icon="solar:test-tube-bold-duotone" title="Diagnostics" />
-                <div className="flex flex-col gap-3">
-                  {info.diagnostics
-                    .filter((d) => d.status)
-                    .map((d) => (
-                      <div key={d.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                        <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Icon
-                            icon="solar:document-text-bold-duotone"
-                            height={15}
-                            className="text-primary"
-                          />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{d.diagnostics}</p>
-                          {d.date && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {format(new Date(d.date), 'MMM dd, yyyy')}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+            {/* Diagnostics CRUD */}
+            <CardBox>
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Icon
+                      icon="solar:test-tube-bold-duotone"
+                      height={16}
+                      className="text-primary"
+                    />
+                  </div>
+                  <h3 className="text-base font-semibold">Diagnostics</h3>
                 </div>
-              </CardBox>
-            )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowDiagForm((v) => !v)}
+                >
+                  <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
+                  Add
+                </Button>
+              </div>
 
-            {/* Vaccinations */}
-            {info.vaccinations && info.vaccinations.filter((v) => v.status).length > 0 && (
-              <CardBox>
-                <SectionTitle icon="solar:shield-check-bold-duotone" title="Vaccination History" />
-                <div className="flex flex-col gap-3">
-                  {info.vaccinations
-                    .filter((v) => v.status)
-                    .map((v) => (
-                      <div key={v.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                        <div className="w-7 h-7 rounded-md bg-success/10 flex items-center justify-center flex-shrink-0">
-                          <Icon
-                            icon="solar:shield-check-bold-duotone"
-                            height={15}
-                            className="text-success"
-                          />
-                        </div>
+              {showDiagForm && (
+                <div className="mb-4 p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">
+                      Finding / Test Result <span className="text-error">*</span>
+                    </Label>
+                    <Textarea
+                      rows={2}
+                      placeholder="e.g. CBC — Hgb 110 g/L"
+                      className="text-sm resize-none"
+                      value={diagForm.diagnostics}
+                      onChange={(e) => setDiagForm((f) => ({ ...f, diagnostics: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Date</Label>
+                    <Input
+                      type="date"
+                      className="h-8 text-sm"
+                      value={diagForm.date}
+                      onChange={(e) => setDiagForm((f) => ({ ...f, date: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setShowDiagForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={handleAddDiagnostic}
+                      disabled={!diagForm.diagnostics.trim()}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                {(info.diagnostics ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">No diagnostics recorded.</p>
+                ) : (
+                  (info.diagnostics ?? []).map((d) => (
+                    <div
+                      key={d.id}
+                      className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border border-border"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Icon
+                          icon="solar:document-text-bold-duotone"
+                          height={13}
+                          className="text-primary"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-snug">{d.diagnostics}</p>
+                        {d.date && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {format(new Date(d.date), 'MMM dd, yyyy')}
+                          </p>
+                        )}
+                        {d.attachment && (
+                          <a
+                            href={d.attachment}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary mt-1 hover:underline"
+                          >
+                            <Icon icon="solar:paperclip-bold" height={11} />
+                            View Attachment
+                          </a>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          className="hidden"
+                          id={`att-${d.id}`}
+                          onChange={(e) => handleDiagFileChange(d.id, e)}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-primary"
+                          title="Upload attachment"
+                          onClick={() => document.getElementById(`att-${d.id}`)?.click()}
+                        >
+                          <Icon icon="solar:paperclip-bold" height={13} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-error"
+                          title="Delete"
+                          onClick={() => id && deleteOutgoingDiagnostic(d.id, id)}
+                        >
+                          <Icon icon="solar:trash-bin-minimalistic-linear" height={13} />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardBox>
+
+            {/* Vaccination CRUD */}
+            <CardBox>
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-md bg-success/10 flex items-center justify-center flex-shrink-0">
+                    <Icon
+                      icon="solar:shield-check-bold-duotone"
+                      height={16}
+                      className="text-success"
+                    />
+                  </div>
+                  <h3 className="text-base font-semibold">Vaccination History</h3>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowVacForm((v) => !v)}
+                >
+                  <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
+                  Add
+                </Button>
+              </div>
+
+              {showVacForm && (
+                <div className="mb-4 p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">
+                      Vaccine / Description <span className="text-error">*</span>
+                    </Label>
+                    <Input
+                      placeholder="e.g. COVID-19 – Pfizer (2 doses)"
+                      className="h-8 text-sm"
+                      value={vacForm.description}
+                      onChange={(e) => setVacForm((f) => ({ ...f, description: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Date</Label>
+                    <Input
+                      type="date"
+                      className="h-8 text-sm"
+                      value={vacForm.date}
+                      onChange={(e) => setVacForm((f) => ({ ...f, date: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setShowVacForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={handleAddVaccination}
+                      disabled={!vacForm.description.trim()}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                {(info.vaccinations ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">No vaccinations recorded.</p>
+                ) : (
+                  (info.vaccinations ?? []).map((v) => (
+                    <div
+                      key={v.id}
+                      className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 border border-border"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon
+                          icon="solar:syringe-bold-duotone"
+                          height={14}
+                          className="text-success flex-shrink-0"
+                        />
                         <div>
-                          <p className="text-sm font-medium">{v.description}</p>
+                          <span className="text-sm font-medium">{v.description}</span>
                           {v.date && (
                             <p className="text-xs text-muted-foreground mt-0.5">
                               {format(new Date(v.date), 'MMM dd, yyyy')}
@@ -610,10 +871,20 @@ const ReferralDetail = () => {
                           )}
                         </div>
                       </div>
-                    ))}
-                </div>
-              </CardBox>
-            )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-error flex-shrink-0"
+                        title="Delete"
+                        onClick={() => id && deleteOutgoingVaccination(v.id, id)}
+                      >
+                        <Icon icon="solar:trash-bin-minimalistic-linear" height={13} />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardBox>
           </>
         )}
       </div>
