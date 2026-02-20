@@ -27,6 +27,12 @@ export interface MenuItem {
   badgeType?: string;
   badge?: boolean;
   isPro?: boolean;
+  /**
+   * When set, this sidebar section is only visible if the user
+   * has `is_select` access to the named module.
+   * Must match `module.description` in the database (case-insensitive).
+   */
+  module?: string;
 }
 
 import { uniqueId } from 'lodash';
@@ -86,11 +92,13 @@ const SidebarContent: MenuItem[] = [
   },
 
   // ==================== IMPORT OTHER MODULES ====================
-  ...Module1Sidebar,
-  ...Module2Sidebar,
-  ...Module3Sidebar,
-  ...Module4Sidebar,
-  ...Module5Sidebar,
+  // Each spread module gets a `module` tag so the sidebar can check permissions.
+  // The `module` value MUST match the `module.description` column in your DB.
+  ...Module1Sidebar.map((item) => ({ ...item, module: 'Module 1 - QUEUEING' })),
+  ...Module2Sidebar.map((item) => ({ ...item, module: 'Module 2 - REFERRAL' })),
+  ...Module3Sidebar.map((item) => ({ ...item, module: 'Module 3 - PATIENT REPOSITORY' })),
+  ...Module4Sidebar.map((item) => ({ ...item, module: 'Module 4 - HEALTH CARD' })),
+  ...Module5Sidebar.map((item) => ({ ...item, module: 'Module 5 - OCR' })),
 
   // ==================== COMMON SECTIONS ====================
   {

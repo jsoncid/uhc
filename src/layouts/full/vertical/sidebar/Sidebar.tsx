@@ -7,6 +7,7 @@ import { Link, useLocation } from 'react-router';
 import { Button } from 'src/components/ui/button';
 import { useTheme } from 'src/components/provider/theme-provider';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { usePermissions } from 'src/context/PermissionsContext';
 import { AMLogo, AMMenu, AMMenuItem, AMSidebar, AMSubmenu } from 'tailwind-sidebar';
 import 'tailwind-sidebar/styles.css';
 
@@ -129,9 +130,16 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
   const location = useLocation();
   const pathname = location.pathname;
   const { theme } = useTheme();
+  const { checkAccess, loading } = usePermissions();
 
   // Only allow "light" or "dark" for AMSidebar
   const sidebarMode = theme === 'light' || theme === 'dark' ? theme : undefined;
+
+  // Filter out module-tagged sections the user has no `select` access to.
+  const visibleSections = SidebarContent.filter((section) => {
+    if (!section.module) return true;           // no tag → always visible
+    return checkAccess(section.module, 'select');
+  });
 
   return (
     <AMSidebar
@@ -156,7 +164,7 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
 
       <SimpleBar className="h-[calc(100vh-100px)]">
         <div className="px-6">
-          {SidebarContent.map((section, index) => (
+          {visibleSections.map((section, index) => (
             <div key={index}>
               {renderSidebarItems(
                 [

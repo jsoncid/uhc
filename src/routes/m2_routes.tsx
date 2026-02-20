@@ -3,6 +3,7 @@
 import { lazy } from 'react';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { ModuleRoute } from '../components/ModuleRoute';
 
 // Referral Pages (Module 2) Components
 const Referrals = Loadable(
@@ -27,12 +28,16 @@ const IncomingReferralDetails = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/IncomingReferralDetails')),
 );
 
+const MODULE_NAME = 'Module 2 - REFERRAL';
+
 export const module2Routes = [
   {
     path: '/module-2/referrals',
     element: (
       <ProtectedRoute>
-        <Referrals />
+        <ModuleRoute moduleName={MODULE_NAME}>
+          <Referrals />
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },
@@ -40,7 +45,9 @@ export const module2Routes = [
     path: '/module-2/referrals/create',
     element: (
       <ProtectedRoute>
-        <CreateReferral />
+        <ModuleRoute moduleName={MODULE_NAME} action="insert">
+          <CreateReferral />
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },
@@ -48,7 +55,9 @@ export const module2Routes = [
     path: '/module-2/referrals/create-obgyne',
     element: (
       <ProtectedRoute>
-        <CreateObGyneReferral />
+        <ModuleRoute moduleName={MODULE_NAME} action="insert">
+          <CreateObGyneReferral />
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },
@@ -56,7 +65,9 @@ export const module2Routes = [
     path: '/module-2/referrals/detail/:id',
     element: (
       <ProtectedRoute>
-        <ReferralDetails />
+        <ModuleRoute moduleName={MODULE_NAME}>
+          <ReferralDetails />
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },
@@ -64,7 +75,9 @@ export const module2Routes = [
     path: '/module-2/referral-history',
     element: (
       <ProtectedRoute>
-        <ReferralHistory />
+        <ModuleRoute moduleName={MODULE_NAME}>
+          <ReferralHistory />
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },
@@ -72,7 +85,9 @@ export const module2Routes = [
     path: '/module-2/referrals/incoming',
     element: (
       <ProtectedRoute>
-        <IncomingReferrals />
+        <ModuleRoute moduleName={MODULE_NAME}>
+          <IncomingReferrals />
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },
@@ -80,7 +95,9 @@ export const module2Routes = [
     path: '/module-2/referrals/incoming/detail/:id',
     element: (
       <ProtectedRoute>
-        <IncomingReferralDetails />
+        <ModuleRoute moduleName={MODULE_NAME}>
+          <IncomingReferralDetails />
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },

@@ -3,6 +3,7 @@
 import { lazy } from 'react';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { ModuleRoute } from '../components/ModuleRoute';
 
 // Module 1 - Queue Management System Components
 const Module1Admin = Loadable(
@@ -23,7 +24,9 @@ export const module1Routes = [
     path: '/module-1/admin',
     element: (
       <ProtectedRoute>
-        <Module1Admin />
+        <ModuleRoute moduleName="Module 1 - QUEUEING">
+          <Module1Admin />
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },
@@ -31,19 +34,27 @@ export const module1Routes = [
     path: '/module-1/queue-generator',
     element: (
       <ProtectedRoute>
-        <QueueGenerator />
+        <ModuleRoute moduleName="Module 1 - QUEUEING">
+          <QueueGenerator />
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },
   {
     path: '/module-1/queue-display',
-    element: <QueueDisplay />,
+    element: (
+      <ModuleRoute moduleName="Module 1 - QUEUEING">
+        <QueueDisplay />
+      </ModuleRoute>
+    ),
   },
   {
     path: '/module-1/staff-queue-manager',
     element: (
       <ProtectedRoute>
-        <StaffQueueManager />
+        <ModuleRoute moduleName="Module 1 - QUEUEING">
+          <StaffQueueManager />
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },

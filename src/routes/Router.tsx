@@ -4,8 +4,6 @@ import { lazy } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
-import { MODULE_IDS, ROLE_IDS } from '../constants/moduleAccess';
-import { ModuleGuard } from '../components/ModuleGuard';
 import { module1Routes } from './m1_routes';
 import { module2Routes } from './m2_routes';
 import { module3Routes } from './m3_routes';
