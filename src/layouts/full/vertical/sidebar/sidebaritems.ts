@@ -53,38 +53,6 @@ const SidebarContent: MenuItem[] = [
     ],
   },
 
-  {
-    heading: 'Module 0 - js0n',
-    children: [
-      {
-        name: 'Tables',
-        icon: 'solar:server-linear',
-        id: uniqueId(),
-        url: '/utilities/table',
-      },
-
-      {
-        name: 'Blogs',
-        id: uniqueId(),
-        icon: 'solar:sort-by-alphabet-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Blog Post',
-            url: '/apps/blog/post',
-            isPro: false,
-          },
-          {
-            id: uniqueId(),
-            name: 'Blog Detail',
-            url: '/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
-            isPro: false,
-          },
-        ],
-      },
-    ],
-  },
-
   // ==================== IMPORT OTHER MODULES ====================
   ...Module1Sidebar,
   ...Module2Sidebar,
@@ -94,77 +62,13 @@ const SidebarContent: MenuItem[] = [
 
   // ==================== COMMON SECTIONS ====================
   {
-    heading: 'pages',
+    heading: 'User',
     children: [
-      {
-        name: 'Tables',
-        icon: 'solar:server-linear',
-        id: uniqueId(),
-        url: '/utilities/table',
-      },
-      {
-        name: 'Form',
-        icon: 'solar:document-add-linear',
-        id: uniqueId(),
-        url: '/utilities/form',
-      },
       {
         id: uniqueId(),
         name: 'User Profile',
         icon: 'solar:user-circle-linear',
         url: '/user-profile',
-        isPro: false,
-      },
-    ],
-  },
-
-  {
-    heading: 'Apps',
-    children: [
-      {
-        id: uniqueId(),
-        name: 'Notes',
-        icon: 'solar:notes-linear',
-        url: '/apps/notes',
-        isPro: false,
-      },
-      {
-        id: uniqueId(),
-        name: 'Tickets',
-        icon: 'solar:ticker-star-linear',
-        url: '/apps/tickets',
-        isPro: false,
-      },
-      {
-        name: 'Blogs',
-        id: uniqueId(),
-        icon: 'solar:sort-by-alphabet-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Blog Post',
-            url: '/apps/blog/post',
-            isPro: false,
-          },
-          {
-            id: uniqueId(),
-            name: 'Blog Detail',
-            url: '/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
-            isPro: false,
-          },
-        ],
-      },
-    ],
-  },
-
-  {
-    heading: 'Icons',
-    children: [
-      {
-        id: uniqueId(),
-        name: 'Iconify Icons',
-        icon: 'solar:structure-linear',
-        url: '/icons/iconify',
         isPro: false,
       },
     ],
@@ -204,18 +108,6 @@ const SidebarContent: MenuItem[] = [
     ],
   },
 
-  {
-    heading: 'About',
-    children: [
-      {
-        id: uniqueId(),
-        name: 'About / Teams',
-        icon: 'solar:users-group-two-rounded-linear',
-        url: '/about',
-        isPro: false,
-      },
-    ],
-  },
   {
     heading: 'Auth',
     children: [

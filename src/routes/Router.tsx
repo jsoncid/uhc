@@ -4,13 +4,14 @@ import { lazy } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
-import { MODULE_IDS, ROLE_IDS } from '../constants/moduleAccess';
-import { ModuleGuard } from '../components/ModuleGuard';
+
+// Import module routes
 import { module1Routes } from './m1_routes';
 import { module2Routes } from './m2_routes';
 import { module3Routes } from './m3_routes';
 import { module4Routes } from './m4_routes';
 import { module5Routes } from './m5_routes';
+
 
 /* ***Layouts**** */
 const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
@@ -38,9 +39,6 @@ const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
 const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
 const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')));
-
-// About Page
-const About = Loadable(lazy(() => import('../views/about/About')));
 
 // RBAC Pages
 const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
@@ -148,15 +146,6 @@ const Router = [
         element: (
           <ProtectedRoute>
             <SolarIcon />
-          </ProtectedRoute>
-        ),
-      },
-      // About
-      {
-        path: '/about',
-        element: (
-          <ProtectedRoute>
-            <About />
           </ProtectedRoute>
         ),
       },
