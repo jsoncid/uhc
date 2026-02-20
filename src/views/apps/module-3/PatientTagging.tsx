@@ -155,6 +155,15 @@ const PatientTagging = () => {
     });
   };
 
+  const formatDateOnly = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${month}/${day}/${year}`;
+  };
+
   const formatDateTime = (dateString?: string, timeString?: string) => {
     if (!dateString) return 'N/A';
     let formatted = formatDate(dateString);
@@ -162,6 +171,30 @@ const PatientTagging = () => {
       formatted += ` ${timeString}`;
     }
     return formatted;
+  };
+
+  const getEncounterType = (record: PatientHistory) => {
+    const parts: string[] = [];
+    
+    // Add encounter type if available
+    if (record.encounter_toecode) {
+      parts.push(record.encounter_toecode.trim().toUpperCase());
+    }
+    
+    // Add admission type if available
+    if (record.typadm) {
+      parts.push(record.typadm.trim().toUpperCase());
+    } else if (record.admdate && parts.length === 0) {
+      // If we have admission date but no specific type, use generic "ADMISSION"
+      parts.push('ADMISSION');
+    }
+    
+    // Return combined or single type
+    if (parts.length === 0) return 'N/A';
+    if (parts.length === 1) return parts[0];
+    // Remove duplicates and join with arrow
+    const unique = Array.from(new Set(parts));
+    return unique.join(' → ');
   };
 
   const getAdmissionType = (record: PatientHistory) => {
@@ -422,67 +455,6 @@ const PatientTagging = () => {
         {/* Selected Patient Details */}
         {selectedPatient && (
           <>
-            {/* Statistics Cards Row */}
-            <div className="col-span-12">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <Card className="border hover:shadow-md transition-shadow">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Total Visits</p>
-                        <p className="text-2xl font-bold mt-1">{patientStats.totalVisits}</p>
-                      </div>
-                      <div className="p-2 bg-blue-500/10 rounded-lg">
-                        <HistoryIcon className="h-6 w-6 text-blue-500" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border hover:shadow-md transition-shadow">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Admissions</p>
-                        <p className="text-2xl font-bold mt-1">{patientStats.admissions}</p>
-                      </div>
-                      <div className="p-2 bg-purple-500/10 rounded-lg">
-                        <Activity className="h-6 w-6 text-purple-500" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border hover:shadow-md transition-shadow">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Discharges</p>
-                        <p className="text-2xl font-bold mt-1">{patientStats.discharges}</p>
-                      </div>
-                      <div className="p-2 bg-emerald-500/10 rounded-lg">
-                        <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border hover:shadow-md transition-shadow">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Active</p>
-                        <p className="text-2xl font-bold mt-1">{patientStats.activeAdmissions}</p>
-                      </div>
-                      <div className="p-2 bg-orange-500/10 rounded-lg">
-                        <TrendingUp className="h-6 w-6 text-orange-500" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
             {/* Enhanced Patient Information Card */}
             <div className="col-span-12 lg:col-span-4">
               <Card className="border shadow-md sticky top-4">
@@ -528,13 +500,6 @@ const PatientTagging = () => {
                     </div>
                   </div>
 
-                  {selectedPatient.hpercode && (
-                    <div className="bg-muted/50 p-3 rounded-lg border">
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">HPERCODE</Label>
-                      <p className="font-mono font-bold text-sm mt-1 tracking-wider">{selectedPatient.hpercode}</p>
-                    </div>
-                  )}
-
                   {selectedPatient.facility_code && (
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground flex items-center gap-1">
@@ -575,17 +540,49 @@ const PatientTagging = () => {
                     <>
                       <Separator />
                       <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
+                        <Label className="text-xs text-muted-foreground flex items-center gap-1.5 font-semibold uppercase tracking-wide">
+                          <MapPin className="h-4 w-4" />
                           Address
                         </Label>
-                        <div className="bg-muted/50 p-3 rounded-lg text-sm leading-relaxed">
-                          {selectedPatient.street && <p>{selectedPatient.street}</p>}
-                          {selectedPatient.brgy_name && <p>{selectedPatient.brgy_name}</p>}
-                          {selectedPatient.city_name && <p>{selectedPatient.city_name}</p>}
-                          {selectedPatient.province_name && <p>{selectedPatient.province_name}</p>}
-                          {selectedPatient.region_name && <p>{selectedPatient.region_name}</p>}
-                          {selectedPatient.zip_code && <p className="font-mono">{selectedPatient.zip_code}</p>}
+                        <div className="bg-gradient-to-br from-muted/50 to-muted/30 p-4 rounded-xl border shadow-sm">
+                          <div className="space-y-2 text-sm">
+                            {selectedPatient.street && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">Street:</span>
+                                <span className="font-semibold flex-1">{selectedPatient.street}</span>
+                              </div>
+                            )}
+                            {selectedPatient.brgy_name && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">Barangay:</span>
+                                <span className="font-semibold flex-1">{selectedPatient.brgy_name}</span>
+                              </div>
+                            )}
+                            {selectedPatient.city_name && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">City:</span>
+                                <span className="font-semibold flex-1">{selectedPatient.city_name}</span>
+                              </div>
+                            )}
+                            {selectedPatient.province_name && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">Province:</span>
+                                <span className="font-semibold flex-1">{selectedPatient.province_name}</span>
+                              </div>
+                            )}
+                            {selectedPatient.region_name && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">Region:</span>
+                                <span className="font-semibold flex-1">{selectedPatient.region_name}</span>
+                              </div>
+                            )}
+                            {selectedPatient.zip_code && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">Zip Code:</span>
+                                <Badge variant="outline" className="font-mono font-semibold">{selectedPatient.zip_code}</Badge>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </>
@@ -797,6 +794,32 @@ const PatientTagging = () => {
                                       </div>
                                     )}
 
+                                    {/* Condition & Disposition */}
+                                    {(record.condcode || record.dispcode) && (
+                                      <div className="mb-3 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                                        <div className="flex items-start gap-2 mb-3">
+                                          <Activity className="h-4 w-4 text-green-700 dark:text-green-400 mt-0.5" />
+                                          <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">
+                                            Condition & Disposition
+                                          </p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                          {record.condcode && (
+                                            <div>
+                                              <p className="text-xs text-green-600 dark:text-green-500 font-medium">Condition</p>
+                                              <Badge variant="secondary" className="font-semibold">{record.condcode}</Badge>
+                                            </div>
+                                          )}
+                                          {record.dispcode && (
+                                            <div>
+                                              <p className="text-xs text-green-600 dark:text-green-500 font-medium">Disposition</p>
+                                              <Badge variant="secondary" className="font-semibold">{record.dispcode}</Badge>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
                                     {/* Encounter Details */}
                                     {(record.encounter_casetype || record.encounter_cf4attendprov || record.encounter_date || record.encounter_toecode) && (
                                       <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -914,12 +937,12 @@ const PatientTagging = () => {
                             <Table>
                               <TableHeader>
                                 <TableRow className="bg-muted/50">
-                                  <TableHead className="font-bold">Case #</TableHead>
+                                  <TableHead className="font-bold">Encounter</TableHead>
                                   <TableHead className="font-bold">Admission</TableHead>
                                   <TableHead className="font-bold">Discharge</TableHead>
                                   <TableHead className="font-bold">Diagnosis</TableHead>
-                                  <TableHead className="font-bold">Case Type</TableHead>
-                                  <TableHead className="font-bold">Provider</TableHead>
+                                  <TableHead className="font-bold">Condition</TableHead>
+                                  <TableHead className="font-bold">Disposition</TableHead>
                                   <TableHead className="font-bold">Status</TableHead>
                                   <TableHead className="font-bold">Notes</TableHead>
                                 </TableRow>
@@ -931,14 +954,16 @@ const PatientTagging = () => {
                                     className="hover:bg-muted/30 transition-colors"
                                   >
                                     <TableCell className="font-semibold">
-                                      {record.casenum || <span className="text-muted-foreground">N/A</span>}
+                                      <Badge variant="outline" className="font-semibold text-xs">
+                                        {getEncounterType(record)}
+                                      </Badge>
                                     </TableCell>
                                     <TableCell className="text-sm">
-                                      {formatDateTime(record.admdate, record.admtime)}
+                                      {formatDateOnly(record.admdate)}
                                     </TableCell>
                                     <TableCell className="text-sm">
                                       {record.disdate ? (
-                                        formatDateTime(record.disdate, record.distime)
+                                        formatDateOnly(record.disdate)
                                       ) : (
                                         <Badge variant="default" className="bg-orange-500">
                                           Active
@@ -957,16 +982,18 @@ const PatientTagging = () => {
                                       </div>
                                     </TableCell>
                                     <TableCell>
-                                      {record.encounter_casetype ? (
-                                        <Badge variant="outline">{record.encounter_casetype}</Badge>
+                                      {record.condcode ? (
+                                        <Badge variant="outline" className="font-semibold">{record.condcode}</Badge>
                                       ) : (
                                         <span className="text-muted-foreground text-sm">-</span>
                                       )}
                                     </TableCell>
                                     <TableCell>
-                                      <div className="max-w-[150px] truncate text-sm" title={record.encounter_cf4attendprov || '-'}>
-                                        {record.encounter_cf4attendprov || <span className="text-muted-foreground">-</span>}
-                                      </div>
+                                      {record.dispcode ? (
+                                        <Badge variant="outline" className="font-semibold">{record.dispcode}</Badge>
+                                      ) : (
+                                        <span className="text-muted-foreground text-sm">-</span>
+                                      )}
                                     </TableCell>
                                     <TableCell>{getStatusBadge(record.admstat)}</TableCell>
                                     <TableCell>
