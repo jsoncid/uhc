@@ -62,6 +62,19 @@ const SidebarContent: MenuItem[] = [
 
   // ==================== COMMON SECTIONS ====================
   {
+    heading: 'About',
+    children: [
+      {
+        id: uniqueId(),
+        name: 'Teams',
+        icon: 'solar:users-group-rounded-linear',
+        url: '/about/teams',
+        isPro: false,
+      },
+    ],
+  },
+
+  {
     heading: 'User',
     children: [
       {
