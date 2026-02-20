@@ -1,9 +1,12 @@
-import { useState, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router';
 import { Icon } from '@iconify/react';
 import { ReferralContext, ReferralContextType } from '../../context/ReferralContext';
 import { ReferralType, ReferralInfo } from '../../types/referral';
-import { StatusData } from '../../data/referral-data';
+import { supabaseM3 } from 'src/lib/supabase';
+import { useAuthStore } from 'src/stores/useAuthStore';
+import { assignmentService } from 'src/services/assignmentService';
+import { Database } from 'src/lib/supabase';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
@@ -11,62 +14,20 @@ import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
 import { Separator } from 'src/components/ui/separator';
 import { Badge } from 'src/components/ui/badge';
-
-// ── Mock patient registry (simulates module3.patient_profile lookup) ──────────
-const MOCK_PATIENT_DB: Record<
-  string,
-  {
-    id: string;
-    name: string;
-    age: number;
-    sex: string;
-    birth_date: string;
-    complete_address: string;
-    referring_facility: string;
-    facility_address: string;
-  }
-> = {
-  'pp-0001': {
-    id: 'pp-0001',
-    name: 'Juan dela Cruz',
-    age: 45,
-    sex: 'Male',
-    birth_date: '1979-03-15',
-    complete_address: '123 Rizal St., Diliman, Quezon City',
-    referring_facility: 'Quezon City General Hospital',
-    facility_address: 'Seminary Rd., Diliman, Quezon City',
-  },
-  'pp-0002': {
-    id: 'pp-0002',
-    name: 'Maria Santos',
-    age: 32,
-    sex: 'Female',
-    birth_date: '1992-07-22',
-    complete_address: '456 Mabini Ave., Pasig City',
-    referring_facility: 'Pasig General Hospital',
-    facility_address: 'Caruncho Ave., San Nicolas, Pasig City',
-  },
-  'pp-0003': {
-    id: 'pp-0003',
-    name: 'Pedro Reyes',
-    age: 58,
-    sex: 'Male',
-    birth_date: '1966-11-05',
-    complete_address: '789 Luna Rd., Marikina City',
-    referring_facility: 'Marikina Valley Medical Center',
-    facility_address: 'J.P. Rizal St., Marikina City',
-  },
-  'pp-0004': {
-    id: 'pp-0004',
-    name: 'Ana Torres',
-    age: 27,
-    sex: 'Female',
-    birth_date: '1997-01-30',
-    complete_address: '321 Bonifacio St., Mandaluyong City',
-    referring_facility: 'Mandaluyong City Medical Center',
-    facility_address: 'Maysilo Circle, Mandaluyong City',
-  },
-};
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from 'src/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'src/components/ui/select';
 
 // ── Section title helper ──────────────────────────────────────────────────────
 const SectionTitle = ({ icon, title }: { icon: string; title: string }) => (
@@ -89,17 +50,34 @@ const AutoField = ({ label, value }: { label: string; value: string }) => (
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+type AssignmentRow = Database['public']['Tables']['assignment']['Row'];
+type PatientRow = Database['module3']['Tables']['patient_profile']['Row'];
+
 const CreateObGyneReferralForm = () => {
   const { addReferral }: ReferralContextType = useContext(ReferralContext);
   const navigate = useNavigate();
+  const { userAssignmentId, userAssignmentName } = useAuthStore();
 
-  // ── Patient ID lookup ─────────────────────────────────────────────────────
-  const [patientIdInput, setPatientIdInput] = useState('');
-  const [patientIdError, setPatientIdError] = useState('');
+  // ── Assignment dropdown ───────────────────────────────────────────────────
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
+  const [toAssignmentId, setToAssignmentId] = useState('');
+  const [toAssignmentName, setToAssignmentName] = useState('');
+
+  useEffect(() => {
+    assignmentService
+      .getAllAssignments()
+      .then((rows) => setAssignments(rows.filter((a) => a.id !== userAssignmentId)))
+      .catch(console.error);
+  }, [userAssignmentId]);
+
+  // ── Patient picker ────────────────────────────────────────────────────────
   const [confirmedPatientId, setConfirmedPatientId] = useState('');
+  const [patientPickerOpen, setPatientPickerOpen] = useState(false);
+  const [patientList, setPatientList] = useState<PatientRow[]>([]);
+  const [patientListLoading, setPatientListLoading] = useState(false);
+  const [patientSearch, setPatientSearch] = useState('');
 
   // ── Auto-filled patient details (locked after confirm) ───────────────────
-  const [referringFacility, setReferringFacility] = useState('');
   const [facilityAddress, setFacilityAddress] = useState('');
   const [patientName, setPatientName] = useState('');
   const [age, setAge] = useState('');
@@ -128,7 +106,6 @@ const CreateObGyneReferralForm = () => {
   const [vision, setVision] = useState('');
   const [motor, setMotor] = useState('');
   const [medications, setMedications] = useState('');
-  const [referringTo, setReferringTo] = useState('');
   const [referringDoctor, setReferringDoctor] = useState('');
   const [contactNo, setContactNo] = useState('');
   const [vaccinations, setVaccinations] = useState([{ description: '', date: '' }]);
@@ -174,34 +151,37 @@ const CreateObGyneReferralForm = () => {
   const updateVaccination = (i: number, field: 'description' | 'date', val: string) =>
     setVaccinations((p) => p.map((v, x) => (x === i ? { ...v, [field]: val } : v)));
 
-  // ── Patient ID confirm ────────────────────────────────────────────────────
-  const handleConfirmPatient = () => {
-    const trimmed = patientIdInput.trim();
-    if (!trimmed) {
-      setPatientIdError('Please enter a Patient ID.');
-      return;
+  // ── Patient picker handlers ───────────────────────────────────────────────
+  const openPatientPicker = async () => {
+    setPatientPickerOpen(true);
+    setPatientSearch('');
+    setPatientListLoading(true);
+    try {
+      const { data } = await supabaseM3
+        .from('patient_profile')
+        .select('id, first_name, middle_name, last_name, sex, birth_date')
+        .order('last_name', { ascending: true });
+      setPatientList((data as PatientRow[]) ?? []);
+    } finally {
+      setPatientListLoading(false);
     }
-    const found = MOCK_PATIENT_DB[trimmed];
-    if (!found) {
-      setPatientIdError(`No patient found with ID "${trimmed}". Try pp-0001 to pp-0004.`);
-      return;
-    }
-    setPatientIdError('');
-    setConfirmedPatientId(found.id);
-    setReferringFacility(found.referring_facility);
-    setFacilityAddress(found.facility_address);
-    setPatientName(found.name);
-    setAge(String(found.age));
-    setSex(found.sex);
-    setBirthDate(found.birth_date);
-    setCompleteAddress(found.complete_address);
+  };
+
+  const selectPatient = (p: PatientRow) => {
+    const fullName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ');
+    const birthYear = p.birth_date ? new Date(p.birth_date).getFullYear() : null;
+    const computedAge = birthYear ? new Date().getFullYear() - birthYear : '';
+    setConfirmedPatientId(p.id);
+    setPatientName(fullName);
+    setAge(String(computedAge));
+    setSex(p.sex ?? '');
+    setBirthDate(p.birth_date ?? '');
+    setCompleteAddress('');
+    setPatientPickerOpen(false);
   };
 
   const handleClearPatient = () => {
-    setPatientIdInput('');
-    setPatientIdError('');
     setConfirmedPatientId('');
-    setReferringFacility('');
     setFacilityAddress('');
     setPatientName('');
     setAge('');
@@ -211,7 +191,7 @@ const CreateObGyneReferralForm = () => {
   };
 
   // ── Submit ────────────────────────────────────────────────────────────────
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!confirmedPatientId) {
       alert('Please confirm a Patient ID first.');
@@ -298,16 +278,16 @@ const CreateObGyneReferralForm = () => {
       status: true,
       patient_profile: confirmedPatientId,
       patient_name: patientName,
-      from_assignment: null,
-      from_assignment_name: referringFacility || undefined,
-      to_assignment: null,
-      to_assignment_name: referringTo || undefined,
-      latest_status: StatusData.find((s) => s.description === 'Pending'),
+      from_assignment: userAssignmentId,
+      from_assignment_name: userAssignmentName || undefined,
+      to_assignment: toAssignmentId || null,
+      to_assignment_name: toAssignmentName || undefined,
+      latest_status: undefined,
       referral_info: newInfo,
       history: [],
     };
 
-    addReferral(newReferral);
+    await addReferral(newReferral);
     navigate('/module-2/referrals');
   };
 
@@ -333,7 +313,8 @@ const CreateObGyneReferralForm = () => {
     setEye('');
     setVision('');
     setMotor('');
-    setReferringTo('');
+    setToAssignmentId('');
+    setToAssignmentName('');
     setMedications('');
     setReferringDoctor('');
     setContactNo('');
@@ -368,6 +349,12 @@ const CreateObGyneReferralForm = () => {
   };
 
   const patientConfirmed = !!confirmedPatientId;
+  const filteredPatients = patientList.filter((p) => {
+    if (!patientSearch.trim()) return true;
+    const q = patientSearch.toLowerCase();
+    const name = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').toLowerCase();
+    return name.includes(q);
+  });
 
   return (
     <form onSubmit={handleSubmit}>
@@ -395,47 +382,21 @@ const CreateObGyneReferralForm = () => {
                   className="mr-1"
                 />
                 {patientConfirmed
-                  ? `Patient Confirmed: ${confirmedPatientId}`
-                  : 'Auto-fill from Patient Profile'}
+                  ? `Patient Confirmed: ${patientName}`
+                  : 'Select a Patient to Auto-fill'}
               </Badge>
             </div>
 
-            {/* Patient ID lookup row */}
+            {/* Patient picker */}
             <div className="flex gap-3 items-end mb-6">
-              <div className="flex-1 max-w-xs">
-                <Label htmlFor="patientIdInput">
-                  Patient ID <span className="text-error">*</span>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="patientIdInput"
-                    value={patientIdInput}
-                    onChange={(e) => {
-                      setPatientIdInput(e.target.value);
-                      setPatientIdError('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleConfirmPatient();
-                      }
-                    }}
-                    placeholder="e.g. pp-0001"
-                    disabled={patientConfirmed}
-                    className={patientIdError ? 'border-error' : ''}
-                  />
-                  {patientIdError && (
-                    <p className="absolute top-full left-0 mt-1 text-xs text-error flex items-center gap-1 whitespace-nowrap">
-                      <Icon icon="solar:danger-circle-linear" height={12} />
-                      {patientIdError}
-                    </p>
-                  )}
-                </div>
-              </div>
               {!patientConfirmed ? (
-                <Button type="button" onClick={handleConfirmPatient}>
-                  <Icon icon="solar:magnifer-bold-duotone" height={15} className="mr-1.5" />
-                  Find &amp; Confirm Patient
+                <Button type="button" onClick={openPatientPicker}>
+                  <Icon
+                    icon="solar:users-group-rounded-bold-duotone"
+                    height={15}
+                    className="mr-1.5"
+                  />
+                  Select Patient
                 </Button>
               ) : (
                 <Button type="button" variant="outline" onClick={handleClearPatient}>
@@ -445,11 +406,82 @@ const CreateObGyneReferralForm = () => {
               )}
             </div>
 
+            {/* Patient picker dialog */}
+            <Dialog open={patientPickerOpen} onOpenChange={setPatientPickerOpen}>
+              <DialogContent className="max-w-xl">
+                <DialogHeader>
+                  <DialogTitle>Select Patient</DialogTitle>
+                  <DialogDescription>
+                    Choose a patient from the list. Their details will be auto-filled into the form.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="relative mb-2">
+                  <Icon
+                    icon="solar:magnifer-linear"
+                    height={15}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <Input
+                    placeholder="Search by name..."
+                    value={patientSearch}
+                    onChange={(e) => setPatientSearch(e.target.value)}
+                    className="pl-9"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-80 overflow-y-auto divide-y divide-border rounded-md border border-border">
+                  {patientListLoading ? (
+                    <div className="flex justify-center items-center py-10 gap-2 text-muted-foreground">
+                      <Icon
+                        icon="solar:spinner-bold-duotone"
+                        height={20}
+                        className="animate-spin"
+                      />
+                      <span className="text-sm">Loading patients...</span>
+                    </div>
+                  ) : filteredPatients.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                      <Icon icon="solar:user-cross-bold-duotone" height={28} className="mb-2" />
+                      <p className="text-sm">No patients found.</p>
+                    </div>
+                  ) : (
+                    filteredPatients.map((p) => {
+                      const name = [p.first_name, p.middle_name, p.last_name]
+                        .filter(Boolean)
+                        .join(' ');
+                      const birthYear = p.birth_date ? new Date(p.birth_date).getFullYear() : null;
+                      const rowAge = birthYear ? new Date().getFullYear() - birthYear : '—';
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => selectPatient(p)}
+                          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/50 transition-colors"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">{name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {p.sex} · Age {rowAge} · Born {p.birth_date}
+                            </p>
+                          </div>
+                          <Icon
+                            icon="solar:arrow-right-linear"
+                            height={14}
+                            className="text-muted-foreground"
+                          />
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {/* Auto-filled patient details */}
             {patientConfirmed ? (
               <div className="grid grid-cols-12 gap-4">
                 <div className="lg:col-span-6 col-span-12">
-                  <AutoField label="Referring Facility" value={referringFacility} />
+                  <AutoField label="Referring Facility" value={userAssignmentName || ''} />
                 </div>
                 <div className="lg:col-span-6 col-span-12">
                   <AutoField label="Address" value={facilityAddress} />
@@ -478,14 +510,8 @@ const CreateObGyneReferralForm = () => {
                   className="text-muted-foreground mx-auto mb-2"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Enter a Patient ID above and click <strong>Find &amp; Confirm Patient</strong> to
-                  auto-fill their details.
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Demo IDs: <code className="bg-muted px-1 rounded">pp-0001</code>,{' '}
-                  <code className="bg-muted px-1 rounded">pp-0002</code>,{' '}
-                  <code className="bg-muted px-1 rounded">pp-0003</code>,{' '}
-                  <code className="bg-muted px-1 rounded">pp-0004</code>
+                  Click <strong>Select Patient</strong> above to browse and choose a patient. Their
+                  details will be auto-filled into the form.
                 </p>
               </div>
             )}
@@ -505,12 +531,32 @@ const CreateObGyneReferralForm = () => {
                 <div className="grid grid-cols-12 gap-4">
                   <div className="col-span-12">
                     <Label htmlFor="referringTo">Referring To (Destination Facility)</Label>
-                    <Input
-                      id="referringTo"
-                      value={referringTo}
-                      onChange={(e) => setReferringTo(e.target.value)}
-                      placeholder="e.g. Philippine General Hospital, Lung Center of the Philippines..."
-                    />
+                    <Select
+                      value={toAssignmentId}
+                      onValueChange={(val) => {
+                        setToAssignmentId(val);
+                        setToAssignmentName(
+                          assignments.find((a) => a.id === val)?.description ?? '',
+                        );
+                      }}
+                    >
+                      <SelectTrigger id="referringTo">
+                        <SelectValue placeholder="Select destination facility..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {assignments.length === 0 ? (
+                          <SelectItem value="__none" disabled>
+                            No facilities available
+                          </SelectItem>
+                        ) : (
+                          assignments.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.description}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="col-span-12">
                     <Label htmlFor="reasonReferral">

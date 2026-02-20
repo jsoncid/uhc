@@ -2,7 +2,6 @@ import { useParams, useNavigate } from 'react-router';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
 import { useContext, useState } from 'react';
-import { getReferralById } from '../../data/referral-data';
 import { ReferralContext, ReferralContextType } from '../../context/ReferralContext';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
@@ -53,6 +52,7 @@ const ReferralDetail = () => {
   const navigate = useNavigate();
   const {
     referrals,
+    deactivatedReferrals,
     markOutgoingInTransit,
     addOutgoingDiagnostic,
     deleteOutgoingDiagnostic,
@@ -61,8 +61,9 @@ const ReferralDetail = () => {
     deleteOutgoingVaccination,
   } = useContext<ReferralContextType>(ReferralContext);
 
-  // Live context first, fall back to static data (e.g. deactivated referrals)
-  const referral = referrals.find((r) => r.id === id) ?? getReferralById(id ?? '');
+  // Live context first (active), then check deactivated
+  const referral =
+    referrals.find((r) => r.id === id) ?? deactivatedReferrals.find((r) => r.id === id);
   const info = referral?.referral_info;
   const history = referral?.history ?? [];
 

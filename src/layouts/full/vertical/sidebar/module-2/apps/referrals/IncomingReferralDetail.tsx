@@ -2,7 +2,6 @@ import { useParams, useNavigate } from 'react-router';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
 import { useContext, useState } from 'react';
-import { getReferralById } from '../../data/referral-data';
 import { ReferralContext, ReferralContextType } from '../../context/ReferralContext';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
@@ -227,8 +226,8 @@ const IncomingReferralDetail = () => {
     deleteVaccination,
   } = useContext<ReferralContextType>(ReferralContext);
 
-  // Look up from live context first (reflects accept/reject state changes), fallback to data helper
-  const referral = incomingReferrals.find((r) => r.id === id) ?? getReferralById(id ?? '');
+  // Look up from live context (reflects accept/reject state changes)
+  const referral = incomingReferrals.find((r) => r.id === id);
   const info = referral?.referral_info;
   const history = [...(referral?.history ?? [])].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
