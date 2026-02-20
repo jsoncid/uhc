@@ -422,67 +422,6 @@ const PatientTagging = () => {
         {/* Selected Patient Details */}
         {selectedPatient && (
           <>
-            {/* Statistics Cards Row */}
-            <div className="col-span-12">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <Card className="border hover:shadow-md transition-shadow">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Total Visits</p>
-                        <p className="text-2xl font-bold mt-1">{patientStats.totalVisits}</p>
-                      </div>
-                      <div className="p-2 bg-blue-500/10 rounded-lg">
-                        <HistoryIcon className="h-6 w-6 text-blue-500" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border hover:shadow-md transition-shadow">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Admissions</p>
-                        <p className="text-2xl font-bold mt-1">{patientStats.admissions}</p>
-                      </div>
-                      <div className="p-2 bg-purple-500/10 rounded-lg">
-                        <Activity className="h-6 w-6 text-purple-500" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border hover:shadow-md transition-shadow">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Discharges</p>
-                        <p className="text-2xl font-bold mt-1">{patientStats.discharges}</p>
-                      </div>
-                      <div className="p-2 bg-emerald-500/10 rounded-lg">
-                        <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border hover:shadow-md transition-shadow">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Active</p>
-                        <p className="text-2xl font-bold mt-1">{patientStats.activeAdmissions}</p>
-                      </div>
-                      <div className="p-2 bg-orange-500/10 rounded-lg">
-                        <TrendingUp className="h-6 w-6 text-orange-500" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
             {/* Enhanced Patient Information Card */}
             <div className="col-span-12 lg:col-span-4">
               <Card className="border shadow-md sticky top-4">
