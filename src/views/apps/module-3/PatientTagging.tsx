@@ -173,6 +173,30 @@ const PatientTagging = () => {
     return formatted;
   };
 
+  const getEncounterType = (record: PatientHistory) => {
+    const parts: string[] = [];
+    
+    // Add encounter type if available
+    if (record.encounter_toecode) {
+      parts.push(record.encounter_toecode.trim().toUpperCase());
+    }
+    
+    // Add admission type if available
+    if (record.typadm) {
+      parts.push(record.typadm.trim().toUpperCase());
+    } else if (record.admdate && parts.length === 0) {
+      // If we have admission date but no specific type, use generic "ADMISSION"
+      parts.push('ADMISSION');
+    }
+    
+    // Return combined or single type
+    if (parts.length === 0) return 'N/A';
+    if (parts.length === 1) return parts[0];
+    // Remove duplicates and join with arrow
+    const unique = Array.from(new Set(parts));
+    return unique.join(' → ');
+  };
+
   const getAdmissionType = (record: PatientHistory) => {
     // Determine admission type based on available data
     if (record.disdate) return 'Discharge';
@@ -913,7 +937,7 @@ const PatientTagging = () => {
                             <Table>
                               <TableHeader>
                                 <TableRow className="bg-muted/50">
-                                  <TableHead className="font-bold">Case #</TableHead>
+                                  <TableHead className="font-bold">Encounter</TableHead>
                                   <TableHead className="font-bold">Admission</TableHead>
                                   <TableHead className="font-bold">Discharge</TableHead>
                                   <TableHead className="font-bold">Diagnosis</TableHead>
@@ -930,7 +954,9 @@ const PatientTagging = () => {
                                     className="hover:bg-muted/30 transition-colors"
                                   >
                                     <TableCell className="font-semibold">
-                                      {record.casenum || <span className="text-muted-foreground">N/A</span>}
+                                      <Badge variant="outline" className="font-semibold text-xs">
+                                        {getEncounterType(record)}
+                                      </Badge>
                                     </TableCell>
                                     <TableCell className="text-sm">
                                       {formatDateOnly(record.admdate)}
