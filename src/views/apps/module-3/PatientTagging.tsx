@@ -476,13 +476,6 @@ const PatientTagging = () => {
                     </div>
                   </div>
 
-                  {selectedPatient.hpercode && (
-                    <div className="bg-muted/50 p-3 rounded-lg border">
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">HPERCODE</Label>
-                      <p className="font-mono font-bold text-sm mt-1 tracking-wider">{selectedPatient.hpercode}</p>
-                    </div>
-                  )}
-
                   {selectedPatient.facility_code && (
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground flex items-center gap-1">
@@ -523,17 +516,49 @@ const PatientTagging = () => {
                     <>
                       <Separator />
                       <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
+                        <Label className="text-xs text-muted-foreground flex items-center gap-1.5 font-semibold uppercase tracking-wide">
+                          <MapPin className="h-4 w-4" />
                           Address
                         </Label>
-                        <div className="bg-muted/50 p-3 rounded-lg text-sm leading-relaxed">
-                          {selectedPatient.street && <p>{selectedPatient.street}</p>}
-                          {selectedPatient.brgy_name && <p>{selectedPatient.brgy_name}</p>}
-                          {selectedPatient.city_name && <p>{selectedPatient.city_name}</p>}
-                          {selectedPatient.province_name && <p>{selectedPatient.province_name}</p>}
-                          {selectedPatient.region_name && <p>{selectedPatient.region_name}</p>}
-                          {selectedPatient.zip_code && <p className="font-mono">{selectedPatient.zip_code}</p>}
+                        <div className="bg-gradient-to-br from-muted/50 to-muted/30 p-4 rounded-xl border shadow-sm">
+                          <div className="space-y-2 text-sm">
+                            {selectedPatient.street && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">Street:</span>
+                                <span className="font-semibold flex-1">{selectedPatient.street}</span>
+                              </div>
+                            )}
+                            {selectedPatient.brgy_name && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">Barangay:</span>
+                                <span className="font-semibold flex-1">{selectedPatient.brgy_name}</span>
+                              </div>
+                            )}
+                            {selectedPatient.city_name && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">City:</span>
+                                <span className="font-semibold flex-1">{selectedPatient.city_name}</span>
+                              </div>
+                            )}
+                            {selectedPatient.province_name && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">Province:</span>
+                                <span className="font-semibold flex-1">{selectedPatient.province_name}</span>
+                              </div>
+                            )}
+                            {selectedPatient.region_name && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">Region:</span>
+                                <span className="font-semibold flex-1">{selectedPatient.region_name}</span>
+                              </div>
+                            )}
+                            {selectedPatient.zip_code && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-muted-foreground font-medium min-w-[70px]">Zip Code:</span>
+                                <Badge variant="outline" className="font-mono font-semibold">{selectedPatient.zip_code}</Badge>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </>
