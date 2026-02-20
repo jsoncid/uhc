@@ -30,6 +30,7 @@ const Modern = Loadable(lazy(() => import('../views/dashboards/Modern')));
 
 //pages
 const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/UserProfile')));
+const About = Loadable(lazy(() => import('../views/about/About')));
 
 /* ****Apps***** */
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
@@ -138,6 +139,14 @@ const Router = [
         element: (
           <ProtectedRoute>
             <UserProfile />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/about/teams',
+        element: (
+          <ProtectedRoute>
+            <About />
           </ProtectedRoute>
         ),
       },
