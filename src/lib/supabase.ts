@@ -186,21 +186,21 @@ export type Database = {
       }
       window: {
         Row: {
-          id: number
+          id: string
           created_at: string
           office: string
           description: string | null
           status: boolean
         }
         Insert: {
-          id?: number
+          id?: string
           created_at?: string
           office: string
           description?: string | null
           status?: boolean
         }
         Update: {
-          id?: number
+          id?: string
           created_at?: string
           office?: string
           description?: string | null
@@ -250,19 +250,19 @@ export type Database = {
       }
       queue: {
         Row: {
-          id: number
+          id: string
           created_at: string
           code: string
           status: boolean
         }
         Insert: {
-          id?: number
+          id?: string
           created_at?: string
           code: string
           status?: boolean
         }
         Update: {
-          id?: number
+          id?: string
           created_at?: string
           code?: string
           status?: boolean
@@ -270,31 +270,34 @@ export type Database = {
       }
       sequence: {
         Row: {
-          id: number
+          id: string
           created_at: string
           office: string
           queue: string
           priority: string
           status: string
-          window_id: number | null
+          window: string | null
+          is_active: boolean
         }
         Insert: {
-          id?: number
+          id?: string
           created_at?: string
           office: string
           queue: string
           priority: string
           status: string
-          window_id?: number | null
+          window?: string | null
+          is_active?: boolean
         }
         Update: {
-          id?: number
+          id?: string
           created_at?: string
           office?: string
           queue?: string
           priority?: string
           status?: string
-          window_id?: number | null
+          window?: string | null
+          is_active?: boolean
         }
       }
     }

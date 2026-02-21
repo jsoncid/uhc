@@ -56,18 +56,16 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
   const [permissions, setPermissions] = useState<ModulePermission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
 
-  const fetchPermissions = useCallback(async () => {
-    setLoading(true);
+  const fetchPermissions = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
 
     try {
       const { data, error: rpcError } = await supabase.rpc('get_user_permissions');
 
       if (rpcError) {
-        // 404 = the RPC function hasn't been created in Supabase yet.
-        // Treat it as "no permissions" so the app keeps working while
-        // the DBA deploys the SQL migration.
         if (rpcError.code === 'PGRST302' || rpcError.message?.includes('404')) {
           console.warn(
             '[PermissionsProvider] get_user_permissions() RPC not found. ' +
@@ -80,18 +78,24 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const perms = (data as ModulePermission[]) ?? [];
-      setPermissions(perms);
+      
+      setPermissions((prev) => {
+        const changed = JSON.stringify(prev) !== JSON.stringify(perms);
+        if (import.meta.env.DEV && changed) {
+          console.log(
+            '[PermissionsProvider] Permissions updated:',
+            perms.length,
+            'rows',
+          );
+        }
+        return changed ? perms : prev;
+      });
 
-      // Debug: log what the RPC returned so you can verify module descriptions match
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV && !hasFetchedOnce) {
         console.log(
-          '[PermissionsProvider] RPC returned',
+          '[PermissionsProvider] Initial fetch:',
           perms.length,
-          'permission rows:',
-          perms.map((p) => ({
-            module: p.module_description,
-            select: p.is_select,
-          })),
+          'permission rows',
         );
         if (perms.length === 0) {
           console.warn(
@@ -103,6 +107,7 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
           );
         }
       }
+      setHasFetchedOnce(true);
     } catch (err) {
       console.error('[PermissionsProvider] Failed to fetch permissions:', err);
       setError(err instanceof Error ? err.message : 'Failed to load permissions');
@@ -110,7 +115,7 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [hasFetchedOnce]);
 
   // Fetch once when the user becomes available; clear on sign-out.
   useEffect(() => {
@@ -129,12 +134,14 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!user) return;
 
-    const handleFocus = () => {
-      fetchPermissions();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPermissions(true);
+      }
     };
 
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [user, fetchPermissions]);
 
   // Listen for realtime changes to role_module_access so the sidebar
@@ -148,20 +155,14 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'role_module_access' },
         () => {
-          if (import.meta.env.DEV) {
-            console.log('[PermissionsProvider] role_module_access changed → refetching');
-          }
-          fetchPermissions();
+          fetchPermissions(true);
         },
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_role' },
         () => {
-          if (import.meta.env.DEV) {
-            console.log('[PermissionsProvider] user_role changed → refetching');
-          }
-          fetchPermissions();
+          fetchPermissions(true);
         },
       )
       .subscribe();
@@ -223,9 +224,11 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
     [accessMap],
   );
 
+  const refetch = useCallback(() => fetchPermissions(false), [fetchPermissions]);
+
   const value = useMemo<PermissionsContextValue>(
-    () => ({ permissions, loading, error, checkAccess, refetch: fetchPermissions }),
-    [permissions, loading, error, checkAccess, fetchPermissions],
+    () => ({ permissions, loading, error, checkAccess, refetch }),
+    [permissions, loading, error, checkAccess, refetch],
   );
 
   return <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>;

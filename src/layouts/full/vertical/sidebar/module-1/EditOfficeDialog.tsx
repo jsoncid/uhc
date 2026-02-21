@@ -29,7 +29,7 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
   } = useOfficeStore();
 
   const [officeName, setOfficeName] = useState('');
-  const [editingWindowId, setEditingWindowId] = useState<number | null>(null);
+  const [editingWindowId, setEditingWindowId] = useState<string | null>(null);
   const [editingWindowValue, setEditingWindowValue] = useState('');
   const [newWindowName, setNewWindowName] = useState('');
   const [isAddingWindow, setIsAddingWindow] = useState(false);
@@ -58,7 +58,7 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
     setIsEditingName(false);
   };
 
-  const handleStartEditWindow = (windowId: number, currentDesc: string) => {
+  const handleStartEditWindow = (windowId: string, currentDesc: string) => {
     setEditingWindowId(windowId);
     setEditingWindowValue(currentDesc || '');
   };
@@ -90,7 +90,7 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
     setIsAddingWindow(false);
   };
 
-  const handleDeleteWindow = async (windowId: number) => {
+  const handleDeleteWindow = async (windowId: string) => {
     if (confirm('Are you sure you want to delete this window?')) {
       await deleteWindow(windowId);
     }
