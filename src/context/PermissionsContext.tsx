@@ -79,20 +79,29 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
         throw rpcError;
       }
 
-      setPermissions((data as ModulePermission[]) ?? []);
+      const perms = (data as ModulePermission[]) ?? [];
+      setPermissions(perms);
 
       // Debug: log what the RPC returned so you can verify module descriptions match
       if (import.meta.env.DEV) {
         console.log(
-          '[PermissionsProvider] Loaded permissions:',
-          (data as ModulePermission[])?.map((p) => ({
+          '[PermissionsProvider] RPC returned',
+          perms.length,
+          'permission rows:',
+          perms.map((p) => ({
             module: p.module_description,
             select: p.is_select,
-            insert: p.is_insert,
-            update: p.is_update,
-            delete: p.is_delete,
           })),
         );
+        if (perms.length === 0) {
+          console.warn(
+            '[PermissionsProvider] No permissions returned. Ensure:\n' +
+              '  1. user_role row exists for this user\n' +
+              '  2. role_module_access rows link the role to page-level modules\n' +
+              '  3. module rows exist with is_active = true\n' +
+              '  4. module.description matches PAGE_MODULES values exactly',
+          );
+        }
       }
     } catch (err) {
       console.error('[PermissionsProvider] Failed to fetch permissions:', err);
@@ -197,29 +206,14 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
       const key = moduleName.toLowerCase().trim();
       if (!key) return false;
 
-      // Exact match first
-      let entry = accessMap.get(key);
-
-      // Fallback: if no exact match, try partial match.
-      // This handles cases where DB has "Module 2" but sidebar uses
-      // "Module 2 - REFERRAL". Either direction works.
-      if (!entry) {
-        for (const [mapKey, mapValue] of accessMap) {
-          // Guard: skip empty keys (should not happen after filtering above)
-          if (!mapKey) continue;
-          if (key.startsWith(mapKey) || mapKey.startsWith(key)) {
-            entry = mapValue;
-            break;
-          }
-        }
-      }
-
+      // Exact match only — page-level modules must match precisely.
+      const entry = accessMap.get(key);
       const result = entry?.[action] ?? false;
 
       if (import.meta.env.DEV && !result) {
         console.debug(
-          `[PermissionsProvider] checkAccess("${moduleName}", "${action}") → DENIED`,
-          '| Available modules:',
+          `[checkAccess] DENIED "${moduleName}" / "${action}"`,
+          '| available:',
           [...accessMap.keys()],
         );
       }

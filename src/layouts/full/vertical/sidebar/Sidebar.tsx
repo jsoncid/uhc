@@ -1,45 +1,13 @@
 import SidebarContent from './sidebaritems';
 import SimpleBar from 'simplebar-react';
 import { Icon } from '@iconify/react';
-import rocket from 'src/assets/images/backgrounds/rocket.png';
 import FullLogo from '../../shared/logo/FullLogo';
 import { Link, useLocation } from 'react-router';
-import { Button } from 'src/components/ui/button';
 import { useTheme } from 'src/components/provider/theme-provider';
-import { useAuthStore } from 'src/stores/useAuthStore';
 import { usePermissions } from 'src/context/PermissionsContext';
 import { AMLogo, AMMenu, AMMenuItem, AMSidebar, AMSubmenu } from 'tailwind-sidebar';
 import 'tailwind-sidebar/styles.css';
 
-
-// import { getModule1Items } from './module-1/sidebaritems';
-// import { getModule2Items } from './module-2/sidebaritems';
-// import { getModule3Items } from './module-3/sidebaritems';
-import { getModule4Items } from './module-4/sidebaritems';
-// import { getModule5Items } from './module-5/sidebaritems';
-
-const Sidebar = () => {
-  const userModuleId = useAuthStore((state) => state.userModuleId); 
-  const userRoleId = useAuthStore((state) => state.userRoleId);    
-
-  const navItems = [
-    // ...getModule1Items(roleId, moduleId),
-    // ...getModule2Items(roleId, moduleId),
-    // ...getModule3Items(roleId, moduleId),
-    ...getModule4Items(userRoleId ?? '', userModuleId ?? ''),
-    // ...getModule5Items(roleId, moduleId),
-  ];
-
-  return (
-    <nav>
-      {navItems.map((item) => (
-        <a key={item.id} href={item.href}>
-          {item.title}
-        </a>
-      ))}
-    </nav>
-  );
-};
 
 interface SidebarItemType {
   heading?: string;
@@ -135,11 +103,23 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
   // Only allow "light" or "dark" for AMSidebar
   const sidebarMode = theme === 'light' || theme === 'dark' ? theme : undefined;
 
-  // Filter out module-tagged sections the user has no `select` access to.
-  const visibleSections = SidebarContent.filter((section) => {
-    if (!section.module) return true;           // no tag → always visible
-    return checkAccess(section.module, 'select');
-  });
+  // Filter children within each section by their page-level module tag.
+  // A section heading is hidden entirely if none of its children are accessible.
+  const visibleSections = SidebarContent
+    .map((section) => {
+      if (!section.children || section.children.length === 0) return section;
+
+      const visibleChildren = section.children.filter((child) => {
+        if (!child.module) return true; // no tag → always visible
+        return checkAccess(child.module, 'select');
+      });
+
+      // Hide entire section if no children pass the filter
+      if (visibleChildren.length === 0) return null;
+
+      return { ...section, children: visibleChildren };
+    })
+    .filter(Boolean) as typeof SidebarContent;
 
   return (
     <AMSidebar

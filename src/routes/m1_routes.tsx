@@ -4,6 +4,7 @@ import { lazy } from 'react';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { ModuleRoute } from '../components/ModuleRoute';
+import { PAGE_MODULES } from '../constants/moduleAccess';
 
 // Module 1 - Queue Management System Components
 const Module1Admin = Loadable(
@@ -24,7 +25,7 @@ export const module1Routes = [
     path: '/module-1/admin',
     element: (
       <ProtectedRoute>
-        <ModuleRoute moduleName="Module 1 - QUEUEING">
+        <ModuleRoute moduleName={PAGE_MODULES.MODULE_1_ADMIN}>
           <Module1Admin />
         </ModuleRoute>
       </ProtectedRoute>
@@ -34,7 +35,7 @@ export const module1Routes = [
     path: '/module-1/queue-generator',
     element: (
       <ProtectedRoute>
-        <ModuleRoute moduleName="Module 1 - QUEUEING">
+        <ModuleRoute moduleName={PAGE_MODULES.MODULE_1_QG}>
           <QueueGenerator />
         </ModuleRoute>
       </ProtectedRoute>
@@ -43,7 +44,7 @@ export const module1Routes = [
   {
     path: '/module-1/queue-display',
     element: (
-      <ModuleRoute moduleName="Module 1 - QUEUEING">
+      <ModuleRoute moduleName={PAGE_MODULES.MODULE_1_QD}>
         <QueueDisplay />
       </ModuleRoute>
     ),
@@ -52,7 +53,7 @@ export const module1Routes = [
     path: '/module-1/staff-queue-manager',
     element: (
       <ProtectedRoute>
-        <ModuleRoute moduleName="Module 1 - QUEUEING">
+        <ModuleRoute moduleName={PAGE_MODULES.MODULE_1_SQM}>
           <StaffQueueManager />
         </ModuleRoute>
       </ProtectedRoute>

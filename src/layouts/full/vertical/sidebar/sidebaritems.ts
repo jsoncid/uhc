@@ -11,6 +11,8 @@ export interface ChildItem {
   badge?: boolean;
   badgeType?: string;
   isPro?: boolean;
+  /** Page-level module name for granular access control. */
+  module?: string;
 }
 
 export interface MenuItem {
@@ -94,11 +96,11 @@ const SidebarContent: MenuItem[] = [
   // ==================== IMPORT OTHER MODULES ====================
   // Each spread module gets a `module` tag so the sidebar can check permissions.
   // The `module` value MUST match the `module.description` column in your DB.
-  ...Module1Sidebar.map((item) => ({ ...item, module: 'Module 1 - QUEUEING' })),
-  ...Module2Sidebar.map((item) => ({ ...item, module: 'Module 2 - REFERRAL' })),
-  ...Module3Sidebar.map((item) => ({ ...item, module: 'Module 3 - PATIENT REPOSITORY' })),
-  ...Module4Sidebar.map((item) => ({ ...item, module: 'Module 4 - HEALTH CARD' })),
-  ...Module5Sidebar.map((item) => ({ ...item, module: 'Module 5 - OCR' })),
+  ...Module1Sidebar,
+  ...Module2Sidebar,
+  ...Module3Sidebar,
+  ...Module4Sidebar,
+  ...Module5Sidebar,
 
   // ==================== COMMON SECTIONS ====================
   {
