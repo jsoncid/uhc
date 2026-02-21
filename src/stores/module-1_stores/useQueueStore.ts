@@ -61,14 +61,7 @@ interface QueueState {
   clearError: () => void;
 }
 
-const generateThreeLetterCode = (): string => {
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  let code = '';
-  for (let i = 0; i < 3; i++) {
-    code += letters.charAt(Math.floor(Math.random() * letters.length));
-  }
-  return code;
-};
+
 
 export const useQueueStore = create<QueueState>((set, get) => ({
   sequences: [],
@@ -344,32 +337,26 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         pendingStatusId = allStatuses[0].id;
       }
 
-      const code = generateThreeLetterCode();
+      // Use the database function to generate a unique queue code
+      const { data: codeData, error: codeError } = await module1
+        .rpc('generate_ph_queue_code');
 
-      const { data: existingCode } = await module1
+      if (codeError) throw codeError;
+      
+      const code = codeData as string;
+
+      // Insert the new queue code
+      const { data: queueData, error: queueError } = await module1
         .from('queue')
-        .select('id')
-        .eq('code', code)
-        .limit(1);
+        .insert({ code, status: true })
+        .select()
+        .single();
 
-      let queueId: string;
-
-      if (existingCode && existingCode.length > 0) {
-        queueId = code;
-      } else {
-        const { data: queueData, error: queueError } = await module1
-          .from('queue')
-          .insert({ code, status: true })
-          .select()
-          .single();
-
-        if (queueError) throw queueError;
-        queueId = queueData.code;
-      }
+      if (queueError) throw queueError;
 
       const { error: sequenceError } = await module1.from('sequence').insert({
         office: officeId,
-        queue: queueId,
+        queue: queueData.code,
         priority: priorityId,
         status: pendingStatusId,
       });
