@@ -14,6 +14,7 @@ export interface Status {
   id: string;
   created_at: string;
   description: string | null;
+  status: boolean;
 }
 
 export interface Queue {
@@ -54,7 +55,7 @@ interface QueueState {
   deletePriority: (id: string) => Promise<void>;
   fetchStatuses: () => Promise<void>;
   addStatus: (description: string) => Promise<void>;
-  updateStatus: (id: string, description: string) => Promise<void>;
+  updateStatus: (id: string, description: string, status: boolean) => Promise<void>;
   deleteStatus: (id: string) => Promise<void>;
   fetchSequences: (officeId?: string) => Promise<void>;
   generateQueueCode: (officeId: string, priorityId: string) => Promise<string | null>;
@@ -198,7 +199,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     try {
       const { error: insertError } = await module1
         .from('status')
-        .insert({ description });
+        .insert({ description, status: true });
 
       if (insertError) throw insertError;
 
@@ -211,19 +212,19 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     }
   },
 
-  updateStatus: async (id: string, description: string) => {
+  updateStatus: async (id: string, description: string, status: boolean) => {
     set({ isLoading: true, error: null });
     try {
       const { error: updateError } = await module1
         .from('status')
-        .update({ description })
+        .update({ description, status })
         .eq('id', id);
 
       if (updateError) throw updateError;
 
       set((state) => ({
         statuses: state.statuses.map((s) =>
-          s.id === id ? { ...s, description } : s,
+          s.id === id ? { ...s, description, status } : s,
         ),
         isLoading: false,
       }));
