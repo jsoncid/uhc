@@ -37,7 +37,15 @@ import ReferralPrintDocument from './ReferralPrintDocument';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
 import { Separator } from 'src/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'src/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from 'src/components/ui/sheet';
+import { assignmentService } from '@/services/assignmentService';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
@@ -128,9 +136,26 @@ const ReReferDialog = ({
   open: boolean;
   referral: ReferralType | null;
   onClose: () => void;
-  onConfirm: (newHospital: string) => void;
+  onConfirm: (selected: { id: string; description: string }) => void;
 }) => {
   const [hospital, setHospital] = useState('');
+  const [assignments, setAssignments] = useState<{ id: string; description: string }[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      assignmentService.getAllAssignments().then((data) => {
+        setAssignments(
+          data
+            .filter((a) => a.description)
+            .map((a) => ({ id: a.id, description: a.description! }))
+            .sort((a, b) => a.description.localeCompare(b.description)),
+        );
+      });
+    } else {
+      setHospital('');
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-md">
@@ -158,11 +183,25 @@ const ReReferDialog = ({
             <Label className="text-sm font-medium">
               New Destination Hospital <span className="text-error">*</span>
             </Label>
-            <Input
-              placeholder="e.g. Philippine General Hospital"
-              value={hospital}
-              onChange={(e) => setHospital(e.target.value)}
-            />
+            <Select value={hospital} onValueChange={setHospital}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select a facility..." />
+              </SelectTrigger>
+              <SelectContent>
+                {assignments.map((a) => (
+                  <SelectItem key={a.id} value={a.description}>
+                    <div className="flex items-center gap-2">
+                      <Icon
+                        icon="solar:buildings-2-bold-duotone"
+                        height={14}
+                        className="text-muted-foreground flex-shrink-0"
+                      />
+                      {a.description}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter className="gap-2 mt-4">
@@ -179,13 +218,16 @@ const ReReferDialog = ({
           <Button
             size="sm"
             onClick={() => {
-              if (hospital.trim()) {
-                onConfirm(hospital.trim());
-                setHospital('');
-                onClose();
+              if (hospital) {
+                const selected = assignments.find((a) => a.description === hospital);
+                if (selected) {
+                  onConfirm(selected);
+                  setHospital('');
+                  onClose();
+                }
               }
             }}
-            disabled={!hospital.trim()}
+            disabled={!hospital}
           >
             <Icon icon="solar:refresh-circle-bold-duotone" height={15} className="mr-1.5" />
             Create Re-referral
@@ -893,7 +935,7 @@ const ReferralListing = () => {
         open={!!reReferTarget}
         referral={reReferTarget}
         onClose={() => setReReferTarget(null)}
-        onConfirm={(newHospital) => {
+        onConfirm={(selected) => {
           if (!reReferTarget) return;
           const newId = `ref-${Date.now()}`;
           addReferral({
@@ -902,10 +944,10 @@ const ReferralListing = () => {
             status: true,
             patient_profile: reReferTarget.patient_profile,
             from_assignment: reReferTarget.from_assignment,
-            to_assignment: null,
+            to_assignment: selected.id,
             patient_name: reReferTarget.patient_name,
             from_assignment_name: reReferTarget.from_assignment_name,
-            to_assignment_name: newHospital,
+            to_assignment_name: selected.description,
             // Strip the old referral_info.id so Supabase generates a new one,
             // and clear diagnostics/vaccinations to avoid UUID conflicts
             referral_info: reReferTarget.referral_info

@@ -36,7 +36,15 @@ import {
 } from 'src/components/ui/dropdown-menu';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'src/components/ui/select';
 import ReferralPrintDocument from './ReferralPrintDocument';
+import { assignmentService } from '@/services/assignmentService';
 
 // ─── Status style map ─────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
@@ -341,10 +349,27 @@ const RejectDialog = ({
 }) => {
   const [reason, setReason] = useState('');
   const [redirectHospital, setRedirectHospital] = useState('');
+  const [assignments, setAssignments] = useState<{ id: string; description: string }[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      assignmentService.getAllAssignments().then((data) => {
+        setAssignments(
+          data
+            .filter((a) => a.description)
+            .map((a) => ({ id: a.id, description: a.description! }))
+            .sort((a, b) => a.description.localeCompare(b.description)),
+        );
+      });
+    } else {
+      setReason('');
+      setRedirectHospital('');
+    }
+  }, [open]);
 
   const handleConfirm = () => {
     if (!reason.trim()) return;
-    onConfirm(reason.trim(), redirectHospital.trim() || undefined);
+    onConfirm(reason.trim(), redirectHospital || undefined);
     setReason('');
     setRedirectHospital('');
     onClose();
@@ -383,24 +408,39 @@ const RejectDialog = ({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="redirect-hospital" className="text-sm font-medium">
-              Redirect to Hospital{' '}
+            <Label className="text-sm font-medium">
+              Redirect to Facility{' '}
               <span className="text-muted-foreground font-normal">(optional)</span>
             </Label>
-            <div className="relative">
-              <Icon
-                icon="solar:buildings-2-bold-duotone"
-                height={15}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                id="redirect-hospital"
-                className="pl-9"
-                placeholder="e.g. Jose Reyes Memorial Medical Center"
-                value={redirectHospital}
-                onChange={(e) => setRedirectHospital(e.target.value)}
-              />
-            </div>
+            <Select value={redirectHospital} onValueChange={setRedirectHospital}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select a facility to redirect to..." />
+              </SelectTrigger>
+              <SelectContent>
+                {assignments.map((a) => (
+                  <SelectItem key={a.id} value={a.description}>
+                    <div className="flex items-center gap-2">
+                      <Icon
+                        icon="solar:buildings-2-bold-duotone"
+                        height={14}
+                        className="text-muted-foreground flex-shrink-0"
+                      />
+                      {a.description}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {redirectHospital && (
+              <button
+                type="button"
+                className="self-start text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                onClick={() => setRedirectHospital('')}
+              >
+                <Icon icon="solar:close-circle-linear" height={13} />
+                Clear selection
+              </button>
+            )}
             <p className="text-xs text-muted-foreground">
               Suggest a nearby facility so the referring hospital can re-route the patient.
             </p>
