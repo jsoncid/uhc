@@ -510,17 +510,24 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         throw new Error('Required statuses (serving/pending) not found');
       }
 
-      // Check if target window is available
-      const windowAvailable = targetWindowId ? isWindowAvailable(targetWindowId) : false;
-      const newStatus = windowAvailable ? servingStatus.id : pendingStatus.id;
-      const newWindow = windowAvailable ? targetWindowId : null;
+      // Determine new status based on window availability
+      // If transferring to a specific window, use serving if available, pending if busy
+      // If transferring with no window, use pending
+      let newStatus: string;
+      if (targetWindowId) {
+        const windowAvailable = isWindowAvailable(targetWindowId);
+        newStatus = windowAvailable ? servingStatus.id : pendingStatus.id;
+      } else {
+        newStatus = pendingStatus.id;
+      }
 
       console.log('🔄 Transferring sequence:', {
         sequenceId,
         targetOfficeId,
         targetWindowId,
-        windowAvailable,
-        newStatus: windowAvailable ? 'serving' : 'pending',
+        newStatus: targetWindowId 
+          ? (isWindowAvailable(targetWindowId) ? 'serving' : 'pending')
+          : 'pending',
       });
 
       // Step 1: Deactivate current sequence
@@ -542,11 +549,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         priority: currentSequence.priority,
         status: newStatus,
         is_active: true,
+        window: targetWindowId ?? null,  // Explicitly set window (either windowId or null if no window selected)
       };
-
-      if (newWindow) {
-        newSequencePayload.window = newWindow;
-      }
 
       const { data: newSequence, error: insertError } = await module1
         .from('sequence')
