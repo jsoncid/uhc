@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import React from 'react';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
@@ -36,7 +36,12 @@ import {
 import ReferralPrintDocument from './ReferralPrintDocument';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
-import { Separator } from 'src/components/ui/separator';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from 'src/components/ui/sheet';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
@@ -195,8 +200,8 @@ const ReReferDialog = ({
   );
 };
 
-// ─── Edit Referral Info Dialog ───────────────────────────────────────────────────────────
-const EditReferralDialog = ({
+// ─── Edit Referral Info Panel ───────────────────────────────────────────────────────────
+const EditReferralPanel = ({
   open,
   referral,
   onClose,
@@ -207,6 +212,11 @@ const EditReferralDialog = ({
   onClose: () => void;
   onConfirm: (updated: Record<string, string>) => void;
 }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+
   const info = referral?.referral_info;
   const [form, setForm] = useState({
     reason_referral: '',
@@ -222,7 +232,43 @@ const EditReferralDialog = ({
     medications: '',
   });
 
-  // Sync form with referral when dialog opens
+  const checkScroll = useCallback(() => {
+    if (scrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const isScrollable = scrollHeight > clientHeight;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
+      setShowScrollIndicator(isScrollable && !isAtBottom);
+    }
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    setIsScrolling(true);
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = setTimeout(() => {
+      setIsScrolling(false);
+      checkScroll();
+    }, 800);
+    checkScroll();
+  }, [checkScroll]);
+
+  useEffect(() => {
+    if (open) setTimeout(checkScroll, 100);
+  }, [open, checkScroll]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.addEventListener('scroll', handleScroll);
+      window.addEventListener('resize', checkScroll);
+      return () => {
+        el.removeEventListener('scroll', handleScroll);
+        window.removeEventListener('resize', checkScroll);
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      };
+    }
+  }, [handleScroll, checkScroll]);
+
+  // Sync form with referral when panel opens
   React.useEffect(() => {
     if (open && info) {
       setForm({
@@ -244,92 +290,175 @@ const EditReferralDialog = ({
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  const scrollToBottom = () => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-full bg-lightprimary flex items-center justify-center flex-shrink-0">
-              <Icon icon="solar:pen-bold-duotone" height={20} className="text-primary" />
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md lg:max-w-lg p-0 flex flex-col h-full"
+      >
+        {/* Header */}
+        <SheetHeader className="px-4 sm:px-6 py-4 border-b bg-muted/30 flex-shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-lightprimary flex items-center justify-center flex-shrink-0">
+                <Icon icon="solar:pen-bold-duotone" height={20} className="text-primary sm:hidden" />
+                <Icon icon="solar:pen-bold-duotone" height={24} className="text-primary hidden sm:block" />
+              </div>
+              <div className="min-w-0">
+                <SheetTitle className="text-sm sm:text-base font-semibold truncate">
+                  Edit Clinical Information
+                </SheetTitle>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {referral?.patient_name} · {referral?.to_assignment_name}
+                </p>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-base">Edit Clinical Information</DialogTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {referral?.patient_name} · {referral?.to_assignment_name}
-              </p>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0 rounded-full"
+              onClick={onClose}
+            >
+              <Icon icon="solar:close-circle-bold-duotone" height={20} className="text-muted-foreground" />
+            </Button>
+          </div>
+        </SheetHeader>
+
+        {/* Scrollable Content */}
+        <div className="relative flex-1">
+          <div
+            ref={scrollRef}
+            className="absolute inset-0 overflow-y-auto scrollbar-none px-4 sm:px-6 py-4"
+          >
+            {/* Reason & Complaints Card */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4 mb-4">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Icon icon="solar:document-text-bold-duotone" height={14} />
+                Referral Information
+              </h4>
+              <div className="flex flex-col gap-3 sm:gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs sm:text-sm font-medium">Reason for Referral</Label>
+                  <Textarea
+                    className="resize-none text-sm"
+                    rows={2}
+                    value={form.reason_referral}
+                    onChange={set('reason_referral')}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs sm:text-sm font-medium">Chief Complaints</Label>
+                  <Textarea
+                    className="resize-none text-sm"
+                    rows={2}
+                    value={form.chief_complaints}
+                    onChange={set('chief_complaints')}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-        </DialogHeader>
-        <div className="flex flex-col gap-4 mt-2">
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm font-medium">Reason for Referral</Label>
-            <Textarea
-              className="resize-none"
-              rows={2}
-              value={form.reason_referral}
-              onChange={set('reason_referral')}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm font-medium">Chief Complaints</Label>
-            <Textarea
-              className="resize-none"
-              rows={2}
-              value={form.chief_complaints}
-              onChange={set('chief_complaints')}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium">History of Present Illness</Label>
+
+            {/* History & PE Card */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4 mb-4">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Icon icon="solar:clipboard-list-bold-duotone" height={14} />
+                Clinical History
+              </h4>
+              <div className="grid grid-cols-1 gap-3 sm:gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs sm:text-sm font-medium">History of Present Illness</Label>
+                  <Textarea
+                    className="resize-none text-sm"
+                    rows={3}
+                    value={form.history_present_illness}
+                    onChange={set('history_present_illness')}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs sm:text-sm font-medium">Physical Examination</Label>
+                  <Textarea
+                    className="resize-none text-sm"
+                    rows={3}
+                    value={form.pe}
+                    onChange={set('pe')}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Vital Signs Card */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4 mb-4">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Icon icon="solar:health-bold-duotone" height={14} />
+                Vital Signs
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { key: 'blood_pressure', label: 'Blood Pressure', icon: 'solar:heart-pulse-bold-duotone' },
+                  { key: 'temperature', label: 'Temperature (°C)', icon: 'solar:thermometer-bold-duotone' },
+                  { key: 'heart_rate', label: 'Heart Rate', icon: 'solar:pulse-bold-duotone' },
+                  { key: 'respiratory_rate', label: 'Respiratory Rate', icon: 'solar:wind-bold-duotone' },
+                  { key: 'o2_sat', label: 'O2 Sat', icon: 'solar:water-bold-duotone' },
+                  { key: 'o2_requirement', label: 'O2 Requirement', icon: 'solar:mask-happi-bold-duotone' },
+                ].map(({ key, label, icon }) => (
+                  <div key={key} className="flex flex-col gap-1.5">
+                    <Label className="text-[10px] sm:text-xs font-medium text-muted-foreground flex items-center gap-1">
+                      <Icon icon={icon} height={12} className="flex-shrink-0" />
+                      {label}
+                    </Label>
+                    <Input
+                      className="h-8 sm:h-9 text-sm"
+                      value={(form as Record<string, string>)[key]}
+                      onChange={set(key)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Medications Card */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Icon icon="solar:pill-bold-duotone" height={14} />
+                Medications
+              </h4>
               <Textarea
-                className="resize-none"
+                className="resize-none text-sm"
                 rows={3}
-                value={form.history_present_illness}
-                onChange={set('history_present_illness')}
+                placeholder="List current medications..."
+                value={form.medications}
+                onChange={set('medications')}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium">Physical Examination</Label>
-              <Textarea className="resize-none" rows={3} value={form.pe} onChange={set('pe')} />
-            </div>
           </div>
-          <Separator />
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Vital Signs
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {[
-              { key: 'blood_pressure', label: 'Blood Pressure' },
-              { key: 'temperature', label: 'Temperature (°C)' },
-              { key: 'heart_rate', label: 'Heart Rate' },
-              { key: 'respiratory_rate', label: 'Respiratory Rate' },
-              { key: 'o2_sat', label: 'O2 Sat' },
-              { key: 'o2_requirement', label: 'O2 Requirement' },
-            ].map(({ key, label }) => (
-              <div key={key} className="flex flex-col gap-1.5">
-                <Label className="text-sm font-medium">{label}</Label>
-                <Input value={(form as Record<string, string>)[key]} onChange={set(key)} />
+
+          {/* Scroll indicator arrow */}
+          {showScrollIndicator && !isScrolling && (
+            <div
+              className="absolute bottom-0 left-0 right-0 flex justify-center pb-2 pt-6 bg-gradient-to-t from-background via-background/80 to-transparent cursor-pointer"
+              onClick={scrollToBottom}
+            >
+              <div className="flex flex-col items-center gap-0.5 animate-bounce">
+                <span className="text-[10px] text-muted-foreground font-medium">Scroll down</span>
+                <Icon icon="solar:alt-arrow-down-bold" height={18} className="text-primary" />
               </div>
-            ))}
-          </div>
-          <Separator />
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm font-medium">Medications</Label>
-            <Textarea
-              className="resize-none"
-              rows={2}
-              value={form.medications}
-              onChange={set('medications')}
-            />
-          </div>
+            </div>
+          )}
         </div>
-        <DialogFooter className="gap-2 mt-4">
-          <Button variant="outline" size="sm" onClick={onClose}>
+
+        {/* Footer */}
+        <div className="px-4 sm:px-6 py-3 border-t bg-muted/20 flex-shrink-0 flex flex-col sm:flex-row gap-2">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={onClose}>
+            <Icon icon="solar:close-circle-linear" height={15} className="mr-1.5" />
             Cancel
           </Button>
           <Button
             size="sm"
+            className="w-full sm:w-auto"
             onClick={() => {
               onConfirm(form);
               onClose();
@@ -338,9 +467,9 @@ const EditReferralDialog = ({
             <Icon icon="solar:diskette-bold-duotone" height={15} className="mr-1.5" />
             Save Changes
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 };
 
@@ -758,8 +887,8 @@ const ReferralListing = () => {
         }}
       />
 
-      {/* Edit Clinical Info Dialog */}
-      <EditReferralDialog
+      {/* Edit Clinical Info Panel */}
+      <EditReferralPanel
         open={!!editTarget}
         referral={editTarget}
         onClose={() => setEditTarget(null)}
