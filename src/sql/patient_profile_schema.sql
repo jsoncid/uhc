@@ -109,6 +109,12 @@ CREATE TABLE IF NOT EXISTS module3.patient_profile (
     sex VARCHAR(20) NOT NULL,
     birth_date DATE NOT NULL,
     brgy UUID REFERENCES module3.brgy(id),
+    street VARCHAR(500),
+    brgy_name VARCHAR(255),
+    city_name VARCHAR(255),
+    province_name VARCHAR(255),
+    region_name VARCHAR(255),
+    zip_code VARCHAR(20),
     CONSTRAINT patient_profile_sex_check CHECK (sex IN ('male', 'female', 'other', 'unknown'))
 );
 

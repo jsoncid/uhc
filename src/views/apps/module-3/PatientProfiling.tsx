@@ -633,53 +633,52 @@ const PatientProfiling = () => {
           <Separator className="my-5" />
           
           {/* Street Address */}
-          {patient.street && (
-            <div className="mb-6">
-              <FormField label="Street Address" htmlFor="street">
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                  <Input
-                    id="street"
-                    value={patient.street || ''}
-                    readOnly
-                    className="pl-10 bg-muted/30"
-                  />
-                </div>
-              </FormField>
-            </div>
-          )}
+          <div className="mb-6">
+            <FormField label="Street Address" htmlFor="street">
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                <Input
+                  id="street"
+                  value={patient.street || ''}
+                  onChange={handleInputChange('street')}
+                  placeholder="e.g. 123 Main St., Building A"
+                  className="pl-10"
+                />
+              </div>
+            </FormField>
+          </div>
 
           {/* Barangay and City */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField
               label="Barangay"
               htmlFor="brgy_name"
-              hint="Barangay name from the database."
+              hint="Enter the barangay name."
             >
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                 <Input
                   id="brgy_name"
                   value={patient.brgy_name || ''}
-                  readOnly
-                  placeholder="Barangay name"
-                  className="pl-10 bg-muted/30"
+                  onChange={handleInputChange('brgy_name')}
+                  placeholder="e.g. Barangay Poblacion"
+                  className="pl-10"
                 />
               </div>
             </FormField>
             <FormField
               label="City / Municipality"
               htmlFor="city_name"
-              hint="City or municipality name."
+              hint="Enter the city or municipality name."
             >
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                 <Input
                   id="city_name"
                   value={patient.city_name || ''}
-                  readOnly
-                  placeholder="City / Municipality"
-                  className="pl-10 bg-muted/30"
+                  onChange={handleInputChange('city_name')}
+                  placeholder="e.g. Manila City"
+                  className="pl-10"
                 />
               </div>
             </FormField>
@@ -690,32 +689,32 @@ const PatientProfiling = () => {
             <FormField
               label="Province"
               htmlFor="province_name"
-              hint="Province name from the database."
+              hint="Enter the province name."
             >
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                 <Input
                   id="province_name"
                   value={patient.province_name || ''}
-                  readOnly
-                  placeholder="Province name"
-                  className="pl-10 bg-muted/30"
+                  onChange={handleInputChange('province_name')}
+                  placeholder="e.g. Metro Manila"
+                  className="pl-10"
                 />
               </div>
             </FormField>
             <FormField
               label="Region"
               htmlFor="region_name"
-              hint="Region name from the database."
+              hint="Enter the region name."
             >
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                 <Input
                   id="region_name"
                   value={patient.region_name || ''}
-                  readOnly
-                  placeholder="Region name"
-                  className="pl-10 bg-muted/30"
+                  onChange={handleInputChange('region_name')}
+                  placeholder="e.g. NCR - National Capital Region"
+                  className="pl-10"
                 />
               </div>
             </FormField>
@@ -726,16 +725,16 @@ const PatientProfiling = () => {
             <FormField
               label="ZIP Code"
               htmlFor="zip_code"
-              hint="Postal ZIP code."
+              hint="Enter the postal ZIP code."
             >
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                 <Input
                   id="zip_code"
                   value={patient.zip_code || ''}
-                  readOnly
-                  placeholder="ZIP Code"
-                  className="pl-10 font-mono text-sm bg-muted/30"
+                  onChange={handleInputChange('zip_code')}
+                  placeholder="e.g. 1000"
+                  className="pl-10 font-mono text-sm"
                 />
               </div>
             </FormField>

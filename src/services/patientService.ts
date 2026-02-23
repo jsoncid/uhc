@@ -603,6 +603,12 @@ class PatientService {
         sex: patientData.sex,
         birth_date: patientData.birth_date,
         brgy: brgyUuid,
+        street: cleanValue(patientData.street),
+        brgy_name: cleanValue(patientData.brgy_name),
+        city_name: cleanValue(patientData.city_name),
+        province_name: cleanValue(patientData.province_name),
+        region_name: cleanValue(patientData.region_name),
+        zip_code: cleanValue(patientData.zip_code),
       };
 
       console.log('Attempting to save patient to Supabase:', supabaseData);
