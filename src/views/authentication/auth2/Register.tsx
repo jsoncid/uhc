@@ -1,14 +1,9 @@
 import { Link } from "react-router";
 import { Navigate } from 'react-router';
-import CardBox from "src/components/shared/CardBox";
-
 import AuthRegister from "../authforms/AuthRegister";
-// import SocialButtons from "../authforms/SocialButtons";
-
 import FullLogo from "src/layouts/full/shared/logo/FullLogo";
 import { useAuthStore } from '@/stores/useAuthStore';
-
-
+import Threads from '@/components/ui/Threads';
 
 const Register = () => {
   const { user } = useAuthStore();
@@ -18,28 +13,56 @@ const Register = () => {
   }
 
   return (
-    <>
-      <div className="relative overflow-hidden h-screen bg-lightprimary dark:bg-darkprimary">
-        <div className="flex h-full justify-center items-center px-4">
-          <CardBox className="md:w-[450px] w-full border-none">
-            <div className="mx-auto mb-6">
+    <div className="relative overflow-hidden h-screen">
+      {/* Full Screen Animated Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-background to-primary/5 dark:from-primary/15 dark:via-dark dark:to-primary/10">
+        <Threads
+          amplitude={2.1}
+          distance={0}
+          enableMouseInteraction
+        />
+      </div>
+
+      {/* Centered Content */}
+      <div className="relative z-10 flex flex-col items-center justify-center h-full px-6 py-12">
+        {/* Logo at Top */}
+        <div className="mb-12">
+          <div className="transform hover:scale-105 transition-transform duration-300">
+            <div className="scale-[3.5]">
               <FullLogo />
             </div>
-            {/* <SocialButtons title="or sign up with" /> */}
-            <AuthRegister />
-            <div className="flex gap-2 text-base text-ld font-medium mt-6 items-center justify-start">
-              <p>Already have an Account?</p>
-              <Link
-                to={"/auth/auth2/login"}
-                className="text-primary text-sm font-medium"
-              >
-                Sign in
-              </Link>
+          </div>
+        </div>
+
+        {/* Register Form Card - Centered */}
+        <div className="w-full max-w-md">
+          <div className="bg-white dark:bg-muted rounded-2xl shadow-2xl border border-border dark:border-border p-8">
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-dark dark:text-white mb-2">
+                Create Account
+              </h2>
+              <p className="text-bodytext dark:text-muted-foreground">
+                Sign up to get started
+              </p>
             </div>
-          </CardBox>
+
+            <AuthRegister />
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-bodytext dark:text-muted-foreground">
+                Already have an Account?{' '}
+                <Link
+                  to={"/auth/auth2/login"}
+                  className="text-primary hover:text-primary-emphasis font-semibold transition-colors"
+                >
+                  Sign in
+                </Link>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
