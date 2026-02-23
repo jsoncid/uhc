@@ -28,6 +28,7 @@ const StaffQueueManager = () => {
   const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
   const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
   const [transferTargetWindow, setTransferTargetWindow] = useState<string>('none');
+  const [transferSuccess, setTransferSuccess] = useState<string>('');
 
   const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
@@ -103,11 +104,16 @@ const StaffQueueManager = () => {
     return 10; // Regular/default - lowest priority
   };
 
-  const getWaitingSequences = (officeId: string): Sequence[] => {
+  const getWaitingSequences = (officeId: string, windowId?: string): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
-    const pending = getSequencesForOffice(officeId).filter(
+    let pending = getSequencesForOffice(officeId).filter(
       (seq) => seq.status === pendingStatus?.id,
     );
+    
+    // Filter by window if provided - show sequences assigned to this window OR unassigned (newly added)
+    if (windowId) {
+      pending = pending.filter((seq) => seq.window === windowId || !seq.window);
+    }
     
     // Sort by priority weight (lower = higher priority), then by created_at (FIFO within same priority)
     return pending.sort((a, b) => {
@@ -122,11 +128,15 @@ const StaffQueueManager = () => {
     });
   };
 
-  const getServingSequence = (officeId: string): Sequence | undefined => {
+  const getServingSequence = (officeId: string, windowId?: string): Sequence | undefined => {
     const servingStatus = getStatusByDescription('serving');
-    return getSequencesForOffice(officeId).find(
-      (seq) => seq.status === servingStatus?.id,
-    );
+    const officeSequences = getSequencesForOffice(officeId);
+    if (windowId) {
+      return officeSequences.find(
+        (seq) => seq.status === servingStatus?.id && seq.window === windowId,
+      );
+    }
+    return officeSequences.find((seq) => seq.status === servingStatus?.id);
   };
 
   const handleCallNext = async (officeId: string) => {
@@ -140,17 +150,18 @@ const StaffQueueManager = () => {
 
     console.log('📞 Calling next - servingStatus:', servingStatus, 'completedStatus:', completedStatus);
 
-    const currentServing = getServingSequence(officeId);
+    const windowId = selectedWindowByOffice[officeId];
+    // Only mark as completed if there's already a sequence serving at THIS specific window
+    const currentServing = getServingSequence(officeId, windowId);
     if (currentServing && completedStatus) {
       console.log('🔄 Marking current serving as completed:', currentServing.id);
       await updateSequenceStatus(currentServing.id, completedStatus.id);
     }
 
-    const waiting = getWaitingSequences(officeId);
+    let waiting = getWaitingSequences(officeId, windowId);
     const nextInQueue = waiting[0]; // Already sorted by priority
 
     if (nextInQueue) {
-      const windowId = selectedWindowByOffice[officeId];
       console.log('➡️ Calling next in queue:', nextInQueue.id, 'to window:', windowId);
       await updateSequenceStatus(nextInQueue.id, servingStatus.id, windowId ?? undefined);
     } else {
@@ -176,6 +187,8 @@ const StaffQueueManager = () => {
     if (!transferringSequence || !transferTargetOffice) return;
 
     const windowId = transferTargetWindow === 'none' ? null : transferTargetWindow;
+    const targetWindow = getTargetOfficeWindows().find((w) => w.id === windowId);
+    const targetOffice = activeOffices.find((o) => o.id === transferTargetOffice);
 
     await transferSequence(
       transferringSequence.id,
@@ -183,10 +196,20 @@ const StaffQueueManager = () => {
       windowId
     );
 
+    // Show success message with transfer details
+    const windowName = windowId
+      ? (targetWindow?.description || `Window ${windowId}`)
+      : 'Pending (No Window)';
+    const message = `✓ Queue ${transferringSequence?.queue_data?.code} transferred to ${targetOffice?.description} - ${windowName}`;
+    setTransferSuccess(message);
+
     setTransferDialogOpen(false);
     setTransferringSequence(null);
     setTransferTargetOffice('');
     setTransferTargetWindow('none');
+
+    // Clear success message after 3 seconds
+    setTimeout(() => setTransferSuccess(''), 3000);
   };
 
   const getTargetOfficeWindows = () => {
@@ -222,6 +245,12 @@ const StaffQueueManager = () => {
     <>
       <BreadcrumbComp title="Staff Queue Manager" items={BCrumb} />
 
+      {transferSuccess && (
+        <div className="mx-6 mt-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          {transferSuccess}
+        </div>
+      )}
+
       {activeOffices.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
@@ -239,8 +268,8 @@ const StaffQueueManager = () => {
           </TabsList>
 
           {activeOffices.map((office) => {
-            const serving = getServingSequence(office.id);
-            const waiting = getWaitingSequences(office.id);
+            const serving = getServingSequence(office.id, selectedWindowByOffice[office.id]);
+            const waiting = getWaitingSequences(office.id, selectedWindowByOffice[office.id]);
 
             return (
               <TabsContent key={office.id} value={office.id}>
@@ -273,7 +302,7 @@ const StaffQueueManager = () => {
                             </Select>
                           </div>
                         )}
-                        <Button onClick={() => handleCallNext(office.id)} disabled={isLoading}>
+                        <Button onClick={() => handleCallNext(office.id)} disabled={isLoading || !!serving}>
                           {isLoading ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : (
