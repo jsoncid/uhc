@@ -96,6 +96,22 @@ const QueueDisplay = () => {
 
   const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
+  const activeOfficesWithQueues = useMemo(() => {
+    return activeOffices.filter((office) => {
+      const hasServing = sequences.some(
+        (seq) =>
+          seq.office === office.id &&
+          seq.status_data?.description?.toLowerCase().includes('serving'),
+      );
+      const hasWaiting = sequences.some(
+        (seq) =>
+          seq.office === office.id &&
+          seq.status_data?.description?.toLowerCase().includes('pending'),
+      );
+      return hasServing || hasWaiting;
+    });
+  }, [activeOffices, sequences]);
+
   const pendingList = useMemo(() => {
     const pendingStatus = getStatusByDescription('pending');
     const officeIds = new Set(activeOffices.map((o) => o.id));
@@ -133,7 +149,16 @@ const QueueDisplay = () => {
         {/* Header: title + clock */}
         <header className="flex shrink-0 items-center justify-between border-b border-slate-700 pb-3">
           <h1 className="text-lg font-bold tracking-wide text-white md:text-xl">Queue Display</h1>
-          <div className="flex items-baseline gap-3">
+          <div className="flex items-baseline gap-4">
+            <div className="flex items-center gap-2">
+              {dynamicPriorityLegend.map((item) => (
+                <div key={item.label} className="flex items-center gap-1">
+                  <span className={`h-4 w-4 shrink-0 rounded-full ${item.style.dot}`} aria-hidden />
+                  <span className={`text-xl font-semibold ${item.style.text}`}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="h-6 w-px bg-slate-600" />
             <span
               className="text-xl font-bold tabular-nums text-white md:text-2xl"
               aria-live="polite"
@@ -144,76 +169,14 @@ const QueueDisplay = () => {
           </div>
         </header>
 
-        {/* Top section: Waiting queue with legend inside */}
-        <div
-          className="shrink-0 overflow-hidden rounded-xl border border-slate-700 bg-[#161b22]"
-          style={{ minHeight: '22vh', maxHeight: '26vh' }}
-        >
-          {/* Waiting queue header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-slate-700 px-4 py-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Waiting
-            </span>
-            <span className="text-xs font-semibold text-slate-400">
-              {pendingList.length} in queue
-            </span>
-          </div>
-          {/* Main content area with queue codes and legend */}
-          <div className="flex min-h-0 flex-1 gap-4 overflow-hidden p-3">
-            {/* Queue codes section */}
-            <div className="flex-1 overflow-hidden">
-              {pendingList.length === 0 ? (
-                <p className="flex h-full items-center justify-center text-sm text-slate-600">
-                  No one waiting
-                </p>
-              ) : (
-                <ul
-                  className="flex h-full flex-wrap content-start gap-2 overflow-hidden"
-                  role="list"
-                >
-                  {pendingList.map((seq) => {
-                    const style = getPriorityStyle(seq.priority_data?.description);
-                    return (
-                      <li key={seq.id} className="flex items-center justify-center">
-                        <span
-                          className={`text-lg font-black tracking-wider sm:text-xl ${style.text}`}
-                        >
-                          {seq.queue_data?.code || '---'}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-            {/* Legend inside waiting container */}
-            <div className="flex shrink-0 flex-col border-l border-slate-700 px-3 py-2">
-              <span className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
-                Legend
-              </span>
-              <div className="flex flex-col gap-1.5 overflow-y-auto">
-                {dynamicPriorityLegend.map((item) => (
-                  <div key={item.label} className="flex items-center gap-2">
-                    <span
-                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${item.style.dot}`}
-                      aria-hidden
-                    />
-                    <span className={`text-xs font-semibold ${item.style.text}`}>{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Bottom section: per-office columns */}
         <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden">
-          {activeOffices.length === 0 ? (
+          {activeOfficesWithQueues.length === 0 ? (
             <div className="flex flex-1 items-center justify-center text-slate-600">
-              No active offices
+              No active queues
             </div>
           ) : (
-            activeOffices.map((office: Office) => {
+            activeOfficesWithQueues.map((office: Office) => {
               const officeName = office.description || office.id;
 
               // Use enriched status_data & window_data — no fragile ID lookup needed
@@ -229,6 +192,26 @@ const QueueDisplay = () => {
                   style: getPriorityStyle(seq.priority_data?.description),
                 }));
 
+              const waitingEntries = sequences
+                .filter(
+                  (seq) =>
+                    seq.office === office.id &&
+                    seq.status_data?.description?.toLowerCase().includes('pending'),
+                )
+                .map((seq) => ({
+                  seq,
+                  windowLabel: seq.window_data?.description || null,
+                  style: getPriorityStyle(seq.priority_data?.description),
+                }))
+                .sort((a, b) => {
+                  const pa = getPriorityWeight(a.seq.priority_data?.description);
+                  const pb = getPriorityWeight(b.seq.priority_data?.description);
+                  if (pa !== pb) return pa - pb;
+                  return (
+                    new Date(a.seq.created_at).getTime() - new Date(b.seq.created_at).getTime()
+                  );
+                });
+
               return (
                 <div
                   key={office.id}
@@ -240,43 +223,73 @@ const QueueDisplay = () => {
                   </div>
 
                   {/* Now serving — stacked per active window */}
-                  <div className="flex flex-1 flex-col items-center justify-start gap-6 overflow-y-auto p-4">
+                  <div className="flex flex-1 flex-col items-center justify-start gap-0 overflow-y-auto pt-0 px-4 pb-4">
+                    {/* Serving section */}
                     {servingEntries.length > 0 ? (
-                      servingEntries.map(({ seq, windowLabel, style }, index) => (
-                        <div key={seq.id} className="flex w-full flex-col items-center gap-6">
-                          <div className="flex flex-col items-center gap-1">
-                            <span
-                              className={`text-center font-black tracking-[0.12em] ${style.text}`}
-                              style={{
-                                fontSize:
-                                  index === 0
-                                    ? 'clamp(2rem, 6vw, 3rem)'
-                                    : 'clamp(1.2rem, 3vw, 2rem)',
-                                lineHeight: 1.1,
-                              }}
-                              aria-live="polite"
-                            >
-                              {seq.queue_data?.code || '---'}
-                            </span>
-                            {windowLabel && (
-                              <span className="text-xs font-semibold text-slate-400">
-                                {windowLabel}
+                      <>
+                        <div className="w-full flex flex-col items-center gap-2 pb-4">
+                          {servingEntries.map(({ seq, windowLabel, style }) => (
+                            <div key={seq.id} className="flex w-full flex-col items-center gap-1">
+                              <span
+                                className={`text-center font-black tracking-[0.12em] ${style.text}`}
+                                style={{
+                                  fontSize: 'clamp(2rem, 6vw, 3rem)',
+                                  lineHeight: 1.1,
+                                }}
+                                aria-live="polite"
+                              >
+                                {seq.queue_data?.code || '---'}
                               </span>
-                            )}
-                          </div>
-                          {index < servingEntries.length - 1 && (
-                            <div className="w-full border-t border-dashed border-slate-600" />
-                          )}
+                              {windowLabel && (
+                                <span className="text-xs font-semibold text-slate-400">
+                                  {windowLabel}
+                                </span>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      ))
+                        <div className="w-full border-t-3 border-dashed border-slate-500 mb-4" />
+                      </>
                     ) : (
-                      <span
-                        className="font-bold text-slate-700"
-                        style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)' }}
-                      >
-                        —
-                      </span>
+                      <>
+                        <span
+                          className="font-bold text-slate-700 mb-4"
+                          style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)' }}
+                        >
+                          —
+                        </span>
+                        <div className="w-full border-t-3 border-dashed border-slate-500 mb-4" />
+                      </>
                     )}
+
+                    {/* Waiting section with small font */}
+                    <div className="w-full flex flex-col items-center gap-1 overflow-y-auto">
+                      {waitingEntries.length === 0 ? (
+                        <p className="text-xs text-slate-600">No waiting</p>
+                      ) : (
+                        <ul className="flex flex-col items-center gap-2 w-full" role="list">
+                          {waitingEntries.map(({ seq, windowLabel, style }) => (
+                            <li
+                              key={seq.id}
+                              className="flex flex-col items-center justify-center w-full"
+                              style={{ opacity: windowLabel ? 1 : 0.7 }}
+                            >
+                              <span
+                                className={`font-black tracking-wide ${style.text}`}
+                                style={{
+                                  fontSize: 'clamp(2rem, 6vw, 2.3rem)',
+                                }}
+                              >
+                                {seq.queue_data?.code || '---'}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-400">
+                                {windowLabel || 'Unassigned'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
