@@ -47,11 +47,14 @@ export interface UserForAssignment {
 interface OfficeUserAssignmentState {
   assignments: OfficeUserAssignment[];
   usersInAssignment: UserForAssignment[];
+  myAssignment: OfficeUserAssignment | null;
+  myAssignmentLoaded: boolean;
   isLoading: boolean;
   error: string | null;
 
   fetchOfficeUserAssignments: (assignmentId: string) => Promise<void>;
   fetchUsersInAssignment: (assignmentId: string) => Promise<void>;
+  fetchMyAssignment: (userId: string) => Promise<void>;
   assignUserToOffice: (userId: string, officeId: string, windowId?: string | null) => Promise<void>;
   updateUserOfficeAssignment: (assignmentId: string, newOfficeId: string, newWindowId?: string | null) => Promise<void>;
   removeUserFromOffice: (assignmentId: string) => Promise<void>;
@@ -61,6 +64,8 @@ interface OfficeUserAssignmentState {
 export const useOfficeUserAssignmentStore = create<OfficeUserAssignmentState>((set, get) => ({
   assignments: [],
   usersInAssignment: [],
+  myAssignment: null,
+  myAssignmentLoaded: false,
   isLoading: false,
   error: null,
 
@@ -162,6 +167,41 @@ export const useOfficeUserAssignmentStore = create<OfficeUserAssignmentState>((s
         error: error instanceof Error ? error.message : 'Failed to fetch users in assignment',
         isLoading: false,
       });
+    }
+  },
+
+  fetchMyAssignment: async (userId: string) => {
+    try {
+      const { data, error } = await module1
+        .from('office_user_assignment')
+        .select('*')
+        .eq('user', userId)
+        .limit(1);
+
+      if (error) {
+        console.warn('Failed to fetch my assignment:', error);
+        set({ myAssignment: null, myAssignmentLoaded: true });
+        return;
+      }
+
+      const row = data?.[0] ?? null;
+
+      if (row?.window) {
+        const { data: winData } = await module1
+          .from('window')
+          .select('description')
+          .eq('id', row.window)
+          .maybeSingle();
+
+        if (winData) {
+          row.window_description = winData.description || 'Unnamed Window';
+        }
+      }
+
+      set({ myAssignment: row, myAssignmentLoaded: true });
+    } catch (err) {
+      console.warn('Error fetching my assignment:', err);
+      set({ myAssignment: null, myAssignmentLoaded: true });
     }
   },
 

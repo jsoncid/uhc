@@ -17,6 +17,7 @@ import {
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
+import { useOfficeUserAssignmentStore } from '@/stores/module-1_stores/useOfficeUserAssignmentStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Staff Queue Manager' }];
@@ -43,6 +44,7 @@ const StaffQueueManager = () => {
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
+  const { myAssignment, myAssignmentLoaded, fetchMyAssignment } = useOfficeUserAssignmentStore();
 
   // Get assignment IDs from user profile
   const userAssignmentIds = useMemo(() => {
@@ -66,17 +68,23 @@ const StaffQueueManager = () => {
     return () => unsubscribe();
   }, [subscribeToSequences]);
 
+  // Fetch current user's office+window assignment
   useEffect(() => {
-    if (offices.length > 0 && !activeTab) {
-      setActiveTab(offices[0].id);
+    if (profile?.id) {
+      fetchMyAssignment(profile.id);
     }
-  }, [offices, activeTab]);
+  }, [profile?.id, fetchMyAssignment]);
 
-  // Default selected window to first active window per office
+  // Default selected window to first active window per office,
+  // but lock to assigned window when the user has one.
   useEffect(() => {
     setSelectedWindowByOffice((prev) => {
       const next = { ...prev };
       offices.forEach((office) => {
+        if (myAssignment?.office === office.id && myAssignment?.window) {
+          next[office.id] = myAssignment.window;
+          return;
+        }
         const activeWindows = (office.windows || []).filter((w) => w.status);
         if (activeWindows.length > 0 && next[office.id] === undefined) {
           next[office.id] = activeWindows[0].id;
@@ -84,7 +92,29 @@ const StaffQueueManager = () => {
       });
       return next;
     });
-  }, [offices]);
+  }, [offices, myAssignment]);
+
+  // Scope visible offices:
+  //  • Window-assigned user → only their assigned office
+  //  • Unassigned user      → all active offices (global access)
+  const activeOffices = useMemo(() => {
+    if (!myAssignmentLoaded) return [];
+    const all = offices.filter((o) => o.status);
+    if (myAssignment?.window) {
+      return all.filter((o) => o.id === myAssignment.office);
+    }
+    return all;
+  }, [offices, myAssignment, myAssignmentLoaded]);
+
+  // Keep activeTab in sync with visible offices
+  useEffect(() => {
+    if (activeOffices.length > 0) {
+      setActiveTab((prev) => {
+        const stillValid = activeOffices.some((o) => o.id === prev);
+        return stillValid ? prev : activeOffices[0].id;
+      });
+    }
+  }, [activeOffices]);
 
   const getStatusByDescription = (description: string) => {
     return statuses.find((s) => s.description?.toLowerCase().includes(description.toLowerCase()));
@@ -228,9 +258,8 @@ const StaffQueueManager = () => {
   };
 
   const isLoading = profileLoading || officesLoading || queueLoading;
-  const activeOffices = offices.filter((o) => o.status);
 
-  if (isLoading && activeOffices.length === 0) {
+  if (isLoading || !myAssignmentLoaded) {
     return (
       <>
         <BreadcrumbComp title="Staff Queue Manager" items={BCrumb} />
@@ -281,25 +310,34 @@ const StaffQueueManager = () => {
                         {(office.windows || []).filter((w) => w.status).length > 0 && (
                           <div className="flex items-center gap-2">
                             <Label className="text-sm text-muted-foreground whitespace-nowrap">Call to window</Label>
-                            <Select
-                              value={selectedWindowByOffice[office.id]?.toString() ?? ''}
-                              onValueChange={(v) =>
-                                setSelectedWindowByOffice((prev) => ({ ...prev, [office.id]: v }))
-                              }
-                            >
-                              <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Select window" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(office.windows || [])
-                                  .filter((w) => w.status)
-                                  .map((w) => (
-                                    <SelectItem key={w.id} value={w.id.toString()}>
-                                      {w.description || `Window ${w.id}`}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
+                            {/* Assigned user: locked window | Unassigned: free dropdown */}
+                            {myAssignment?.office === office.id && myAssignment?.window ? (
+                              <div className="px-3 py-2 border rounded-md text-sm bg-muted w-[180px]">
+                                {(office.windows || []).find((w) => w.id === myAssignment.window)?.description
+                                  || myAssignment.window_description
+                                  || 'Assigned Window'}
+                              </div>
+                            ) : (
+                              <Select
+                                value={selectedWindowByOffice[office.id]?.toString() ?? ''}
+                                onValueChange={(v) =>
+                                  setSelectedWindowByOffice((prev) => ({ ...prev, [office.id]: v }))
+                                }
+                              >
+                                <SelectTrigger className="w-[180px]">
+                                  <SelectValue placeholder="Select window" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(office.windows || [])
+                                    .filter((w) => w.status)
+                                    .map((w) => (
+                                      <SelectItem key={w.id} value={w.id.toString()}>
+                                        {w.description || `Window ${w.id}`}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                           </div>
                         )}
                         <Button onClick={() => handleCallNext(office.id)} disabled={isLoading || !!serving}>
