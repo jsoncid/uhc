@@ -59,15 +59,21 @@ interface QueueState {
   deleteStatus: (id: string) => Promise<void>;
   fetchSequences: (officeId?: string) => Promise<void>;
   generateQueueCode: (officeId: string, priorityId: string) => Promise<string | null>;
-  updateSequenceStatus: (sequenceId: string, statusId: string, windowId?: string | null) => Promise<void>;
-  transferSequence: (sequenceId: string, targetOfficeId: string, targetWindowId?: string | null) => Promise<void>;
+  updateSequenceStatus: (
+    sequenceId: string,
+    statusId: string,
+    windowId?: string | null,
+  ) => Promise<void>;
+  transferSequence: (
+    sequenceId: string,
+    targetOfficeId: string,
+    targetWindowId?: string | null,
+  ) => Promise<void>;
   isWindowAvailable: (windowId: string) => boolean;
   getServingSequenceForWindow: (windowId: string) => Sequence | undefined;
   subscribeToSequences: () => () => void;
   clearError: () => void;
 }
-
-
 
 export const useQueueStore = create<QueueState>((set, get) => ({
   sequences: [],
@@ -157,10 +163,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   deletePriority: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const { error: deleteError } = await module1
-        .from('priority')
-        .delete()
-        .eq('id', id);
+      const { error: deleteError } = await module1.from('priority').delete().eq('id', id);
 
       if (deleteError) throw deleteError;
 
@@ -223,9 +226,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       if (updateError) throw updateError;
 
       set((state) => ({
-        statuses: state.statuses.map((s) =>
-          s.id === id ? { ...s, description, status } : s,
-        ),
+        statuses: state.statuses.map((s) => (s.id === id ? { ...s, description, status } : s)),
         isLoading: false,
       }));
     } catch (error) {
@@ -239,10 +240,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   deleteStatus: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const { error: deleteError } = await module1
-        .from('status')
-        .delete()
-        .eq('id', id);
+      const { error: deleteError } = await module1.from('status').delete().eq('id', id);
 
       if (deleteError) throw deleteError;
 
@@ -284,15 +282,24 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       const queueIds = [...new Set(sequencesData.map((s) => s.queue))];
       const priorityIds = [...new Set(sequencesData.map((s) => s.priority))];
       const statusIds = [...new Set(sequencesData.map((s) => s.status))];
-      const windowIds = [...new Set((sequencesData as { window?: string | null }[]).map((s) => s.window).filter((id): id is string => id != null))];
+      const windowIds = [
+        ...new Set(
+          (sequencesData as { window?: string | null }[])
+            .map((s) => s.window)
+            .filter((id): id is string => id != null),
+        ),
+      ];
 
-      const [officesResult, queuesResult, prioritiesResult, statusesResult, windowsResult] = await Promise.all([
-        module1.from('office').select('id, description').in('id', officeIds),
-        module1.from('queue').select('*').in('id', queueIds),
-        module1.from('priority').select('*').in('id', priorityIds),
-        module1.from('status').select('*').in('id', statusIds),
-        windowIds.length > 0 ? module1.from('window').select('id, description').in('id', windowIds) : Promise.resolve({ data: [] }),
-      ]);
+      const [officesResult, queuesResult, prioritiesResult, statusesResult, windowsResult] =
+        await Promise.all([
+          module1.from('office').select('id, description').in('id', officeIds),
+          module1.from('queue').select('*').in('id', queueIds),
+          module1.from('priority').select('*').in('id', priorityIds),
+          module1.from('status').select('*').in('id', statusIds),
+          windowIds.length > 0
+            ? module1.from('window').select('id, description').in('id', windowIds)
+            : Promise.resolve({ data: [] }),
+        ]);
 
       const officesMap = new Map(officesResult.data?.map((o) => [o.id, o]) || []);
       const queuesMap = new Map(queuesResult.data?.map((q) => [q.id, q]) || []);
@@ -350,11 +357,10 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       }
 
       // Use the database function to generate a unique queue code
-      const { data: codeData, error: codeError } = await module1
-        .rpc('generate_ph_queue_code');
+      const { data: codeData, error: codeError } = await module1.rpc('generate_ph_queue_code');
 
       if (codeError) throw codeError;
-      
+
       const code = codeData as string;
 
       // Insert the new queue code
@@ -392,7 +398,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     try {
       const { statuses, sequences } = get();
       const currentSequence = sequences.find((s) => s.id === sequenceId);
-      
+
       if (!currentSequence) {
         throw new Error('Sequence not found');
       }
@@ -400,12 +406,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       const targetStatus = statuses.find((s) => s.id === statusId);
       const isCompleted = targetStatus?.description?.toLowerCase().includes('completed') || false;
 
-      console.log('📝 Processing sequence transition:', { 
-        sequenceId, 
-        statusId, 
-        windowId, 
+      console.log('📝 Processing sequence transition:', {
+        sequenceId,
+        statusId,
+        windowId,
         isCompleted,
-        currentQueue: currentSequence.queue 
+        currentQueue: currentSequence.queue,
       });
 
       // Step 1: Set current sequence as inactive
@@ -428,7 +434,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         status: statusId,
         is_active: !isCompleted,
       };
-      
+
       if (windowId !== undefined && windowId !== null) {
         newSequencePayload.window = windowId;
       }
@@ -452,7 +458,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           .from('queue')
           .update({ status: false })
           .eq('id', currentSequence.queue);
-        
+
         if (queueError) {
           console.error('❌ Queue update error:', queueError);
         } else {
@@ -464,8 +470,14 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       await get().fetchSequences();
     } catch (error: unknown) {
       console.error('❌ Failed to update sequence status:', error);
-      const errorObj = error as { message?: string; code?: string; details?: string; hint?: string };
-      const errorMessage = errorObj.message || 
+      const errorObj = error as {
+        message?: string;
+        code?: string;
+        details?: string;
+        hint?: string;
+      };
+      const errorMessage =
+        errorObj.message ||
         (error instanceof Error ? error.message : 'Failed to update sequence status');
       set({
         error: errorMessage,
@@ -477,9 +489,9 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const { sequences, statuses } = get();
     const servingStatus = statuses.find((s) => s.description?.toLowerCase().includes('serving'));
     if (!servingStatus) return true;
-    
+
     return !sequences.some(
-      (seq) => seq.window === windowId && seq.status === servingStatus.id && seq.is_active
+      (seq) => seq.window === windowId && seq.status === servingStatus.id && seq.is_active,
     );
   },
 
@@ -487,18 +499,22 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const { sequences, statuses } = get();
     const servingStatus = statuses.find((s) => s.description?.toLowerCase().includes('serving'));
     if (!servingStatus) return undefined;
-    
+
     return sequences.find(
-      (seq) => seq.window === windowId && seq.status === servingStatus.id && seq.is_active
+      (seq) => seq.window === windowId && seq.status === servingStatus.id && seq.is_active,
     );
   },
 
-  transferSequence: async (sequenceId: string, targetOfficeId: string, targetWindowId?: string | null) => {
+  transferSequence: async (
+    sequenceId: string,
+    targetOfficeId: string,
+    targetWindowId?: string | null,
+  ) => {
     set({ error: null });
     try {
       const { sequences, statuses, isWindowAvailable } = get();
       const currentSequence = sequences.find((s) => s.id === sequenceId);
-      
+
       if (!currentSequence) {
         throw new Error('Sequence not found');
       }
@@ -525,8 +541,10 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         sequenceId,
         targetOfficeId,
         targetWindowId,
-        newStatus: targetWindowId 
-          ? (isWindowAvailable(targetWindowId) ? 'serving' : 'pending')
+        newStatus: targetWindowId
+          ? isWindowAvailable(targetWindowId)
+            ? 'serving'
+            : 'pending'
           : 'pending',
       });
 
@@ -549,7 +567,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         priority: currentSequence.priority,
         status: newStatus,
         is_active: true,
-        window: targetWindowId ?? null,  // Explicitly set window (either windowId or null if no window selected)
+        window: targetWindowId ?? null, // Explicitly set window (either windowId or null if no window selected)
       };
 
       const { data: newSequence, error: insertError } = await module1
@@ -568,8 +586,14 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       await get().fetchSequences();
     } catch (error: unknown) {
       console.error('❌ Failed to transfer sequence:', error);
-      const errorObj = error as { message?: string; code?: string; details?: string; hint?: string };
-      const errorMessage = errorObj.message || 
+      const errorObj = error as {
+        message?: string;
+        code?: string;
+        details?: string;
+        hint?: string;
+      };
+      const errorMessage =
+        errorObj.message ||
         (error instanceof Error ? error.message : 'Failed to transfer sequence');
       set({
         error: errorMessage,
@@ -593,7 +617,9 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         module1.from('queue').select('*').eq('id', row.queue).single(),
         module1.from('priority').select('*').eq('id', row.priority).single(),
         module1.from('status').select('*').eq('id', row.status).single(),
-        row.window != null ? module1.from('window').select('id, description').eq('id', row.window).single() : Promise.resolve({ data: null }),
+        row.window != null
+          ? module1.from('window').select('id, description').eq('id', row.window).single()
+          : Promise.resolve({ data: null }),
       ]);
 
       return {
@@ -659,9 +685,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           };
           const enriched = await enrichRow(updatedRow);
           set((state) => ({
-            sequences: state.sequences.map((seq) =>
-              seq.id === updatedRow.id ? enriched : seq,
-            ),
+            sequences: state.sequences.map((seq) => (seq.id === updatedRow.id ? enriched : seq)),
           }));
         },
       )

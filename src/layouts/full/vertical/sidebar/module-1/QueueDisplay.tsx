@@ -7,15 +7,6 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 
-const PRIORITY_LEGEND = [
-  { label: 'Regular', color: 'bg-emerald-500', textColor: 'text-emerald-700' },
-  { label: 'Senior', color: 'bg-blue-500', textColor: 'text-blue-700' },
-  { label: 'PWD', color: 'bg-violet-500', textColor: 'text-violet-700' },
-  { label: 'Priority', color: 'bg-rose-500', textColor: 'text-rose-700' },
-  { label: 'Urgent', color: 'bg-amber-500', textColor: 'text-amber-700' },
-  { label: 'VIP', color: 'bg-amber-400', textColor: 'text-amber-800' },
-];
-
 const QueueDisplay = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const isDisplayMode = useMemo(() => {
@@ -28,8 +19,10 @@ const QueueDisplay = () => {
   const {
     sequences,
     statuses,
+    priorities,
     fetchSequences,
     fetchStatuses,
+    fetchPriorities,
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
@@ -42,7 +35,8 @@ const QueueDisplay = () => {
   useEffect(() => {
     fetchStatuses();
     fetchSequences();
-  }, [fetchStatuses, fetchSequences]);
+    fetchPriorities();
+  }, [fetchStatuses, fetchSequences, fetchPriorities]);
 
   useEffect(() => {
     if (!profileLoading) {
@@ -93,8 +87,15 @@ const QueueDisplay = () => {
     return { text: 'text-emerald-700', bg: 'bg-emerald-50', dot: 'bg-emerald-500' };
   };
 
+  const dynamicPriorityLegend = useMemo(() => {
+    return priorities.map((p) => ({
+      label: p.description || 'Unknown',
+      style: getPriorityStyle(p.description),
+    }));
+  }, [priorities]);
+
   const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
-  
+
   const pendingList = useMemo(() => {
     const pendingStatus = getStatusByDescription('pending');
     const officeIds = new Set(activeOffices.map((o) => o.id));
@@ -108,7 +109,7 @@ const QueueDisplay = () => {
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   }, [sequences, activeOffices, statuses]);
-  
+
   const isLoading = profileLoading || officesLoading || queueLoading;
 
   if (isLoading && activeOffices.length === 0) {
@@ -125,7 +126,7 @@ const QueueDisplay = () => {
   return (
     <>
       <div
-        className={`flex h-screen flex-col overflow-hidden bg-[#0d1117] text-white ${
+        className={`flex h-screen flex-col overflow-hidden  text-white ${
           isDisplayMode ? 'p-4 md:p-6' : 'p-4'
         } gap-4`}
       >
@@ -143,25 +144,24 @@ const QueueDisplay = () => {
           </div>
         </header>
 
-        {/* Top section: Waiting + Legend side by side */}
+        {/* Top section: Waiting queue with legend inside */}
         <div
-          className="grid shrink-0 grid-cols-1 gap-4 lg:grid-cols-12"
+          className="shrink-0 overflow-hidden rounded-xl border border-slate-700 bg-[#161b22]"
           style={{ minHeight: '22vh', maxHeight: '26vh' }}
         >
-          {/* Waiting queue */}
-          <section
-            className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#161b22] lg:col-span-9"
-            aria-label="Waiting queue"
-          >
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-700 px-4 py-2">
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                Waiting
-              </span>
-              <span className="text-xs font-semibold text-slate-400">
-                {pendingList.length} in queue
-              </span>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden p-3">
+          {/* Waiting queue header */}
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-700 px-4 py-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              Waiting
+            </span>
+            <span className="text-xs font-semibold text-slate-400">
+              {pendingList.length} in queue
+            </span>
+          </div>
+          {/* Main content area with queue codes and legend */}
+          <div className="flex min-h-0 flex-1 gap-4 overflow-hidden p-3">
+            {/* Queue codes section */}
+            <div className="flex-1 overflow-hidden">
               {pendingList.length === 0 ? (
                 <p className="flex h-full items-center justify-center text-sm text-slate-600">
                   No one waiting
@@ -174,10 +174,7 @@ const QueueDisplay = () => {
                   {pendingList.map((seq) => {
                     const style = getPriorityStyle(seq.priority_data?.description);
                     return (
-                      <li
-                        key={seq.id}
-                        className="flex items-center justify-center rounded-md border border-slate-700 bg-[#0d1117] px-3 py-1.5"
-                      >
+                      <li key={seq.id} className="flex items-center justify-center">
                         <span
                           className={`text-lg font-black tracking-wider sm:text-xl ${style.text}`}
                         >
@@ -189,27 +186,24 @@ const QueueDisplay = () => {
                 </ul>
               )}
             </div>
-          </section>
-
-          {/* Legend */}
-          <section
-            className="flex flex-col rounded-xl border border-slate-700 bg-[#161b22] lg:col-span-3"
-            aria-label="Priority legend"
-          >
-            <div className="shrink-0 border-b border-slate-700 px-4 py-2">
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            {/* Legend inside waiting container */}
+            <div className="flex shrink-0 flex-col border-l border-slate-700 px-3 py-2">
+              <span className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
                 Legend
               </span>
+              <div className="flex flex-col gap-1.5 overflow-y-auto">
+                {dynamicPriorityLegend.map((item) => (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <span
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${item.style.dot}`}
+                      aria-hidden
+                    />
+                    <span className={`text-xs font-semibold ${item.style.text}`}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2 p-3 lg:grid-cols-1">
-              {PRIORITY_LEGEND.map((item) => (
-                <div key={item.label} className="flex items-center gap-2">
-                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${item.color}`} aria-hidden />
-                  <span className={`text-xs font-semibold ${item.textColor}`}>{item.label}</span>
-                </div>
-              ))}
-            </div>
-          </section>
+          </div>
         </div>
 
         {/* Bottom section: per-office columns */}
@@ -246,7 +240,7 @@ const QueueDisplay = () => {
                   </div>
 
                   {/* Now serving — stacked per active window */}
-                  <div className="flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto p-4">
+                  <div className="flex flex-1 flex-col items-center justify-start gap-4 overflow-y-auto p-4">
                     {servingEntries.length > 0 ? (
                       servingEntries.map(({ seq, windowLabel, style }) => (
                         <div key={seq.id} className="flex flex-col items-center gap-1">
