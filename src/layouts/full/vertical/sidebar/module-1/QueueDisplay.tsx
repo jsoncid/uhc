@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
-import { useOfficeStore, Office, Window } from '@/stores/module-1_stores/useOfficeStore';
-import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
+import { useOfficeStore, Office } from '@/stores/module-1_stores/useOfficeStore';
+import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
@@ -18,7 +18,6 @@ const QueueDisplay = () => {
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
   const {
     sequences,
-    statuses,
     priorities,
     fetchSequences,
     fetchStatuses,
@@ -59,9 +58,6 @@ const QueueDisplay = () => {
   const formatDate = (d: Date) =>
     d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
-  const getStatusByDescription = (description: string) =>
-    statuses.find((s) => s.description?.toLowerCase().includes(description.toLowerCase()));
-
   const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
     const desc = (priorityDescription ?? '').toLowerCase();
     if (desc.includes('urgent')) return 1;
@@ -95,36 +91,6 @@ const QueueDisplay = () => {
   }, [priorities]);
 
   const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
-
-  const activeOfficesWithQueues = useMemo(() => {
-    return activeOffices.filter((office) => {
-      const hasServing = sequences.some(
-        (seq) =>
-          seq.office === office.id &&
-          seq.status_data?.description?.toLowerCase().includes('serving'),
-      );
-      const hasWaiting = sequences.some(
-        (seq) =>
-          seq.office === office.id &&
-          seq.status_data?.description?.toLowerCase().includes('pending'),
-      );
-      return hasServing || hasWaiting;
-    });
-  }, [activeOffices, sequences]);
-
-  const pendingList = useMemo(() => {
-    const pendingStatus = getStatusByDescription('pending');
-    const officeIds = new Set(activeOffices.map((o) => o.id));
-    const pending = sequences.filter(
-      (seq) => seq.status === pendingStatus?.id && officeIds.has(seq.office),
-    );
-    return pending.sort((a, b) => {
-      const pa = getPriorityWeight(a.priority_data?.description);
-      const pb = getPriorityWeight(b.priority_data?.description);
-      if (pa !== pb) return pa - pb;
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    });
-  }, [sequences, activeOffices, statuses]);
 
   const isLoading = profileLoading || officesLoading || queueLoading;
 
@@ -215,7 +181,7 @@ const QueueDisplay = () => {
               return (
                 <div
                   key={office.id}
-                  className="flex min-w-[160px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#161b22]"
+                  className="flex min-w-40 flex-1 flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#161b22]"
                 >
                   {/* Office header */}
                   <div className="shrink-0 border-b border-slate-700 px-3 py-2">

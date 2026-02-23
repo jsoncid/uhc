@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -45,7 +44,6 @@ const StaffQueueManager = () => {
     fetchStatuses,
     updateSequenceStatus,
     transferSequence,
-    isWindowAvailable,
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
@@ -301,13 +299,16 @@ const StaffQueueManager = () => {
                       <div className="flex items-center gap-3">
                         {(office.windows || []).filter((w) => w.status).length > 0 && (
                           <div className="flex items-center gap-2">
-                            <Label className="text-sm text-muted-foreground whitespace-nowrap">Call to window</Label>
+                            <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                              Call to window
+                            </Label>
                             {/* Assigned user: locked window | Unassigned: free dropdown */}
                             {myAssignment?.office === office.id && myAssignment?.window ? (
-                              <div className="px-3 py-2 border rounded-md text-sm bg-muted w-[180px]">
-                                {(office.windows || []).find((w) => w.id === myAssignment.window)?.description
-                                  || myAssignment.window_description
-                                  || 'Assigned Window'}
+                              <div className="px-3 py-2 border rounded-md text-sm bg-muted w-45">
+                                {(office.windows || []).find((w) => w.id === myAssignment.window)
+                                  ?.description ||
+                                  myAssignment.window_description ||
+                                  'Assigned Window'}
                               </div>
                             ) : (
                               <Select
@@ -316,7 +317,7 @@ const StaffQueueManager = () => {
                                   setSelectedWindowByOffice((prev) => ({ ...prev, [office.id]: v }))
                                 }
                               >
-                                <SelectTrigger className="w-[180px]">
+                                <SelectTrigger className="w-45">
                                   <SelectValue placeholder="Select window" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -438,7 +439,7 @@ const StaffQueueManager = () => {
 
       {/* Transfer Dialog */}
       <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-106.25">
           <DialogHeader>
             <DialogTitle>Transfer Queue</DialogTitle>
             <DialogDescription>
@@ -455,7 +456,6 @@ const StaffQueueManager = () => {
                 value={transferTargetOffice}
                 onValueChange={(v) => {
                   setTransferTargetOffice(v);
-                  setTransferTargetWindow('none');
                 }}
               >
                 <SelectTrigger>
@@ -470,8 +470,6 @@ const StaffQueueManager = () => {
                 </SelectContent>
               </Select>
             </div>
-
-
           </div>
 
           <DialogFooter>

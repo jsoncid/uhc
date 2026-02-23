@@ -505,11 +505,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     );
   },
 
-  transferSequence: async (
-    sequenceId: string,
-    targetOfficeId: string,
-    targetWindowId?: string | null,
-  ) => {
+  transferSequence: async (sequenceId: string, targetOfficeId: string) => {
     set({ error: null });
     try {
       const { sequences, statuses } = get();
