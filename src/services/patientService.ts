@@ -839,25 +839,48 @@ class PatientService {
   /**
    * Search patients in Supabase (patient_profile table)
    * For finding manually entered patients that may not have hpercode yet
+   * Includes location hierarchy and facility information
    */
   async searchSupabasePatients(
     search: string,
     options?: { limit?: number }
   ): Promise<{
     success: boolean;
-    data: PatientProfileDB['Row'][];
+    data: any[];
     count: number;
     message?: string;
   }> {
     try {
       const limit = options?.limit || 10;
       
-      // Search by first_name, last_name, or combination
+      // Search by first_name, last_name, hpercode, or philhealth_number with joins
       const { data, error, count } = await supabase
         .schema('module3')
         .from('patient_profile')
-        .select('*', { count: 'exact' })
-        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`)
+        .select(`
+          *,
+          brgy:brgy(
+            id,
+            description,
+            city_municipality:city_municipality(
+              id,
+              description,
+              province:province(
+                id,
+                description,
+                region:region(
+                  id,
+                  description
+                )
+              )
+            )
+          ),
+          patient_repository(
+            facility_code,
+            hpercode
+          )
+        `, { count: 'exact' })
+        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,hpercode.ilike.%${search}%,philhealth_number.ilike.%${search}%`)
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -883,6 +906,89 @@ class PatientService {
         data: [],
         count: 0,
         message: error instanceof Error ? error.message : 'Failed to search Supabase patients',
+      };
+    }
+  }
+
+  /**
+   * Get all patients from Supabase (paginated)
+   * Includes location hierarchy and facility information
+   */
+  async getSupabasePatients(page = 1, limit = 20): Promise<{
+    success: boolean;
+    data: any[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+    message?: string;
+  }> {
+    try {
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      // Query with joins to get location hierarchy and facility info
+      const { data, error, count } = await supabase
+        .schema('module3')
+        .from('patient_profile')
+        .select(`
+          *,
+          brgy:brgy(
+            id,
+            description,
+            city_municipality:city_municipality(
+              id,
+              description,
+              province:province(
+                id,
+                description,
+                region:region(
+                  id,
+                  description
+                )
+              )
+            )
+          ),
+          patient_repository(
+            facility_code,
+            hpercode
+          )
+        `, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) {
+        console.error('Error fetching Supabase patients:', error);
+        return {
+          success: false,
+          data: [],
+          pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+          message: error.message,
+        };
+      }
+
+      const total = count || 0;
+      const totalPages = Math.ceil(total / limit);
+
+      return {
+        success: true,
+        data: data || [],
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+        },
+      };
+    } catch (error) {
+      console.error('Get Supabase patients error:', error);
+      return {
+        success: false,
+        data: [],
+        pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+        message: error instanceof Error ? error.message : 'Failed to get Supabase patients',
       };
     }
   }

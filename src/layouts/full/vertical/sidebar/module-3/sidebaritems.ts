@@ -52,6 +52,12 @@ const SidebarContent: MenuItem[] = [
     heading: 'Module 3 - PATIENT REPOSITORY',
     children: [
       {
+        name: 'Patient List',
+        icon: 'solar:users-group-rounded-linear',
+        id: uniqueId(),
+        url: '/module-3/patient-list',
+      },
+      {
         name: 'Patient Profiling',
         icon: 'solar:user-circle-linear',
         id: uniqueId(),
