@@ -27,12 +27,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from 'src/components/ui/tooltip';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from 'src/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from 'src/components/ui/sheet';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,7 +70,9 @@ const TimelineEntry = ({ entry, isLast }: { entry: ReferralHistory; isLast: bool
       <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-wrap">
         <Badge
           variant="outline"
-          className={'text-[10px] sm:text-xs font-medium ' + getStatusStyle(entry.status_description)}
+          className={
+            'text-[10px] sm:text-xs font-medium ' + getStatusStyle(entry.status_description)
+          }
         >
           {entry.status_description ?? '—'}
         </Badge>
@@ -83,7 +80,9 @@ const TimelineEntry = ({ entry, isLast }: { entry: ReferralHistory; isLast: bool
           {format(new Date(entry.created_at), 'MMM dd, yyyy – h:mm a')}
         </span>
       </div>
-      <p className="text-xs sm:text-sm font-semibold mt-1 truncate">{entry.to_assignment_name ?? '—'}</p>
+      <p className="text-xs sm:text-sm font-semibold mt-1 truncate">
+        {entry.to_assignment_name ?? '—'}
+      </p>
       {entry.details && (
         <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">
           {entry.details}
@@ -202,7 +201,11 @@ const HistoryPanel = ({
               className="h-8 w-8 flex-shrink-0 rounded-full"
               onClick={onClose}
             >
-              <Icon icon="solar:close-circle-bold-duotone" height={20} className="text-muted-foreground" />
+              <Icon
+                icon="solar:close-circle-bold-duotone"
+                height={20}
+                className="text-muted-foreground"
+              />
             </Button>
           </div>
         </SheetHeader>
@@ -213,141 +216,147 @@ const HistoryPanel = ({
             ref={scrollRef}
             className="absolute inset-0 overflow-y-auto scrollbar-none px-4 sm:px-6 py-4"
           >
-          {/* Patient Info Card */}
-          <div className="rounded-lg border bg-card p-3 sm:p-4 mb-4">
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-              <Icon icon="solar:document-text-bold-duotone" height={14} />
-              Referral Details
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <div className="flex items-start gap-2">
-                <Icon
-                  icon="solar:buildings-bold-duotone"
-                  height={16}
-                  className="text-muted-foreground mt-0.5 flex-shrink-0"
-                />
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                    From
-                  </p>
-                  <p className="text-xs sm:text-sm font-semibold truncate">
-                    {referral.from_assignment_name ?? '—'}
-                  </p>
+            {/* Patient Info Card */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4 mb-4">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Icon icon="solar:document-text-bold-duotone" height={14} />
+                Referral Details
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="flex items-start gap-2">
+                  <Icon
+                    icon="solar:buildings-bold-duotone"
+                    height={16}
+                    className="text-muted-foreground mt-0.5 flex-shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                      From
+                    </p>
+                    <p className="text-xs sm:text-sm font-semibold truncate">
+                      {referral.from_assignment_name ?? '—'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Icon
+                    icon="solar:map-arrow-right-bold-duotone"
+                    height={16}
+                    className="text-muted-foreground mt-0.5 flex-shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                      Destination
+                    </p>
+                    <p className="text-xs sm:text-sm font-semibold truncate">
+                      {referral.to_assignment_name ?? '—'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Icon
+                    icon="solar:calendar-bold-duotone"
+                    height={16}
+                    className="text-muted-foreground mt-0.5 flex-shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                      Date Created
+                    </p>
+                    <p className="text-xs sm:text-sm font-semibold">{fmt(referral.created_at)}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Icon
+                    icon="solar:tag-bold-duotone"
+                    height={16}
+                    className="text-muted-foreground mt-0.5 flex-shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                      Last Status
+                    </p>
+                    <Badge
+                      variant="outline"
+                      className={
+                        'text-[10px] sm:text-xs font-medium mt-0.5 ' +
+                        getStatusStyle(referral.latest_status?.description)
+                      }
+                    >
+                      {referral.latest_status?.description ?? '—'}
+                    </Badge>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-start gap-2">
-                <Icon
-                  icon="solar:map-arrow-right-bold-duotone"
-                  height={16}
-                  className="text-muted-foreground mt-0.5 flex-shrink-0"
-                />
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                    Destination
-                  </p>
-                  <p className="text-xs sm:text-sm font-semibold truncate">
-                    {referral.to_assignment_name ?? '—'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <Icon
-                  icon="solar:calendar-bold-duotone"
-                  height={16}
-                  className="text-muted-foreground mt-0.5 flex-shrink-0"
-                />
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                    Date Created
-                  </p>
-                  <p className="text-xs sm:text-sm font-semibold">{fmt(referral.created_at)}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <Icon
-                  icon="solar:tag-bold-duotone"
-                  height={16}
-                  className="text-muted-foreground mt-0.5 flex-shrink-0"
-                />
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                    Last Status
-                  </p>
-                  <Badge
-                    variant="outline"
-                    className={
-                      'text-[10px] sm:text-xs font-medium mt-0.5 ' +
-                      getStatusStyle(referral.latest_status?.description)
-                    }
-                  >
-                    {referral.latest_status?.description ?? '—'}
-                  </Badge>
-                </div>
-              </div>
+
+              {/* Deactivation Info */}
+              {referral.deactivated_by && (
+                <>
+                  <Separator className="my-3" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="flex items-start gap-2">
+                      <Icon
+                        icon="solar:user-cross-bold-duotone"
+                        height={16}
+                        className="text-error mt-0.5 flex-shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                          Deactivated By
+                        </p>
+                        <p className="text-xs sm:text-sm font-semibold">
+                          {referral.deactivated_by}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Icon
+                        icon="solar:calendar-mark-bold-duotone"
+                        height={16}
+                        className="text-error mt-0.5 flex-shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                          Deactivated At
+                        </p>
+                        <p className="text-xs sm:text-sm font-semibold">
+                          {fmt(referral.deactivated_at, 'MMM dd, yyyy – h:mm a')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Deactivation Info */}
-            {referral.deactivated_by && (
-              <>
-                <Separator className="my-3" />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="flex items-start gap-2">
-                    <Icon
-                      icon="solar:user-cross-bold-duotone"
-                      height={16}
-                      className="text-error mt-0.5 flex-shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                        Deactivated By
-                      </p>
-                      <p className="text-xs sm:text-sm font-semibold">{referral.deactivated_by}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Icon
-                      icon="solar:calendar-mark-bold-duotone"
-                      height={16}
-                      className="text-error mt-0.5 flex-shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                        Deactivated At
-                      </p>
-                      <p className="text-xs sm:text-sm font-semibold">
-                        {fmt(referral.deactivated_at, 'MMM dd, yyyy – h:mm a')}
-                      </p>
-                    </div>
-                  </div>
+            {/* Journey Timeline */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-2">
+                <Icon icon="solar:history-bold-duotone" height={14} />
+                Referral Journey
+                {sorted.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-auto">
+                    {sorted.length} {sorted.length === 1 ? 'stop' : 'stops'}
+                  </Badge>
+                )}
+              </h4>
+              {sorted.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <Icon icon="solar:history-bold-duotone" height={32} className="opacity-30 mb-2" />
+                  <p className="text-sm">No history recorded</p>
                 </div>
-              </>
-            )}
-          </div>
-
-          {/* Journey Timeline */}
-          <div className="rounded-lg border bg-card p-3 sm:p-4">
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-2">
-              <Icon icon="solar:history-bold-duotone" height={14} />
-              Referral Journey
-              {sorted.length > 0 && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-auto">
-                  {sorted.length} {sorted.length === 1 ? 'stop' : 'stops'}
-                </Badge>
+              ) : (
+                <div className="space-y-0">
+                  {sorted.map((entry, idx) => (
+                    <TimelineEntry
+                      key={entry.id}
+                      entry={entry}
+                      isLast={idx === sorted.length - 1}
+                    />
+                  ))}
+                </div>
               )}
-            </h4>
-            {sorted.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                <Icon icon="solar:history-bold-duotone" height={32} className="opacity-30 mb-2" />
-                <p className="text-sm">No history recorded</p>
-              </div>
-            ) : (
-              <div className="space-y-0">
-                {sorted.map((entry, idx) => (
-                  <TimelineEntry key={entry.id} entry={entry} isLast={idx === sorted.length - 1} />
-                ))}
-              </div>
-            )}
-          </div>
+            </div>
           </div>
 
           {/* Scroll indicator arrow */}
@@ -358,11 +367,7 @@ const HistoryPanel = ({
             >
               <div className="flex flex-col items-center gap-0.5 animate-bounce">
                 <span className="text-[10px] text-muted-foreground font-medium">Scroll down</span>
-                <Icon
-                  icon="solar:alt-arrow-down-bold"
-                  height={18}
-                  className="text-primary"
-                />
+                <Icon icon="solar:alt-arrow-down-bold" height={18} className="text-primary" />
               </div>
             </div>
           )}
@@ -642,123 +647,6 @@ const AllHistoryTab = ({
   );
 };
 
-// ─── Tab: Discharged ──────────────────────────────────────────────────────────
-const DischargedTab = ({
-  referrals,
-  incoming,
-  onView,
-  search,
-}: {
-  referrals: ReferralType[];
-  incoming: ReferralType[];
-  onView: (r: ReferralType) => void;
-  search: string;
-}) => {
-  const [page, setPage] = useState(1);
-  useEffect(() => {
-    setPage(1);
-  }, [search]);
-
-  // Merge outgoing + incoming discharged, deduplicate by id
-  const seen = new Set<string>();
-  const discharged = [...referrals, ...incoming]
-    .filter((r) => r.latest_status?.description === 'Discharged')
-    .filter((r) => {
-      if (seen.has(r.id)) return false;
-      seen.add(r.id);
-      return true;
-    });
-  const allVisible = discharged
-    .filter((r) => {
-      const q = search.toLowerCase();
-      return (
-        !q ||
-        (r.patient_name ?? '').toLowerCase().includes(q) ||
-        (r.from_assignment_name ?? '').toLowerCase().includes(q) ||
-        (r.referral_info?.referring_doctor ?? '').toLowerCase().includes(q)
-      );
-    })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  const visible = allVisible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  return (
-    <>
-      <div>
-        <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
-          <Table className="min-w-[860px]">
-            <TableHeader>
-              <TableRow className="bg-muted/30">
-                <TableHead className="font-semibold">Patient</TableHead>
-                <TableHead className="font-semibold">From Assignment</TableHead>
-                <TableHead className="font-semibold">Referring Doctor</TableHead>
-                <TableHead className="font-semibold">Destination</TableHead>
-                <TableHead className="font-semibold">Date Created</TableHead>
-                <TableHead className="font-semibold">Journey</TableHead>
-                <TableHead className="font-semibold text-right">History</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
-                    <div className="flex flex-col items-center gap-2">
-                      <Icon icon="solar:exit-bold-duotone" height={44} className="opacity-25" />
-                      <p className="text-sm">No discharged referrals found</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                visible.map((r) => (
-                  <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {r.from_assignment_name ?? '—'}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {r.referral_info?.referring_doctor ?? '—'}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {r.to_assignment_name ?? '—'}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {fmt(r.created_at)}
-                    </TableCell>
-                    <TableCell>
-                      <StopBadges history={r.history ?? []} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-secondary hover:bg-lightsecondary"
-                              onClick={() => onView(r)}
-                            >
-                              <Icon icon="solar:history-bold-duotone" height={16} />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>View History</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-      <Paginator total={allVisible.length} page={page} perPage={PAGE_SIZE} onPageChange={setPage} />
-    </>
-  );
-};
-
 // ─── Tab: Deactivated ─────────────────────────────────────────────────────────
 const DeactivatedTab = ({
   deactivated,
@@ -908,10 +796,6 @@ const ReferralHistoryPage = () => {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('history');
 
-  const dischargedCount = [...referrals, ...incomingReferrals]
-    .filter((r) => r.latest_status?.description === 'Discharged')
-    .reduce((acc, r) => (acc.has(r.id) ? acc : acc.add(r.id)), new Set<string>()).size;
-
   return (
     <>
       <CardBox>
@@ -938,16 +822,6 @@ const ReferralHistoryPage = () => {
                   {referrals.length + deactivatedReferrals.length}
                 </Badge>
               </TabsTrigger>
-              <TabsTrigger value="discharged" className="flex items-center gap-1.5">
-                <Icon icon="solar:exit-bold-duotone" height={15} />
-                Discharged
-                <Badge
-                  variant="outline"
-                  className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lightsecondary text-secondary border-secondary/20"
-                >
-                  {dischargedCount}
-                </Badge>
-              </TabsTrigger>
               <TabsTrigger value="deactivated" className="flex items-center gap-1.5">
                 <Icon icon="solar:archive-minimalistic-bold-duotone" height={15} />
                 Deactivated
@@ -966,15 +840,6 @@ const ReferralHistoryPage = () => {
             <AllHistoryTab
               referrals={referrals}
               deactivated={deactivatedReferrals}
-              incoming={incomingReferrals}
-              onView={setSelected}
-              search={search}
-            />
-          </TabsContent>
-
-          <TabsContent value="discharged">
-            <DischargedTab
-              referrals={referrals}
               incoming={incomingReferrals}
               onView={setSelected}
               search={search}

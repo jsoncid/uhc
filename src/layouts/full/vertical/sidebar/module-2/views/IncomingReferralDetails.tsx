@@ -4,8 +4,7 @@ import IncomingReferralDetail from '../apps/referrals/IncomingReferralDetail';
 const BCrumb = [
   { to: '/', title: 'Home' },
   { to: '/module-2/referrals', title: 'Referrals' },
-  { to: '/module-2/referrals/incoming', title: 'Incoming Referrals' },
-  { title: 'Referral Details' },
+  { title: 'Incoming Referral Details' },
 ];
 
 const IncomingReferralDetails = () => {

@@ -423,40 +423,74 @@ const ReferralListing = () => {
 
   return (
     <CardBox>
-      <div className="flex flex-wrap justify-between items-center gap-4 ">
+      {/* ── Header ── */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h5 className="card-title">Referral List</h5>
+          <h5 className="text-lg font-semibold">Sent Referrals</h5>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Referrals sent from your facility to other hospitals
+          </p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-        
-          {/* Date filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground font-medium">Date:</span>
-            <div className="relative">
-              <Input
-                type="date"
-                className={`h-9 text-sm ${dateFrom ? 'w-44 pr-7' : 'w-36'}`}
-                value={dateFrom}
-                onChange={(e) => {
-                  setDateFrom(e.target.value);
-                  setPage(1);
-                }}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" className="whitespace-nowrap">
+              <Icon icon="solar:add-circle-bold-duotone" height={17} className="mr-1.5" />
+              New Referral
+              <Icon icon="solar:alt-arrow-down-bold" height={14} className="ml-1.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[190px]">
+            <DropdownMenuItem onClick={() => navigate('/module-2/referrals/create')}>
+              <Icon
+                icon="solar:document-medicine-bold-duotone"
+                height={16}
+                className="mr-2 text-primary"
               />
-              {dateFrom && (
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    setDateFrom('');
-                    setPage(1);
-                  }}
-                >
-                  <Icon icon="solar:close-circle-linear" height={14} />
-                </button>
-              )}
-            </div>
-          </div>
-            <div className="relative sm:w-60 w-full">
+              Regular Referral
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/module-2/referrals/create-obgyne')}>
+              <Icon
+                icon="solar:heart-angle-bold-duotone"
+                height={16}
+                className="mr-2 text-pink-500"
+              />
+              OB/GYNE Referral
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <Separator className="my-4" />
+
+      {/* ── Filters ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            'all',
+            'Pending',
+            'Accepted',
+            'In Transit',
+            'Arrived',
+            'Admitted',
+            'Discharged',
+            'Declined',
+          ].map((f) => (
+            <Button
+              key={f}
+              size="sm"
+              variant={filter === f ? 'default' : 'outline'}
+              className="h-7 text-xs px-3"
+              onClick={() => {
+                setFilter(f);
+                setPage(1);
+              }}
+            >
+              {f === 'all' ? 'All' : f}
+            </Button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative sm:w-56 w-full">
             <Icon
               icon="tabler:search"
               height={16}
@@ -472,62 +506,30 @@ const ReferralListing = () => {
               placeholder="Search patient, doctor..."
             />
           </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" className="whitespace-nowrap">
-                <Icon icon="solar:add-circle-bold-duotone" height={17} className="mr-1.5" />
-                New Referral
-                <Icon icon="solar:alt-arrow-down-bold" height={14} className="ml-1.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[190px]">
-              <DropdownMenuItem onClick={() => navigate('/module-2/referrals/create')}>
-                <Icon
-                  icon="solar:document-medicine-bold-duotone"
-                  height={16}
-                  className="mr-2 text-primary"
-                />
-                Regular Referral
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/module-2/referrals/create-obgyne')}>
-                <Icon
-                  icon="solar:heart-angle-bold-duotone"
-                  height={16}
-                  className="mr-2 text-pink-500"
-                />
-                OB/GYNE Referral
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="relative">
+            <Input
+              type="date"
+              className={`h-9 text-sm ${dateFrom ? 'w-44 pr-7' : 'w-36'}`}
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+            />
+            {dateFrom && (
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setDateFrom('');
+                  setPage(1);
+                }}
+              >
+                <Icon icon="solar:close-circle-linear" height={14} />
+              </button>
+            )}
+          </div>
         </div>
-      </div>
-
-      {/* Status filter tabs */}
-      <div className="flex flex-wrap gap-1.5">
-        {[
-          'all',
-          'Pending',
-          'Accepted',
-          'In Transit',
-          'Arrived',
-          'Admitted',
-          'Discharged',
-          'Declined',
-        ].map((f) => (
-          <Button
-            key={f}
-            size="sm"
-            variant={filter === f ? 'default' : 'outline'}
-            className="h-7 text-xs px-3"
-            onClick={() => {
-              setFilter(f);
-              setPage(1);
-            }}
-          >
-            {f === 'all' ? 'All' : f}
-          </Button>
-        ))}
       </div>
 
       <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">

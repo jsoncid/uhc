@@ -285,13 +285,13 @@ const IncomingReferralDetail = () => {
           />
           <p className="text-muted-foreground font-medium">Referral not found.</p>
           <Button
-            onClick={() => navigate('/module-2/referrals/incoming')}
+            onClick={() => navigate('/module-2/referrals')}
             variant="outline"
             size="sm"
             className="mt-2"
           >
             <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
-            Back to Incoming
+            Back to Referrals
           </Button>
         </div>
       </CardBox>
@@ -365,11 +365,7 @@ const IncomingReferralDetail = () => {
                 />
                 Print
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/module-2/referrals/incoming')}
-              >
+              <Button variant="outline" size="sm" onClick={() => navigate('/module-2/referrals')}>
                 <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
                 Back
               </Button>

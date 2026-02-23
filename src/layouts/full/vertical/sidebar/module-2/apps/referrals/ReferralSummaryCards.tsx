@@ -23,7 +23,8 @@ const ReferralSummaryCards = () => {
 
   // Incoming cards —————————————————
   const inAwaitingReview = inCount('Pending');
-  const inActive = inCount('Accepted') + inCount('In Transit') + inCount('Arrived');
+  const inActive =
+    inCount('Accepted') + inCount('In Transit') + inCount('Arrived') + inCount('Admitted');
   const inDischarged = inCount('Discharged');
 
   const totalPending = outPending + inAwaitingReview;
@@ -67,7 +68,7 @@ const ReferralSummaryCards = () => {
     },
     {
       label: 'Active Patients',
-      sub: 'Accepted · In Transit · Arrived',
+      sub: 'Accepted · Admitted',
       value: totalActive,
       pct: totalIn === 0 ? 0 : Math.round((totalActive / totalIn) * 100),
       icon: 'solar:hospital-bold-duotone',

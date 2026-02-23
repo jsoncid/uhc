@@ -11,7 +11,7 @@ import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
 import { Badge } from 'src/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from 'src/components/ui/tabs';
+import { Separator } from 'src/components/ui/separator';
 import {
   Table,
   TableBody,
@@ -124,8 +124,8 @@ const Paginator = ({
   );
 };
 
-// ─── Incoming stat cards ─────────────────────────────────────────────────────
-const IncomingStatCards = ({ referrals }: { referrals: ReferralType[] }) => {
+// ─── Incoming stat cards (exported for standalone use) ────────────────────────
+export const IncomingStatCards = ({ referrals }: { referrals: ReferralType[] }) => {
   const total = referrals.length;
   const count = (desc: string) =>
     referrals.filter((r) => r.latest_status?.description === desc).length;
@@ -1106,142 +1106,105 @@ const IncomingReferralPage = () => {
 
   return (
     <>
-      {/* Incoming-only stat cards */}
-      <IncomingStatCards referrals={dateFilteredReferrals} />
-
       <CardBox>
-        <div className="flex flex-col gap-1">
-          <h5 className="card-title">Incoming Referrals</h5>
-          <p className="text-xs text-muted-foreground">
-            Referrals from other hospitals directed to your facility
-          </p>
+        {/* ── Header ── */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h5 className="text-lg font-semibold">Received Referrals</h5>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Referrals from other hospitals directed to your facility
+            </p>
+          </div>
         </div>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => {
-            setActiveTab(v);
-            setSearch('');
-          }}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <TabsList>
-              <TabsTrigger value="pending" className="flex items-center gap-1.5">
-                <Icon icon="solar:clock-circle-bold-duotone" height={15} />
-                Awaiting Response
-                {pendingCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lightwarning text-warning border-warning/20"
-                  >
-                    {pendingCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="active" className="flex items-center gap-1.5">
-                <Icon icon="solar:hospital-bold-duotone" height={15} />
-                Active Patients
-                {activeCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lightsuccess text-success border-success/20"
-                  >
-                    {activeCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="declined" className="flex items-center gap-1.5">
-                <Icon icon="solar:close-circle-bold-duotone" height={15} />
-                Declined
-                {declinedCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lighterror text-error border-error/20"
-                  >
-                    {declinedCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="discharged" className="flex items-center gap-1.5">
-                <Icon icon="solar:logout-3-bold-duotone" height={15} />
-                Discharged
-                {dischargedCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lightsecondary text-secondary border-secondary/20"
-                  >
-                    {dischargedCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
+        <Separator className="my-4" />
 
-            {/* Search + Date range */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative sm:w-60 w-full">
-                <Icon
-                  icon="tabler:search"
-                  height={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                  type="text"
-                  className="pl-9 h-9 text-sm"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search patient, hospital..."
-                />
-              </div>
-              <div className="relative">
-                <Input
-                  type="date"
-                  className={`h-9 text-sm ${dateFrom ? 'w-44 pr-7' : 'w-36'}`}
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                />
-                {dateFrom && (
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    onClick={() => setDateFrom('')}
-                  >
-                    <Icon icon="solar:close-circle-linear" height={14} />
-                  </button>
+        {/* ── Filters ── */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { key: 'pending', label: 'Awaiting Response', count: pendingCount },
+              { key: 'active', label: 'Active Patients', count: activeCount },
+              { key: 'declined', label: 'Declined', count: declinedCount },
+              { key: 'discharged', label: 'Discharged', count: dischargedCount },
+            ].map((f) => (
+              <Button
+                key={f.key}
+                size="sm"
+                variant={activeTab === f.key ? 'default' : 'outline'}
+                className="h-7 text-xs px-3"
+                onClick={() => {
+                  setActiveTab(f.key);
+                  setSearch('');
+                }}
+              >
+                {f.label}
+                {f.count > 0 && (
+                  <Badge variant="outline" className="ml-1.5 text-[10px] px-1.5 py-0 h-4">
+                    {f.count}
+                  </Badge>
                 )}
-              </div>
+              </Button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative sm:w-56 w-full">
+              <Icon
+                icon="tabler:search"
+                height={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                type="text"
+                className="pl-9 h-9 text-sm"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search patient, hospital..."
+              />
+            </div>
+            <div className="relative">
+              <Input
+                type="date"
+                className={`h-9 text-sm ${dateFrom ? 'w-44 pr-7' : 'w-36'}`}
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+              {dateFrom && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setDateFrom('')}
+                >
+                  <Icon icon="solar:close-circle-linear" height={14} />
+                </button>
+              )}
             </div>
           </div>
+        </div>
 
-          <TabsContent value="pending">
-            <PendingTab
-              referrals={dateFilteredReferrals}
-              search={search}
-              onAccept={setAcceptTarget}
-              onReject={setRejectTarget}
-              onPrint={setPrintTarget}
-            />
-          </TabsContent>
-
-          <TabsContent value="active">
-            <ActiveTab referrals={dateFilteredReferrals} search={search} onPrint={setPrintTarget} />
-          </TabsContent>
-
-          <TabsContent value="declined">
-            <DeclinedTab
-              referrals={dateFilteredReferrals}
-              search={search}
-              onPrint={setPrintTarget}
-            />
-          </TabsContent>
-
-          <TabsContent value="discharged">
-            <DischargedTab
-              referrals={dateFilteredReferrals}
-              search={search}
-              onPrint={setPrintTarget}
-            />
-          </TabsContent>
-        </Tabs>
+        {/* ── Content ── */}
+        {activeTab === 'pending' && (
+          <PendingTab
+            referrals={dateFilteredReferrals}
+            search={search}
+            onAccept={setAcceptTarget}
+            onReject={setRejectTarget}
+            onPrint={setPrintTarget}
+          />
+        )}
+        {activeTab === 'active' && (
+          <ActiveTab referrals={dateFilteredReferrals} search={search} onPrint={setPrintTarget} />
+        )}
+        {activeTab === 'declined' && (
+          <DeclinedTab referrals={dateFilteredReferrals} search={search} onPrint={setPrintTarget} />
+        )}
+        {activeTab === 'discharged' && (
+          <DischargedTab
+            referrals={dateFilteredReferrals}
+            search={search}
+            onPrint={setPrintTarget}
+          />
+        )}
       </CardBox>
 
       {/* Accept Dialog */}

@@ -29,9 +29,6 @@ const ReferralDetails = Loadable(
 const ReferralHistory = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/ReferralHistory')),
 );
-const IncomingReferrals = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/IncomingReferrals')),
-);
 const IncomingReferralDetails = Loadable(
   lazy(() => import('../layouts/full/vertical/sidebar/module-2/views/IncomingReferralDetails')),
 );
@@ -88,16 +85,6 @@ export const module2Routes = [
           <ProtectedRoute>
             <ModuleRoute moduleName={PAGE_MODULES.MODULE_2_REFERRAL_HISTORY}>
               <ReferralHistory />
-            </ModuleRoute>
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/module-2/referrals/incoming',
-        element: (
-          <ProtectedRoute>
-            <ModuleRoute moduleName={PAGE_MODULES.MODULE_2_INCOMING_REFERRALS}>
-              <IncomingReferrals />
             </ModuleRoute>
           </ProtectedRoute>
         ),
