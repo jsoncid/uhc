@@ -99,15 +99,15 @@ const QueueDisplay = () => {
 
   const getServingSequenceForWindow = (
     officeId: string,
-    windowId: number,
-    firstWindowId: number,
+    windowId: string,
+    firstWindowId: string,
   ): Sequence | undefined => {
     const serving = getStatusByDescription('serving');
     return sequences.find(
       (seq) =>
         seq.office === officeId &&
         seq.status === serving?.id &&
-        (seq.window_id === windowId || (seq.window_id == null && windowId === firstWindowId)),
+        (seq.window === windowId || (seq.window == null && windowId === firstWindowId)),
     );
   };
 
@@ -164,7 +164,7 @@ const QueueDisplay = () => {
             <div className="grid min-h-0 flex-1 gap-4 overflow-hidden sm:grid-cols-2 lg:grid-cols-3">
             {activeOffices.map((office: Office) => {
               const officeWindows = (office.windows || []).filter((w: Window) => w.status);
-              const firstWindowId = officeWindows[0]?.id ?? null;
+              const firstWindowId = officeWindows[0]?.id ?? '';
               const officeName = office.description || office.id;
 
               // Only windows that are currently serving a queue code
@@ -173,7 +173,7 @@ const QueueDisplay = () => {
                   ? officeWindows
                       .map((w: Window) => ({
                         window: w,
-                        serving: getServingSequenceForWindow(office.id, w.id, firstWindowId!),
+                        serving: getServingSequenceForWindow(office.id, w.id, firstWindowId),
                       }))
                       .filter((x): x is { window: Window; serving: Sequence } => !!x.serving)
                   : [];
@@ -206,7 +206,7 @@ const QueueDisplay = () => {
                                   style={{ lineHeight: 1.1 }}
                                   aria-live="polite"
                                 >
-                                  {serving.queue}
+                                  {serving.queue_data?.code || '---'}
                                 </span>
                                 <p className={`mt-1 text-[10px] font-medium ${style!.text}`}>
                                   {serving.priority_data?.description || 'Regular'}
@@ -233,7 +233,7 @@ const QueueDisplay = () => {
                                 className={`font-black tracking-[0.12em] text-slate-900 sm:text-[clamp(2rem,4.5vw,3.5rem)] ${style!.text}`}
                                 aria-live="polite"
                               >
-                                {serving.queue}
+                                {serving.queue_data?.code || '---'}
                               </span>
                               <p className={`mt-1 text-xs font-medium ${style!.text}`}>
                                 {serving.priority_data?.description || 'Regular'}
@@ -277,7 +277,7 @@ const QueueDisplay = () => {
                           className={`flex flex-col items-center justify-center rounded-md border border-slate-200 bg-white px-2 py-2 ${style.bg}`}
                         >
                           <span className={`text-base font-black tracking-wider sm:text-lg ${style.text}`}>
-                            {seq.queue}
+                            {seq.queue_data?.code || '---'}
                           </span>
                           <span className="mt-0.5 w-full truncate text-center text-[10px] text-slate-600">
                             {office?.description || office?.id || '—'}

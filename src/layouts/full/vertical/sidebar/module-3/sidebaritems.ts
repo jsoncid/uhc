@@ -11,6 +11,7 @@ export interface ChildItem {
   badge?: boolean;
   badgeType?: string;
   isPro?: boolean;
+  module?: string;
 }
 
 export interface MenuItem {
@@ -30,22 +31,7 @@ export interface MenuItem {
 }
 
 import { uniqueId } from 'lodash';
-
-//RESTRICTION: This is to prevent unauthorized users from even seeing the menu items of modules they don't have access to.
-
-// import { MODULE_IDS, ROLE_IDS } from 'src/constants/moduleAccess';
-
-// export const getModule3Items = (userRoleId: string, userModuleId: string) => {
-//   const hasAccess =
-//     userModuleId === MODULE_IDS.module3 &&
-//     [ROLE_IDS.administrator, ROLE_IDS.infoOfficer].includes(userRoleId);
-
-//   if (!hasAccess) return [];
-
-//   return [
-//     { id: 'module3-page', title: 'Module 3 Page', href: '/module-3' },
-//   ];
-// };
+import { PAGE_MODULES } from 'src/constants/moduleAccess';
 
 const SidebarContent: MenuItem[] = [
   {
@@ -56,12 +42,14 @@ const SidebarContent: MenuItem[] = [
         icon: 'solar:user-circle-linear',
         id: uniqueId(),
         url: '/module-3/patient-profiling',
+        module: PAGE_MODULES.MODULE_3_PATIENT_PROFILING,
       },
       {
         name: 'Patient Tagging',
         id: uniqueId(),
-        icon: 'solar:history-linear',
-        url: '/module-3/patient-tagging',
+        icon: 'solar:tag-linear',
+        url: '/module-3/tagging/overview',
+        module: PAGE_MODULES.MODULE_3_PATIENT_TAGGING,
       },
     ],
   },

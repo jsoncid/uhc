@@ -267,7 +267,7 @@ const AdminPage = () => {
 
   const handleSaveEditStatus = async () => {
     if (!editingStatus || !editStatusName.trim()) return;
-    await updateStatus(editingStatus.id, editStatusName.trim());
+    await updateStatus(editingStatus.id, editStatusName.trim(), editingStatus.status);
     setEditingStatus(null);
     setEditStatusName('');
   };
@@ -275,6 +275,10 @@ const AdminPage = () => {
   const handleCancelEditStatus = () => {
     setEditingStatus(null);
     setEditStatusName('');
+  };
+
+  const handleToggleStatusStatus = async (status: Status) => {
+    await updateStatus(status.id, status.description || '', !status.status);
   };
 
   const handleDeleteStatusClick = (status: Status) => {
@@ -744,6 +748,7 @@ const AdminPage = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Status Name</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Created At</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -751,13 +756,13 @@ const AdminPage = () => {
                   <TableBody>
                     {isLoadingPriorities ? (
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                           Loading status types...
                         </TableCell>
                       </TableRow>
                     ) : filteredStatuses.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                           {statusSearchTerm
                             ? 'No status types match your search'
                             : 'No status types found. Add one above to get started.'}
@@ -781,6 +786,18 @@ const AdminPage = () => {
                             ) : (
                               <Badge variant="outline">{status.description || 'Unnamed'}</Badge>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={status.status}
+                                onCheckedChange={() => handleToggleStatusStatus(status)}
+                                disabled={isLoadingPriorities}
+                              />
+                              <Badge variant={status.status ? 'default' : 'secondary'}>
+                                {status.status ? 'Active' : 'Inactive'}
+                              </Badge>
+                            </div>
                           </TableCell>
                           <TableCell>{new Date(status.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
