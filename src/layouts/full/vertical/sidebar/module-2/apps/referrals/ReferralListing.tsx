@@ -43,6 +43,7 @@ const STATUS_STYLES: Record<string, string> = {
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Arrived: 'bg-lightprimary text-primary',
+  Admitted: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
   Discharged: 'bg-lightsecondary text-secondary',
   Declined: 'bg-lighterror text-error',
 };
@@ -362,10 +363,21 @@ const ReferralListing = () => {
   const [reReferTarget, setReReferTarget] = useState<ReferralType | null>(null);
   const [editTarget, setEditTarget] = useState<ReferralType | null>(null);
   const [page, setPage] = useState(1);
+  const [dateFrom, setDateFrom] = useState('');
+  const [sortKey, setSortKey] = useState<'patient_name' | 'status' | 'created_at'>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   React.useEffect(() => {
     setPage(1);
-  }, [referralSearch, filter]);
+  }, [referralSearch, filter, dateFrom]);
 
   const handleDeactivateClick = (id: string, name: string) => {
     setConfirmId(id);
@@ -389,9 +401,20 @@ const ReferralListing = () => {
         (r.from_assignment_name ?? '').toLowerCase().includes(search) ||
         (r.referral_info?.referring_doctor ?? '').toLowerCase().includes(search);
       const matchFilter = filter === 'all' || (r.latest_status?.description ?? '') === filter;
-      return matchSearch && matchFilter;
+      const matchDate = !dateFrom || new Date(r.created_at).toISOString().slice(0, 10) === dateFrom;
+      return matchSearch && matchFilter && matchDate;
     })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    .sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      if (sortKey === 'patient_name')
+        return dir * (a.patient_name ?? '').localeCompare(b.patient_name ?? '');
+      if (sortKey === 'status')
+        return (
+          dir *
+          (a.latest_status?.description ?? '').localeCompare(b.latest_status?.description ?? '')
+        );
+      return dir * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    });
 
   const visible = allVisible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -405,7 +428,35 @@ const ReferralListing = () => {
           <h5 className="card-title">Referral List</h5>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative sm:w-60 w-full">
+        
+          {/* Date filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground font-medium">Date:</span>
+            <div className="relative">
+              <Input
+                type="date"
+                className={`h-9 text-sm ${dateFrom ? 'w-44 pr-7' : 'w-36'}`}
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+              />
+              {dateFrom && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setDateFrom('');
+                    setPage(1);
+                  }}
+                >
+                  <Icon icon="solar:close-circle-linear" height={14} />
+                </button>
+              )}
+            </div>
+          </div>
+            <div className="relative sm:w-60 w-full">
             <Icon
               icon="tabler:search"
               height={16}
@@ -421,6 +472,7 @@ const ReferralListing = () => {
               placeholder="Search patient, doctor..."
             />
           </div>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" className="whitespace-nowrap">
@@ -453,13 +505,25 @@ const ReferralListing = () => {
 
       {/* Status filter tabs */}
       <div className="flex flex-wrap gap-1.5">
-        {['all', 'Pending', 'Accepted', 'In Transit', 'Arrived', 'Declined', 'Discharged'].map((f) => (
+        {[
+          'all',
+          'Pending',
+          'Accepted',
+          'In Transit',
+          'Arrived',
+          'Admitted',
+          'Discharged',
+          'Declined',
+        ].map((f) => (
           <Button
             key={f}
             size="sm"
             variant={filter === f ? 'default' : 'outline'}
             className="h-7 text-xs px-3"
-            onClick={() => { setFilter(f); setPage(1); }}
+            onClick={() => {
+              setFilter(f);
+              setPage(1);
+            }}
           >
             {f === 'all' ? 'All' : f}
           </Button>
@@ -470,13 +534,67 @@ const ReferralListing = () => {
         <Table className="min-w-[960px]">
           <TableHeader>
             <TableRow className="bg-muted/30">
-              <TableHead className="font-semibold">Patient</TableHead>
+              <TableHead
+                className="font-semibold cursor-pointer select-none"
+                onClick={() => toggleSort('patient_name')}
+              >
+                <span className="flex items-center">
+                  Patient
+                  <Icon
+                    icon={
+                      sortKey === 'patient_name'
+                        ? sortDir === 'asc'
+                          ? 'solar:sort-from-bottom-to-top-bold'
+                          : 'solar:sort-from-top-to-bottom-bold'
+                        : 'solar:sort-bold'
+                    }
+                    height={13}
+                    className={`ml-1 ${sortKey === 'patient_name' ? 'text-primary' : 'opacity-30'}`}
+                  />
+                </span>
+              </TableHead>
               <TableHead className="font-semibold">From Assignment</TableHead>
               <TableHead className="font-semibold">Referred To</TableHead>
               <TableHead className="font-semibold">Referring Doctor</TableHead>
               <TableHead className="font-semibold">Reason for Referral</TableHead>
-              <TableHead className="font-semibold">Status</TableHead>
-              <TableHead className="font-semibold">Date Created</TableHead>
+              <TableHead
+                className="font-semibold cursor-pointer select-none"
+                onClick={() => toggleSort('status')}
+              >
+                <span className="flex items-center">
+                  Status
+                  <Icon
+                    icon={
+                      sortKey === 'status'
+                        ? sortDir === 'asc'
+                          ? 'solar:sort-from-bottom-to-top-bold'
+                          : 'solar:sort-from-top-to-bottom-bold'
+                        : 'solar:sort-bold'
+                    }
+                    height={13}
+                    className={`ml-1 ${sortKey === 'status' ? 'text-primary' : 'opacity-30'}`}
+                  />
+                </span>
+              </TableHead>
+              <TableHead
+                className="font-semibold cursor-pointer select-none"
+                onClick={() => toggleSort('created_at')}
+              >
+                <span className="flex items-center">
+                  Date Created
+                  <Icon
+                    icon={
+                      sortKey === 'created_at'
+                        ? sortDir === 'asc'
+                          ? 'solar:sort-from-bottom-to-top-bold'
+                          : 'solar:sort-from-top-to-bottom-bold'
+                        : 'solar:sort-bold'
+                    }
+                    height={13}
+                    className={`ml-1 ${sortKey === 'created_at' ? 'text-primary' : 'opacity-30'}`}
+                  />
+                </span>
+              </TableHead>
               <TableHead className="font-semibold text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>

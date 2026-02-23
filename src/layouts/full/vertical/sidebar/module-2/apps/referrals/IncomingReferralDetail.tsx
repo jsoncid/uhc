@@ -7,6 +7,7 @@ import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Badge } from 'src/components/ui/badge';
 import { Separator } from 'src/components/ui/separator';
+import ReferralPrintDocument from './ReferralPrintDocument';
 import {
   Dialog,
   DialogContent,
@@ -235,6 +236,7 @@ const IncomingReferralDetail = () => {
 
   const [showAccept, setShowAccept] = useState(false);
   const [showReject, setShowReject] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
 
   // ── Diagnostic inline-add form state
   const [diagForm, setDiagForm] = useState({ diagnostics: '', date: '' });
@@ -355,6 +357,14 @@ const IncomingReferralDetail = () => {
                   </Button>
                 </>
               )}
+              <Button variant="outline" size="sm" onClick={() => setPrintOpen(true)}>
+                <Icon
+                  icon="solar:printer-minimalistic-bold-duotone"
+                  height={16}
+                  className="mr-1.5"
+                />
+                Print
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -1133,6 +1143,11 @@ const IncomingReferralDetail = () => {
           if (id) declineIncomingReferral(id, reason, redirectHospital);
         }}
       />
+
+      {/* Print Document */}
+      {printOpen && (
+        <ReferralPrintDocument referral={referral} onClose={() => setPrintOpen(false)} />
+      )}
     </div>
   );
 };

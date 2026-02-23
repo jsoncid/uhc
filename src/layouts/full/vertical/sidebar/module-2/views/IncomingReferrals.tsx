@@ -1,15 +1,11 @@
 import { Link } from 'react-router';
 import IncomingReferralPage from '../apps/referrals/IncomingReferralPage';
-import { ReferralProvider } from '../context/ReferralContext';
 
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Incoming Referrals' },
-];
+const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Incoming Referrals' }];
 
 const IncomingReferrals = () => {
   return (
-    <ReferralProvider>
+    <>
       <div className="mb-6 py-4">
         <h4 className="font-semibold text-xl mb-3">Incoming Referrals</h4>
         <ol className="flex items-center whitespace-nowrap" aria-label="Breadcrumb">
@@ -39,7 +35,7 @@ const IncomingReferrals = () => {
         </ol>
       </div>
       <IncomingReferralPage />
-    </ReferralProvider>
+    </>
   );
 };
 

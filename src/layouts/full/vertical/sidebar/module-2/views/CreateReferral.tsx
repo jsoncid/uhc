@@ -1,6 +1,5 @@
 import { Link } from 'react-router';
 import CreateReferralForm from '../apps/referrals/CreateReferralForm';
-import { ReferralProvider } from '../context/ReferralContext';
 
 const BCrumb = [
   { to: '/', title: 'Home' },
@@ -40,9 +39,7 @@ const CreateReferral = () => {
           })}
         </ol>
       </div>
-      <ReferralProvider>
-        <CreateReferralForm />
-      </ReferralProvider>
+      <CreateReferralForm />
     </>
   );
 };

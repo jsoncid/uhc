@@ -10,12 +10,19 @@ import { Separator } from 'src/components/ui/separator';
 import { Input } from 'src/components/ui/input';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from 'src/components/ui/dropdown-menu';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Arrived: 'bg-lightprimary text-primary',
+  Admitted: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
   Discharged: 'bg-lightsecondary text-secondary',
   Declined: 'bg-lighterror text-error',
 };
@@ -59,6 +66,8 @@ const ReferralDetail = () => {
     updateOutgoingDiagnosticAttachment,
     addOutgoingVaccination,
     deleteOutgoingVaccination,
+    updateReferralStatus,
+    statuses,
   } = useContext<ReferralContextType>(ReferralContext);
 
   // Live context first (active), then check deactivated
@@ -170,6 +179,29 @@ const ReferralDetail = () => {
                   <Icon icon="solar:routing-bold-duotone" height={15} />
                   Mark as In Transit
                 </Button>
+              )}
+              {/* Override Status — allows admins to manually correct the workflow state */}
+              {referral.status !== false && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Icon icon="solar:pen-bold-duotone" height={15} className="mr-1.5" />
+                      Override Status
+                      <Icon icon="solar:alt-arrow-down-bold" height={14} className="ml-1.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[160px]">
+                    {statuses.map((s) => (
+                      <DropdownMenuItem
+                        key={s.id}
+                        onClick={() => id && updateReferralStatus(id, s.id)}
+                        disabled={referral.latest_status?.id === s.id}
+                      >
+                        {s.description}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               <Button variant="outline" size="sm" onClick={() => navigate('/module-2/referrals')}>
                 <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />

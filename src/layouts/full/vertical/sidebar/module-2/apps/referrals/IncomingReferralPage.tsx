@@ -36,15 +36,17 @@ import {
 } from 'src/components/ui/dropdown-menu';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
+import ReferralPrintDocument from './ReferralPrintDocument';
 
 // ─── Status style map ─────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
+  Arrived: 'bg-lightprimary text-primary',
+  Admitted: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
   Discharged: 'bg-lightsecondary text-secondary',
   Declined: 'bg-lighterror text-error',
-  Arrived: 'bg-lightprimary text-primary',
 };
 
 const getStatusStyle = (d?: string | null) =>
@@ -180,10 +182,32 @@ const IncomingStatCards = ({ referrals }: { referrals: ReferralType[] }) => {
       value: count('Arrived'),
       pct: pct(count('Arrived')),
       icon: 'solar:hospital-bold-duotone',
-      text: 'text-secondary',
-      iconBg: 'bg-lightsecondary',
-      bar: 'bg-secondary',
-      accent: 'border-t-secondary',
+      text: 'text-primary',
+      iconBg: 'bg-lightprimary',
+      bar: 'bg-primary',
+      accent: 'border-t-primary',
+    },
+    {
+      label: 'Admitted',
+      sub: 'Admitted to ward/dept',
+      value: count('Admitted'),
+      pct: pct(count('Admitted')),
+      icon: 'solar:bed-bold-duotone',
+      text: 'text-purple-600 dark:text-purple-400',
+      iconBg: 'bg-purple-100 dark:bg-purple-900/30',
+      bar: 'bg-purple-500',
+      accent: 'border-t-purple-500',
+    },
+    {
+      label: 'Discharged',
+      sub: 'Patient discharged',
+      value: count('Discharged'),
+      pct: pct(count('Discharged')),
+      icon: 'solar:exit-bold-duotone',
+      text: 'text-slate-500',
+      iconBg: 'bg-slate-100 dark:bg-slate-800',
+      bar: 'bg-slate-400',
+      accent: 'border-t-slate-400',
     },
     {
       label: 'Declined',
@@ -199,7 +223,7 @@ const IncomingStatCards = ({ referrals }: { referrals: ReferralType[] }) => {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
       {cards.map((card) => (
         <CardBox key={card.label} className={`p-0 overflow-hidden border-t-4 ${card.accent}`}>
           <div className="p-5">
@@ -483,11 +507,13 @@ const PendingTab = ({
   search,
   onAccept,
   onReject,
+  onPrint,
 }: {
   referrals: ReferralType[];
   search: string;
   onAccept: (r: ReferralType) => void;
   onReject: (r: ReferralType) => void;
+  onPrint: (r: ReferralType) => void;
 }) => {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -575,6 +601,14 @@ const PendingTab = ({
                           <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
                           View Details
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onPrint(r)}>
+                          <Icon
+                            icon="solar:printer-minimalistic-bold-duotone"
+                            height={15}
+                            className="mr-2 text-muted-foreground"
+                          />
+                          Print Referral
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onAccept(r)}>
                           <Icon
                             icon="solar:check-circle-linear"
@@ -609,7 +643,15 @@ const PendingTab = ({
 };
 
 // ─── Active (Accepted / In Transit / Arrived) tab ────────────────────────────
-const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: string }) => {
+const ActiveTab = ({
+  referrals,
+  search,
+  onPrint,
+}: {
+  referrals: ReferralType[];
+  search: string;
+  onPrint: (r: ReferralType) => void;
+}) => {
   const navigate = useNavigate();
   const { updateIncomingStatus, statuses, saveDischargeNotes }: ReferralContextType =
     useContext(ReferralContext);
@@ -619,11 +661,13 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
     setPage(1);
   }, [search]);
 
-  // Sending facility now owns the 'In Transit' transition.
-  // Receiving side only advances: Accepted → Arrived → Discharge.
+  // Sending facility marks 'In Transit'; receiving side advances the patient.
+  // Receiving advances: Accepted → Arrived, In Transit → Arrived, Arrived → Admitted, Admitted → Discharge.
   const NEXT_STATUS: Record<string, string> = {
     Accepted: 'Arrived',
-    Arrived: 'Discharge Patient',
+    'In Transit': 'Arrived',
+    Arrived: 'Admitted',
+    Admitted: 'Discharge Patient',
   };
 
   const handleAdvance = (r: ReferralType) => {
@@ -638,7 +682,7 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
   };
 
   const active = referrals.filter((r) =>
-    ['Accepted', 'In Transit', 'Arrived'].includes(r.latest_status?.description ?? ''),
+    ['Accepted', 'In Transit', 'Arrived', 'Admitted'].includes(r.latest_status?.description ?? ''),
   );
   const allVisible = active
     .filter((r) => {
@@ -738,12 +782,20 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
                           <Icon icon="solar:menu-dots-bold" height={16} />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-[150px]">
+                      <DropdownMenuContent align="end" className="min-w-[160px]">
                         <DropdownMenuItem
                           onClick={() => navigate('/module-2/referrals/incoming/detail/' + r.id)}
                         >
                           <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
                           View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onPrint(r)}>
+                          <Icon
+                            icon="solar:printer-minimalistic-bold-duotone"
+                            height={15}
+                            className="mr-2 text-muted-foreground"
+                          />
+                          Print Referral
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -768,7 +820,15 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
 };
 
 // ─── Declined tab ─────────────────────────────────────────────────────────────
-const DeclinedTab = ({ referrals, search }: { referrals: ReferralType[]; search: string }) => {
+const DeclinedTab = ({
+  referrals,
+  search,
+  onPrint,
+}: {
+  referrals: ReferralType[];
+  search: string;
+  onPrint: (r: ReferralType) => void;
+}) => {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   useEffect(() => {
@@ -850,14 +910,29 @@ const DeclinedTab = ({ referrals, search }: { referrals: ReferralType[]; search:
                     {fmt(r.created_at)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-primary hover:bg-primary/10"
-                      onClick={() => navigate('/module-2/referrals/incoming/detail/' + r.id)}
-                    >
-                      <Icon icon="solar:eye-linear" height={16} />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Icon icon="solar:menu-dots-bold" height={16} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[160px]">
+                        <DropdownMenuItem
+                          onClick={() => navigate('/module-2/referrals/incoming/detail/' + r.id)}
+                        >
+                          <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onPrint(r)}>
+                          <Icon
+                            icon="solar:printer-minimalistic-bold-duotone"
+                            height={15}
+                            className="mr-2 text-muted-foreground"
+                          />
+                          Print Referral
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))
@@ -879,24 +954,31 @@ const IncomingReferralPage = () => {
   }: ReferralContextType = useContext(ReferralContext);
 
   const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
   const [activeTab, setActiveTab] = useState('pending');
   const [acceptTarget, setAcceptTarget] = useState<ReferralType | null>(null);
   const [rejectTarget, setRejectTarget] = useState<ReferralType | null>(null);
+  const [printTarget, setPrintTarget] = useState<ReferralType | null>(null);
 
-  const pendingCount = incomingReferrals.filter(
+  // Apply date filter before passing referrals to each tab
+  const dateFilteredReferrals = incomingReferrals.filter(
+    (r) => !dateFrom || new Date(r.created_at).toISOString().slice(0, 10) === dateFrom,
+  );
+
+  const pendingCount = dateFilteredReferrals.filter(
     (r) => r.latest_status?.description === 'Pending',
   ).length;
-  const activeCount = incomingReferrals.filter((r) =>
-    ['Accepted', 'In Transit', 'Arrived'].includes(r.latest_status?.description ?? ''),
+  const activeCount = dateFilteredReferrals.filter((r) =>
+    ['Accepted', 'In Transit', 'Arrived', 'Admitted'].includes(r.latest_status?.description ?? ''),
   ).length;
-  const declinedCount = incomingReferrals.filter(
+  const declinedCount = dateFilteredReferrals.filter(
     (r) => r.latest_status?.description === 'Declined',
   ).length;
 
   return (
     <>
       {/* Incoming-only stat cards */}
-      <IncomingStatCards referrals={incomingReferrals} />
+      <IncomingStatCards referrals={dateFilteredReferrals} />
 
       <CardBox>
         <div className="flex flex-col gap-1">
@@ -953,38 +1035,62 @@ const IncomingReferralPage = () => {
               </TabsTrigger>
             </TabsList>
 
-            {/* Search */}
-            <div className="relative sm:w-60 w-full">
-              <Icon
-                icon="tabler:search"
-                height={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                type="text"
-                className="pl-9 h-9 text-sm"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search patient, hospital..."
-              />
+            {/* Search + Date range */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative sm:w-60 w-full">
+                <Icon
+                  icon="tabler:search"
+                  height={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  type="text"
+                  className="pl-9 h-9 text-sm"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search patient, hospital..."
+                />
+              </div>
+              <div className="relative">
+                <Input
+                  type="date"
+                  className={`h-9 text-sm ${dateFrom ? 'w-44 pr-7' : 'w-36'}`}
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+                {dateFrom && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setDateFrom('')}
+                  >
+                    <Icon icon="solar:close-circle-linear" height={14} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
           <TabsContent value="pending">
             <PendingTab
-              referrals={incomingReferrals}
+              referrals={dateFilteredReferrals}
               search={search}
               onAccept={setAcceptTarget}
               onReject={setRejectTarget}
+              onPrint={setPrintTarget}
             />
           </TabsContent>
 
           <TabsContent value="active">
-            <ActiveTab referrals={incomingReferrals} search={search} />
+            <ActiveTab referrals={dateFilteredReferrals} search={search} onPrint={setPrintTarget} />
           </TabsContent>
 
           <TabsContent value="declined">
-            <DeclinedTab referrals={incomingReferrals} search={search} />
+            <DeclinedTab
+              referrals={dateFilteredReferrals}
+              search={search}
+              onPrint={setPrintTarget}
+            />
           </TabsContent>
         </Tabs>
       </CardBox>
@@ -1008,6 +1114,11 @@ const IncomingReferralPage = () => {
           if (rejectTarget) declineIncomingReferral(rejectTarget.id, reason, redirectHospital);
         }}
       />
+
+      {/* Print Document */}
+      {printTarget && (
+        <ReferralPrintDocument referral={printTarget} onClose={() => setPrintTarget(null)} />
+      )}
     </>
   );
 };
