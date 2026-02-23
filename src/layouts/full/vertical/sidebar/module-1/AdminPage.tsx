@@ -390,7 +390,7 @@ const AdminPage = () => {
                             {office.description || 'Unnamed Office'}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary">{office.windows?.length || 0}</Badge>
+                            {office.windows?.length || 0}
                           </TableCell>
                           <TableCell>{new Date(office.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
