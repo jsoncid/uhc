@@ -4,6 +4,8 @@ import { lazy } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+
+// Import module routes
 import { module1Routes } from './m1_routes';
 import { module2Routes } from './m2_routes';
 import { module3Routes } from './m3_routes';
@@ -11,6 +13,8 @@ import { m4Routes } from './m4_routes';
 import { module5Routes } from './m5_routes';
 
 /* **Layouts*** */
+
+/* ***Layouts**** */
 const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
 const BlankLayout = Loadable(lazy(() => import('../layouts/blank/BlankLayout')));
 
@@ -27,6 +31,7 @@ const Modern = Loadable(lazy(() => import('../views/dashboards/Modern')));
 
 //pages
 const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/UserProfile')));
+const About = Loadable(lazy(() => import('../views/about/About')));
 
 /* ***Apps**** */
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
@@ -36,9 +41,6 @@ const Tickets = Loadable(lazy(() => import('../views/apps/tickets/Tickets')));
 const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTickets')));
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
 const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')));
-
-// About Page
-const About = Loadable(lazy(() => import('../views/about/About')));
 
 // RBAC Pages
 const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
@@ -142,19 +144,18 @@ const Router = [
         ),
       },
       {
+        path: '/about/teams',
+        element: (
+          <ProtectedRoute>
+            <About />
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: '/icons/iconify',
         element: (
           <ProtectedRoute>
             <SolarIcon />
-          </ProtectedRoute>
-        ),
-      },
-      // About
-      {
-        path: '/about',
-        element: (
-          <ProtectedRoute>
-            <About />
           </ProtectedRoute>
         ),
       },

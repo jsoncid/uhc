@@ -3,12 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+// Create Supabase client without default schema to access both public and module3
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export type Database = {
   public: {
     Tables: {
-      // Add your database types here
+      // RBAC and User Management Tables (in public schema)
       users: {
         Row: {
           id: string
@@ -161,6 +162,150 @@ export type Database = {
           assignment?: string
         }
       }
+    }
+  }
+  module3: {
+    Tables: {
+      // Patient and Location Tables (in module3 schema)
+      patient_profile: {
+        Row: {
+          id: string
+          created_at: string
+          first_name: string
+          middle_name: string | null
+          last_name: string
+          ext_name: string | null
+          sex: string
+          birth_date: string
+          brgy: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          first_name: string
+          middle_name?: string | null
+          last_name: string
+          ext_name?: string | null
+          sex: string
+          birth_date: string
+          brgy?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          first_name?: string
+          middle_name?: string | null
+          last_name?: string
+          ext_name?: string | null
+          sex?: string
+          birth_date?: string
+          brgy?: string | null
+        }
+      }
+      brgy: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+          city_municipality: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          city_municipality?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          city_municipality?: string | null
+        }
+      }
+      city_municipality: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+          province: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          province?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          province?: string | null
+        }
+      }
+      province: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+          region: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          region?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+          region?: string | null
+        }
+      }
+      region: {
+        Row: {
+          id: string
+          created_at: string
+          description: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string | null
+        }
+      }
+      patient_repository: {
+        Row: {
+          id: string
+          created_at: string
+          patient_profile: string | null
+          facility_code: string | null
+          hpercode: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          patient_profile?: string | null
+          facility_code?: string | null
+          hpercode?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          patient_profile?: string | null
+          facility_code?: string | null
+          hpercode?: string | null
+        }
+      }
+    }
+  }
+  module1: {
+    Tables: {
       office: {
         Row: {
           id: string
@@ -207,10 +352,6 @@ export type Database = {
           status?: boolean
         }
       }
-    }
-  }
-  module1: {
-    Tables: {
       priority: {
         Row: {
           id: string

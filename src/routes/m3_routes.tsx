@@ -6,8 +6,13 @@ import { ProtectedRoute } from '../components/ProtectedRoute';
 import { ModuleRoute } from '../components/ModuleRoute';
 import { PAGE_MODULES } from '../constants/moduleAccess';
 
-// Module 3 - Patient Profiling Components
-const PatientProfiling = Loadable(lazy(() => import('../views/apps/module-3/PatientProfiling')));
+// Module 3 - Patient Repository Components
+const PatientProfiling = Loadable(
+  lazy(() => import('../views/apps/module-3/PatientProfiling')),
+);
+const PatientTagging = Loadable(
+  lazy(() => import('../views/apps/module-3/PatientTagging')),
+);
 
 export const module3Routes = [
   {
@@ -17,6 +22,14 @@ export const module3Routes = [
         <ModuleRoute moduleName={PAGE_MODULES.MODULE_3_PATIENT_PROFILING}>
           <PatientProfiling />
         </ModuleRoute>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/module-3/patient-tagging',
+    element: (
+      <ProtectedRoute>
+        <PatientTagging />
       </ProtectedRoute>
     ),
   },
