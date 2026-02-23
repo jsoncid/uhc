@@ -887,7 +887,8 @@ class PatientService {
       const limit = options?.limit || 100;
       const searchTerm = search.trim().toLowerCase();
       
-      // Query with joins to get location hierarchy and facility info (same as getSupabasePatients)
+      // Query with joins to get location hierarchy and facility info
+      // Only get patients that DON'T have an hpercode yet (not linked to MySQL)
       const { data, error } = await supabase
         .schema('module3')
         .from('patient_profile')
@@ -909,13 +910,13 @@ class PatientService {
               )
             )
           ),
-          patient_repository(
+          patient_repository!left(
             facility_code,
             hpercode
           )
         `, { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(limit);
+        .limit(limit * 3); // Fetch more since we'll filter out linked patients
 
       if (error) {
         console.error('Error searching Supabase patients:', error);
@@ -927,8 +928,16 @@ class PatientService {
         };
       }
 
-      // Filter results client-side to search across name, location hierarchy, and facility
-      const filteredData = (data || []).filter((patient: any) => {
+      // First filter: Only include patients WITHOUT hpercode (not linked yet)
+      const unlinkedPatients = (data || []).filter((patient: any) => {
+        // Check if patient has no repository entry OR repository has no hpercode
+        const hasNoRepository = !patient.patient_repository || patient.patient_repository.length === 0;
+        const hasNoHpercode = patient.patient_repository?.[0]?.hpercode == null;
+        return hasNoRepository || hasNoHpercode;
+      });
+
+      // Second filter: Search client-side across name, location hierarchy, and facility
+      const filteredData = unlinkedPatients.filter((patient: any) => {
         // Search in patient name fields
         const firstName = patient.first_name?.toLowerCase() || '';
         const middleName = patient.middle_name?.toLowerCase() || '';
@@ -966,10 +975,15 @@ class PatientService {
         );
       });
 
+      // Trim to requested limit
+      const limitedData = filteredData.slice(0, limit);
+
+      console.log(`Found ${unlinkedPatients.length} unlinked patients, ${filteredData.length} matching search, returning ${limitedData.length}`);
+
       return {
         success: true,
-        data: filteredData,
-        count: filteredData.length,
+        data: limitedData,
+        count: limitedData.length,
       };
     } catch (error) {
       console.error('Search Supabase patients error:', error);

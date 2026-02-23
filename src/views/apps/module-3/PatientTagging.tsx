@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from 'src/components/ui/card';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
@@ -19,6 +18,8 @@ import {
   UserPlus,
   ArrowRight,
   CheckCircle2,
+  Edit,
+  RefreshCw,
 } from 'lucide-react';
 import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
 import PatientSearchPanel from './components/PatientSearchPanel';
@@ -27,22 +28,12 @@ import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientLinkingDialog from './components/PatientLinkingDialog';
 
 /* ------------------------------------------------------------------ */
-/*  Constants                                                          */
-/* ------------------------------------------------------------------ */
-
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient Tagging' },
-];
-
-/* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
 const PatientTagging = () => {
   // Active tab
-  const [activeTab, setActiveTab] = useState<'view' | 'link'>('view');
+  const [activeTab, setActiveTab] = useState<'view' | 'link' | 'linked'>('view');
 
   // MySQL Search state (existing patients from hospital database)
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,10 +41,18 @@ const PatientTagging = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientProfile | null>(null);
 
-  // Supabase Search state (manually entered patients)
+  // Supabase Search state (manually entered patients - unlinked)
   const [supabaseSearchTerm, setSupabaseSearchTerm] = useState('');
   const [supabaseSearchResults, setSupabaseSearchResults] = useState<any[]>([]);
   const [isSearchingSupabase, setIsSearchingSupabase] = useState(false);
+  
+  // Linked patients search state
+  const [linkedSearchTerm, setLinkedSearchTerm] = useState('');
+  const [linkedPatients, setLinkedPatients] = useState<any[]>([]);
+  const [isSearchingLinked, setIsSearchingLinked] = useState(false);
+  const [isLoadingLinked, setIsLoadingLinked] = useState(false);
+  const [linkedPage, setLinkedPage] = useState(1);
+  const [linkedTotal, setLinkedTotal] = useState(0);
   
   // Linking dialog state
   const [isLinkingDialogOpen, setIsLinkingDialogOpen] = useState(false);
@@ -66,6 +65,17 @@ const PatientTagging = () => {
   // Filter state
   const [typeFilter, setTypeFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
+
+  /* ------------------------------------------------------------------ */
+  /*  Effects                                                           */
+  /* ------------------------------------------------------------------ */
+
+  // Load linked patients when switching to linked tab
+  useEffect(() => {
+    if (activeTab === 'linked' && linkedPatients.length === 0 && !linkedSearchTerm) {
+      loadAllLinkedPatients();
+    }
+  }, [activeTab]);
 
   /* ------------------------------------------------------------------ */
   /*  Search Functions                                                  */
@@ -88,7 +98,7 @@ const PatientTagging = () => {
     }
   };
 
-  // Search Supabase patients (manually entered)
+  // Search Supabase patients (manually entered - unlinked)
   const handleSearchSupabase = async () => {
     if (!supabaseSearchTerm.trim()) return;
 
@@ -102,6 +112,67 @@ const PatientTagging = () => {
       console.error('Error searching Supabase patients:', error);
     } finally {
       setIsSearchingSupabase(false);
+    }
+  };
+
+  // Load all linked patients (paginated)
+  const loadAllLinkedPatients = async (page = 1) => {
+    setIsLoadingLinked(true);
+    try {
+      const result = await patientService.getSupabasePatients(page, 20);
+      if (result.success) {
+        // Filter only linked patients
+        const linked = result.data.filter((patient: any) => {
+          return patient.patient_repository?.[0]?.hpercode != null;
+        });
+        setLinkedPatients(linked);
+        setLinkedPage(page);
+        
+        // Calculate total linked patients
+        const totalLinked = result.data.filter((p: any) => p.patient_repository?.[0]?.hpercode != null).length;
+        setLinkedTotal(totalLinked);
+      }
+    } catch (error) {
+      console.error('Error loading linked patients:', error);
+    } finally {
+      setIsLoadingLinked(false);
+    }
+  };
+
+  // Search linked patients
+  const handleSearchLinked = async () => {
+    if (!linkedSearchTerm.trim()) {
+      // If search is empty, load all linked patients
+      loadAllLinkedPatients();
+      return;
+    }
+
+    setIsSearchingLinked(true);
+    try {
+      // Load more patients to search through
+      const allPatientsResult = await patientService.getSupabasePatients(1, 200);
+      if (allPatientsResult.success) {
+        const searchLower = linkedSearchTerm.toLowerCase();
+        const linked = allPatientsResult.data.filter((patient: any) => {
+          const hasHpercode = patient.patient_repository?.[0]?.hpercode != null;
+          if (!hasHpercode) return false;
+          
+          // Search in name
+          const firstName = patient.first_name?.toLowerCase() || '';
+          const middleName = patient.middle_name?.toLowerCase() || '';
+          const lastName = patient.last_name?.toLowerCase() || '';
+          const fullName = `${firstName} ${middleName} ${lastName}`.trim();
+          const hpercode = patient.patient_repository?.[0]?.hpercode?.toLowerCase() || '';
+          
+          return fullName.includes(searchLower) || hpercode.includes(searchLower);
+        });
+        setLinkedPatients(linked);
+        setLinkedTotal(linked.length);
+      }
+    } catch (error) {
+      console.error('Error searching linked patients:', error);
+    } finally {
+      setIsSearchingLinked(false);
     }
   };
 
@@ -126,10 +197,20 @@ const PatientTagging = () => {
     if (supabaseSearchTerm) {
       await handleSearchSupabase();
     }
-    // Clear selected patient and refresh if they picked one
-    if (patientToLink) {
-      // Optionally reload the patient to show updated info
+    // Refresh linked patients
+    if (activeTab === 'linked') {
+      if (linkedSearchTerm) {
+        await handleSearchLinked();
+      } else {
+        await loadAllLinkedPatients(linkedPage);
+      }
     }
+  };
+
+  const handleEditLink = (patient: any) => {
+    // Open the linking dialog with the patient to re-link
+    setPatientToLink(patient);
+    setIsLinkingDialogOpen(true);
   };
 
   /* ------------------------------------------------------------------ */
@@ -197,26 +278,26 @@ const PatientTagging = () => {
   /* ------------------------------------------------------------------ */
 
   return (
-    <div className="w-full">
-      <BreadcrumbComp items={BCrumb} title="Patient Tagging" />
-
-      {/* Overview Card */}
-      <Card className="mt-4 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-primary" />
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Activity className="h-7 w-7 text-primary" />
+            </div>
             Patient Repository Management
-          </CardTitle>
-          <CardDescription className="text-base">
+          </h1>
+          <p className="text-muted-foreground mt-2">
             View patient medical history from the hospital database or link manually entered patients
             with existing hospital records to access their complete medical history.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+          </p>
+        </div>
+      </div>
 
       {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'view' | 'link')} className="mt-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'view' | 'link' | 'linked')} className="mt-6">
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="view" className="flex items-center gap-2">
             <Search className="h-4 w-4" />
             View Patient History
@@ -224,6 +305,10 @@ const PatientTagging = () => {
           <TabsTrigger value="link" className="flex items-center gap-2">
             <LinkIcon className="h-4 w-4" />
             Link Patients
+          </TabsTrigger>
+          <TabsTrigger value="linked" className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Linked Patients
           </TabsTrigger>
         </TabsList>
 
@@ -332,9 +417,9 @@ const PatientTagging = () => {
           <Alert className="border-primary/30 bg-primary/5">
             <Info className="h-4 w-4 text-primary" />
             <AlertDescription className="text-foreground">
-              <strong>Link manually entered patients with hospital records:</strong> If you created a
-              patient profile manually and want to connect it with an existing hospital record, search
-              for your manual entry below and click "Link" to connect it with the hospital database.
+              <strong>Link manually entered patients with hospital records:</strong> Search below to find
+              patient profiles that were created manually (in Supabase) and haven't been linked to the
+              hospital database (MySQL) yet. Only <strong>unlinked patients</strong> will appear in the search results.
             </AlertDescription>
           </Alert>
 
@@ -399,7 +484,7 @@ const PatientTagging = () => {
                 Search Manually Entered Patients
               </CardTitle>
               <CardDescription>
-                Find patients that were created manually (not from hospital database)
+                Search for patients created manually that haven't been linked to hospital records yet
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -452,20 +537,12 @@ const PatientTagging = () => {
                     {supabaseSearchResults.map((patient) => (
                       <Card
                         key={patient.id}
-                        className={`border transition-all hover:shadow-md ${
-                          patient.hpercode ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'
-                        }`}
+                        className="border-amber-200 bg-amber-50/50 border transition-all hover:shadow-md"
                       >
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 flex-1 min-w-0">
-                              <div
-                                className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                  patient.hpercode
-                                    ? 'bg-green-100 text-green-600'
-                                    : 'bg-amber-100 text-amber-600'
-                                }`}
-                              >
+                              <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 text-amber-600">
                                 <User className="h-6 w-6" />
                               </div>
                               <div className="flex-1 min-w-0">
@@ -473,66 +550,28 @@ const PatientTagging = () => {
                                   <p className="font-semibold text-lg truncate">
                                     {patient.last_name}, {patient.first_name} {patient.middle_name}
                                   </p>
-                                  {patient.hpercode ? (
-                                    <Badge className="bg-green-500 hover:bg-green-600">
-                                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                                      Linked
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="border-amber-500 text-amber-700">
-                                      Not Linked
-                                    </Badge>
-                                  )}
+                                  <Badge variant="outline" className="border-amber-500 text-amber-700">
+                                    Not Linked
+                                  </Badge>
                                 </div>
                                 <div className="flex items-center gap-3 text-sm text-muted-foreground mb-2">
                                   <span className="capitalize">{patient.sex}</span>
                                   <span>•</span>
                                   <span>{patient.birth_date}</span>
                                 </div>
-                                {patient.hpercode ? (
-                                  <div className="flex items-center gap-2 text-xs">
-                                    <Badge variant="secondary" className="font-mono">
-                                      HPERCODE: {patient.hpercode}
-                                    </Badge>
-                                    {patient.facility_code && (
-                                      <Badge variant="secondary" className="font-mono">
-                                        Facility: {patient.facility_code}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground italic">
-                                    Not yet connected to hospital records
-                                  </p>
-                                )}
+                                <p className="text-xs text-muted-foreground italic">
+                                  Ready to connect with hospital records
+                                </p>
                               </div>
                             </div>
-                            {!patient.hpercode && (
-                              <Button
-                                size="default"
-                                onClick={() => handleOpenLinkDialog(patient)}
-                                className="flex-shrink-0"
-                              >
-                                <LinkIcon className="h-4 w-4 mr-2" />
-                                Link to Hospital
-                              </Button>
-                            )}
-                            {patient.hpercode && (
-                              <Button
-                                size="default"
-                                variant="outline"
-                                onClick={() => {
-                                  // Switch to view tab and search for this patient
-                                  setActiveTab('view');
-                                  setSearchTerm(patient.hpercode);
-                                  setTimeout(() => handleSearch(), 100);
-                                }}
-                                className="flex-shrink-0"
-                              >
-                                <HistoryIcon className="h-4 w-4 mr-2" />
-                                View History
-                              </Button>
-                            )}
+                            <Button
+                              size="default"
+                              onClick={() => handleOpenLinkDialog(patient)}
+                              className="flex-shrink-0"
+                            >
+                              <LinkIcon className="h-4 w-4 mr-2" />
+                              Link to Hospital
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>
@@ -555,10 +594,9 @@ const PatientTagging = () => {
                   <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
                     <Search className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <p className="font-semibold mb-1">No patients found</p>
-                  <p className="text-sm text-muted-foreground">
-                    Try searching with a different name or check the Patient Profiling page to create a new
-                    patient.
+                  <p className="font-semibold mb-1">No unlinked patients found</p>
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    No manually entered patients matching "{supabaseSearchTerm}" need linking. Either the patient doesn't exist, or they're already linked to the hospital database.
                   </p>
                 </div>
               )}
@@ -569,11 +607,217 @@ const PatientTagging = () => {
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
                     <UserPlus className="h-8 w-8 text-primary" />
                   </div>
-                  <p className="font-semibold mb-1">Search for Manually Entered Patients</p>
+                  <p className="font-semibold mb-1">Search for Unlinked Patients</p>
                   <p className="text-sm text-muted-foreground max-w-md">
-                    Enter a patient name in the search box above to find patients that were manually entered
-                    and link them with existing hospital records.
+                    Enter a patient name above to find manually entered patients that haven't been linked
+                    to the hospital database yet. Only patients without an existing link will be shown.
                   </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 3: Linked Patients */}
+        <TabsContent value="linked" className="mt-6 space-y-4">
+          <Alert className="border-green-500/30 bg-green-50/50 dark:bg-green-900/10">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-foreground">
+              <strong>View successfully linked patients:</strong> Search below to find patients that have
+              been successfully linked between Supabase and the hospital database (MySQL). These patients
+              now have full access to their hospital medical history.
+            </AlertDescription>
+          </Alert>
+
+          {/* Search Linked Patients */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Database className="h-5 w-5 text-green-600" />
+                    Linked Patients
+                  </CardTitle>
+                  <CardDescription>
+                    {linkedTotal > 0 ? `${linkedTotal} patient${linkedTotal === 1 ? '' : 's'} linked to hospital records` : 'No linked patients yet'}
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => linkedSearchTerm ? handleSearchLinked() : loadAllLinkedPatients(linkedPage)}
+                  disabled={isLoadingLinked || isSearchingLinked}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${(isLoadingLinked || isSearchingLinked) ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or HPERCODE..."
+                    value={linkedSearchTerm}
+                    onChange={(e) => setLinkedSearchTerm(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearchLinked()}
+                    className="pl-10"
+                  />
+                </div>
+                <Button onClick={handleSearchLinked} disabled={isSearchingLinked} size="lg">
+                  {isSearchingLinked ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Searching...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      Search
+                    </>
+                  )}
+                </Button>
+                {linkedSearchTerm && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => {
+                      setLinkedSearchTerm('');
+                      loadAllLinkedPatients();
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+
+              {/* Linked Patients Results */}
+              {linkedPatients.length > 0 && !isLoadingLinked && (
+                <div className="space-y-3">
+                  {linkedSearchTerm && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-green-700">
+                        Found {linkedPatients.length} linked patient{linkedPatients.length === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  )}
+                  <Separator />
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                    {linkedPatients.map((patient) => (
+                      <Card
+                        key={patient.id}
+                        className="border-green-200 bg-green-50/50 border-2 transition-all hover:shadow-md"
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-green-100 text-green-600">
+                                <User className="h-6 w-6" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <p className="font-semibold text-lg truncate">
+                                    {patient.last_name}, {patient.first_name} {patient.middle_name}
+                                  </p>
+                                  <Badge className="bg-green-600 hover:bg-green-700">
+                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    Linked
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center gap-3 text-sm text-muted-foreground mb-2">
+                                  <span className="capitalize">{patient.sex}</span>
+                                  <span>•</span>
+                                  <span>{patient.birth_date}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs flex-wrap">
+                                  <Badge variant="secondary" className="font-mono">
+                                    HPERCODE: {patient.patient_repository?.[0]?.hpercode}
+                                  </Badge>
+                                  {patient.patient_repository?.[0]?.facility_code && (
+                                    <Badge variant="secondary" className="font-mono">
+                                      Facility: {patient.patient_repository[0].facility_code}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-green-700 dark:text-green-400 italic mt-2 flex items-center gap-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Connected to hospital records - full history available
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  // Switch to view tab and search for this patient
+                                  setActiveTab('view');
+                                  setSearchTerm(patient.patient_repository[0].hpercode);
+                                  setTimeout(() => handleSearch(), 100);
+                                }}
+                                className="flex-shrink-0"
+                              >
+                                <HistoryIcon className="h-4 w-4 mr-2" />
+                                View History
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditLink(patient)}
+                                className="flex-shrink-0"
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit Link
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Loading State */}
+              {(isSearchingLinked || isLoadingLinked) && (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-green-600 mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    {isSearchingLinked ? 'Searching for linked patients...' : 'Loading linked patients...'}
+                  </p>
+                </div>
+              )}
+
+              {/* Empty State - No Search Results */}
+              {!isSearchingLinked && !isLoadingLinked && linkedPatients.length === 0 && linkedSearchTerm && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
+                    <Search className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="font-semibold mb-1">No linked patients found</p>
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    No linked patients matching "{linkedSearchTerm}" were found. Try a different search term.
+                  </p>
+                </div>
+              )}
+
+              {/* Empty State - No Linked Patients */}
+              {!linkedSearchTerm && linkedPatients.length === 0 && !isSearchingLinked && !isLoadingLinked && (
+                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg">
+                  <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                    <LinkIcon className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="font-semibold mb-1">No Linked Patients Yet</p>
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    You haven't linked any patients yet. Go to the "Link Patients" tab to connect manually
+                    entered patients with their hospital records.
+                  </p>
+                  <Button
+                    className="mt-4"
+                    onClick={() => setActiveTab('link')}
+                  >
+                    Go to Link Patients
+                  </Button>
                 </div>
               )}
             </CardContent>

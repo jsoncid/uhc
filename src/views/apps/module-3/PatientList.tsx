@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
-import { Card, CardContent, CardHeader, CardTitle } from 'src/components/ui/card';
+import { Card, CardContent, CardHeader } from 'src/components/ui/card';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
 import { Badge } from 'src/components/ui/badge';
@@ -25,19 +24,11 @@ import {
   Users,
   RefreshCw,
   Building2,
+  Filter,
+  ArrowUpDown,
 } from 'lucide-react';
 import patientService, { PatientProfile } from 'src/services/patientService';
 import { getFacilityName } from 'src/utils/facilityMapping';
-
-/* ------------------------------------------------------------------ */
-/*  Constants                                                          */
-/* ------------------------------------------------------------------ */
-
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient List' },
-];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -134,10 +125,16 @@ const PatientList = () => {
   };
 
   const getSexBadge = (sex: string) => {
-    const variant = sex.toUpperCase() === 'M' ? 'default' : 'secondary';
+    const sexUpper = sex.toUpperCase();
+    const isMale = sexUpper === 'M' || sexUpper === 'MALE';
+    const isFemale = sexUpper === 'F' || sexUpper === 'FEMALE';
+    
     return (
-      <Badge variant={variant} className="text-xs">
-        {sex.toUpperCase() === 'M' ? 'Male' : sex.toUpperCase() === 'F' ? 'Female' : sex}
+      <Badge 
+        variant={isMale ? 'default' : isFemale ? 'secondary' : 'outline'} 
+        className="text-xs font-medium"
+      >
+        {isMale ? 'male' : isFemale ? 'female' : sex}
       </Badge>
     );
   };
@@ -177,122 +174,178 @@ const PatientList = () => {
   /* ------------------------------------------------------------------ */
 
   return (
-    <>
-      <BreadcrumbComp items={BCrumb} title="Patient List" />
-      
-      <Card className="w-full">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users className="h-6 w-6 text-primary" />
-              <CardTitle className="text-2xl">Patient List</CardTitle>
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Users className="h-7 w-7 text-primary" />
             </div>
-            <Badge variant="outline" className="text-sm">
-              {totalPatients} Total Patients
-            </Badge>
-          </div>
-        </CardHeader>
+            Patient Repository
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Manage and view all patient records in the system
+          </p>
+        </div>
+        <Badge variant="outline" className="text-base px-4 py-2 font-semibold">
+          <Users className="h-4 w-4 mr-2" />
+          {totalPatients} {totalPatients === 1 ? 'Patient' : 'Patients'}
+        </Badge>
+      </div>
 
-        <CardContent>
-          {/* Search Section */}
-          <div className="mb-6 flex gap-2">
+      {/* Search and Filters Card */}
+      <Card className="border-2">
+        <CardContent className="pt-6">
+          <div className="flex gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search by name, facility, location..."
+                placeholder="Search by patient name, facility, or location..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={handleKeyPress}
-                className="pl-10"
+                className="pl-11 h-11 text-base"
               />
             </div>
-            <Button onClick={handleSearch} disabled={isSearching}>
+            <Button 
+              onClick={handleSearch} 
+              disabled={isSearching}
+              size="lg"
+              className="px-6"
+            >
               {isSearching ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Searching
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Searching...
                 </>
               ) : (
                 <>
-                  <Search className="mr-2 h-4 w-4" />
+                  <Search className="mr-2 h-5 w-5" />
                   Search
                 </>
               )}
             </Button>
             {searchTerm && (
-              <Button variant="outline" onClick={handleReset}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Reset
+              <Button 
+                variant="outline" 
+                onClick={handleReset}
+                size="lg"
+                className="px-6"
+              >
+                <RefreshCw className="mr-2 h-5 w-5" />
+                Clear
               </Button>
             )}
           </div>
+        </CardContent>
+      </Card>
 
+      {/* Patient List Card */}
+      <Card className="border-2">
+        <CardHeader className="border-b bg-muted/30">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-foreground">Patient Records</h2>
+            {!searchTerm && totalPages > 1 && (
+              <div className="text-sm text-muted-foreground font-medium">
+                Page {currentPage} of {totalPages}
+              </div>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0">
           {/* Table Section */}
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-3 text-muted-foreground">Loading patients...</span>
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <span className="mt-4 text-base text-muted-foreground font-medium">Loading patient records...</span>
             </div>
           ) : patients.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <User className="h-12 w-12 text-muted-foreground/50" />
-              <p className="mt-4 text-lg font-medium text-muted-foreground">
+            <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+              <div className="p-4 bg-muted/50 rounded-full mb-4">
+                <User className="h-12 w-12 text-muted-foreground/50" />
+              </div>
+              <p className="text-xl font-semibold text-foreground">
                 No patients found
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-2 text-sm text-muted-foreground max-w-md">
                 {searchTerm
-                  ? 'Try adjusting your search criteria'
-                  : 'Start by adding patients to the system'}
+                  ? 'No patients match your search criteria. Try adjusting your search terms or clear the filters.'
+                  : 'There are no patient records in the system yet. Patients will appear here once they are added.'}
               </p>
             </div>
           ) : (
             <>
-              <div className="rounded-md border">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[180px]">Facility</TableHead>
-                      <TableHead className="w-[200px]">Name</TableHead>
-                      <TableHead className="w-[80px]">Sex</TableHead>
-                      <TableHead className="w-[120px]">Birth Date</TableHead>
-                      <TableHead className="min-w-[250px]">Location</TableHead>
+                    <TableRow className="hover:bg-transparent border-b-2">
+                      <TableHead className="font-semibold text-foreground h-12">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4" />
+                          Facility
+                        </div>
+                      </TableHead>
+                      <TableHead className="font-semibold text-foreground h-12">
+                        <div className="flex items-center gap-2">
+                          <UserCircle className="h-4 w-4" />
+                          Patient Name
+                        </div>
+                      </TableHead>
+                      <TableHead className="font-semibold text-foreground h-12">Sex</TableHead>
+                      <TableHead className="font-semibold text-foreground h-12">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          Date of Birth
+                        </div>
+                      </TableHead>
+                      <TableHead className="font-semibold text-foreground h-12">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          Location
+                        </div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {patients.map((patient) => (
+                    {patients.map((patient, index) => (
                       <TableRow 
                         key={patient.id}
-                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        className="cursor-pointer hover:bg-muted/50 transition-all duration-200 group border-b"
                         onClick={() => handleViewPatient(patient.id)}
                       >
-                        <TableCell className="whitespace-normal">
-                          <div className="flex items-start gap-2">
-                            <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                            <span className="text-sm break-words">{getFacility(patient)}</span>
+                        <TableCell className="py-4">
+                          <div className="flex items-start gap-2 max-w-[200px]">
+                            <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1 group-hover:text-primary transition-colors" />
+                            <span className="text-sm font-medium text-foreground break-words leading-relaxed">
+                              {getFacility(patient)}
+                            </span>
                           </div>
                         </TableCell>
-                        <TableCell className="whitespace-normal">
+                        <TableCell className="py-4">
                           <div className="flex items-start gap-2">
-                            <UserCircle className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                            <div>
-                              <div className="font-medium break-words">
-                                {patient.first_name} {patient.middle_name?.[0] ? patient.middle_name[0] + '.' : ''} {patient.last_name}
-                                {patient.ext_name ? ` ${patient.ext_name}` : ''}
-                              </div>
+                            <UserCircle className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1 group-hover:text-primary transition-colors" />
+                            <div className="font-medium text-foreground break-words leading-relaxed">
+                              {patient.first_name} {patient.middle_name?.[0] ? patient.middle_name[0] + '.' : ''} {patient.last_name}
+                              {patient.ext_name ? ` ${patient.ext_name}` : ''}
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>{getSexBadge(patient.sex)}</TableCell>
-                        <TableCell>
+                        <TableCell className="py-4">
+                          {getSexBadge(patient.sex)}
+                        </TableCell>
+                        <TableCell className="py-4">
                           <div className="flex items-center gap-2">
-                            <Calendar className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                            <span className="text-sm">{formatDate(patient.birth_date)}</span>
+                            <span className="text-sm text-foreground font-medium">
+                              {formatDate(patient.birth_date)}
+                            </span>
                           </div>
                         </TableCell>
-                        <TableCell className="whitespace-normal">
-                          <div className="flex items-start gap-2">
-                            <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-0.5" />
-                            <span className="text-sm break-words">
+                        <TableCell className="py-4">
+                          <div className="flex items-start gap-2 max-w-[300px]">
+                            <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
+                            <span className="text-sm text-muted-foreground break-words leading-relaxed">
                               {getLocationString(patient)}
                             </span>
                           </div>
@@ -305,29 +358,31 @@ const PatientList = () => {
 
               {/* Pagination */}
               {!searchTerm && totalPages > 1 && (
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages} ({totalPatients} total patients)
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1 || isLoading}
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages || isLoading}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
+                <div className="border-t bg-muted/30 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-muted-foreground font-medium">
+                      Showing page <span className="font-semibold text-foreground">{currentPage}</span> of <span className="font-semibold text-foreground">{totalPages}</span> ({totalPatients.toLocaleString()} total {totalPatients === 1 ? 'patient' : 'patients'})
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="default"
+                        onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1 || isLoading}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="default"
+                        onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages || isLoading}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -335,7 +390,7 @@ const PatientList = () => {
           )}
         </CardContent>
       </Card>
-    </>
+    </div>
   );
 };
 
