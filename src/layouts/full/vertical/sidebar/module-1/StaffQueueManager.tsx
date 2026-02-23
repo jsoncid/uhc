@@ -34,7 +34,6 @@ const StaffQueueManager = () => {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
   const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
-  const [transferTargetWindow, setTransferTargetWindow] = useState<string>('none');
   const [transferSuccess, setTransferSuccess] = useState<string>('');
 
   const { profile, loading: profileLoading } = useUserProfile();
@@ -218,38 +217,26 @@ const StaffQueueManager = () => {
   const handleOpenTransferDialog = (sequence: Sequence) => {
     setTransferringSequence(sequence);
     setTransferTargetOffice(sequence.office);
-    setTransferTargetWindow('none');
     setTransferDialogOpen(true);
   };
 
   const handleTransfer = async () => {
     if (!transferringSequence || !transferTargetOffice) return;
 
-    const windowId = transferTargetWindow === 'none' ? null : transferTargetWindow;
-    const targetWindow = getTargetOfficeWindows().find((w) => w.id === windowId);
     const targetOffice = activeOffices.find((o) => o.id === transferTargetOffice);
 
-    await transferSequence(transferringSequence.id, transferTargetOffice, windowId);
+    await transferSequence(transferringSequence.id, transferTargetOffice, null);
 
-    // Show success message with transfer details
-    const windowName = windowId
-      ? targetWindow?.description || `Window ${windowId}`
-      : 'Pending (No Window)';
-    const message = `✓ Queue ${transferringSequence?.queue_data?.code} transferred to ${targetOffice?.description} - ${windowName}`;
+    // Show success message
+    const message = `✓ Queue ${transferringSequence?.queue_data?.code} transferred to ${targetOffice?.description}. It will be queued based on priority.`;
     setTransferSuccess(message);
 
     setTransferDialogOpen(false);
     setTransferringSequence(null);
     setTransferTargetOffice('');
-    setTransferTargetWindow('none');
 
     // Clear success message after 3 seconds
     setTimeout(() => setTransferSuccess(''), 3000);
-  };
-
-  const getTargetOfficeWindows = () => {
-    const targetOffice = activeOffices.find((o) => o.id === transferTargetOffice);
-    return (targetOffice?.windows || []).filter((w) => w.status);
   };
 
   const getPriorityColor = (priority: string | null | undefined) => {
@@ -457,7 +444,7 @@ const StaffQueueManager = () => {
             <DialogDescription>
               Transfer queue code{' '}
               <span className="font-bold">{transferringSequence?.queue_data?.code}</span> to another
-              office or window.
+              office.
             </DialogDescription>
           </DialogHeader>
 
@@ -484,52 +471,7 @@ const StaffQueueManager = () => {
               </Select>
             </div>
 
-            <div className="grid gap-2">
-              <Label>Target Window (Optional)</Label>
-              <Select value={transferTargetWindow} onValueChange={setTransferTargetWindow}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select window (or leave empty for pending)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No window (move to pending)</SelectItem>
-                  {getTargetOfficeWindows().map((w) => {
-                    const available = isWindowAvailable(w.id);
-                    return (
-                      <SelectItem key={w.id} value={w.id}>
-                        <div className="flex items-center gap-2">
-                          {w.description || `Window ${w.id}`}
-                          {available ? (
-                            <Badge
-                              variant="outline"
-                              className="text-green-600 border-green-600 text-xs"
-                            >
-                              Available
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="text-orange-600 border-orange-600 text-xs"
-                            >
-                              Busy
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              {transferTargetWindow !== 'none' && !isWindowAvailable(transferTargetWindow) && (
-                <p className="text-xs text-orange-600">
-                  This window is currently busy. The queue will be moved to pending status.
-                </p>
-              )}
-              {transferTargetWindow === 'none' && (
-                <p className="text-xs text-muted-foreground">
-                  No window selected. The queue will be moved to pending status.
-                </p>
-              )}
-            </div>
+
           </div>
 
           <DialogFooter>

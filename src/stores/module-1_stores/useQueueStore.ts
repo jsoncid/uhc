@@ -14,7 +14,7 @@ export interface Status {
   id: string;
   created_at: string;
   description: string | null;
-  status: boolean;
+  is_active: boolean;
 }
 
 export interface Queue {
@@ -202,7 +202,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     try {
       const { error: insertError } = await module1
         .from('status')
-        .insert({ description, status: true });
+        .insert({ description, is_active: true });
 
       if (insertError) throw insertError;
 
@@ -215,18 +215,18 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     }
   },
 
-  updateStatus: async (id: string, description: string, status: boolean) => {
+  updateStatus: async (id: string, description: string, is_active: boolean) => {
     set({ isLoading: true, error: null });
     try {
       const { error: updateError } = await module1
         .from('status')
-        .update({ description, status })
+        .update({ description, is_active })
         .eq('id', id);
 
       if (updateError) throw updateError;
 
       set((state) => ({
-        statuses: state.statuses.map((s) => (s.id === id ? { ...s, description, status } : s)),
+        statuses: state.statuses.map((s) => (s.id === id ? { ...s, description, is_active } : s)),
         isLoading: false,
       }));
     } catch (error) {
@@ -512,40 +512,28 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   ) => {
     set({ error: null });
     try {
-      const { sequences, statuses, isWindowAvailable } = get();
+      const { sequences, statuses } = get();
       const currentSequence = sequences.find((s) => s.id === sequenceId);
 
       if (!currentSequence) {
         throw new Error('Sequence not found');
       }
 
-      const servingStatus = statuses.find((s) => s.description?.toLowerCase().includes('serving'));
       const pendingStatus = statuses.find((s) => s.description?.toLowerCase().includes('pending'));
 
-      if (!servingStatus || !pendingStatus) {
-        throw new Error('Required statuses (serving/pending) not found');
+      if (!pendingStatus) {
+        throw new Error('Required status (pending) not found');
       }
 
-      // Determine new status based on window availability
-      // If transferring to a specific window, use serving if available, pending if busy
-      // If transferring with no window, use pending
-      let newStatus: string;
-      if (targetWindowId) {
-        const windowAvailable = isWindowAvailable(targetWindowId);
-        newStatus = windowAvailable ? servingStatus.id : pendingStatus.id;
-      } else {
-        newStatus = pendingStatus.id;
-      }
+      // Transferred sequences always go to pending status
+      // They will be ordered by priority in the queue
+      const newStatus = pendingStatus.id;
 
       console.log('🔄 Transferring sequence:', {
         sequenceId,
         targetOfficeId,
-        targetWindowId,
-        newStatus: targetWindowId
-          ? isWindowAvailable(targetWindowId)
-            ? 'serving'
-            : 'pending'
-          : 'pending',
+        newStatus: 'pending',
+        priority: currentSequence.priority_data?.description,
       });
 
       // Step 1: Deactivate current sequence
@@ -560,14 +548,14 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       }
       console.log('✅ Current sequence deactivated');
 
-      // Step 2: Insert new sequence record with new office/window
+      // Step 2: Insert new sequence record with new office, always to pending
       const newSequencePayload: Record<string, unknown> = {
         office: targetOfficeId,
         queue: currentSequence.queue,
         priority: currentSequence.priority,
         status: newStatus,
         is_active: true,
-        window: targetWindowId ?? null, // Explicitly set window (either windowId or null if no window selected)
+        window: null, // Transferred sequences have no window assignment, they stay in queue
       };
 
       const { data: newSequence, error: insertError } = await module1

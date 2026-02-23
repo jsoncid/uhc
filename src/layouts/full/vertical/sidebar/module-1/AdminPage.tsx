@@ -267,7 +267,7 @@ const AdminPage = () => {
 
   const handleSaveEditStatus = async () => {
     if (!editingStatus || !editStatusName.trim()) return;
-    await updateStatus(editingStatus.id, editStatusName.trim(), editingStatus.status);
+    await updateStatus(editingStatus.id, editStatusName.trim(), editingStatus.is_active);
     setEditingStatus(null);
     setEditStatusName('');
   };
@@ -278,7 +278,7 @@ const AdminPage = () => {
   };
 
   const handleToggleStatusStatus = async (status: Status) => {
-    await updateStatus(status.id, status.description || '', !status.status);
+    await updateStatus(status.id, status.description || '', !status.is_active);
   };
 
   const handleDeleteStatusClick = (status: Status) => {
@@ -515,9 +515,7 @@ const AdminPage = () => {
                             <Badge variant="outline">{assignment.office_description || 'Unnamed Office'}</Badge>
                           </TableCell>
                           <TableCell>
-                            {assignment.window_description
-                              ? <Badge variant="secondary">{assignment.window_description}</Badge>
-                              : <span className="text-muted-foreground text-xs">—</span>}
+                            {assignment.window_description || <span className="text-muted-foreground text-xs">—</span>}
                           </TableCell>
                           <TableCell>{new Date(assignment.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
@@ -646,7 +644,7 @@ const AdminPage = () => {
                                 onCheckedChange={() => handleTogglePriorityStatus(priority)}
                                 disabled={isLoadingPriorities}
                               />
-                              <Badge variant={priority.status ? 'default' : 'secondary'}>
+                              <Badge variant={priority.status ? 'default' : 'destructive'}>
                                 {priority.status ? 'Active' : 'Inactive'}
                               </Badge>
                             </div>
@@ -796,12 +794,12 @@ const AdminPage = () => {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Switch
-                                checked={status.status}
+                                checked={status.is_active}
                                 onCheckedChange={() => handleToggleStatusStatus(status)}
                                 disabled={isLoadingPriorities}
                               />
-                              <Badge variant={status.status ? 'default' : 'secondary'}>
-                                {status.status ? 'Active' : 'Inactive'}
+                              <Badge variant={status.is_active ? 'default' : 'destructive'}>
+                                {status.is_active ? 'Active' : 'Inactive'}
                               </Badge>
                             </div>
                           </TableCell>
