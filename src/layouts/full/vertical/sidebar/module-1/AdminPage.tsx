@@ -473,6 +473,7 @@ const AdminPage = () => {
                     <TableRow>
                       <TableHead>User</TableHead>
                       <TableHead>Office</TableHead>
+                      <TableHead>Window</TableHead>
                       <TableHead>Assigned At</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -480,25 +481,25 @@ const AdminPage = () => {
                   <TableBody>
                     {loadingAssignment || isLoadingUserAssignments ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           {loadingAssignment ? 'Loading user assignment...' : 'Loading office user assignments...'}
                         </TableCell>
                       </TableRow>
                     ) : !userAssignment ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           No assignment found for your account. Please contact administrator.
                         </TableCell>
                       </TableRow>
                     ) : offices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           No offices found. Please create offices first in the Office Management tab.
                         </TableCell>
                       </TableRow>
                     ) : filteredUserAssignments.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           {userAssignmentSearchTerm
                             ? 'No user assignments match your search'
                             : 'No users assigned to offices yet. Click "Assign User" to get started.'}
@@ -512,6 +513,11 @@ const AdminPage = () => {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{assignment.office_description || 'Unnamed Office'}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {assignment.window_description
+                              ? <Badge variant="secondary">{assignment.window_description}</Badge>
+                              : <span className="text-muted-foreground text-xs">—</span>}
                           </TableCell>
                           <TableCell>{new Date(assignment.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
