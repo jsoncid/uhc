@@ -209,11 +209,13 @@ const PatientProfiling = () => {
   const [patient, setPatient] = useState<PatientProfile>({ ...INITIAL_PROFILE });
   const [isRepositoryModalOpen, setIsRepositoryModalOpen] = useState(false);
   const [modalFacilityId, setModalFacilityId] = useState('');
+  const [modalFacilityDatabase, setModalFacilityDatabase] = useState(''); // Track selected facility's database
   const [modalSearchName, setModalSearchName] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('success');
   const [isSaving, setIsSaving] = useState(false);
   const [modalStep, setModalStep] = useState<1 | 2 | 3>(1);
+  const [selectedFacilityDatabaseForSave, setSelectedFacilityDatabaseForSave] = useState('');
   
   // Search state
   const [searchResults, setSearchResults] = useState<APIPatientProfile[]>([]);
@@ -224,8 +226,51 @@ const PatientProfiling = () => {
   // Facilities state - loaded from MySQL database
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
+  const [facilityLoadError, setFacilityLoadError] = useState<string | null>(null);
 
   const completion = useProfileCompletion(patient);
+
+  const loadFacilities = async () => {
+    setIsLoadingFacilities(true);
+    setFacilityLoadError(null);
+    try {
+      const result = await patientService.getFacilities();
+      if (result.success) {
+        // Merge facilities from both databases and tag with database source
+        const db1Facilities = result.database1.data.map(f => ({ ...f, database: result.database1.name }));
+        const db2Facilities = result.database2.data.map(f => {
+          // Rename facility from database2 for display (cannot update MySQL database)
+          if (f.facility_code === '0005027' || f.facility_code === '0005028') {
+            return {
+              ...f,
+              facility_name: 'NASIPIT DISTRICT HOSPITAL',
+              database: result.database2.name
+            };
+          }
+          return { ...f, database: result.database2.name };
+        });
+        const allFacilities = [...db1Facilities, ...db2Facilities];
+        
+        // Filter to only show facilities with patients
+        const facilitiesWithPatients = allFacilities.filter(f => f.patient_count > 0);
+        
+        setFacilities(facilitiesWithPatients);
+        
+        if (facilitiesWithPatients.length === 0) {
+          setFacilityLoadError('No facilities with patient records found');
+        }
+      } else {
+        setFacilities([]);
+        setFacilityLoadError(result.message || 'No facilities available');
+      }
+    } catch (error) {
+      console.warn(`Failed to load facilities:`, error);
+      setFacilities([]);
+      setFacilityLoadError('Failed to load facilities');
+    } finally {
+      setIsLoadingFacilities(false);
+    }
+  };
 
   // Check backend connection and load facilities on mount
   useEffect(() => {
@@ -235,22 +280,6 @@ const PatientProfiling = () => {
         const health = await patientService.checkHealth();
         const connected = health.status === 'ok' && health.databases?.mysql === 'connected';
         setIsBackendConnected(connected);
-        
-        // Try to load facilities if connected (non-blocking)
-        if (connected) {
-          setIsLoadingFacilities(true);
-          try {
-            const result = await patientService.getFacilities();
-            if (result.success && result.data) {
-              setFacilities(result.data);
-            }
-          } catch (error) {
-            console.warn('Failed to load facilities, but continuing:', error);
-            // Don't block the UI if facilities fail to load
-          } finally {
-            setIsLoadingFacilities(false);
-          }
-        }
       } catch (error) {
         console.error('Initialization error:', error);
         setIsBackendConnected(false);
@@ -273,6 +302,7 @@ const PatientProfiling = () => {
   const handleReset = () => {
     setPatient({ ...INITIAL_PROFILE });
     setStatusMessage(null);
+    setSelectedFacilityDatabaseForSave('');
   };
 
   const handleSave = async () => {
@@ -287,8 +317,17 @@ const PatientProfiling = () => {
     setStatusMessage(null);
     
     try {
+      const facilityCodeForSupabase = selectedFacilityDatabaseForSave === 'ndh_ihomis_plus'
+        ? '0005028'
+        : patient.facility_code;
+
+      const patientToSave = {
+        ...patient,
+        facility_code: facilityCodeForSupabase,
+      };
+
       // Save patient data to Supabase (location fields are used to find/create brgy UUID)
-      const result = await patientService.saveToSupabase(patient);
+      const result = await patientService.saveToSupabase(patientToSave);
       
       if (result.success) {
         setStatusMessage(result.message || 'Patient profile saved successfully to Supabase');
@@ -327,9 +366,13 @@ const PatientProfiling = () => {
   const openModal = () => {
     setModalStep(1);
     setModalFacilityId('');
+    setModalFacilityDatabase('');
     setModalSearchName('');
     setSearchResults([]);
     setSearchError(null);
+    setFacilities([]);
+    setFacilityLoadError(null);
+    void loadFacilities();
     setIsRepositoryModalOpen(true);
   };
 
@@ -340,26 +383,61 @@ const PatientProfiling = () => {
       return;
     }
 
+    if (!modalFacilityDatabase) {
+      setSearchError('Please select a facility first');
+      return;
+    }
+
     setIsSearching(true);
     setSearchError(null);
     setSearchResults([]);
 
-    const result = await patientService.searchPatients(modalSearchName.trim(), {
-      facility: modalFacilityId || undefined,
-      limit: 50,
+    console.log('Searching with:', {
+      name: modalSearchName.trim(),
+      facility: modalFacilityId,
+      database: modalFacilityDatabase,
     });
 
-    setIsSearching(false);
+    try {
+      // Use the database from the selected facility
+      const result = await patientService.searchPatients(modalSearchName.trim(), {
+        facility: modalFacilityId || undefined,
+        database: modalFacilityDatabase,
+        limit: 50,
+      });
 
-    if (result.success) {
-      setSearchResults(result.data);
-      if (result.data.length === 0) {
-        setSearchError('No patients found matching your search criteria');
+      console.log('Search result:', result);
+
+      setIsSearching(false);
+
+      if (result.success) {
+        // Backend returns database1 and database2 structure
+        // Extract data based on selected database
+        let patients: APIPatientProfile[] = [];
+        
+        if (result.database1 && modalFacilityDatabase === result.database1.name) {
+          patients = result.database1.data;
+        } else if (result.database2 && modalFacilityDatabase === result.database2.name) {
+          patients = result.database2.data;
+        } else if (result.data) {
+          // Fallback: if backend returns old structure with flat data array
+          patients = result.data;
+        }
+
+        setSearchResults(patients);
+        
+        if (patients.length === 0) {
+          setSearchError('No patients found matching your search criteria');
+        } else {
+          setModalStep(3); // Move to results step
+        }
       } else {
-        setModalStep(3); // Move to results step
+        setSearchError(result.message || 'Failed to search patients');
       }
-    } else {
-      setSearchError(result.message || 'Failed to search patients');
+    } catch (error) {
+      console.error('Search error:', error);
+      setIsSearching(false);
+      setSearchError(error instanceof Error ? error.message : 'Failed to search patients');
     }
   };
 
@@ -394,10 +472,13 @@ const PatientProfiling = () => {
     setModalStep(1);
     setSearchResults([]);
     setModalSearchName('');
+    setSelectedFacilityDatabaseForSave(modalFacilityDatabase);
   };
 
   // Find selected facility from loaded facilities
-  const selectedFacility = facilities.find((f) => f.facility_code === modalFacilityId);
+  const selectedFacility = facilities.find(
+    (f) => f.facility_code === modalFacilityId && f.database === modalFacilityDatabase
+  );
 
   return (
     <>
@@ -732,9 +813,12 @@ const PatientProfiling = () => {
           if (!open) {
             setModalStep(1);
             setModalFacilityId('');
+            setModalFacilityDatabase('');
             setModalSearchName('');
             setSearchResults([]);
             setSearchError(null);
+            setFacilities([]);
+            setFacilityLoadError(null);
           }
         }}
       >
@@ -756,9 +840,9 @@ const PatientProfiling = () => {
             </DialogHeader>
 
             {/* Step indicator */}
-            <div className="flex items-center gap-2 mt-5">
+            <div className="flex items-center gap-1.5 mt-5 overflow-x-auto">
               <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
                   modalStep >= 1
                     ? 'bg-primary text-white'
                     : 'bg-muted text-muted-foreground'
@@ -767,9 +851,9 @@ const PatientProfiling = () => {
                 <Building2 className="h-3.5 w-3.5" />
                 1. Facility
               </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
                   modalStep >= 2
                     ? 'bg-primary text-white'
                     : 'bg-muted text-muted-foreground'
@@ -778,9 +862,9 @@ const PatientProfiling = () => {
                 <Search className="h-3.5 w-3.5" />
                 2. Search
               </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
                   modalStep >= 3
                     ? 'bg-primary text-white'
                     : 'bg-muted text-muted-foreground'
@@ -797,9 +881,13 @@ const PatientProfiling = () => {
             {modalStep === 1 && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Choose the healthcare facility (database) to search from.
+                  Choose a healthcare facility to search patient records from.
                 </p>
-                
+
+                {facilityLoadError && (
+                  <p className="text-xs text-error">{facilityLoadError}</p>
+                )}
+
                 {isLoadingFacilities ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -818,25 +906,36 @@ const PatientProfiling = () => {
                 ) : (
                   <div className="grid gap-2 max-h-[300px] overflow-y-auto pr-1">
                     {facilities.map((facility) => {
-                      const isSelected = modalFacilityId === facility.facility_code;
+                      const isSelected = modalFacilityId === facility.facility_code && modalFacilityDatabase === facility.database;
                       return (
                         <button
-                          key={facility.facility_code}
+                          key={`${facility.facility_code}-${facility.database}`}
                           type="button"
-                          onClick={() => setModalFacilityId(facility.facility_code)}
+                          onClick={() => {
+                            setModalFacilityId(facility.facility_code);
+                            setModalFacilityDatabase(facility.database || '');
+                          }}
                           className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-left transition-all ${
                             isSelected
                               ? 'border-primary bg-primary/5 shadow-sm'
                               : 'border-border hover:border-primary/30 hover:bg-muted/50'
                           }`}
                         >
-                          <span className="text-xl">{getFacilityIcon(facility.facility_type)}</span>
+                          <span className="text-xl">{getFacilityIcon(facility.facility_name)}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">
-                              {facility.facility_name}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {facility.facility_name}
+                              </p>
+                              <Badge 
+                                variant={facility.database === 'adnph_ihomis_plus' ? 'secondary' : 'warning'}
+                                className="text-[9px] px-1.5 py-0 shrink-0"
+                              >
+                                {facility.database === 'adnph_ihomis_plus' ? 'Primary' : 'NDH'}
+                              </Badge>
+                            </div>
                             <p className="text-xs text-muted-foreground">
-                              {facility.facility_type} • {facility.patient_count.toLocaleString()} patients
+                              {facility.patient_count.toLocaleString()} patients
                             </p>
                           </div>
                           {isSelected && (
@@ -847,11 +946,11 @@ const PatientProfiling = () => {
                     })}
                   </div>
                 )}
-                
+
                 <div className="flex justify-end pt-2">
                   <Button
                     onClick={() => setModalStep(2)}
-                    disabled={!modalFacilityId}
+                    disabled={!modalFacilityId || !modalFacilityDatabase}
                     className="gap-2"
                   >
                     Continue
@@ -865,22 +964,24 @@ const PatientProfiling = () => {
             {modalStep === 2 && (
               <div className="space-y-4">
                 {/* Selected facility chip */}
-                {selectedFacility && (
-                  <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2">
-                    <span className="text-base">{getFacilityIcon(selectedFacility.facility_type)}</span>
-                    <span className="text-sm font-medium">{selectedFacility.facility_name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ({selectedFacility.patient_count.toLocaleString()} patients)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setModalStep(1)}
-                      className="ml-auto text-xs text-primary hover:underline"
-                    >
-                      Change
-                    </button>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  {selectedFacility && (
+                    <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2">
+                      <span className="text-base">{getFacilityIcon(selectedFacility.facility_name)}</span>
+                      <span className="text-sm font-medium">{selectedFacility.facility_name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({selectedFacility.patient_count.toLocaleString()} patients)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setModalStep(1)}
+                        className="ml-auto text-xs text-primary hover:underline"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <FormField
                   label="Search Patient Name"
@@ -921,8 +1022,9 @@ const PatientProfiling = () => {
                 <div className="flex items-start gap-2 rounded-lg bg-lightinfo px-3 py-2.5">
                   <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
                   <p className="text-xs text-info">
-                    Search the MySQL database (iHOMIS Plus) for existing patient records. 
-                    Matching records will be shown for selection.
+                    {selectedFacility
+                      ? `Search the ${selectedFacility.facility_name} repository for existing patient records.`
+                      : 'Search the selected facility repository for existing patient records.'}
                   </p>
                 </div>
 

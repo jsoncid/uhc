@@ -46,9 +46,21 @@ export interface PatientProfileWithLocations extends PatientProfile {
 
 export interface PatientSearchResult {
   success: boolean;
-  data: PatientProfile[];
-  count: number;
+  data?: PatientProfile[]; // Legacy flat structure
+  count?: number;
   message?: string;
+  // New structure: backend returns both databases
+  database1?: {
+    name: string;
+    data: PatientProfile[];
+    count: number;
+  };
+  database2?: {
+    name: string;
+    data: PatientProfile[];
+    count: number;
+  };
+  total_count?: number;
 }
 
 export interface PatientGetResult {
@@ -71,20 +83,32 @@ export interface PaginatedPatientResult {
 
 export interface FacilityListResult {
   success: boolean;
-  data: {
-    facility_code: string;
-    facility_name: string;
-    facility_type: string;
-    patient_count: number;
-  }[];
+  database1: {
+    name: string;
+    data: {
+      facility_code: string;
+      facility_name: string;
+      patient_count: number;
+    }[];
+    count: number;
+  };
+  database2: {
+    name: string;
+    data: {
+      facility_code: string;
+      facility_name: string;
+      patient_count: number;
+    }[];
+    count: number;
+  };
   message?: string;
 }
 
 export interface Facility {
   facility_code: string;
   facility_name: string;
-  facility_type: string;
   patient_count: number;
+  database?: string; // Track which database this facility came from
 }
 
 export interface PatientTag {
@@ -219,11 +243,12 @@ class PatientService {
    */
   async searchPatients(
     name: string,
-    options?: { facility?: string; limit?: number }
+    options?: { facility?: string; database?: string; limit?: number }
   ): Promise<PatientSearchResult> {
     try {
       const params = new URLSearchParams({ name });
       if (options?.facility) params.append('facility', options.facility);
+      if (options?.database) params.append('database', options.database);
       if (options?.limit) params.append('limit', String(options.limit));
 
       const response = await fetch(`${this.baseUrl}/search?${params.toString()}`, {
@@ -313,7 +338,7 @@ class PatientService {
   }
 
   /**
-   * Get list of facilities
+   * Get list of facilities from both databases
    */
   async getFacilities(): Promise<FacilityListResult> {
     try {
@@ -334,7 +359,8 @@ class PatientService {
       console.error('Get facilities error:', error);
       return {
         success: false,
-        data: [],
+        database1: { name: 'adnph_ihomis_plus', data: [], count: 0 },
+        database2: { name: 'ndh_ihomis_plus', data: [], count: 0 },
         message: error instanceof Error ? error.message : 'Failed to get facilities',
       };
     }
