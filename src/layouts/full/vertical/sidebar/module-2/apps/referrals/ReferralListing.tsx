@@ -42,6 +42,7 @@ const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
+  Arrived: 'bg-lightprimary text-primary',
   Discharged: 'bg-lightsecondary text-secondary',
   Declined: 'bg-lighterror text-error',
 };
@@ -350,11 +351,13 @@ const ReferralListing = () => {
     searchReferrals,
     referralSearch,
     filter,
+    setFilter,
     deactivateReferral,
   }: ReferralContextType = useContext(ReferralContext);
   const navigate = useNavigate();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState<string>('');
+  const [confirmDeactivatedBy, setConfirmDeactivatedBy] = useState<string>('');
   const [printReferral, setPrintReferral] = useState<ReferralType | null>(null);
   const [reReferTarget, setReReferTarget] = useState<ReferralType | null>(null);
   const [editTarget, setEditTarget] = useState<ReferralType | null>(null);
@@ -371,8 +374,9 @@ const ReferralListing = () => {
 
   const handleConfirmDeactivate = () => {
     if (confirmId) {
-      deactivateReferral(confirmId);
+      deactivateReferral(confirmId, confirmDeactivatedBy.trim() || 'Unknown');
       setConfirmId(null);
+      setConfirmDeactivatedBy('');
     }
   };
 
@@ -446,6 +450,22 @@ const ReferralListing = () => {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Status filter tabs */}
+      <div className="flex flex-wrap gap-1.5">
+        {['all', 'Pending', 'Accepted', 'In Transit', 'Arrived', 'Declined', 'Discharged'].map((f) => (
+          <Button
+            key={f}
+            size="sm"
+            variant={filter === f ? 'default' : 'outline'}
+            className="h-7 text-xs px-3"
+            onClick={() => { setFilter(f); setPage(1); }}
+          >
+            {f === 'all' ? 'All' : f}
+          </Button>
+        ))}
+      </div>
+
       <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
         <Table className="min-w-[960px]">
           <TableHeader>
@@ -533,7 +553,9 @@ const ReferralListing = () => {
                             Re-refer Patient
                           </DropdownMenuItem>
                         )}
-                        {referral.latest_status?.description === 'Pending' && (
+                        {!['Declined', 'Discharged', 'Deactivated'].includes(
+                          referral.latest_status?.description ?? '',
+                        ) && (
                           <DropdownMenuItem onClick={() => setEditTarget(referral)}>
                             <Icon
                               icon="solar:pen-linear"
@@ -602,7 +624,16 @@ const ReferralListing = () => {
             patient_name: reReferTarget.patient_name,
             from_assignment_name: reReferTarget.from_assignment_name,
             to_assignment_name: newHospital,
-            referral_info: reReferTarget.referral_info,
+            // Strip the old referral_info.id so Supabase generates a new one,
+            // and clear diagnostics/vaccinations to avoid UUID conflicts
+            referral_info: reReferTarget.referral_info
+              ? {
+                  ...reReferTarget.referral_info,
+                  id: '',
+                  diagnostics: [],
+                  vaccinations: [],
+                }
+              : undefined,
           });
         }}
       />
@@ -643,8 +674,25 @@ const ReferralListing = () => {
               undone.
             </DialogDescription>
           </DialogHeader>
+          <div className="flex flex-col gap-1.5 px-1">
+            <Label className="text-sm font-medium">
+              Deactivated By <span className="text-error">*</span>
+            </Label>
+            <Input
+              placeholder="e.g. Dr. Santos"
+              value={confirmDeactivatedBy}
+              onChange={(e) => setConfirmDeactivatedBy(e.target.value)}
+            />
+          </div>
           <DialogFooter className="gap-2 mt-2">
-            <Button variant="outline" size="sm" onClick={() => setConfirmId(null)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setConfirmId(null);
+                setConfirmDeactivatedBy('');
+              }}
+            >
               Cancel
             </Button>
             <Button

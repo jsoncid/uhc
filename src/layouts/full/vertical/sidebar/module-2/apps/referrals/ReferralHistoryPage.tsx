@@ -40,8 +40,10 @@ const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
+  Arrived: 'bg-lightprimary text-primary',
   Discharged: 'bg-lightsecondary text-secondary',
   Declined: 'bg-lighterror text-error',
+  Deactivated: 'bg-muted text-muted-foreground',
 };
 
 const getStatusStyle = (d?: string | null) =>
