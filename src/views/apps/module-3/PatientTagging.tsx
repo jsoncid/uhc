@@ -286,11 +286,10 @@ const PatientTagging = () => {
             <div className="p-2 bg-primary/10 rounded-lg">
               <Activity className="h-7 w-7 text-primary" />
             </div>
-            Patient Repository Management
+            Patient Repository
           </h1>
           <p className="text-muted-foreground mt-2">
-            View patient medical history from the hospital database or link manually entered patients
-            with existing hospital records to access their complete medical history.
+            View patient medical records, link manually entered patients with hospital database, and manage patient connections.
           </p>
         </div>
       </div>
@@ -300,15 +299,15 @@ const PatientTagging = () => {
         <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="view" className="flex items-center gap-2">
             <Search className="h-4 w-4" />
-            View Patient History
+            View History
           </TabsTrigger>
           <TabsTrigger value="link" className="flex items-center gap-2">
             <LinkIcon className="h-4 w-4" />
-            Link Patients
+            Link Patient
           </TabsTrigger>
           <TabsTrigger value="linked" className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
-            Linked Patients
+            Linked
           </TabsTrigger>
         </TabsList>
 
@@ -317,8 +316,7 @@ const PatientTagging = () => {
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              Search for patients who are already in the hospital database (MySQL) to view their complete
-              medical history, admissions, and encounters.
+              Search hospital database patients to view their complete medical history, admissions, and encounters.
             </AlertDescription>
           </Alert>
 
@@ -326,10 +324,10 @@ const PatientTagging = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Database className="h-5 w-5 text-primary" />
-                Search Hospital Database
+                Hospital Database Search
               </CardTitle>
               <CardDescription>
-                Enter patient name or HPERCODE to find existing hospital records
+                Search by patient name or HPERCODE
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -382,8 +380,7 @@ const PatientTagging = () => {
                 </div>
                 <h3 className="text-2xl font-bold mb-2">No Patient Selected</h3>
                 <p className="text-muted-foreground text-center max-w-lg mb-6">
-                  Search for a patient above to view their complete medical history, admissions, and
-                  hospital encounters.
+                  Search for a patient to view their medical history and hospital records.
                 </p>
                 <div className="flex items-center gap-6 text-sm">
                   <div className="flex flex-col items-center gap-2">
@@ -417,9 +414,7 @@ const PatientTagging = () => {
           <Alert className="border-primary/30 bg-primary/5">
             <Info className="h-4 w-4 text-primary" />
             <AlertDescription className="text-foreground">
-              <strong>Link manually entered patients with hospital records:</strong> Search below to find
-              patient profiles that were created manually (in Supabase) and haven't been linked to the
-              hospital database (MySQL) yet. Only <strong>unlinked patients</strong> will appear in the search results.
+              Connect manually entered patient profiles with their hospital database records. Only unlinked patients will appear in search results.
             </AlertDescription>
           </Alert>
 
@@ -428,7 +423,7 @@ const PatientTagging = () => {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Info className="h-4 w-4" />
-                How Patient Linking Works
+                How to Link
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -438,8 +433,8 @@ const PatientTagging = () => {
                     <span className="text-lg font-bold text-blue-500">1</span>
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold text-sm">Search Manual Entry</p>
-                    <p className="text-xs text-muted-foreground">Find your manually entered patient</p>
+                    <p className="font-semibold text-sm">Search Patient</p>
+                    <p className="text-xs text-muted-foreground">Find unlinked profile</p>
                   </div>
                 </div>
                 <ArrowRight className="h-6 w-6 text-muted-foreground mt-3" />
@@ -448,8 +443,8 @@ const PatientTagging = () => {
                     <span className="text-lg font-bold text-purple-500">2</span>
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold text-sm">Click Link Button</p>
-                    <p className="text-xs text-muted-foreground">Open the linking dialog</p>
+                    <p className="font-semibold text-sm">Click Link</p>
+                    <p className="text-xs text-muted-foreground">Open linking dialog</p>
                   </div>
                 </div>
                 <ArrowRight className="h-6 w-6 text-muted-foreground mt-3" />
@@ -458,8 +453,8 @@ const PatientTagging = () => {
                     <span className="text-lg font-bold text-emerald-500">3</span>
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold text-sm">Search & Connect</p>
-                    <p className="text-xs text-muted-foreground">Find matching hospital record</p>
+                    <p className="font-semibold text-sm">Match Record</p>
+                    <p className="text-xs text-muted-foreground">Find hospital match</p>
                   </div>
                 </div>
                 <ArrowRight className="h-6 w-6 text-muted-foreground mt-3" />
@@ -468,8 +463,8 @@ const PatientTagging = () => {
                     <CheckCircle2 className="h-6 w-6 text-amber-500" />
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold text-sm">Done!</p>
-                    <p className="text-xs text-muted-foreground">Patient now has full history access</p>
+                    <p className="font-semibold text-sm">Complete</p>
+                    <p className="text-xs text-muted-foreground">Full access enabled</p>
                   </div>
                 </div>
               </div>
@@ -481,10 +476,10 @@ const PatientTagging = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <UserPlus className="h-5 w-5 text-primary" />
-                Search Manually Entered Patients
+                Unlinked Patients
               </CardTitle>
               <CardDescription>
-                Search for patients created manually that haven't been linked to hospital records yet
+                Find and link manually created patient profiles
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -492,7 +487,7 @@ const PatientTagging = () => {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Enter patient name to search..."
+                    placeholder="Search by patient name..."
                     value={supabaseSearchTerm}
                     onChange={(e) => setSupabaseSearchTerm(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSearchSupabase()}
@@ -560,7 +555,7 @@ const PatientTagging = () => {
                                   <span>{patient.birth_date}</span>
                                 </div>
                                 <p className="text-xs text-muted-foreground italic">
-                                  Ready to connect with hospital records
+                                  Ready to link with hospital database
                                 </p>
                               </div>
                             </div>
@@ -594,9 +589,9 @@ const PatientTagging = () => {
                   <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
                     <Search className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <p className="font-semibold mb-1">No unlinked patients found</p>
+                  <p className="font-semibold mb-1">No Results Found</p>
                   <p className="text-sm text-muted-foreground max-w-md">
-                    No manually entered patients matching "{supabaseSearchTerm}" need linking. Either the patient doesn't exist, or they're already linked to the hospital database.
+                    No unlinked patients matching "{supabaseSearchTerm}". The patient may not exist or is already linked.
                   </p>
                 </div>
               )}
@@ -607,10 +602,9 @@ const PatientTagging = () => {
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
                     <UserPlus className="h-8 w-8 text-primary" />
                   </div>
-                  <p className="font-semibold mb-1">Search for Unlinked Patients</p>
+                  <p className="font-semibold mb-1">Ready to Link Patients</p>
                   <p className="text-sm text-muted-foreground max-w-md">
-                    Enter a patient name above to find manually entered patients that haven't been linked
-                    to the hospital database yet. Only patients without an existing link will be shown.
+                    Search for manually created patients that need to be linked with the hospital database.
                   </p>
                 </div>
               )}
@@ -623,9 +617,7 @@ const PatientTagging = () => {
           <Alert className="border-green-500/30 bg-green-50/50 dark:bg-green-900/10">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-foreground">
-              <strong>View successfully linked patients:</strong> Search below to find patients that have
-              been successfully linked between Supabase and the hospital database (MySQL). These patients
-              now have full access to their hospital medical history.
+              View and manage successfully linked patients. These patients have full access to their hospital medical history.
             </AlertDescription>
           </Alert>
 
@@ -639,7 +631,7 @@ const PatientTagging = () => {
                     Linked Patients
                   </CardTitle>
                   <CardDescription>
-                    {linkedTotal > 0 ? `${linkedTotal} patient${linkedTotal === 1 ? '' : 's'} linked to hospital records` : 'No linked patients yet'}
+                    {linkedTotal > 0 ? `${linkedTotal} patient${linkedTotal === 1 ? '' : 's'} successfully linked` : 'No patients linked yet'}
                   </CardDescription>
                 </div>
                 <Button
@@ -742,7 +734,7 @@ const PatientTagging = () => {
                                 </div>
                                 <p className="text-xs text-green-700 dark:text-green-400 italic mt-2 flex items-center gap-1">
                                   <CheckCircle2 className="h-3 w-3" />
-                                  Connected to hospital records - full history available
+                                  Full hospital history access enabled
                                 </p>
                               </div>
                             </div>
@@ -794,9 +786,9 @@ const PatientTagging = () => {
                   <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
                     <Search className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <p className="font-semibold mb-1">No linked patients found</p>
+                  <p className="font-semibold mb-1">No Match Found</p>
                   <p className="text-sm text-muted-foreground max-w-md">
-                    No linked patients matching "{linkedSearchTerm}" were found. Try a different search term.
+                    No linked patients match "{linkedSearchTerm}". Try a different search.
                   </p>
                 </div>
               )}
@@ -807,16 +799,15 @@ const PatientTagging = () => {
                   <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-3">
                     <LinkIcon className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <p className="font-semibold mb-1">No Linked Patients Yet</p>
+                  <p className="font-semibold mb-1">No Linked Patients</p>
                   <p className="text-sm text-muted-foreground max-w-md">
-                    You haven't linked any patients yet. Go to the "Link Patients" tab to connect manually
-                    entered patients with their hospital records.
+                    Start linking patients to enable access to their hospital records and medical history.
                   </p>
                   <Button
                     className="mt-4"
                     onClick={() => setActiveTab('link')}
                   >
-                    Go to Link Patients
+                    Link Patients
                   </Button>
                 </div>
               )}
