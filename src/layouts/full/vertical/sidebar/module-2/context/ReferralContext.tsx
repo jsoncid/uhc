@@ -314,21 +314,27 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Outgoing referrals changed (sender side)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'module2', table: 'referral', filter: `from_assignment=eq.${userAssignmentId}` },
+        {
+          event: '*',
+          schema: 'module2',
+          table: 'referral',
+          filter: `from_assignment=eq.${userAssignmentId}`,
+        },
         refetch,
       )
       // Incoming referrals changed (receiver side)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'module2', table: 'referral', filter: `to_assignment=eq.${userAssignmentId}` },
+        {
+          event: '*',
+          schema: 'module2',
+          table: 'referral',
+          filter: `to_assignment=eq.${userAssignmentId}`,
+        },
         refetch,
       )
       // Any history entry change (status updates from either party)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'module2', table: 'referral_history' },
-        refetch,
-      )
+      .on('postgres_changes', { event: '*', schema: 'module2', table: 'referral_history' }, refetch)
       .subscribe();
 
     return () => {
@@ -813,10 +819,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ? {
             ...r,
             latest_status: dischargedStatus,
-            history: [
-              ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
-              historyEntry,
-            ],
+            history: [...(r.history ?? []).map((h) => ({ ...h, is_active: false })), historyEntry],
           }
         : r;
 

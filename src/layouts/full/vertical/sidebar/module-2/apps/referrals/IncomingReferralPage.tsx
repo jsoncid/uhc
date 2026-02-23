@@ -994,11 +994,7 @@ const DischargedTab = ({
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
-                    <Icon
-                      icon="solar:logout-3-bold-duotone"
-                      height={44}
-                      className="opacity-25"
-                    />
+                    <Icon icon="solar:logout-3-bold-duotone" height={44} className="opacity-25" />
                     <p className="text-sm">No discharged patients</p>
                   </div>
                 </TableCell>
@@ -1043,9 +1039,7 @@ const DischargedTab = ({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="min-w-[160px]">
                           <DropdownMenuItem
-                            onClick={() =>
-                              navigate('/module-2/referrals/incoming/detail/' + r.id)
-                            }
+                            onClick={() => navigate('/module-2/referrals/incoming/detail/' + r.id)}
                           >
                             <Icon
                               icon="solar:eye-linear"
