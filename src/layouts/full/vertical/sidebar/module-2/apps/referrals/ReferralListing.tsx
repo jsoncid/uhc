@@ -36,12 +36,8 @@ import {
 import ReferralPrintDocument from './ReferralPrintDocument';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from 'src/components/ui/sheet';
+import { Separator } from 'src/components/ui/separator';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from 'src/components/ui/sheet';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
@@ -305,8 +301,16 @@ const EditReferralPanel = ({
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-lightprimary flex items-center justify-center flex-shrink-0">
-                <Icon icon="solar:pen-bold-duotone" height={20} className="text-primary sm:hidden" />
-                <Icon icon="solar:pen-bold-duotone" height={24} className="text-primary hidden sm:block" />
+                <Icon
+                  icon="solar:pen-bold-duotone"
+                  height={20}
+                  className="text-primary sm:hidden"
+                />
+                <Icon
+                  icon="solar:pen-bold-duotone"
+                  height={24}
+                  className="text-primary hidden sm:block"
+                />
               </div>
               <div className="min-w-0">
                 <SheetTitle className="text-sm sm:text-base font-semibold truncate">
@@ -323,7 +327,11 @@ const EditReferralPanel = ({
               className="h-8 w-8 flex-shrink-0 rounded-full"
               onClick={onClose}
             >
-              <Icon icon="solar:close-circle-bold-duotone" height={20} className="text-muted-foreground" />
+              <Icon
+                icon="solar:close-circle-bold-duotone"
+                height={20}
+                className="text-muted-foreground"
+              />
             </Button>
           </div>
         </SheetHeader>
@@ -370,7 +378,9 @@ const EditReferralPanel = ({
               </h4>
               <div className="grid grid-cols-1 gap-3 sm:gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs sm:text-sm font-medium">History of Present Illness</Label>
+                  <Label className="text-xs sm:text-sm font-medium">
+                    History of Present Illness
+                  </Label>
                   <Textarea
                     className="resize-none text-sm"
                     rows={3}
@@ -398,12 +408,28 @@ const EditReferralPanel = ({
               </h4>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { key: 'blood_pressure', label: 'Blood Pressure', icon: 'solar:heart-pulse-bold-duotone' },
-                  { key: 'temperature', label: 'Temperature (°C)', icon: 'solar:thermometer-bold-duotone' },
+                  {
+                    key: 'blood_pressure',
+                    label: 'Blood Pressure',
+                    icon: 'solar:heart-pulse-bold-duotone',
+                  },
+                  {
+                    key: 'temperature',
+                    label: 'Temperature (°C)',
+                    icon: 'solar:thermometer-bold-duotone',
+                  },
                   { key: 'heart_rate', label: 'Heart Rate', icon: 'solar:pulse-bold-duotone' },
-                  { key: 'respiratory_rate', label: 'Respiratory Rate', icon: 'solar:wind-bold-duotone' },
+                  {
+                    key: 'respiratory_rate',
+                    label: 'Respiratory Rate',
+                    icon: 'solar:wind-bold-duotone',
+                  },
                   { key: 'o2_sat', label: 'O2 Sat', icon: 'solar:water-bold-duotone' },
-                  { key: 'o2_requirement', label: 'O2 Requirement', icon: 'solar:mask-happi-bold-duotone' },
+                  {
+                    key: 'o2_requirement',
+                    label: 'O2 Requirement',
+                    icon: 'solar:mask-happi-bold-duotone',
+                  },
                 ].map(({ key, label, icon }) => (
                   <div key={key} className="flex flex-col gap-1.5">
                     <Label className="text-[10px] sm:text-xs font-medium text-muted-foreground flex items-center gap-1">
