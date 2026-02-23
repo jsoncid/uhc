@@ -552,7 +552,7 @@ const PendingTab = ({
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon icon="solar:inbox-bold-duotone" height={44} className="opacity-25" />
                     <p className="text-sm">No pending incoming referrals</p>
@@ -634,6 +634,13 @@ const PendingTab = ({
                 </TableRow>
               ))
             )}
+            {/* Filler rows — keep table height fixed at PAGE_SIZE rows */}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={7} className="h-[53px]" />
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>
@@ -715,7 +722,7 @@ const ActiveTab = ({
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-14 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon icon="solar:hospital-bold-duotone" height={44} className="opacity-25" />
                     <p className="text-sm">No active incoming patients</p>
@@ -803,6 +810,13 @@ const ActiveTab = ({
                 </TableRow>
               ))
             )}
+            {/* Filler rows — keep table height fixed at PAGE_SIZE rows */}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={8} className="h-[53px]" />
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>
@@ -865,7 +879,7 @@ const DeclinedTab = ({
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon
                       icon="solar:close-circle-bold-duotone"
@@ -937,6 +951,13 @@ const DeclinedTab = ({
                 </TableRow>
               ))
             )}
+            {/* Filler rows — keep table height fixed at PAGE_SIZE rows */}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={7} className="h-[53px]" />
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>
@@ -992,7 +1013,7 @@ const DischargedTab = ({
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon icon="solar:logout-3-bold-duotone" height={44} className="opacity-25" />
                     <p className="text-sm">No discharged patients</p>
@@ -1063,6 +1084,13 @@ const DischargedTab = ({
                 );
               })
             )}
+            {/* Filler rows — keep table height fixed at PAGE_SIZE rows */}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={7} className="h-[53px]" />
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>

@@ -758,7 +758,7 @@ const ReferralListing = () => {
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon
                       icon="solar:clipboard-remove-bold-duotone"
@@ -870,6 +870,13 @@ const ReferralListing = () => {
                 </TableRow>
               ))
             )}
+            {/* Filler rows — keep table height fixed at PAGE_SIZE rows */}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={8} className="h-[53px]" />
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>
