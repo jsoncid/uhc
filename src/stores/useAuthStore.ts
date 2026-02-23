@@ -211,13 +211,28 @@ export const useAuthStore = create<AuthState>((set, get) => {
         if (error) throw error;
 
         if (data?.user) {
-          const { error: insertError } = await supabase
+          const { error: insertStatusError } = await supabase
             .from('user_status')
             .insert([{ id: data.user.id, email: data.user.email, is_active: false }]);
 
-          if (insertError) {
-            console.error('Error creating user_status:', insertError);
-            throw insertError;
+          if (insertStatusError) {
+            console.error('Error creating user_status:', insertStatusError);
+            throw insertStatusError;
+          }
+
+          // Persist selected assignment from registration
+          if (options?.assignmentId) {
+            const { error: insertAssignmentError } = await supabase
+              .from('user_assignment')
+              .insert({
+                user: data.user.id,
+                assignment: options.assignmentId,
+              });
+
+            if (insertAssignmentError) {
+              console.error('Error creating user_assignment:', insertAssignmentError);
+              throw insertAssignmentError;
+            }
           }
 
           // Sign out — user must wait for admin approval
