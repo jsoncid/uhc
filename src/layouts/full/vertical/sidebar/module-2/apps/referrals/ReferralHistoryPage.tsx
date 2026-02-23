@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
 import { useNavigate } from 'react-router';
@@ -27,7 +27,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from 'src/components/ui/tooltip';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'src/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from 'src/components/ui/sheet';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,10 +60,10 @@ const fmt = (iso: string | null | undefined, pattern = 'MMM dd, yyyy') =>
 
 // ─── Timeline entry ───────────────────────────────────────────────────────────
 const TimelineEntry = ({ entry, isLast }: { entry: ReferralHistory; isLast: boolean }) => (
-  <div className="flex gap-3">
+  <div className="flex gap-2 sm:gap-3">
     <div className="flex flex-col items-center">
       <div
-        className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ring-2 ring-offset-2 ${
+        className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full mt-1.5 flex-shrink-0 ring-2 ring-offset-2 ring-offset-background ${
           STATUS_STYLES[entry.status_description ?? '']
             ? 'ring-current ' + STATUS_STYLES[entry.status_description ?? '']
             : 'bg-primary ring-primary'
@@ -66,28 +71,30 @@ const TimelineEntry = ({ entry, isLast }: { entry: ReferralHistory; isLast: bool
       />
       {!isLast && <div className="w-px flex-1 bg-border mt-1" />}
     </div>
-    <div className="pb-4 flex-1">
-      <div className="flex items-center gap-2 flex-wrap">
+    <div className="pb-4 flex-1 min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-wrap">
         <Badge
           variant="outline"
-          className={'text-xs font-medium ' + getStatusStyle(entry.status_description)}
+          className={'text-[10px] sm:text-xs font-medium ' + getStatusStyle(entry.status_description)}
         >
           {entry.status_description ?? '—'}
         </Badge>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-[10px] sm:text-xs text-muted-foreground">
           {format(new Date(entry.created_at), 'MMM dd, yyyy – h:mm a')}
         </span>
       </div>
-      <p className="text-sm font-semibold mt-1">{entry.to_assignment_name ?? '—'}</p>
+      <p className="text-xs sm:text-sm font-semibold mt-1 truncate">{entry.to_assignment_name ?? '—'}</p>
       {entry.details && (
-        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{entry.details}</p>
+        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">
+          {entry.details}
+        </p>
       )}
     </div>
   </div>
 );
 
-// ─── History dialog ───────────────────────────────────────────────────────────
-const HistoryDialog = ({
+// ─── History panel (right side sheet) ─────────────────────────────────────────
+const HistoryPanel = ({
   referral,
   open,
   onClose,
@@ -96,89 +103,280 @@ const HistoryDialog = ({
   open: boolean;
   onClose: () => void;
 }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    if (scrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const isScrollable = scrollHeight > clientHeight;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 20;
+      setShowScrollIndicator(isScrollable && !isAtBottom);
+    }
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    // Hide indicator immediately when scrolling starts
+    setIsScrolling(true);
+
+    // Clear any existing timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
+    // Show indicator again after scrolling stops (with a delay)
+    scrollTimeoutRef.current = setTimeout(() => {
+      setIsScrolling(false);
+      checkScroll();
+    }, 800);
+
+    // Also check if we've reached the bottom
+    checkScroll();
+  }, [checkScroll]);
+
+  useEffect(() => {
+    if (open) {
+      // Check scroll state when panel opens
+      setTimeout(checkScroll, 100);
+    }
+  }, [open, checkScroll]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.addEventListener('scroll', handleScroll);
+      window.addEventListener('resize', checkScroll);
+      return () => {
+        el.removeEventListener('scroll', handleScroll);
+        window.removeEventListener('resize', checkScroll);
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current);
+        }
+      };
+    }
+  }, [handleScroll, checkScroll]);
+
   if (!referral) return null;
   const sorted = [...(referral.history ?? [])].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
 
+  const scrollToBottom = () => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
-            {referral.patient_name ?? '—'}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3 mt-1">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-              From
-            </p>
-            <p className="text-sm font-semibold">{referral.from_assignment_name ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-              Destination
-            </p>
-            <p className="text-sm font-semibold">{referral.to_assignment_name ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-              Date Created
-            </p>
-            <p className="text-sm font-semibold">{fmt(referral.created_at)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-              Last Status
-            </p>
-            <Badge
-              variant="outline"
-              className={
-                'text-xs font-medium ' + getStatusStyle(referral.latest_status?.description)
-              }
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md lg:max-w-lg p-0 flex flex-col h-full"
+      >
+        {/* Header */}
+        <SheetHeader className="px-4 sm:px-6 py-4 border-b bg-muted/30 flex-shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-lightprimary flex items-center justify-center flex-shrink-0">
+                <Icon
+                  icon="solar:user-bold-duotone"
+                  height={20}
+                  className="text-primary sm:hidden"
+                />
+                <Icon
+                  icon="solar:user-bold-duotone"
+                  height={24}
+                  className="text-primary hidden sm:block"
+                />
+              </div>
+              <div className="min-w-0">
+                <SheetTitle className="text-sm sm:text-base font-semibold truncate">
+                  {referral.patient_name ?? '—'}
+                </SheetTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Patient Referral History</p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0 rounded-full"
+              onClick={onClose}
             >
-              {referral.latest_status?.description ?? '—'}
-            </Badge>
+              <Icon icon="solar:close-circle-bold-duotone" height={20} className="text-muted-foreground" />
+            </Button>
           </div>
-          {referral.deactivated_by && (
-            <>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                  Deactivated By
-                </p>
-                <p className="text-sm font-semibold">{referral.deactivated_by}</p>
+        </SheetHeader>
+
+        {/* Scrollable Content */}
+        <div className="relative flex-1">
+          <div
+            ref={scrollRef}
+            className="absolute inset-0 overflow-y-auto scrollbar-none px-4 sm:px-6 py-4"
+          >
+          {/* Patient Info Card */}
+          <div className="rounded-lg border bg-card p-3 sm:p-4 mb-4">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+              <Icon icon="solar:document-text-bold-duotone" height={14} />
+              Referral Details
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="flex items-start gap-2">
+                <Icon
+                  icon="solar:buildings-bold-duotone"
+                  height={16}
+                  className="text-muted-foreground mt-0.5 flex-shrink-0"
+                />
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                    From
+                  </p>
+                  <p className="text-xs sm:text-sm font-semibold truncate">
+                    {referral.from_assignment_name ?? '—'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                  Deactivated At
-                </p>
-                <p className="text-sm font-semibold">
-                  {fmt(referral.deactivated_at, 'MMM dd, yyyy – h:mm a')}
-                </p>
+              <div className="flex items-start gap-2">
+                <Icon
+                  icon="solar:map-arrow-right-bold-duotone"
+                  height={16}
+                  className="text-muted-foreground mt-0.5 flex-shrink-0"
+                />
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                    Destination
+                  </p>
+                  <p className="text-xs sm:text-sm font-semibold truncate">
+                    {referral.to_assignment_name ?? '—'}
+                  </p>
+                </div>
               </div>
-            </>
+              <div className="flex items-start gap-2">
+                <Icon
+                  icon="solar:calendar-bold-duotone"
+                  height={16}
+                  className="text-muted-foreground mt-0.5 flex-shrink-0"
+                />
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                    Date Created
+                  </p>
+                  <p className="text-xs sm:text-sm font-semibold">{fmt(referral.created_at)}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <Icon
+                  icon="solar:tag-bold-duotone"
+                  height={16}
+                  className="text-muted-foreground mt-0.5 flex-shrink-0"
+                />
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                    Last Status
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className={
+                      'text-[10px] sm:text-xs font-medium mt-0.5 ' +
+                      getStatusStyle(referral.latest_status?.description)
+                    }
+                  >
+                    {referral.latest_status?.description ?? '—'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* Deactivation Info */}
+            {referral.deactivated_by && (
+              <>
+                <Separator className="my-3" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div className="flex items-start gap-2">
+                    <Icon
+                      icon="solar:user-cross-bold-duotone"
+                      height={16}
+                      className="text-error mt-0.5 flex-shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                        Deactivated By
+                      </p>
+                      <p className="text-xs sm:text-sm font-semibold">{referral.deactivated_by}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Icon
+                      icon="solar:calendar-mark-bold-duotone"
+                      height={16}
+                      className="text-error mt-0.5 flex-shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                        Deactivated At
+                      </p>
+                      <p className="text-xs sm:text-sm font-semibold">
+                        {fmt(referral.deactivated_at, 'MMM dd, yyyy – h:mm a')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Journey Timeline */}
+          <div className="rounded-lg border bg-card p-3 sm:p-4">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-2">
+              <Icon icon="solar:history-bold-duotone" height={14} />
+              Referral Journey
+              {sorted.length > 0 && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-auto">
+                  {sorted.length} {sorted.length === 1 ? 'stop' : 'stops'}
+                </Badge>
+              )}
+            </h4>
+            {sorted.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <Icon icon="solar:history-bold-duotone" height={32} className="opacity-30 mb-2" />
+                <p className="text-sm">No history recorded</p>
+              </div>
+            ) : (
+              <div className="space-y-0">
+                {sorted.map((entry, idx) => (
+                  <TimelineEntry key={entry.id} entry={entry} isLast={idx === sorted.length - 1} />
+                ))}
+              </div>
+            )}
+          </div>
+          </div>
+
+          {/* Scroll indicator arrow */}
+          {showScrollIndicator && !isScrolling && (
+            <div
+              className="absolute bottom-0 left-0 right-0 flex justify-center pb-2 pt-6 bg-gradient-to-t from-background via-background/80 to-transparent cursor-pointer"
+              onClick={scrollToBottom}
+            >
+              <div className="flex flex-col items-center gap-0.5 animate-bounce">
+                <span className="text-[10px] text-muted-foreground font-medium">Scroll down</span>
+                <Icon
+                  icon="solar:alt-arrow-down-bold"
+                  height={18}
+                  className="text-primary"
+                />
+              </div>
+            </div>
           )}
         </div>
 
-        <Separator className="my-4" />
-
-        <div>
-          <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <Icon icon="solar:history-bold-duotone" height={16} className="text-muted-foreground" />
-            Referral History
-          </h4>
-          {sorted.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No history recorded.</p>
-          ) : (
-            sorted.map((entry, idx) => (
-              <TimelineEntry key={entry.id} entry={entry} isLast={idx === sorted.length - 1} />
-            ))
-          )}
+        {/* Footer */}
+        <div className="px-4 sm:px-6 py-3 border-t bg-muted/20 flex-shrink-0">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={onClose}>
+            <Icon icon="solar:close-circle-linear" height={15} className="mr-1.5" />
+            Close
+          </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };
 
@@ -768,7 +966,7 @@ const ReferralHistoryPage = () => {
         </Tabs>
       </CardBox>
 
-      <HistoryDialog referral={selected} open={!!selected} onClose={() => setSelected(null)} />
+      <HistoryPanel referral={selected} open={!!selected} onClose={() => setSelected(null)} />
     </>
   );
 };
