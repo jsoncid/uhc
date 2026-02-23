@@ -258,6 +258,26 @@ const ReferralDetail = () => {
               )}
             </div>
           )}
+
+          {/* Discharge summary bar */}
+          {referral.latest_status?.description === 'Discharged' && (() => {
+            const dischargeEntry = history.find((h) => h.status_description === 'Discharged');
+            return dischargeEntry?.details ? (
+              <div className="mt-4 p-3 rounded-lg bg-lightsecondary border border-secondary/20 flex flex-col gap-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon
+                    icon="solar:hospital-bold-duotone"
+                    height={14}
+                    className="text-secondary flex-shrink-0"
+                  />
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                    Discharge Summary
+                  </p>
+                </div>
+                <p className="text-sm font-medium text-secondary">{dischargeEntry.details}</p>
+              </div>
+            ) : null;
+          })()}
         </CardBox>
       </div>
 
