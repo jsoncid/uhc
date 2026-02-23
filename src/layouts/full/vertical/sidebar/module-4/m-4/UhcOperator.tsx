@@ -10,8 +10,8 @@ import {
   AlertCircle, History, X, QrCode, Search, Upload, FileText,
   ChevronDown, ChevronRight, CheckCircle2, User, Building2, Heart,
   Accessibility, ClipboardList, IdCard, Loader2, Eye, Calendar, Clock,
-  Download, Printer, Save, Stethoscope, Camera, CameraOff, MapPin, RefreshCw,
-  Lock, KeyRound, EyeOff, ShieldCheck, ShieldAlert, ShieldX,
+  Download, Printer, Save, Stethoscope, Camera, CameraOff, RefreshCw,
+  Lock, EyeOff, ShieldCheck, ShieldX,
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -351,7 +351,6 @@ const PinVerifyModal = ({
   patientName,
   pinState,
   onDigitEntry,
-  onAllowNoPinAccess,
   onClose,
 }: PinVerifyModalProps) => {
   const [entered,    setEntered]    = useState('');
