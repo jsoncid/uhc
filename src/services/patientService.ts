@@ -839,21 +839,22 @@ class PatientService {
   /**
    * Search patients in Supabase (patient_profile table)
    * For finding manually entered patients that may not have hpercode yet
+   * Includes linked data from patient_repository
    */
   async searchSupabasePatients(
     search: string,
     options?: { limit?: number }
   ): Promise<{
     success: boolean;
-    data: PatientProfileDB['Row'][];
+    data: any[];
     count: number;
     message?: string;
   }> {
     try {
       const limit = options?.limit || 10;
       
-      // Search by first_name, last_name, or combination
-      const { data, error, count } = await supabase
+      // First, search for patient profiles
+      const { data: profiles, error: profileError, count } = await supabase
         .schema('module3')
         .from('patient_profile')
         .select('*', { count: 'exact' })
@@ -861,19 +862,37 @@ class PatientService {
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (error) {
-        console.error('Error searching Supabase patients:', error);
+      if (profileError) {
+        console.error('Error searching Supabase patients:', profileError);
         return {
           success: false,
           data: [],
           count: 0,
-          message: error.message,
+          message: profileError.message,
         };
       }
 
+      // For each profile, get the linked repository data (hpercode, facility_code)
+      const enrichedData = await Promise.all(
+        (profiles || []).map(async (profile) => {
+          const { data: repoData } = await supabase
+            .schema('module3')
+            .from('patient_repository')
+            .select('hpercode, facility_code')
+            .eq('patient_profile', profile.id)
+            .maybeSingle();
+
+          return {
+            ...profile,
+            hpercode: repoData?.hpercode || null,
+            facility_code: repoData?.facility_code || null,
+          };
+        })
+      );
+
       return {
         success: true,
-        data: data || [],
+        data: enrichedData,
         count: count || 0,
       };
     } catch (error) {
