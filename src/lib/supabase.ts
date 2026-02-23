@@ -177,13 +177,12 @@ export type Database = {
           ext_name: string | null
           sex: string
           birth_date: string
+          // Fully relational location structure - uses only foreign keys
           brgy: string | null
+          city_municipality: string | null
+          province: string | null
+          region: string | null
           street: string | null
-          brgy_name: string | null
-          city_name: string | null
-          province_name: string | null
-          region_name: string | null
-          zip_code: string | null
         }
         Insert: {
           id?: string
@@ -195,12 +194,10 @@ export type Database = {
           sex: string
           birth_date: string
           brgy?: string | null
+          city_municipality?: string | null
+          province?: string | null
+          region?: string | null
           street?: string | null
-          brgy_name?: string | null
-          city_name?: string | null
-          province_name?: string | null
-          region_name?: string | null
-          zip_code?: string | null
         }
         Update: {
           id?: string
@@ -212,12 +209,10 @@ export type Database = {
           sex?: string
           birth_date?: string
           brgy?: string | null
+          city_municipality?: string | null
+          province?: string | null
+          region?: string | null
           street?: string | null
-          brgy_name?: string | null
-          city_name?: string | null
-          province_name?: string | null
-          region_name?: string | null
-          zip_code?: string | null
         }
       }
       brgy: {

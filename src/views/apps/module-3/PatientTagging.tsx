@@ -20,7 +20,7 @@ import {
   ArrowRight,
   CheckCircle2,
 } from 'lucide-react';
-import patientService, { PatientProfile, PatientHistory } from 'src/services/patientService';
+import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
 import PatientSearchPanel from './components/PatientSearchPanel';
 import PatientInfoCard from './components/PatientInfoCard';
 import PatientHistoryTabs from './components/PatientHistoryTabs';

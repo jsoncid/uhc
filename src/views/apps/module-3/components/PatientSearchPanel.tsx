@@ -4,7 +4,7 @@ import { Input } from 'src/components/ui/input';
 import { Label } from 'src/components/ui/label';
 import { Badge } from 'src/components/ui/badge';
 import { Search, Loader2, UserCircle, Calendar, User, Building2, ChevronRight, X } from 'lucide-react';
-import { PatientProfile } from 'src/services/patientService';
+import { PatientProfileWithLocations as PatientProfile } from 'src/services/patientService';
 import { cn } from 'src/lib/utils';
 import { formatDate, calculateAge } from '../utils/dateFormatters';
 
