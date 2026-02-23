@@ -31,7 +31,7 @@ import {
   AlertCircle,
   ArrowRight,
 } from 'lucide-react';
-import patientService, { PatientProfile, Facility } from 'src/services/patientService';
+import patientService, { PatientProfileWithLocations as PatientProfile, Facility } from 'src/services/patientService';
 
 interface PatientLinkingDialogProps {
   open: boolean;

@@ -42,7 +42,7 @@ import {
   Loader2,
   Users,
 } from 'lucide-react';
-import patientService, { PatientProfile as APIPatientProfile, Facility } from 'src/services/patientService';
+import patientService, { PatientProfileWithLocations as APIPatientProfile, Facility } from 'src/services/patientService';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -63,15 +63,17 @@ interface PatientProfile {
   ext_name: string;
   sex: string;
   birth_date: string;
-  brgy: string;
-  brgy_name?: string;
+  // Fully relational location structure - uses only foreign keys
+  brgy: string; // UUID foreign key
+  city_municipality?: string; // UUID foreign key
+  province?: string; // UUID foreign key
+  region?: string; // UUID foreign key
   street?: string;
-  city_code?: string;
+  // Display fields for location names (used in form, sent to service for lookup)
+  brgy_name?: string;
   city_name?: string;
-  province_code?: string;
   province_name?: string;
   region_name?: string;
-  zip_code?: string;
   // Repository fields (from MySQL)
   hpercode?: string;
   facility_code?: string;
@@ -87,14 +89,14 @@ const INITIAL_PROFILE: PatientProfile = {
   sex: '',
   birth_date: '',
   brgy: '',
-  brgy_name: '',
+  city_municipality: '',
+  province: '',
+  region: '',
   street: '',
-  city_code: '',
+  brgy_name: '',
   city_name: '',
-  province_code: '',
   province_name: '',
   region_name: '',
-  zip_code: '',
   hpercode: '',
   facility_code: '',
 };
@@ -373,14 +375,14 @@ const PatientProfiling = () => {
       sex: selectedPatient.sex || '',
       birth_date: selectedPatient.birth_date || '',
       brgy: selectedPatient.brgy || '',
-      brgy_name: selectedPatient.brgy_name || '',
+      city_municipality: selectedPatient.city_municipality || '',
+      province: selectedPatient.province || '',
+      region: selectedPatient.region || '',
       street: selectedPatient.street || '',
-      city_code: selectedPatient.city_code || '',
+      brgy_name: selectedPatient.brgy_name || '',
       city_name: selectedPatient.city_name || '',
-      province_code: selectedPatient.province_code || '',
       province_name: selectedPatient.province_name || '',
       region_name: selectedPatient.region_name || '',
-      zip_code: selectedPatient.zip_code || '',
       // Store repository data from MySQL
       hpercode: selectedPatient.hpercode || '',
       facility_code: selectedPatient.facility_code || modalFacilityId,
@@ -715,26 +717,6 @@ const PatientProfiling = () => {
                   onChange={handleInputChange('region_name')}
                   placeholder="e.g. NCR - National Capital Region"
                   className="pl-10"
-                />
-              </div>
-            </FormField>
-          </div>
-
-          {/* ZIP Code */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-            <FormField
-              label="ZIP Code"
-              htmlFor="zip_code"
-              hint="Enter the postal ZIP code."
-            >
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="zip_code"
-                  value={patient.zip_code || ''}
-                  onChange={handleInputChange('zip_code')}
-                  placeholder="e.g. 1000"
-                  className="pl-10 font-mono text-sm"
                 />
               </div>
             </FormField>

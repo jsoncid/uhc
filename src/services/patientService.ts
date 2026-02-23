@@ -27,15 +27,21 @@ export interface PatientProfile {
   philhealth_number?: string;
   facility_code?: string;
   created_at: string;
-  brgy: string;
-  brgy_name?: string;
+  // Fully relational location structure - uses only foreign keys
+  brgy: string; // UUID foreign key to brgy table
+  city_municipality?: string; // UUID foreign key to city_municipality table
+  province?: string; // UUID foreign key to province table
+  region?: string; // UUID foreign key to region table
   street?: string;
-  city_code?: string;
+}
+
+// Interface for the view that includes location names
+// Use this when you need to display location names to users
+export interface PatientProfileWithLocations extends PatientProfile {
+  brgy_name?: string;
   city_name?: string;
-  province_code?: string;
   province_name?: string;
   region_name?: string;
-  zip_code?: string;
 }
 
 export interface PatientSearchResult {
@@ -368,6 +374,7 @@ class PatientService {
   /**
    * Find or create barangay and complete location hierarchy in Supabase
    * Creates: Region → Province → City/Municipality → Barangay
+   * Returns all location UUIDs including brgy, city_municipality, province, and region
    */
   async findOrCreateBrgy(locationData: {
     brgy?: string;
@@ -375,7 +382,12 @@ class PatientService {
     city_name?: string;
     province_name?: string;
     region_name?: string;
-  }): Promise<string | null> {
+  }): Promise<{
+    brgy: string | null;
+    city_municipality: string | null;
+    province: string | null;
+    region: string | null;
+  } | null> {
     try {
       // If no location data provided, return null
       if (!locationData.brgy_name && !locationData.brgy) {
@@ -500,7 +512,12 @@ class PatientService {
 
         if (existingBrgy) {
           console.log('Found existing brgy:', existingBrgy.id);
-          return existingBrgy.id;
+          return {
+            brgy: existingBrgy.id,
+            city_municipality: cityId,
+            province: provinceId,
+            region: regionId,
+          };
         } else {
           const { data: newBrgy, error } = await supabase
             .schema('module3')
@@ -519,7 +536,12 @@ class PatientService {
           }
 
           console.log('Created new brgy:', newBrgy.id);
-          return newBrgy.id;
+          return {
+            brgy: newBrgy.id,
+            city_municipality: cityId,
+            province: provinceId,
+            region: regionId,
+          };
         }
       }
 
@@ -548,12 +570,9 @@ class PatientService {
       brgy?: string;
       brgy_name?: string;
       street?: string;
-      city_code?: string;
       city_name?: string;
-      province_code?: string;
       province_name?: string;
       region_name?: string;
-      zip_code?: string;
       hpercode?: string;
       facility_code?: string;
     }
@@ -577,19 +596,35 @@ class PatientService {
       }
 
       // Check if brgy is a valid UUID, if not, try to find/create one
-      let brgyUuid: string | null = null;
+      let locationIds: {
+        brgy: string | null;
+        city_municipality: string | null;
+        province: string | null;
+        region: string | null;
+      } = {
+        brgy: null,
+        city_municipality: null,
+        province: null,
+        region: null,
+      };
 
       if (isValidUuid(patientData.brgy)) {
-        brgyUuid = patientData.brgy!;
+        locationIds.brgy = patientData.brgy!;
+        // Note: If only brgy UUID is provided, the other location IDs will be null
+        // They would need to be looked up from the brgy's relationships if needed
       } else if (patientData.brgy_name || patientData.brgy) {
         // Try to find or create brgy based on location data
-        brgyUuid = await this.findOrCreateBrgy({
+        const result = await this.findOrCreateBrgy({
           brgy: patientData.brgy,
           brgy_name: patientData.brgy_name,
           city_name: patientData.city_name,
           province_name: patientData.province_name,
           region_name: patientData.region_name,
         });
+        
+        if (result) {
+          locationIds = result;
+        }
       }
 
       // Prepare data for Supabase - only include non-empty values
@@ -602,13 +637,11 @@ class PatientService {
         ext_name: cleanValue(patientData.ext_name),
         sex: patientData.sex,
         birth_date: patientData.birth_date,
-        brgy: brgyUuid,
+        brgy: locationIds.brgy,
+        city_municipality: locationIds.city_municipality,
+        province: locationIds.province,
+        region: locationIds.region,
         street: cleanValue(patientData.street),
-        brgy_name: cleanValue(patientData.brgy_name),
-        city_name: cleanValue(patientData.city_name),
-        province_name: cleanValue(patientData.province_name),
-        region_name: cleanValue(patientData.region_name),
-        zip_code: cleanValue(patientData.zip_code),
       };
 
       console.log('Attempting to save patient to Supabase:', supabaseData);
@@ -837,50 +870,27 @@ class PatientService {
   }
 
   /**
-   * Search patients in Supabase (patient_profile table)
+   * Search patients in Supabase (patient_profile_with_locations view)
    * For finding manually entered patients that may not have hpercode yet
-   * Includes location hierarchy and facility information
    */
   async searchSupabasePatients(
     search: string,
     options?: { limit?: number }
   ): Promise<{
     success: boolean;
-    data: any[];
+    data: PatientProfileDB['Row'][];
     count: number;
     message?: string;
   }> {
     try {
       const limit = options?.limit || 10;
       
-      // Search by first_name, last_name, hpercode, or philhealth_number with joins
+      // Search by first_name, last_name, or combination
       const { data, error, count } = await supabase
         .schema('module3')
         .from('patient_profile')
-        .select(`
-          *,
-          brgy:brgy(
-            id,
-            description,
-            city_municipality:city_municipality(
-              id,
-              description,
-              province:province(
-                id,
-                description,
-                region:region(
-                  id,
-                  description
-                )
-              )
-            )
-          ),
-          patient_repository(
-            facility_code,
-            hpercode
-          )
-        `, { count: 'exact' })
-        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,hpercode.ilike.%${search}%,philhealth_number.ilike.%${search}%`)
+        .select('*', { count: 'exact' })
+        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`)
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -894,9 +904,30 @@ class PatientService {
         };
       }
 
+      // For each profile, get the linked repository data (hpercode, facility_code)
+      const enrichedData = await Promise.all(
+        (data || []).map(async (profile) => {
+          const { data: repoData } = await supabase
+            .schema('module3')
+            .from('patient_repository')
+            .select('hpercode, facility_code')
+            .eq('patient_profile', profile.id)
+            .maybeSingle();
+
+          return {
+            ...profile,
+            hpercode: repoData?.hpercode || null,
+            facility_code: repoData?.facility_code || null,
+            city_municipality: profile.city_municipality ?? null,
+            province: profile.province ?? null,
+            region: profile.region ?? null,
+          } as PatientProfileDB['Row'];
+        })
+      );
+
       return {
         success: true,
-        data: data || [],
+        data: enrichedData,
         count: count || 0,
       };
     } catch (error) {
@@ -1219,6 +1250,140 @@ class PatientService {
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to add patient history',
+      };
+    }
+  }
+
+  /**
+   * Get location hierarchy details by UUID
+   * Useful for looking up location names from their IDs
+   */
+  async getLocationDetails(locationIds: {
+    brgyId?: string;
+    cityId?: string;
+    provinceId?: string;
+    regionId?: string;
+  }): Promise<{
+    success: boolean;
+    data?: {
+      brgy_name?: string;
+      city_name?: string;
+      province_name?: string;
+      region_name?: string;
+    };
+    message?: string;
+  }> {
+    try {
+      const result: any = {};
+
+      // Get brgy name
+      if (locationIds.brgyId) {
+        const { data: brgy } = await supabase
+          .schema('module3')
+          .from('brgy')
+          .select('description')
+          .eq('id', locationIds.brgyId)
+          .maybeSingle();
+        if (brgy) result.brgy_name = brgy.description;
+      }
+
+      // Get city name
+      if (locationIds.cityId) {
+        const { data: city } = await supabase
+          .schema('module3')
+          .from('city_municipality')
+          .select('description')
+          .eq('id', locationIds.cityId)
+          .maybeSingle();
+        if (city) result.city_name = city.description;
+      }
+
+      // Get province name
+      if (locationIds.provinceId) {
+        const { data: province } = await supabase
+          .schema('module3')
+          .from('province')
+          .select('description')
+          .eq('id', locationIds.provinceId)
+          .maybeSingle();
+        if (province) result.province_name = province.description;
+      }
+
+      // Get region name
+      if (locationIds.regionId) {
+        const { data: region } = await supabase
+          .schema('module3')
+          .from('region')
+          .select('description')
+          .eq('id', locationIds.regionId)
+          .maybeSingle();
+        if (region) result.region_name = region.description;
+      }
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      console.error('Get location details error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to get location details',
+      };
+    }
+  }
+
+  /**
+   * Search locations by name
+   * Useful for autocomplete/typeahead functionality
+   */
+  async searchLocations(type: 'region' | 'province' | 'city' | 'brgy', searchTerm: string, parentId?: string): Promise<{
+    success: boolean;
+    data: Array<{ id: string; description: string }>;
+    message?: string;
+  }> {
+    try {
+      const tableName = type === 'city' ? 'city_municipality' : type;
+      let query = supabase
+        .schema('module3')
+        .from(tableName)
+        .select('id, description')
+        .ilike('description', `%${searchTerm}%`)
+        .order('description')
+        .limit(20);
+
+      // Add parent filter if provided
+      if (parentId) {
+        if (type === 'province') {
+          query = query.eq('region', parentId);
+        } else if (type === 'city') {
+          query = query.eq('province', parentId);
+        } else if (type === 'brgy') {
+          query = query.eq('city_municipality', parentId);
+        }
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Search locations error:', error);
+        return {
+          success: false,
+          data: [],
+          message: error.message,
+        };
+      }
+
+      return {
+        success: true,
+        data: data || [],
+      };
+    } catch (error) {
+      console.error('Search locations error:', error);
+      return {
+        success: false,
+        data: [],
+        message: error instanceof Error ? error.message : 'Failed to search locations',
       };
     }
   }
