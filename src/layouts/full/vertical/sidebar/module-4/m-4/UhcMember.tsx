@@ -11,7 +11,7 @@ import {
   Heart, Accessibility, Building2, Stethoscope, ClipboardList,
   ChevronDown, ChevronRight, AlertCircle, Loader2, Download, X,
   Printer, CheckCircle2, RefreshCw, ArchiveX, CreditCard, Lock,
-  KeyRound, ShieldCheck, EyeOff, ShieldAlert, ShieldX,
+  KeyRound, ShieldCheck, EyeOff, ShieldAlert, ShieldX, User,
 } from 'lucide-react';
 import { supabase } from 'src/lib/supabase';
 
@@ -63,6 +63,29 @@ const FOLDER_DEFS = [
   { key: 'admission_requirements', label: 'Admission Requirements', supabaseCategory: 'Admission Requirements', color: 'teal',   icon: <ClipboardList className="w-5 h-5" /> },
 ];
 
+// Maps each folder key to the specific doc-type labels the operator can choose.
+// A document's card_category may be stored as the specific type (e.g. "Valid ID")
+// OR as the broad folder category (e.g. "Basic Identification"). We match both.
+const FOLDER_DOC_TYPES: Record<string, string[]> = {
+  basic_identification: [
+    'Basic Identification', 'Birth Certificate', 'Barangay Certification', 'Barangay Clearance',
+    'Certificate of Indigency', 'Valid ID', 'Government ID',
+    'Marriage Certificate (if applicable)',
+  ],
+  philhealth: ['PhilHealth', 'PhilHealth ID', 'PhilHealth Member Data Record (MDR)'],
+  senior_pwd: ['Senior/PWD', 'Senior Citizen ID', 'PWD ID', 'OSCA Booklet'],
+  company_documents: ['Company Documents', 'Company ID', 'Certificate of Employment', 'Incident Report'],
+  medical_documents: ['Medical Documents', "Doctor's Referral Slip", 'Laboratory Result', 'X-Ray Result / Ultrasound', 'Medical Certificate'],
+  admission_requirements: ['Admission Requirements', 'Admission Form', 'Surgery Consent', 'Promissory Note'],
+};
+
+// Returns true if the document's category belongs to the given folder
+const docMatchesFolder = (docCategory: string, folderKey: string): boolean => {
+  const types = FOLDER_DOC_TYPES[folderKey];
+  if (!types) return false;
+  return types.some((t) => t.toLowerCase() === docCategory.toLowerCase());
+};
+
 type ColorKey = 'blue' | 'red' | 'purple' | 'amber' | 'green' | 'teal' | 'gray';
 const COLOR_MAP: Record<ColorKey, { bg: string; border: string; text: string; badge: string }> = {
   blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   badge: 'bg-blue-100 text-blue-700'    },
@@ -107,13 +130,13 @@ const computeAge = (dateStr?: string | null): string => {
   return `${age} yrs old`;
 };
 
-// Replaces the leading UUID in a storage filename with the patient's last name
+// Replaces the leading UUID + timestamp in a storage filename with the patient's last name
 const displayFileName = (url: string, patient?: PatientProfile | null): string => {
   const raw = url.split('/').pop() ?? 'Document';
   if (!patient) return raw;
   // Storage filenames follow: <uuid>_<timestamp>_<label>.<ext>
-  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_/i;
-  return raw.replace(uuidRe, `${patient.last_name}_`);
+  const prefixRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_\d+_/i;
+  return raw.replace(prefixRe, `${patient.first_name}_${patient.last_name}_`);
 };
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'My Health Card' }];
@@ -188,9 +211,10 @@ const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
 );
 
 // ─── Health ID Card visual ────────────────────────────────────────────────────
-const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef }: {
+const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl }: {
   patient: PatientProfile; qrDataUrl: string; qrCodeValue: string;
   cardRef?: React.RefObject<HTMLDivElement | null>;
+  profilePicUrl?: string | null;
 }) => {
   const name = fullName(patient).toUpperCase();
   return (
@@ -203,13 +227,17 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef }: {
       <div style={{ height:7,background:'linear-gradient(90deg,#d97706,#fbbf24,#f59e0b,#fbbf24,#d97706)',position:'relative',zIndex:2 }} />
       <div style={{ padding:'22px 28px 20px',position:'relative',zIndex:2 }}>
         <div style={{ display:'flex',alignItems:'center',gap:16,marginBottom:16 }}>
-          <div style={{ width:68,height:68,flexShrink:0,background:'radial-gradient(circle at 35% 35%,#fef9c3,#fbbf24 60%,#d97706)',borderRadius:'50%',border:'3px solid #fbbf24',boxShadow:'0 3px 14px rgba(251,191,36,0.55)',display:'flex',alignItems:'center',justifyContent:'center' }}>
-            <div style={{ textAlign:'center' }}>
-              <div style={{ fontSize:12,fontWeight:900,color:'#14532d',letterSpacing:'0.05em' }}>UHC</div>
-              <div style={{ width:36,height:1,background:'#166534',margin:'2px auto' }} />
-              <div style={{ fontSize:10,fontWeight:700,color:'#166534' }}>2026</div>
+          {profilePicUrl ? (
+            <img src={profilePicUrl} alt="Profile" style={{ width:68,height:68,flexShrink:0,borderRadius:'50%',border:'3px solid #fbbf24',boxShadow:'0 3px 14px rgba(251,191,36,0.55)',objectFit:'cover' }} />
+          ) : (
+            <div style={{ width:68,height:68,flexShrink:0,background:'radial-gradient(circle at 35% 35%,#fef9c3,#fbbf24 60%,#d97706)',borderRadius:'50%',border:'3px solid #fbbf24',boxShadow:'0 3px 14px rgba(251,191,36,0.55)',display:'flex',alignItems:'center',justifyContent:'center' }}>
+              <div style={{ textAlign:'center' }}>
+                <div style={{ fontSize:12,fontWeight:900,color:'#14532d',letterSpacing:'0.05em' }}>UHC</div>
+                <div style={{ width:36,height:1,background:'#166534',margin:'2px auto' }} />
+                <div style={{ fontSize:10,fontWeight:700,color:'#166534' }}>2026</div>
+              </div>
             </div>
-          </div>
+          )}
           <div style={{ flex:1 }}>
             <div style={{ fontSize:9,color:'#86efac',letterSpacing:'0.25em',marginBottom:3,fontFamily:'Arial,sans-serif' }}>REPUBLIC OF THE PHILIPPINES</div>
             <div style={{ fontSize:21,fontWeight:900,color:'#fbbf24',letterSpacing:'0.04em',lineHeight:1 }}>UNIVERSAL HEALTH CARE</div>
@@ -289,6 +317,24 @@ const MemberPinGateModal = ({
     if (status === 'failed' && prevStatus.current !== 'failed') setShakeKey((k) => k + 1);
     prevStatus.current = status;
   }, [status]);
+
+  // ── Keyboard support ──
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!hasPin) {
+        // Set-PIN mode
+        if (/^[0-9]$/.test(e.key)) { handleSetDigit(e.key); e.preventDefault(); }
+        else if (e.key === 'Backspace') { handleSetBack(); e.preventDefault(); }
+        else if (e.key === 'Enter') { handleSetNext(); e.preventDefault(); }
+      } else {
+        // Verify-PIN mode
+        if (/^[0-9]$/.test(e.key)) { handleDigit(e.key); e.preventDefault(); }
+        else if (e.key === 'Backspace') { handleBack(); e.preventDefault(); }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   // ── Verify PIN handler ──
   const handleDigit = (d: string) => {
@@ -549,6 +595,17 @@ const PinModal = ({ mode, onConfirm, onCancel, isLoading, error }: {
   const handleDigit = (d: string) => { if (activeVal.length < 4) setActive(activeVal + d); };
   const handleBack  = () => setActive(activeVal.slice(0, -1));
 
+  // ── Keyboard support ──
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (/^[0-9]$/.test(e.key)) { handleDigit(e.key); e.preventDefault(); }
+      else if (e.key === 'Backspace') { handleBack(); e.preventDefault(); }
+      else if (e.key === 'Enter') { handleNext(); e.preventDefault(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   const handleNext = () => {
     setLocalErr('');
     if (step === 'old') {
@@ -749,6 +806,9 @@ const UhcMember = () => {
   const [isSearching,     setIsSearching]     = useState(false);
   const [errorMessage,    setErrorMessage]    = useState('');
 
+  // ── Profile picture ─────────────────────────────────────────────────────────
+  const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
+
   // ── module4 health card data ───────────────────────────────────────────────
   const [healthCardId, setHealthCardId] = useState<string | null>(null);
   const [qrCodeValue,  setQrCodeValue]  = useState<string | null>(null);
@@ -787,7 +847,7 @@ const UhcMember = () => {
 
   // ─── Canvas card builder ───────────────────────────────────────────────────
   const buildCardCanvas = useCallback(async (
-    patient: PatientProfile, qrUrl: string, qrValue: string,
+    patient: PatientProfile, qrUrl: string, qrValue: string, picUrl?: string | null,
   ): Promise<HTMLCanvasElement> => {
     const SCALE = 3, W = 640, H = 380;
     const canvas = document.createElement('canvas');
@@ -810,13 +870,30 @@ const UhcMember = () => {
     gld.addColorStop(0.5,'#f59e0b');gld.addColorStop(0.75,'#fbbf24');gld.addColorStop(1,'#d97706');
     ctx.fillStyle=gld;ctx.fillRect(0,0,W,7);ctx.fillRect(0,H-5,W,5);
     const PX=28,PY=22,sX=PX+34,sY=PY+34;
-    const sg=ctx.createRadialGradient(sX-10,sY-10,4,sX,sY,34);
-    sg.addColorStop(0,'#fef9c3');sg.addColorStop(0.6,'#fbbf24');sg.addColorStop(1,'#d97706');
-    ctx.beginPath();ctx.arc(sX,sY,34,0,Math.PI*2);ctx.fillStyle=sg;ctx.fill();
-    ctx.strokeStyle='#fbbf24';ctx.lineWidth=3;ctx.stroke();
-    ctx.fillStyle='#14532d';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText('UHC',sX,sY-4);
-    ctx.fillStyle='#fbbf24';ctx.fillRect(sX-18,sY+1,36,1);
-    ctx.fillStyle='#166534';ctx.font='bold 10px Arial';ctx.fillText('2026',sX,sY+14);
+    // Profile picture or UHC seal
+    let drewProfilePic = false;
+    if (picUrl) {
+      try {
+        const pi = new Image(); pi.crossOrigin = 'anonymous';
+        await new Promise<void>((res,rej)=>{pi.onload=()=>res();pi.onerror=rej;pi.src=picUrl;});
+        ctx.save();
+        ctx.beginPath();ctx.arc(sX,sY,34,0,Math.PI*2);ctx.closePath();ctx.clip();
+        ctx.drawImage(pi,sX-34,sY-34,68,68);
+        ctx.restore();
+        ctx.strokeStyle='#fbbf24';ctx.lineWidth=3;
+        ctx.beginPath();ctx.arc(sX,sY,34,0,Math.PI*2);ctx.stroke();
+        drewProfilePic = true;
+      } catch { /* fall back to UHC seal */ }
+    }
+    if (!drewProfilePic) {
+      const sg=ctx.createRadialGradient(sX-10,sY-10,4,sX,sY,34);
+      sg.addColorStop(0,'#fef9c3');sg.addColorStop(0.6,'#fbbf24');sg.addColorStop(1,'#d97706');
+      ctx.beginPath();ctx.arc(sX,sY,34,0,Math.PI*2);ctx.fillStyle=sg;ctx.fill();
+      ctx.strokeStyle='#fbbf24';ctx.lineWidth=3;ctx.stroke();
+      ctx.fillStyle='#14532d';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText('UHC',sX,sY-4);
+      ctx.fillStyle='#fbbf24';ctx.fillRect(sX-18,sY+1,36,1);
+      ctx.fillStyle='#166534';ctx.font='bold 10px Arial';ctx.fillText('2026',sX,sY+14);
+    }
     ctx.textAlign='left';const tX=PX+68+16;
     ctx.fillStyle='#86efac';ctx.font='9px Arial';ctx.fillText('REPUBLIC OF THE PHILIPPINES',tX,PY+14);
     ctx.fillStyle='#fbbf24';ctx.font='bold 21px Georgia';ctx.fillText('UNIVERSAL HEALTH CARE',tX,PY+36);
@@ -962,6 +1039,7 @@ const UhcMember = () => {
     setHealthCardId(null);
     setHasPin(false);
     setPinSuccess('');
+    setProfilePicUrl(null);
     await loadPatientData(p);
   }, []);
 
@@ -1047,6 +1125,16 @@ const UhcMember = () => {
         return { id: a.id, attachment: a.attachment, status: a.status, category: cat?.description ?? 'Uncategorized', archived: false };
       });
       setDocuments(docs);
+
+      // Step 5: load profile picture from card-user-picture bucket
+      try {
+        const { data: picFiles } = await supabase.storage.from('card-user-picture').list('', { search: patient.id });
+        const picMatch = picFiles?.find((f) => f.name.startsWith(patient.id));
+        if (picMatch) {
+          const { data: pub } = supabase.storage.from('card-user-picture').getPublicUrl(picMatch.name);
+          setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
+        }
+      } catch { /* profile pic is optional */ }
     } catch (err) {
       console.error('loadPatientData error:', err);
       setErrorMessage('Failed to load patient data. Please try again.');
@@ -1111,25 +1199,25 @@ const UhcMember = () => {
     if (!selectedPatient || !qrDataUrl || !qrCodeValue) return;
     setIsCapturing(true);
     try {
-      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue);
+      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl);
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
       a.download = `HealthCard_${selectedPatient.last_name}_${selectedPatient.first_name}.png`;
       a.click();
     } catch (e) { console.error('Download error:', e); }
     finally { setIsCapturing(false); }
-  }, [selectedPatient, qrDataUrl, qrCodeValue, buildCardCanvas]);
+  }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, buildCardCanvas]);
 
   // ─── Print card ────────────────────────────────────────────────────────────
   const handlePrintCard = useCallback(async () => {
     if (!selectedPatient || !qrDataUrl || !qrCodeValue) return;
     setIsCapturing(true);
     try {
-      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue);
+      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl);
       setPrintModalImg(canvas.toDataURL('image/png'));
     } catch (e) { console.error('Print error:', e); }
     finally { setIsCapturing(false); }
-  }, [selectedPatient, qrDataUrl, qrCodeValue, buildCardCanvas]);
+  }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, buildCardCanvas]);
 
   // ─── Archive helpers ───────────────────────────────────────────────────────
   const handleArchive  = () => {
@@ -1140,14 +1228,22 @@ const UhcMember = () => {
   const handleRestore = (id: string) =>
     setDocuments((prev) => prev.map((d) => d.id === id ? { ...d, archived: false } : d));
 
-  const getDocsForFolder = (cat: string, archived = false) =>
+  const getDocsForFolder = (folderKey: string, archived = false) =>
     documents.filter((d) =>
-      d.category === cat && d.archived === archived &&
-      (!filterQuery || d.attachment.toLowerCase().includes(filterQuery.toLowerCase()))
+      docMatchesFolder(d.category, folderKey) && d.archived === archived &&
+      (!filterQuery || d.attachment.toLowerCase().includes(filterQuery.toLowerCase()) || d.category.toLowerCase().includes(filterQuery.toLowerCase()))
     );
 
   const totalActive   = documents.filter((d) => !d.archived).length;
   const totalArchived = documents.filter((d) =>  d.archived).length;
+
+  // When a filter is active, determine which folders have matches so we can auto-expand them
+  const filterMatchedFolderKeys = filterQuery
+    ? FOLDER_DEFS.map((f) => f.key).filter((key) => getDocsForFolder(key, false).length > 0)
+    : [];
+  const totalFilterMatches = filterQuery
+    ? filterMatchedFolderKeys.reduce((sum, key) => sum + getDocsForFolder(key, false).length, 0)
+    : 0;
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1205,7 +1301,7 @@ const UhcMember = () => {
           <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
             <Search className="w-5 h-5 text-green-600" /> Find My Records
           </h3>
-          <p className="text-xs text-gray-400 mb-4">Search by your first or last name to view your profile and documents.</p>
+          <p className="text-xs text-gray-400 mb-2">Search by your first or last name to view your profile and documents.</p>
           <div className="flex gap-2">
             <Input
               placeholder="Enter your name…"
@@ -1253,9 +1349,13 @@ const UhcMember = () => {
           {selectedPatient && (
             <div className="mt-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
-                  {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
-                </div>
+                {profilePicUrl ? (
+                  <img src={profilePicUrl} alt="Profile" className="w-10 h-10 rounded-full object-cover border-2 border-green-300" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
+                    {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
+                  </div>
+                )}
                 <div>
                   <p className="font-semibold text-green-900">{fullName(selectedPatient)}</p>
                   <p className="text-xs text-green-600">
@@ -1264,7 +1364,7 @@ const UhcMember = () => {
                 </div>
               </div>
               <div className="flex items-center gap-3 text-xs font-medium">
-                <span className="flex items-center gap-1 text-green-700"><CheckCircle2 className="w-3.5 h-3.5" />{totalActive} active</span>
+                <span className="flex items-center gap-1 text-green-700"><CheckCircle2 className="w-3.5 h-3.5" />{totalActive} active documents</span>
                 {totalArchived > 0 && <span className="flex items-center gap-1 text-amber-600"><Archive className="w-3.5 h-3.5" />{totalArchived} archived</span>}
               </div>
             </div>
@@ -1316,9 +1416,12 @@ const UhcMember = () => {
                   <div className="flex flex-col gap-3">
                     {FOLDER_DEFS.map((folder) => {
                       const colors   = COLOR_MAP[folder.color as ColorKey];
-                      const docs     = getDocsForFolder(folder.supabaseCategory, false);
-                      const allCount = documents.filter((d) => d.category === folder.supabaseCategory && !d.archived).length;
-                      const isExp    = expandedFolder === folder.key;
+                      const docs     = getDocsForFolder(folder.key, false);
+                      const allCount = documents.filter((d) => docMatchesFolder(d.category, folder.key) && !d.archived).length;
+                      // Auto-expand folders that have search matches; otherwise use manual toggle
+                      const isExp    = filterQuery
+                        ? filterMatchedFolderKeys.includes(folder.key)
+                        : expandedFolder === folder.key;
                       return (
                         <div key={folder.key} className={`border rounded-xl overflow-hidden ${colors.border}`}>
                           <button
@@ -1370,6 +1473,18 @@ const UhcMember = () => {
                         </div>
                       );
                     })}
+
+                    {/* No results message when filter is active */}
+                    {filterQuery && totalFilterMatches === 0 && (
+                      <div className="text-center py-10 text-gray-400">
+                        <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                        <p className="font-medium text-gray-500">No documents found</p>
+                        <p className="text-sm mt-1">No documents matching "<span className="font-semibold text-gray-600">{filterQuery}</span>" were found.</p>
+                        <Button size="sm" variant="outline" onClick={() => setFilterQuery('')} className="mt-4 flex gap-1.5 text-xs mx-auto">
+                          <RefreshCw className="w-3.5 h-3.5" /> Clear search
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </Card>
@@ -1410,7 +1525,7 @@ const UhcMember = () => {
                   </Card>
                   <Card className="p-6">
                     <div className="overflow-x-auto flex justify-center">
-                      <HealthIdCard patient={selectedPatient!} qrDataUrl={qrDataUrl} qrCodeValue={qrCodeValue} cardRef={cardRef} />
+                      <HealthIdCard patient={selectedPatient!} qrDataUrl={qrDataUrl} qrCodeValue={qrCodeValue} cardRef={cardRef} profilePicUrl={profilePicUrl} />
                     </div>
                   </Card>
                 </div>
@@ -1447,7 +1562,7 @@ const UhcMember = () => {
                 ) : (
                   <div className="flex flex-col gap-3">
                     {FOLDER_DEFS.map((folder) => {
-                      const archivedDocs = documents.filter((d) => d.category === folder.supabaseCategory && d.archived);
+                      const archivedDocs = documents.filter((d) => docMatchesFolder(d.category, folder.key) && d.archived);
                       if (!archivedDocs.length) return null;
                       const colors = COLOR_MAP[folder.color as ColorKey];
                       return (

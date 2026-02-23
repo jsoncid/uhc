@@ -11,7 +11,7 @@ import {
   ChevronDown, ChevronRight, CheckCircle2, User, Building2, Heart,
   Accessibility, ClipboardList, IdCard, Loader2, Eye, Calendar, Clock,
   Download, Printer, Save, Stethoscope, Camera, CameraOff, RefreshCw,
-  Lock, EyeOff, ShieldCheck, ShieldX,
+  Lock, EyeOff, ShieldCheck, ShieldX, ArrowLeft,
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import QRCodeLib from 'qrcode';
@@ -103,6 +103,7 @@ interface ScanResult {
   documents: DocumentAttachment[];
   qrCodeDataUrl?: string;
   healthCardId?: string;
+  fromHistory?: boolean;
 }
 
 // ─── PIN Types ────────────────────────────────────────────────────────────────
@@ -245,8 +246,21 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
   </div>
 );
 
+// ─── Display filename: strip UUID + timestamp, use patient name ──────────────
+const displayFileName = (rawUrl: string, patientName?: string): string => {
+  const base = rawUrl.split('/').pop() ?? 'Document';
+  // Pattern: uuid_timestamp_DocType.ext  →  lastname_firstname_DocType.ext
+  const match = base.match(/^[0-9a-f-]{36}_\d+_(.+)$/i);
+  if (match) {
+    const docPart = match[1]; // e.g. Valid_ID.pdf
+    if (patientName) return `${patientName}_${docPart}`;
+    return docPart;
+  }
+  return base;
+};
+
 // ─── Document List ────────────────────────────────────────────────────────────
-const DocumentList = ({ documents }: { documents: DocumentAttachment[] }) => {
+const DocumentList = ({ documents, patientName }: { documents: DocumentAttachment[]; patientName?: string }) => {
   const [expandedCat, setExpandedCat] = useState<string | null>(null);
   const [previewDoc,  setPreviewDoc]  = useState<DocumentAttachment | null>(null);
 
@@ -297,7 +311,7 @@ const DocumentList = ({ documents }: { documents: DocumentAttachment[] }) => {
                     <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
                       <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{doc.attachment.split('/').pop() ?? 'Document'}</p>
+                        <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, patientName)}</p>
                         <p className="text-xs text-gray-400">{cat}</p>
                       </div>
                       <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 text-green-700 hover:bg-green-50" onClick={() => setPreviewDoc(doc)}>
@@ -357,6 +371,17 @@ const PinVerifyModal = ({
     if (status === 'checking' || isLocked) return;
     setEntered((p) => p.slice(0, -1));
   };
+
+  // ── Keyboard support ──
+  useEffect(() => {
+    if (!hasPin) return; // no-pin screen has no entry
+    const onKey = (e: KeyboardEvent) => {
+      if (/^[0-9]$/.test(e.key)) { handleDigit(e.key); e.preventDefault(); }
+      else if (e.key === 'Backspace') { handleBack(); e.preventDefault(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   const prevStatus = useRef<PinVerifyStatus>('idle');
   useEffect(() => {
@@ -573,10 +598,23 @@ const PinVerifyModal = ({
   );
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ══════════════════════════════════════════════════════════════════════════════
+
 const UhcOperator = () => {
+  const getCurrentUserAndRole = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { userId: null, roleId: null };
+
+    const { data: userRole } = await supabase
+      .from('user_role')
+      .select('role')
+      .eq('user', user.id)
+      .single();
+
+    return {
+      userId: user.id,
+      roleId: userRole?.role ?? null,
+    };
+  }, []);
   // ── Document Manager ──────────────────────────────────────────────────────
   const [searchQuery,     setSearchQuery]     = useState('');
   const [searchResults,   setSearchResults]   = useState<PatientProfile[]>([]);
@@ -589,6 +627,7 @@ const UhcOperator = () => {
   const [isGenerating,    setIsGenerating]    = useState(false);
   const [scanHistory,     setScanHistory]     = useState<ScannedCard[]>([]);
   const [errorMessage,    setErrorMessage]    = useState('');
+
   const [previewFile,     setPreviewFile]     = useState<UploadedFile | null>(null);
   const [pendingUpload,   setPendingUpload]   = useState<PendingUpload | null>(null);
   const [selectedDocType, setSelectedDocType] = useState('');
@@ -596,9 +635,18 @@ const UhcOperator = () => {
   const [isProcessing,    setIsProcessing]    = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
+  // ── Profile picture ────────────────────────────────────────────────────────
+  const [profilePicUrl,       setProfilePicUrl]       = useState<string | null>(null);
+  const [isUploadingPic,      setIsUploadingPic]      = useState(false);
+  const [profilePicError,     setProfilePicError]     = useState('');
+  const profilePicInputRef = useRef<HTMLInputElement | null>(null);
+
   // ── Scanner ───────────────────────────────────────────────────────────────
   const [activeTab,    setActiveTab]    = useState('documents');
   const [cameraActive, setCameraActive] = useState(false);
+
+  // ── Operator mode selection ────────────────────────────────────────────────
+  const [operatorMode, setOperatorMode] = useState<'documents' | 'scanner' | null>(null);
   const [scanLookup,   setScanLookup]   = useState(false);
   const [scanResult,   setScanResult]   = useState<ScanResult | null>(null);
   const [cameraError,  setCameraError]  = useState('');
@@ -619,6 +667,19 @@ const UhcOperator = () => {
     status: 'idle', attemptsLeft: 3, isLocked: false,
   });
   const [isLoadingPatientPin, setIsLoadingPatientPin] = useState(false);
+
+  // ── Scan History (from DB) ───────────────────────────────────────────────
+  const [dbScanHistory, setDbScanHistory] = useState<{
+    id: string;
+    created_at: string;
+    qr_code: string;
+    patient_name: string;
+    health_card: string;
+    scanned_by_user?: string | null;
+    scanned_by_role?: string | null;
+    role_name?: string;
+  }[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // ── Scanner instance ──────────────────────────────────────────────────────
   const SCANNER_DIV_ID = 'uhc-qr-camera-root';
@@ -647,6 +708,67 @@ const UhcOperator = () => {
 
   useEffect(() => { if (activeTab !== 'scanner') stopCamera(); }, [activeTab, stopCamera]);
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
+
+  // ── Fetch scan history from DB when tab changes ──────────────────────────
+  useEffect(() => {
+    if (activeTab !== 'history') return;
+    const fetchHistory = async () => {
+      setIsLoadingHistory(true);
+      try {
+        const { data } = await supabase
+          .schema('module4')
+          .from('scan_history')
+          .select(`
+            id,
+            created_at,
+            qr_code,
+            patient_name,
+            health_card,
+            scanned_by_user,
+            scanned_by_role
+          `)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        // Fetch role descriptions
+        const roleIds = [...new Set((data ?? [])
+          .map((s: any) => s.scanned_by_role)
+          .filter(Boolean))]
+          .filter((id): id is string => typeof id === 'string');
+
+        let roleMap: Record<string, string> = {};
+        if (roleIds.length > 0) {
+          const { data: roles } = await supabase
+            .from('role')
+            .select('id, description')
+            .in('id', roleIds);
+          (roles ?? []).forEach((r: any) => { roleMap[r.id] = r.description; });
+        }
+
+        // De-duplicate: keep only the latest entry per health_card
+        const seen = new Set<string>();
+        const unique = (data ?? []).filter((s: any) => {
+          const key = s.health_card;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        // Map into display-friendly shape
+        const mapped = unique.map((s: any) => ({
+          ...s,
+          role_name: roleMap[s.scanned_by_role] ?? 'Unknown Role',
+        }));
+        setDbScanHistory(mapped);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+    fetchHistory();
+  }, [activeTab]);
+
 
   // ── QR PIN verify ─────────────────────────────────────────────────────────
   const handleScanPinDigitEntry = useCallback(async (enteredPin: string) => {
@@ -705,8 +827,14 @@ const UhcOperator = () => {
     setScanPinState({ status: 'idle', attemptsLeft: 3, isLocked: false });
   }, []);
 
+  const scanningRef = useRef(false);
   // ── QR success handler ────────────────────────────────────────────────────
   qrSuccessRef.current = async (decodedText: string) => {
+    // ── GUARD: prevent duplicate fires ──────────────────────
+    if (scanningRef.current) return;
+    scanningRef.current = true;
+    // ────────────────────────────────────────────────────────
+
     await stopCamera();
     setScanLookup(true);
     setScanError('');
@@ -723,60 +851,73 @@ const UhcOperator = () => {
 
       // Step 1: fetch health_card from module4
       const { data: cardData, error: cardErr } = await supabase
-          .schema('module4')
-          .from('health_card')
-          .select('id, qr_code, pin, patient_profile')
-          .eq('qr_code', qrValue)
-          .single();
+        .schema('module4')
+        .from('health_card')
+        .select('id, qr_code, pin, patient_profile')
+        .eq('qr_code', qrValue)
+        .single();
 
-        if (cardErr || !cardData) {
-          setScanError(`QR code not found: "${qrValue}". Make sure this QR was generated for an existing patient.`);
-          setScanLookup(false);
-          return;
-        }
+      if (cardErr || !cardData) {
+        setScanError(`QR code not found: "${qrValue}". Make sure this QR was generated for an existing patient.`);
+        setScanLookup(false);
+        return;
+      }
 
-        healthCardId = cardData.id as string;
-        cardHasPin   = Boolean(cardData.pin);
+      healthCardId = cardData.id as string;
+      cardHasPin   = Boolean(cardData.pin);
 
-        // Step 2: fetch patient profile from module3 using the UUID FK
-        const patientProfileId = cardData.patient_profile as string;
-        const { data: profileData, error: profileErr } = await supabase
-          .schema('module3')
-          .from('patient_profile')
-          .select('id, first_name, middle_name, last_name, ext_name, sex, birth_date')
-          .eq('id', patientProfileId)
-          .single();
+      // Step 2: fetch patient profile from module3 using the UUID FK
+      const patientProfileId = cardData.patient_profile as string;
+      const { data: profileData, error: profileErr } = await supabase
+        .schema('module3')
+        .from('patient_profile')
+        .select('id, first_name, middle_name, last_name, ext_name, sex, birth_date')
+        .eq('id', patientProfileId)
+        .single();
 
-        if (profileErr || !profileData) {
-          setScanError('Patient profile not found for this QR code.');
-          setScanLookup(false);
-          return;
-        }
+      if (profileErr || !profileData) {
+        setScanError('Patient profile not found for this QR code.');
+        setScanLookup(false);
+        return;
+      }
 
-        patient = profileData as unknown as PatientProfile;
+      patient = profileData as unknown as PatientProfile;
 
-        // Step 3: fetch attachments from module4
-        const { data: attachments } = await supabase
-          .schema('module4')
-          .from('card_attachment')
-          .select('id, attachment, status, card_category ( description )')
-          .eq('health_card', cardData.id)
-          .eq('status', true);
+      // Step 3: fetch attachments from module4
+      const { data: attachments } = await supabase
+        .schema('module4')
+        .from('card_attachment')
+        .select('id, attachment, status, card_category ( description )')
+        .eq('health_card', cardData.id)
+        .eq('status', true);
 
-        documents = (attachments ?? []).map((a) => {
-          const raw = a as {
-            id: string; attachment: string; status: boolean;
-            card_category: { description?: string } | { description?: string }[] | null;
-          };
-          const cat = Array.isArray(raw.card_category) ? raw.card_category[0] : raw.card_category;
-          return { id: raw.id, attachment: raw.attachment, status: raw.status, category: cat?.description ?? 'Uncategorized' };
-        });
-
-      if (!patient) { setScanError('Patient profile not found for this QR code.'); setScanLookup(false); return; }
+      documents = (attachments ?? []).map((a) => {
+        const raw = a as {
+          id: string; attachment: string; status: boolean;
+          card_category: { description?: string } | { description?: string }[] | null;
+        };
+        const cat = Array.isArray(raw.card_category) ? raw.card_category[0] : raw.card_category;
+        return { id: raw.id, attachment: raw.attachment, status: raw.status, category: cat?.description ?? 'Uncategorized' };
+      });
 
       setScanHistory((prev) => [{
         id: Date.now().toString(), qrData: qrValue, scanTime, memberName: fullName(patient!), patient,
       }, ...prev]);
+
+      // Save scan to module4.scan_history
+      try {
+        const { userId, roleId } = await getCurrentUserAndRole();
+        await supabase
+          .schema('module4')
+          .from('scan_history')
+          .insert({
+            health_card: healthCardId,
+            qr_code: qrValue,
+            patient_name: fullName(patient!),
+            scanned_by_user: userId,
+            scanned_by_role: roleId,
+          });
+      } catch (histErr) { console.warn('Failed to save scan history:', histErr); }
 
       const pending: ScanResult = { qrValue, scanTime, patient, documents, healthCardId };
       setPendingScanResult(pending);
@@ -789,10 +930,14 @@ const UhcOperator = () => {
       setScanError('Error looking up QR code. Please try again.');
     } finally {
       setScanLookup(false);
+      // NOTE: do NOT reset scanningRef here — the QR scanner fires its
+      // callback many times per second.  We only reset it when the user
+      // explicitly starts a new scan (startCamera / resetScan).
     }
   };
 
   const startCamera = useCallback(async () => {
+    scanningRef.current = false;          // allow a fresh scan
     setScanError(''); setCameraError('');
     if (!scannerRef.current) {
       try { scannerRef.current = new Html5Qrcode(SCANNER_DIV_ID); }
@@ -816,7 +961,7 @@ const UhcOperator = () => {
     }
   }, []);
 
-  const resetScan = () => { setScanResult(null); setScanError(''); setCameraError(''); };
+  const resetScan = () => { scanningRef.current = false; setScanResult(null); setScanError(''); setCameraError(''); };
 
   // ── Search (module3) — flat sequential fetches ────────────────────────────
   const handleSearch = async () => {
@@ -908,6 +1053,19 @@ const UhcOperator = () => {
   };
 
   // ── Commit patient after PIN cleared ──────────────────────────────────────
+  // Load profile pic when patient is selected
+  const loadProfilePic = useCallback(async (patientId: string) => {
+    setProfilePicUrl(null);
+    try {
+      const { data: files } = await supabase.storage.from('card-user-picture').list('', { search: patientId });
+      const match = files?.find((f) => f.name.startsWith(patientId));
+      if (match) {
+        const { data: pub } = supabase.storage.from('card-user-picture').getPublicUrl(match.name);
+        setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   const commitPatientSelect = useCallback((p: PatientProfile) => {
     setSelectedPatient(p);
     setGeneratedQr(null);
@@ -916,7 +1074,8 @@ const UhcOperator = () => {
     setShowPatientPinModal(false);
     setPendingPatientPin(null);
     setPatientPinState({ status: 'idle', attemptsLeft: 3, isLocked: false });
-  }, []);
+    loadProfilePic(p.id);
+  }, [loadProfilePic]);
 
   // ── Patient PIN digit handler ─────────────────────────────────────────────
   const handlePatientPinDigitEntry = useCallback(async (enteredPin: string) => {
@@ -1112,6 +1271,28 @@ const UhcOperator = () => {
     finally { setIsGenerating(false); }
   };
 
+  // ── Upload profile picture to card-user-picture bucket ────────────────────
+  const handleProfilePicUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedPatient) return;
+    if (!file.type.startsWith('image/')) { setProfilePicError('Please select an image file (JPG, PNG, etc.).'); return; }
+    setIsUploadingPic(true);
+    setProfilePicError('');
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const path = `${selectedPatient.id}.${ext}`;
+      // Remove old picture first (ignore errors — might not exist)
+      await supabase.storage.from('card-user-picture').remove([path]);
+      const { error: upErr } = await supabase.storage.from('card-user-picture').upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('card-user-picture').getPublicUrl(path);
+      setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
+    } catch (err: any) {
+      console.error('Profile pic upload error:', err);
+      setProfilePicError(err.message ?? 'Upload failed.');
+    } finally { setIsUploadingPic(false); }
+  };
+
   const totalFiles    = folders.reduce((s, f) => s + f.files.length, 0);
   const pendingFolder = pendingUpload ? FOLDER_DEFS.find((f) => f.key === pendingUpload.folderKey) : null;
   const pendingColors = pendingFolder ? COLOR_MAP[pendingFolder.color as ColorKey] : COLOR_MAP.blue;
@@ -1237,12 +1418,72 @@ const UhcOperator = () => {
 
       {/* ── Main Tabs ── */}
       <div className="flex flex-col gap-6">
+
+        {/* ── Mode selection cards ── */}
+        {!operatorMode && (
+          <div className="flex flex-col items-center gap-8 py-10">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-800">What would you like to do?</h2>
+              <p className="text-sm text-gray-500 mt-1">Choose an action to get started</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-2xl">
+              {/* Upload Documents Card */}
+              <button
+                onClick={() => { setOperatorMode('documents'); setActiveTab('documents'); }}
+                className="group relative flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-gray-200 bg-white hover:border-green-500 hover:shadow-xl transition-all duration-200 text-center"
+              >
+                <div className="w-20 h-20 rounded-2xl bg-green-100 group-hover:bg-green-200 flex items-center justify-center transition-colors">
+                  <Upload className="w-10 h-10 text-green-700" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-800 group-hover:text-green-700 transition-colors">Upload Documents</p>
+                  <p className="text-sm text-gray-500 mt-1">Search for a patient and manage their documents</p>
+                </div>
+                <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-green-50 group-hover:bg-green-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                  <ChevronRight className="w-4 h-4 text-green-600" />
+                </div>
+              </button>
+
+              {/* Scan QR Code Card */}
+              <button
+                onClick={() => { setOperatorMode('scanner'); setActiveTab('scanner'); }}
+                className="group relative flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-gray-200 bg-white hover:border-blue-500 hover:shadow-xl transition-all duration-200 text-center"
+              >
+                <div className="w-20 h-20 rounded-2xl bg-blue-100 group-hover:bg-blue-200 flex items-center justify-center transition-colors">
+                  <QrCode className="w-10 h-10 text-blue-700" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-800 group-hover:text-blue-700 transition-colors">Scan QR Code</p>
+                  <p className="text-sm text-gray-500 mt-1">Scan a member's health card QR code</p>
+                </div>
+                <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                  <ChevronRight className="w-4 h-4 text-blue-600" />
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Tabs (shown after mode selected) ── */}
+        {operatorMode && (
+        <>
+        <button
+          onClick={() => { setOperatorMode(null); stopCamera(); }}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 transition-colors w-fit mb-1"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to menu
+        </button>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="documents">Document Manager</TabsTrigger>
-            <TabsTrigger value="scanner">QR Scanner</TabsTrigger>
-            <TabsTrigger value="history">Scan History</TabsTrigger>
-          </TabsList>
+          {operatorMode === 'documents' ? (
+            <TabsList className="grid w-full grid-cols-1">
+              <TabsTrigger value="documents">Document Manager</TabsTrigger>
+            </TabsList>
+          ) : (
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="scanner">QR Scanner</TabsTrigger>
+              <TabsTrigger value="history">Scan History</TabsTrigger>
+            </TabsList>
+          )}
 
           {/* ═══ DOCUMENT MANAGER ═══ */}
           <TabsContent value="documents">
@@ -1292,9 +1533,13 @@ const UhcOperator = () => {
                 {selectedPatient && (
                   <div className="mt-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
-                        {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
-                      </div>
+                      {profilePicUrl ? (
+                        <img src={profilePicUrl} alt="Profile" className="w-10 h-10 rounded-full object-cover border-2 border-green-300" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
+                          {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
+                        </div>
+                      )}
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-green-900">{fullName(selectedPatient)}</p>
@@ -1314,6 +1559,47 @@ const UhcOperator = () => {
                   </div>
                 )}
               </Card>
+
+              {/* ── Profile Picture Upload ── */}
+              {selectedPatient && (
+                <Card className="p-6">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <Camera className="w-5 h-5 text-green-600" /> Profile Picture
+                  </h3>
+                  <div className="flex items-center gap-6">
+                    <div className="relative flex-shrink-0">
+                      {profilePicUrl ? (
+                        <img src={profilePicUrl} alt="Profile" className="w-24 h-24 rounded-full object-cover border-4 border-green-200 shadow-md" />
+                      ) : (
+                        <div className="w-24 h-24 rounded-full bg-gray-100 border-4 border-dashed border-gray-300 flex items-center justify-center">
+                          <User className="w-10 h-10 text-gray-300" />
+                        </div>
+                      )}
+                      {isUploadingPic && (
+                        <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 text-white animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-600 mb-3">
+                        Upload a profile photo for <strong>{fullName(selectedPatient)}</strong>. This will appear on their Health ID Card.
+                      </p>
+                      <Button variant="outline" disabled={isUploadingPic}
+                        onClick={() => profilePicInputRef.current?.click()}
+                        className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50">
+                        <Upload className="w-4 h-4" />
+                        {profilePicUrl ? 'Change Photo' : 'Upload Photo'}
+                      </Button>
+                      <input ref={profilePicInputRef} type="file" accept="image/*" className="hidden"
+                        onChange={handleProfilePicUpload} />
+                      {profilePicError && (
+                        <p className="text-xs text-red-600 mt-2 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{profilePicError}</p>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              )}
 
               <Card className="p-6">
                 <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
@@ -1467,11 +1753,6 @@ const UhcOperator = () => {
                   <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
                     <Camera className="w-5 h-5 text-green-600" /> QR Code Scanner
                   </h3>
-                  <p className="text-sm text-gray-400 mb-5">
-                    Click <strong>Open Camera &amp; Scan</strong>. The camera will open in a floating window — hold the member's QR card steady.
-                    After detection, the system will check for a PIN.
-                  </p>
-
                   <div className="mb-5 flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
                     <Lock className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                     <div>
@@ -1632,7 +1913,7 @@ const UhcOperator = () => {
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 mb-2">Click a category to expand and view its files.</p>
-                    <DocumentList documents={scanResult.documents} />
+                    <DocumentList documents={scanResult.documents} patientName={`${scanResult.patient.last_name}_${scanResult.patient.first_name}`} />
                   </Card>
                 </div>
               )}
@@ -1667,27 +1948,50 @@ const UhcOperator = () => {
               <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                 <History className="w-5 h-5 text-green-600" /> Scan History
               </h3>
-              {scanHistory.length > 0 ? (
+              {isLoadingHistory ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+                </div>
+              ) : dbScanHistory.length > 0 ? (
                 <div className="space-y-3">
-                  {scanHistory.map((scan) => (
-                    <div
-                      key={scan.id}
-                      className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-                      onClick={() => {
-                        if (scan.patient) {
-                          setScanResult({ qrValue: scan.qrData, scanTime: scan.scanTime, patient: scan.patient, documents: [], qrCodeDataUrl: scan.qrCodeDataUrl });
-                          setActiveTab('scanner');
-                        }
-                      }}
-                    >
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div><p className="text-xs text-gray-500">Member</p><p className="font-medium text-gray-900">{scan.memberName}</p></div>
-                        <div><p className="text-xs text-gray-500">QR Code</p><p className="font-medium text-gray-800 truncate text-xs">{scan.qrData}</p></div>
-                        <div><p className="text-xs text-gray-500">Scanned At</p><p className="font-medium text-gray-900 flex items-center gap-1 text-sm"><Clock className="w-3 h-3" />{scan.scanTime}</p></div>
-                      </div>
-                      <p className="text-xs text-blue-500 mt-2">Click to view health card →</p>
+                {dbScanHistory.map((scan) => (
+                <div
+                  key={scan.id}
+                  className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+
+                    <div className="flex flex-col items-center">
+                      <p className="text-xs text-gray-500">Member</p>
+                      <p className="font-medium text-gray-900">
+                        {scan.patient_name}
+                      </p>
                     </div>
-                  ))}
+
+                    <div className="flex flex-col items-center">
+                      <p className="text-xs text-gray-500">QR Code</p>
+                      <p className="font-medium text-gray-800 text-xs break-all">
+                        {scan.qr_code}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col items-center">
+                      <p className="text-xs text-gray-500">Scanned By</p>
+                      <span className="inline-flex items-center justify-center gap-1 text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                        {scan.role_name || 'Unknown Role'}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col items-center">
+                      <p className="text-xs text-gray-500">Scanned At</p>
+                      <p className="font-medium text-gray-900 flex items-center justify-center gap-1 text-sm w-full">
+                        <Clock className="w-3 h-3" />
+                        {new Date(scan.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    </div>
+                  </div>
+                ))}
                 </div>
               ) : (
                 <div className="text-center py-12 text-gray-500">
@@ -1699,6 +2003,8 @@ const UhcOperator = () => {
             </Card>
           </TabsContent>
         </Tabs>
+        </>
+        )}
       </div>
     </>
   );
