@@ -3,7 +3,13 @@ import { ChevronRight, Check, Loader2, ArrowRightLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -106,24 +112,22 @@ const StaffQueueManager = () => {
 
   const getWaitingSequences = (officeId: string, windowId?: string): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
-    let pending = getSequencesForOffice(officeId).filter(
-      (seq) => seq.status === pendingStatus?.id,
-    );
-    
+    let pending = getSequencesForOffice(officeId).filter((seq) => seq.status === pendingStatus?.id);
+
     // Filter by window if provided - show sequences assigned to this window OR unassigned (newly added)
     if (windowId) {
       pending = pending.filter((seq) => seq.window === windowId || !seq.window);
     }
-    
+
     // Sort by priority weight (lower = higher priority), then by created_at (FIFO within same priority)
     return pending.sort((a, b) => {
       const priorityA = getPriorityWeight(a.priority_data?.description);
       const priorityB = getPriorityWeight(b.priority_data?.description);
-      
+
       if (priorityA !== priorityB) {
         return priorityA - priorityB;
       }
-      
+
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   };
@@ -142,13 +146,18 @@ const StaffQueueManager = () => {
   const handleCallNext = async (officeId: string) => {
     const servingStatus = getStatusByDescription('serving');
     const completedStatus = getStatusByDescription('completed');
-    
+
     if (!servingStatus) {
       console.error('Serving status not found. Available statuses:', statuses);
       return;
     }
 
-    console.log('📞 Calling next - servingStatus:', servingStatus, 'completedStatus:', completedStatus);
+    console.log(
+      '📞 Calling next - servingStatus:',
+      servingStatus,
+      'completedStatus:',
+      completedStatus,
+    );
 
     const windowId = selectedWindowByOffice[officeId];
     // Only mark as completed if there's already a sequence serving at THIS specific window
@@ -190,15 +199,11 @@ const StaffQueueManager = () => {
     const targetWindow = getTargetOfficeWindows().find((w) => w.id === windowId);
     const targetOffice = activeOffices.find((o) => o.id === transferTargetOffice);
 
-    await transferSequence(
-      transferringSequence.id,
-      transferTargetOffice,
-      windowId
-    );
+    await transferSequence(transferringSequence.id, transferTargetOffice, windowId);
 
     // Show success message with transfer details
     const windowName = windowId
-      ? (targetWindow?.description || `Window ${windowId}`)
+      ? targetWindow?.description || `Window ${windowId}`
       : 'Pending (No Window)';
     const message = `✓ Queue ${transferringSequence?.queue_data?.code} transferred to ${targetOffice?.description} - ${windowName}`;
     setTransferSuccess(message);
@@ -280,7 +285,9 @@ const StaffQueueManager = () => {
                       <div className="flex items-center gap-3">
                         {(office.windows || []).filter((w) => w.status).length > 0 && (
                           <div className="flex items-center gap-2">
-                            <Label className="text-sm text-muted-foreground whitespace-nowrap">Call to window</Label>
+                            <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                              Call to window
+                            </Label>
                             <Select
                               value={selectedWindowByOffice[office.id]?.toString() ?? ''}
                               onValueChange={(v) =>
@@ -302,7 +309,10 @@ const StaffQueueManager = () => {
                             </Select>
                           </div>
                         )}
-                        <Button onClick={() => handleCallNext(office.id)} disabled={isLoading || !!serving}>
+                        <Button
+                          onClick={() => handleCallNext(office.id)}
+                          disabled={isLoading || !!serving}
+                        >
                           {isLoading ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : (
@@ -363,17 +373,14 @@ const StaffQueueManager = () => {
                       {/* Waiting Section */}
                       <Card className="bg-muted/50">
                         <CardContent className="pt-6">
-                          <h3 className="font-semibold text-lg mb-4">
-                            Waiting ({waiting.length})
-                          </h3>
+                          <h3 className="font-semibold text-lg mb-4">Waiting ({waiting.length})</h3>
                           {waiting.length > 0 ? (
                             <div className="space-y-2 max-h-64 overflow-y-auto">
                               {waiting.map((seq) => (
-                                <div
-                                  key={seq.id}
-                                  className="flex items-center justify-between"
-                                >
-                                  <div className={`text-lg font-medium tracking-wider ${getPriorityColor(seq.priority_data?.description)}`}>
+                                <div key={seq.id} className="flex items-center justify-between">
+                                  <div
+                                    className={`text-lg font-medium tracking-wider ${getPriorityColor(seq.priority_data?.description)}`}
+                                  >
                                     {seq.queue_data?.code || '---'}
                                     <span className="text-xs ml-2 text-muted-foreground">
                                       ({seq.priority_data?.description || 'Regular'})
@@ -391,7 +398,9 @@ const StaffQueueManager = () => {
                               ))}
                             </div>
                           ) : (
-                            <p className="text-muted-foreground italic">The waiting queue is empty.</p>
+                            <p className="text-muted-foreground italic">
+                              The waiting queue is empty.
+                            </p>
                           )}
                         </CardContent>
                       </Card>
@@ -410,7 +419,9 @@ const StaffQueueManager = () => {
           <DialogHeader>
             <DialogTitle>Transfer Queue</DialogTitle>
             <DialogDescription>
-              Transfer queue code <span className="font-bold">{transferringSequence?.queue_data?.code}</span> to another office or window.
+              Transfer queue code{' '}
+              <span className="font-bold">{transferringSequence?.queue_data?.code}</span> to another
+              office or window.
             </DialogDescription>
           </DialogHeader>
 
@@ -439,10 +450,7 @@ const StaffQueueManager = () => {
 
             <div className="grid gap-2">
               <Label>Target Window (Optional)</Label>
-              <Select
-                value={transferTargetWindow}
-                onValueChange={setTransferTargetWindow}
-              >
+              <Select value={transferTargetWindow} onValueChange={setTransferTargetWindow}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select window (or leave empty for pending)" />
                 </SelectTrigger>
@@ -455,11 +463,17 @@ const StaffQueueManager = () => {
                         <div className="flex items-center gap-2">
                           {w.description || `Window ${w.id}`}
                           {available ? (
-                            <Badge variant="outline" className="text-green-600 border-green-600 text-xs">
+                            <Badge
+                              variant="outline"
+                              className="text-green-600 border-green-600 text-xs"
+                            >
                               Available
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-orange-600 border-orange-600 text-xs">
+                            <Badge
+                              variant="outline"
+                              className="text-orange-600 border-orange-600 text-xs"
+                            >
                               Busy
                             </Badge>
                           )}
