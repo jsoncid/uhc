@@ -4,7 +4,6 @@ import { ReferralProvider } from '../context/ReferralContext';
 
 const BCrumb = [
   { to: '/', title: 'Home' },
-  { to: '/module-2/referrals', title: 'Referrals' },
   { title: 'Incoming Referrals' },
 ];
 

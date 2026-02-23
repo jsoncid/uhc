@@ -1,6 +1,7 @@
 'use client';
 
 import { useContext, useState } from 'react';
+import React from 'react';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
 import { useNavigate } from 'react-router';
@@ -33,6 +34,9 @@ import {
   DialogFooter,
 } from 'src/components/ui/dialog';
 import ReferralPrintDocument from './ReferralPrintDocument';
+import { Label } from 'src/components/ui/label';
+import { Textarea } from 'src/components/ui/textarea';
+import { Separator } from 'src/components/ui/separator';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
@@ -42,20 +46,323 @@ const STATUS_STYLES: Record<string, string> = {
   Declined: 'bg-lighterror text-error',
 };
 
+const PAGE_SIZE = 10;
+
+// ─── Paginator ────────────────────────────────────────────────────────────────────────────
+const Paginator = ({
+  total,
+  page,
+  perPage,
+  onPageChange,
+}: {
+  total: number;
+  page: number;
+  perPage: number;
+  onPageChange: (p: number) => void;
+}) => {
+  const totalPages = Math.ceil(total / perPage);
+  if (totalPages <= 1) return null;
+  const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+    .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+    .reduce<(number | string)[]>((acc, p, idx, arr) => {
+      if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push('…');
+      acc.push(p);
+      return acc;
+    }, []);
+  return (
+    <div className="flex items-center justify-between mt-3 px-1">
+      <p className="text-xs text-muted-foreground">
+        {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} of {total}
+      </p>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          disabled={page === 1}
+          onClick={() => onPageChange(page - 1)}
+        >
+          <Icon icon="solar:arrow-left-linear" height={13} />
+        </Button>
+        {pages.map((p, idx) =>
+          typeof p === 'string' ? (
+            <span key={`e-${idx}`} className="text-xs text-muted-foreground px-0.5">
+              {p}
+            </span>
+          ) : (
+            <Button
+              key={p}
+              variant={p === page ? 'default' : 'outline'}
+              size="icon"
+              className="h-7 w-7 text-xs"
+              onClick={() => onPageChange(p)}
+            >
+              {p}
+            </Button>
+          ),
+        )}
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          disabled={page === totalPages}
+          onClick={() => onPageChange(page + 1)}
+        >
+          <Icon icon="solar:arrow-right-linear" height={13} />
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Re-Refer Dialog ─────────────────────────────────────────────────────────────────────
+const ReReferDialog = ({
+  open,
+  referral,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  referral: ReferralType | null;
+  onClose: () => void;
+  onConfirm: (newHospital: string) => void;
+}) => {
+  const [hospital, setHospital] = useState('');
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-full bg-lightprimary flex items-center justify-center flex-shrink-0">
+              <Icon icon="solar:refresh-circle-bold-duotone" height={22} className="text-primary" />
+            </div>
+            <DialogTitle className="text-base">Re-refer Patient</DialogTitle>
+          </div>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Create a new referral for{' '}
+            <span className="font-semibold text-foreground">{referral?.patient_name}</span> to a
+            different hospital. Clinical information will be carried over.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 mt-2">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Previous Hospital (Declined)</Label>
+            <div className="h-9 px-3 flex items-center rounded-md bg-muted/50 border border-border text-sm text-muted-foreground">
+              {referral?.to_assignment_name ?? '—'}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium">
+              New Destination Hospital <span className="text-error">*</span>
+            </Label>
+            <Input
+              placeholder="e.g. Philippine General Hospital"
+              value={hospital}
+              onChange={(e) => setHospital(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-2 mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setHospital('');
+              onClose();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              if (hospital.trim()) {
+                onConfirm(hospital.trim());
+                setHospital('');
+                onClose();
+              }
+            }}
+            disabled={!hospital.trim()}
+          >
+            <Icon icon="solar:refresh-circle-bold-duotone" height={15} className="mr-1.5" />
+            Create Re-referral
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ─── Edit Referral Info Dialog ───────────────────────────────────────────────────────────
+const EditReferralDialog = ({
+  open,
+  referral,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  referral: ReferralType | null;
+  onClose: () => void;
+  onConfirm: (updated: Record<string, string>) => void;
+}) => {
+  const info = referral?.referral_info;
+  const [form, setForm] = useState({
+    reason_referral: '',
+    chief_complaints: '',
+    history_present_illness: '',
+    pe: '',
+    blood_pressure: '',
+    temperature: '',
+    heart_rate: '',
+    respiratory_rate: '',
+    o2_sat: '',
+    o2_requirement: '',
+    medications: '',
+  });
+
+  // Sync form with referral when dialog opens
+  React.useEffect(() => {
+    if (open && info) {
+      setForm({
+        reason_referral: info.reason_referral ?? '',
+        chief_complaints: info.chief_complaints ?? '',
+        history_present_illness: info.history_present_illness ?? '',
+        pe: info.pe ?? '',
+        blood_pressure: info.blood_pressure ?? '',
+        temperature: info.temperature ?? '',
+        heart_rate: info.heart_rate ?? '',
+        respiratory_rate: info.respiratory_rate ?? '',
+        o2_sat: info.o2_sat ?? '',
+        o2_requirement: info.o2_requirement ?? '',
+        medications: info.medications ?? '',
+      });
+    }
+  }, [open, info]);
+
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-full bg-lightprimary flex items-center justify-center flex-shrink-0">
+              <Icon icon="solar:pen-bold-duotone" height={20} className="text-primary" />
+            </div>
+            <div>
+              <DialogTitle className="text-base">Edit Clinical Information</DialogTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {referral?.patient_name} · {referral?.to_assignment_name}
+              </p>
+            </div>
+          </div>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 mt-2">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium">Reason for Referral</Label>
+            <Textarea
+              className="resize-none"
+              rows={2}
+              value={form.reason_referral}
+              onChange={set('reason_referral')}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium">Chief Complaints</Label>
+            <Textarea
+              className="resize-none"
+              rows={2}
+              value={form.chief_complaints}
+              onChange={set('chief_complaints')}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm font-medium">History of Present Illness</Label>
+              <Textarea
+                className="resize-none"
+                rows={3}
+                value={form.history_present_illness}
+                onChange={set('history_present_illness')}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm font-medium">Physical Examination</Label>
+              <Textarea className="resize-none" rows={3} value={form.pe} onChange={set('pe')} />
+            </div>
+          </div>
+          <Separator />
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Vital Signs
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { key: 'blood_pressure', label: 'Blood Pressure' },
+              { key: 'temperature', label: 'Temperature (°C)' },
+              { key: 'heart_rate', label: 'Heart Rate' },
+              { key: 'respiratory_rate', label: 'Respiratory Rate' },
+              { key: 'o2_sat', label: 'O2 Sat' },
+              { key: 'o2_requirement', label: 'O2 Requirement' },
+            ].map(({ key, label }) => (
+              <div key={key} className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium">{label}</Label>
+                <Input value={(form as Record<string, string>)[key]} onChange={set(key)} />
+              </div>
+            ))}
+          </div>
+          <Separator />
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium">Medications</Label>
+            <Textarea
+              className="resize-none"
+              rows={2}
+              value={form.medications}
+              onChange={set('medications')}
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-2 mt-4">
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              onConfirm(form);
+              onClose();
+            }}
+          >
+            <Icon icon="solar:diskette-bold-duotone" height={15} className="mr-1.5" />
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const ReferralListing = () => {
   const {
     referrals,
-    statuses,
+    addReferral,
+    updateReferralInfo,
     searchReferrals,
     referralSearch,
     filter,
-    updateReferralStatus,
     deactivateReferral,
   }: ReferralContextType = useContext(ReferralContext);
   const navigate = useNavigate();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState<string>('');
   const [printReferral, setPrintReferral] = useState<ReferralType | null>(null);
+  const [reReferTarget, setReReferTarget] = useState<ReferralType | null>(null);
+  const [editTarget, setEditTarget] = useState<ReferralType | null>(null);
+  const [page, setPage] = useState(1);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [referralSearch, filter]);
 
   const handleDeactivateClick = (id: string, name: string) => {
     setConfirmId(id);
@@ -69,7 +376,7 @@ const ReferralListing = () => {
     }
   };
 
-  const visible = referrals
+  const allVisible = referrals
     .filter((r) => {
       const search = referralSearch.toLowerCase();
       const matchSearch =
@@ -81,6 +388,8 @@ const ReferralListing = () => {
       return matchSearch && matchFilter;
     })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const visible = allVisible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const getStatusStyle = (d?: string | null) =>
     STATUS_STYLES[d ?? ''] ?? 'bg-lightprimary text-primary';
@@ -101,7 +410,10 @@ const ReferralListing = () => {
             <Input
               type="text"
               className="pl-9 h-9 text-sm"
-              onChange={(e) => searchReferrals(e.target.value)}
+              onChange={(e) => {
+                searchReferrals(e.target.value);
+                setPage(1);
+              }}
               placeholder="Search patient, doctor..."
             />
           </div>
@@ -185,37 +497,14 @@ const ReferralListing = () => {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="p-0 h-auto hover:bg-transparent"
-                        >
-                          <Badge
-                            variant="outline"
-                            className={
-                              'font-medium cursor-pointer ' +
-                              getStatusStyle(referral.latest_status?.description)
-                            }
-                          >
-                            {referral.latest_status?.description ?? 'No Status'}
-                            <Icon icon="solar:alt-arrow-down-bold" height={10} className="ml-1" />
-                          </Badge>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        {statuses.map((s) => (
-                          <DropdownMenuItem
-                            key={s.id}
-                            onClick={() => updateReferralStatus(referral.id, s.id)}
-                            className="text-sm"
-                          >
-                            {s.description}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Badge
+                      variant="outline"
+                      className={
+                        'font-medium ' + getStatusStyle(referral.latest_status?.description)
+                      }
+                    >
+                      {referral.latest_status?.description ?? 'No Status'}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {format(new Date(referral.created_at), 'MMM dd, yyyy')}
@@ -233,7 +522,27 @@ const ReferralListing = () => {
                         >
                           <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
                           View Details
-                        </DropdownMenuItem>
+                        </DropdownMenuItem>{' '}
+                        {referral.latest_status?.description === 'Declined' && (
+                          <DropdownMenuItem onClick={() => setReReferTarget(referral)}>
+                            <Icon
+                              icon="solar:refresh-circle-bold-duotone"
+                              height={15}
+                              className="mr-2 text-primary"
+                            />
+                            Re-refer Patient
+                          </DropdownMenuItem>
+                        )}
+                        {referral.latest_status?.description === 'Pending' && (
+                          <DropdownMenuItem onClick={() => setEditTarget(referral)}>
+                            <Icon
+                              icon="solar:pen-linear"
+                              height={15}
+                              className="mr-2 text-muted-foreground"
+                            />
+                            Edit Clinical Info
+                          </DropdownMenuItem>
+                        )}{' '}
                         <DropdownMenuItem onClick={() => setPrintReferral(referral)}>
                           <Icon
                             icon="solar:printer-minimalistic-bold-duotone"
@@ -267,10 +576,46 @@ const ReferralListing = () => {
           </TableBody>
         </Table>
       </div>
+      {/* Pagination */}
+      <Paginator total={allVisible.length} page={page} perPage={PAGE_SIZE} onPageChange={setPage} />
+
       {/* Print document (hidden, triggers window.print()) */}
       {printReferral && (
         <ReferralPrintDocument referral={printReferral} onClose={() => setPrintReferral(null)} />
       )}
+
+      {/* Re-Refer Dialog */}
+      <ReReferDialog
+        open={!!reReferTarget}
+        referral={reReferTarget}
+        onClose={() => setReReferTarget(null)}
+        onConfirm={(newHospital) => {
+          if (!reReferTarget) return;
+          const newId = `ref-${Date.now()}`;
+          addReferral({
+            id: newId,
+            created_at: new Date().toISOString(),
+            status: true,
+            patient_profile: reReferTarget.patient_profile,
+            from_assignment: reReferTarget.from_assignment,
+            to_assignment: null,
+            patient_name: reReferTarget.patient_name,
+            from_assignment_name: reReferTarget.from_assignment_name,
+            to_assignment_name: newHospital,
+            referral_info: reReferTarget.referral_info,
+          });
+        }}
+      />
+
+      {/* Edit Clinical Info Dialog */}
+      <EditReferralDialog
+        open={!!editTarget}
+        referral={editTarget}
+        onClose={() => setEditTarget(null)}
+        onConfirm={(updated) => {
+          if (editTarget) updateReferralInfo(editTarget.id, updated);
+        }}
+      />
 
       {/* Deactivate confirmation dialog */}
       <Dialog
