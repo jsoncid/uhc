@@ -1,23 +1,21 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { lazy } from 'react';
-import Loadable from '../layouts/full/shared/loadable/Loadable';
+import { lazy, Suspense } from 'react';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { ModuleRoute } from '../components/ModuleRoute';
+import { PAGE_MODULES } from '../constants/moduleAccess';
 
-// Module 4 Components
-const Module4Member = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember')),
-);
-const Module4Operator = Loadable(
-  lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator')),
-);
+const UhcMember = lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcMember'));
+const UhcOperator = lazy(() => import('../layouts/full/vertical/sidebar/module-4/m-4/UhcOperator'));
 
-export const module4Routes = [
+export const m4Routes = [
   {
     path: '/module-4/member',
     element: (
       <ProtectedRoute>
-        <Module4Member />
+        <ModuleRoute moduleName={PAGE_MODULES.MODULE_4_HEALTH_CARD_HOLDER}>
+          <Suspense fallback={<div>Loading...</div>}>
+            <UhcMember />
+          </Suspense>
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },
@@ -25,7 +23,11 @@ export const module4Routes = [
     path: '/module-4/operator',
     element: (
       <ProtectedRoute>
-        <Module4Operator />
+        <ModuleRoute moduleName={PAGE_MODULES.MODULE_4_HEALTH_CARD_OPERATOR}>
+          <Suspense fallback={<div>Loading...</div>}>
+            <UhcOperator />
+          </Suspense>
+        </ModuleRoute>
       </ProtectedRoute>
     ),
   },
