@@ -171,12 +171,12 @@ const QueueDisplay = () => {
 
         {/* Bottom section: per-office columns */}
         <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden">
-          {activeOfficesWithQueues.length === 0 ? (
+          {activeOffices.length === 0 ? (
             <div className="flex flex-1 items-center justify-center text-slate-600">
-              No active queues
+              No active offices
             </div>
           ) : (
-            activeOfficesWithQueues.map((office: Office) => {
+            activeOffices.map((office: Office) => {
               const officeName = office.description || office.id;
 
               // Use enriched status_data & window_data — no fragile ID lookup needed
