@@ -343,27 +343,27 @@ export type Database = {
       };
       window: {
         Row: {
-          id: number;
-          created_at: string;
-          office: string;
-          description: string | null;
-          status: boolean;
-        };
+          id: string
+          created_at: string
+          office: string
+          description: string | null
+          status: boolean
+        }
         Insert: {
-          id?: number;
-          created_at?: string;
-          office: string;
-          description?: string | null;
-          status?: boolean;
-        };
+          id?: string
+          created_at?: string
+          office: string
+          description?: string | null
+          status?: boolean
+        }
         Update: {
-          id?: number;
-          created_at?: string;
-          office?: string;
-          description?: string | null;
-          status?: boolean;
-        };
-      };
+          id?: string
+          created_at?: string
+          office?: string
+          description?: string | null
+          status?: boolean
+        }
+      }
       priority: {
         Row: {
           id: string;
@@ -403,53 +403,56 @@ export type Database = {
       };
       queue: {
         Row: {
-          id: number;
-          created_at: string;
-          code: string;
-          status: boolean;
-        };
+          id: string
+          created_at: string
+          code: string
+          status: boolean
+        }
         Insert: {
-          id?: number;
-          created_at?: string;
-          code: string;
-          status?: boolean;
-        };
+          id?: string
+          created_at?: string
+          code: string
+          status?: boolean
+        }
         Update: {
-          id?: number;
-          created_at?: string;
-          code?: string;
-          status?: boolean;
-        };
-      };
+          id?: string
+          created_at?: string
+          code?: string
+          status?: boolean
+        }
+      }
       sequence: {
         Row: {
-          id: number;
-          created_at: string;
-          office: string;
-          queue: string;
-          priority: string;
-          status: string;
-          window_id: number | null;
-        };
+          id: string
+          created_at: string
+          office: string
+          queue: string
+          priority: string
+          status: string
+          window: string | null
+          is_active: boolean
+        }
         Insert: {
-          id?: number;
-          created_at?: string;
-          office: string;
-          queue: string;
-          priority: string;
-          status: string;
-          window_id?: number | null;
-        };
+          id?: string
+          created_at?: string
+          office: string
+          queue: string
+          priority: string
+          status: string
+          window?: string | null
+          is_active?: boolean
+        }
         Update: {
-          id?: number;
-          created_at?: string;
-          office?: string;
-          queue?: string;
-          priority?: string;
-          status?: string;
-          window_id?: number | null;
-        };
-      };
-    };
-  };
-};
+          id?: string
+          created_at?: string
+          office?: string
+          queue?: string
+          priority?: string
+          status?: string
+          window?: string | null
+          is_active?: boolean
+        }
+      }
+    }
+  }
+}

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 const module1 = supabase.schema('module1');
 
 export interface Window {
-  id: number;
+  id: string;
   created_at: string;
   office: string;
   description: string | null;
@@ -32,9 +32,9 @@ interface OfficeState {
     windowDescriptions: string[],
   ) => Promise<void>;
   updateOffice: (officeId: string, description: string) => Promise<void>;
-  updateWindow: (windowId: number, description: string) => Promise<void>;
+  updateWindow: (windowId: string, description: string) => Promise<void>;
   addWindow: (officeId: string, description: string) => Promise<void>;
-  deleteWindow: (windowId: number) => Promise<void>;
+  deleteWindow: (windowId: string) => Promise<void>;
   deleteOffice: (officeId: string) => Promise<void>;
   clearError: () => void;
 }
@@ -148,7 +148,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     }
   },
 
-  updateWindow: async (windowId: number, description: string) => {
+  updateWindow: async (windowId: string, description: string) => {
     set({ isLoading: true, error: null });
     try {
       const { error: updateError } = await module1
@@ -198,7 +198,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     }
   },
 
-  deleteWindow: async (windowId: number) => {
+  deleteWindow: async (windowId: string) => {
     set({ isLoading: true, error: null });
     try {
       const { error: deleteError } = await module1.from('window').delete().eq('id', windowId);
