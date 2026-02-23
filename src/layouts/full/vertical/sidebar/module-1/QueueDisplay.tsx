@@ -240,21 +240,32 @@ const QueueDisplay = () => {
                   </div>
 
                   {/* Now serving — stacked per active window */}
-                  <div className="flex flex-1 flex-col items-center justify-start gap-4 overflow-y-auto p-4">
+                  <div className="flex flex-1 flex-col items-center justify-start gap-6 overflow-y-auto p-4">
                     {servingEntries.length > 0 ? (
-                      servingEntries.map(({ seq, windowLabel, style }) => (
-                        <div key={seq.id} className="flex flex-col items-center gap-1">
-                          <span
-                            className={`text-center font-black tracking-[0.12em] ${style.text}`}
-                            style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', lineHeight: 1.1 }}
-                            aria-live="polite"
-                          >
-                            {seq.queue_data?.code || '---'}
-                          </span>
-                          {windowLabel && (
-                            <span className="text-xs font-semibold text-slate-400">
-                              {windowLabel}
+                      servingEntries.map(({ seq, windowLabel, style }, index) => (
+                        <div key={seq.id} className="flex w-full flex-col items-center gap-6">
+                          <div className="flex flex-col items-center gap-1">
+                            <span
+                              className={`text-center font-black tracking-[0.12em] ${style.text}`}
+                              style={{
+                                fontSize:
+                                  index === 0
+                                    ? 'clamp(2rem, 6vw, 3rem)'
+                                    : 'clamp(1.2rem, 3vw, 2rem)',
+                                lineHeight: 1.1,
+                              }}
+                              aria-live="polite"
+                            >
+                              {seq.queue_data?.code || '---'}
                             </span>
+                            {windowLabel && (
+                              <span className="text-xs font-semibold text-slate-400">
+                                {windowLabel}
+                              </span>
+                            )}
+                          </div>
+                          {index < servingEntries.length - 1 && (
+                            <div className="w-full border-t border-dashed border-slate-600" />
                           )}
                         </div>
                       ))
