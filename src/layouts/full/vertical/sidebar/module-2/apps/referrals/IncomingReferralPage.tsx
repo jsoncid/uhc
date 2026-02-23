@@ -1148,7 +1148,7 @@ const IncomingReferralPage = () => {
         <Separator className="my-4" />
 
         {/* ── Filters ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-1.5">
             {[
               { key: 'pending', label: 'Awaiting Response', count: pendingCount },
