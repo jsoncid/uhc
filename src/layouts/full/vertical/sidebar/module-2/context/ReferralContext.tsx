@@ -7,7 +7,6 @@ import {
   ReferralInfoDiagnostic,
   ReferralInfoVaccination,
 } from '../types/referral';
-import { StatusData } from '../data/referral-data';
 import { supabaseM2, supabaseM3 } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { assignmentService } from '@/services/assignmentService';
@@ -65,7 +64,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [referrals, setReferrals] = useState<ReferralType[]>([]);
   const [deactivatedReferrals, setDeactivatedReferrals] = useState<ReferralType[]>([]);
   const [incomingReferrals, setIncomingReferrals] = useState<ReferralType[]>([]);
-  const [statuses, setStatuses] = useState<ReferralStatus[]>(StatusData);
+  const [statuses, setStatuses] = useState<ReferralStatus[]>([]);
   const [referralSearch, setReferralSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -95,8 +94,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // ── Map a raw Supabase row to ReferralType ────────────────────────────────
   const mapReferral = (row: any, resolvedStatuses: ReferralStatus[] = []): ReferralType => {
-    // Use passed statuses first, fall back to StatusData for description lookup
-    const allStatuses = resolvedStatuses.length ? resolvedStatuses : StatusData;
+    // Use passed statuses first, fall back to current statuses state for description lookup
+    const allStatuses = resolvedStatuses.length ? resolvedStatuses : statuses;
     const history: ReferralHistory[] = (row.referral_history ?? []).map(
       (h: any): ReferralHistory => ({
         id: h.id,
@@ -440,15 +439,15 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       to_assignment: null,
       status: statusId,
       is_active: true,
-      details: `Status updated to ${StatusData.find((s) => s.id === statusId)?.description ?? statusId}`,
-      status_description: StatusData.find((s) => s.id === statusId)?.description ?? undefined,
+      details: `Status updated to ${statuses.find((s) => s.id === statusId)?.description ?? statusId}`,
+      status_description: statuses.find((s) => s.id === statusId)?.description ?? undefined,
     };
     setReferrals((prev) =>
       prev.map((r) =>
         r.id === id
           ? {
               ...r,
-              latest_status: StatusData.find((s) => s.id === statusId),
+              latest_status: statuses.find((s) => s.id === statusId),
               history: [
                 ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
                 newHistoryEntry,
@@ -497,14 +496,14 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // ── Incoming referral actions ───────────────────────────────────────────────
   const acceptIncomingReferral = (id: string, acceptedBy: string) => {
-    const acceptedStatus = StatusData.find((s) => s.description === 'Accepted');
+    const acceptedStatus = statuses.find((s) => s.description === 'Accepted');
     const now = new Date().toISOString();
     const historyEntry: ReferralHistory = {
       id: `rh-${Date.now()}`,
       created_at: now,
       referral: id,
       to_assignment: null,
-      status: acceptedStatus?.id ?? 'st-0002',
+      status: acceptedStatus?.id ?? null,
       is_active: true,
       details: `Accepted by ${acceptedBy}.`,
       status_description: 'Accepted',
@@ -554,7 +553,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     declineReason: string,
     redirectHospital?: string,
   ) => {
-    const declinedStatus = StatusData.find((s) => s.description === 'Declined');
+    const declinedStatus = statuses.find((s) => s.description === 'Declined');
     const now = new Date().toISOString();
     const detailText = `Declined — ${declineReason}${redirectHospital ? ` Suggested redirect: ${redirectHospital}.` : ''}`;
     const historyEntry: ReferralHistory = {
@@ -562,7 +561,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       created_at: now,
       referral: id,
       to_assignment: null,
-      status: declinedStatus?.id ?? 'st-0005',
+      status: declinedStatus?.id ?? null,
       is_active: true,
       details: detailText,
       status_description: 'Declined',
@@ -596,7 +595,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         created_at: now,
         referral: id,
         to_assignment: null,
-        status: declinedStatus?.id ?? 'st-0005',
+        status: declinedStatus?.id ?? null,
         is_active: true,
         details: detailText,
         status_description: 'Declined',
@@ -637,14 +636,14 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Sending facility marks their referral as In Transit, cross-syncs to incoming side
   const markOutgoingInTransit = (id: string) => {
-    const inTransitStatus = StatusData.find((s) => s.description === 'In Transit');
+    const inTransitStatus = statuses.find((s) => s.description === 'In Transit');
     const now = new Date().toISOString();
     const historyEntry: ReferralHistory = {
       id: `rh-${Date.now()}`,
       created_at: now,
       referral: id,
       to_assignment: null,
-      status: inTransitStatus?.id ?? 'st-0003',
+      status: inTransitStatus?.id ?? null,
       is_active: true,
       details: 'Patient dispatched — In Transit',
       status_description: 'In Transit',
@@ -691,7 +690,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const updateIncomingStatus = (id: string, statusId: string) => {
-    const newStatus = StatusData.find((s) => s.id === statusId);
+    const newStatus = statuses.find((s) => s.id === statusId);
     const now = new Date().toISOString();
     const historyEntry: ReferralHistory = {
       id: `rh-${Date.now()}`,
@@ -757,14 +756,14 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const saveDischargeNotes = (id: string, notes: string) => {
-    const dischargedStatus = StatusData.find((s) => s.description === 'Discharged');
+    const dischargedStatus = statuses.find((s) => s.description === 'Discharged');
     const now = new Date().toISOString();
     const historyEntry: ReferralHistory = {
       id: `rh-${Date.now()}`,
       created_at: now,
       referral: id,
       to_assignment: null,
-      status: dischargedStatus?.id ?? 'st-0004',
+      status: dischargedStatus?.id ?? null,
       is_active: true,
       details: notes, // stored in referral_history.details — no separate DB column needed
       status_description: 'Discharged',
