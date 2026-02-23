@@ -837,6 +837,101 @@ class PatientService {
   }
 
   /**
+   * Search patients in Supabase (patient_profile table)
+   * For finding manually entered patients that may not have hpercode yet
+   */
+  async searchSupabasePatients(
+    search: string,
+    options?: { limit?: number }
+  ): Promise<{
+    success: boolean;
+    data: PatientProfileDB['Row'][];
+    count: number;
+    message?: string;
+  }> {
+    try {
+      const limit = options?.limit || 10;
+      
+      // Search by first_name, last_name, or combination
+      const { data, error, count } = await supabase
+        .schema('module3')
+        .from('patient_profile')
+        .select('*', { count: 'exact' })
+        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error('Error searching Supabase patients:', error);
+        return {
+          success: false,
+          data: [],
+          count: 0,
+          message: error.message,
+        };
+      }
+
+      return {
+        success: true,
+        data: data || [],
+        count: count || 0,
+      };
+    } catch (error) {
+      console.error('Search Supabase patients error:', error);
+      return {
+        success: false,
+        data: [],
+        count: 0,
+        message: error instanceof Error ? error.message : 'Failed to search Supabase patients',
+      };
+    }
+  }
+
+  /**
+   * Link a Supabase patient with a MySQL patient (by hpercode)
+   * Updates the patient_repository table to create the connection
+   */
+  async linkPatientToMySQL(
+    patientProfileId: string,
+    hpercode: string,
+    facilityCode?: string
+  ): Promise<{
+    success: boolean;
+    message?: string;
+  }> {
+    try {
+      console.log('Linking patient:', { patientProfileId, hpercode, facilityCode });
+
+      // First verify the MySQL patient exists
+      const mysqlPatient = await this.getPatient(hpercode);
+      if (!mysqlPatient.success) {
+        return {
+          success: false,
+          message: 'MySQL patient not found with provided HPERCODE',
+        };
+      }
+
+      // Now link them via patient_repository
+      await this.savePatientRepository({
+        patient_profile_id: patientProfileId,
+        hpercode: hpercode,
+        facility_code: facilityCode,
+      });
+
+      return {
+        success: true,
+        message: 'Patient successfully linked to MySQL record',
+      };
+    } catch (error) {
+      console.error('Link patient error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to link patient',
+      };
+    }
+  }
+
+  /**
    * Get patient tags from MySQL
    */
   async getPatientTags(hpercode: string): Promise<PatientTagResult> {

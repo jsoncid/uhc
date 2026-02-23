@@ -1,11 +1,24 @@
 import { useState, useMemo } from 'react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
-import { Card, CardContent } from 'src/components/ui/card';
-import { Search, User, Activity, History as HistoryIcon } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from 'src/components/ui/card';
+import { Button } from 'src/components/ui/button';
+import { Input } from 'src/components/ui/input';
+import { Badge } from 'src/components/ui/badge';
+import { Separator } from 'src/components/ui/separator';
+import {
+  Search,
+  User,
+  Activity,
+  History as HistoryIcon,
+  Link as LinkIcon,
+  Database,
+  Loader2,
+} from 'lucide-react';
 import patientService, { PatientProfile, PatientHistory } from 'src/services/patientService';
 import PatientSearchPanel from './components/PatientSearchPanel';
 import PatientInfoCard from './components/PatientInfoCard';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
+import PatientLinkingDialog from './components/PatientLinkingDialog';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -22,11 +35,20 @@ const BCrumb = [
 /* ------------------------------------------------------------------ */
 
 const PatientTagging = () => {
-  // Search state
+  // MySQL Search state (existing patients from hospital database)
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<PatientProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientProfile | null>(null);
+
+  // Supabase Search state (manually entered patients)
+  const [supabaseSearchTerm, setSupabaseSearchTerm] = useState('');
+  const [supabaseSearchResults, setSupabaseSearchResults] = useState<any[]>([]);
+  const [isSearchingSupabase, setIsSearchingSupabase] = useState(false);
+  
+  // Linking dialog state
+  const [isLinkingDialogOpen, setIsLinkingDialogOpen] = useState(false);
+  const [patientToLink, setPatientToLink] = useState<any>(null);
 
   // Patient history state
   const [patientHistory, setPatientHistory] = useState<PatientHistory[]>([]);
@@ -40,6 +62,7 @@ const PatientTagging = () => {
   /*  Search Functions                                                  */
   /* ------------------------------------------------------------------ */
 
+  // Search MySQL patients (hospital database)
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
 
@@ -56,6 +79,23 @@ const PatientTagging = () => {
     }
   };
 
+  // Search Supabase patients (manually entered)
+  const handleSearchSupabase = async () => {
+    if (!supabaseSearchTerm.trim()) return;
+
+    setIsSearchingSupabase(true);
+    try {
+      const result = await patientService.searchSupabasePatients(supabaseSearchTerm, { limit: 10 });
+      if (result.success) {
+        setSupabaseSearchResults(result.data);
+      }
+    } catch (error) {
+      console.error('Error searching Supabase patients:', error);
+    } finally {
+      setIsSearchingSupabase(false);
+    }
+  };
+
   const handleSelectPatient = async (patient: PatientProfile) => {
     setSelectedPatient(patient);
     setSearchResults([]);
@@ -64,6 +104,22 @@ const PatientTagging = () => {
     // Load patient history using hpercode
     if (patient.hpercode) {
       await loadPatientHistory(patient.hpercode);
+    }
+  };
+
+  const handleOpenLinkDialog = (patient: any) => {
+    setPatientToLink(patient);
+    setIsLinkingDialogOpen(true);
+  };
+
+  const handleLinkSuccess = async () => {
+    // Refresh the Supabase search results to show updated link status
+    if (supabaseSearchTerm) {
+      await handleSearchSupabase();
+    }
+    // Clear selected patient and refresh if they picked one
+    if (patientToLink) {
+      // Optionally reload the patient to show updated info
     }
   };
 
@@ -136,17 +192,129 @@ const PatientTagging = () => {
       <BreadcrumbComp items={BCrumb} title="Patient Tagging" />
 
       <div className="grid grid-cols-12 gap-4 mt-4">
-        {/* Search Panel */}
+        {/* MySQL Search Panel (Hospital Database) */}
+        <div className="col-span-12 lg:col-span-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Database className="h-5 w-5 text-primary" />
+                Search Hospital Database (MySQL)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PatientSearchPanel
+                searchTerm={searchTerm}
+                onSearchTermChange={setSearchTerm}
+                onSearch={handleSearch}
+                isSearching={isSearching}
+                searchResults={searchResults}
+                onSelectPatient={handleSelectPatient}
+                onClearResults={() => setSearchResults([])}
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Supabase Search Panel (Manually Entered Patients) */}
+        <div className="col-span-12 lg:col-span-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <User className="h-5 w-5 text-primary" />
+                Search Manually Entered Patients
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Search by patient name..."
+                  value={supabaseSearchTerm}
+                  onChange={(e) => setSupabaseSearchTerm(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearchSupabase()}
+                />
+                <Button onClick={handleSearchSupabase} disabled={isSearchingSupabase}>
+                  {isSearchingSupabase ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+
+              {/* Supabase Search Results */}
+              {supabaseSearchResults.length > 0 && (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-muted-foreground">
+                      {supabaseSearchResults.length} patient(s) found
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSupabaseSearchResults([])}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                  {supabaseSearchResults.map((patient) => (
+                    <Card key={patient.id} className="border-muted">
+                      <CardContent className="p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-semibold truncate">
+                                {patient.last_name}, {patient.first_name} {patient.middle_name}
+                              </p>
+                              {patient.hpercode ? (
+                                <Badge variant="default" className="text-xs">
+                                  <Database className="h-3 w-3 mr-1" />
+                                  Linked
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs">
+                                  Not Linked
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <span className="capitalize">{patient.sex}</span>
+                              <span>•</span>
+                              <span>{patient.birth_date}</span>
+                            </div>
+                            {patient.hpercode && (
+                              <p className="text-xs text-muted-foreground mt-1 font-mono">
+                                HPERCODE: {patient.hpercode}
+                              </p>
+                            )}
+                          </div>
+                          {!patient.hpercode && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenLinkDialog(patient)}
+                            >
+                              <LinkIcon className="h-4 w-4 mr-1" />
+                              Link
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {isSearchingSupabase && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="col-span-12">
-          <PatientSearchPanel
-            searchTerm={searchTerm}
-            onSearchTermChange={setSearchTerm}
-            onSearch={handleSearch}
-            isSearching={isSearching}
-            searchResults={searchResults}
-            onSelectPatient={handleSelectPatient}
-            onClearResults={() => setSearchResults([])}
-          />
+          <Separator />
         </div>
 
         {/* Selected Patient Details */}
@@ -215,6 +383,14 @@ const PatientTagging = () => {
           </div>
         )}
       </div>
+
+      {/* Patient Linking Dialog */}
+      <PatientLinkingDialog
+        open={isLinkingDialogOpen}
+        onOpenChange={setIsLinkingDialogOpen}
+        supabasePatient={patientToLink}
+        onLinkSuccess={handleLinkSuccess}
+      />
     </div>
   );
 };
