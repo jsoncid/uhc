@@ -6,6 +6,7 @@ import { Input } from 'src/components/ui/input';
 import { Button } from 'src/components/ui/button';
 import { Card } from 'src/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'src/components/ui/tabs';
+import darkLogo from 'src/assets/images/logos/uhc-logo.png';
 import {
   Search, QrCode, FileText, Eye, Archive, ArchiveRestore, IdCard,
   Heart, Accessibility, Building2, Stethoscope, ClipboardList,
@@ -210,12 +211,130 @@ const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
   </div>
 );
 
+// ─── Health ID Card visual (Flip Card) ────────────────────────────────────────
+const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef }: {
 // ─── Health ID Card visual ────────────────────────────────────────────────────
 const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl }: {
   patient: PatientProfile; qrDataUrl: string; qrCodeValue: string;
   cardRef?: React.RefObject<HTMLDivElement | null>;
   profilePicUrl?: string | null;
 }) => {
+  const [isFlipped, setIsFlipped] = useState(false);
+  const lastName = patient.last_name?.toUpperCase() || 'N/A';
+  const givenNames = [patient.first_name, patient.middle_name].filter(Boolean).join(' ').toUpperCase();
+  const sex = patient.sex?.toUpperCase() || 'N/A';
+  const dateIssued = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+
+  // Watermark SVG Component
+  const WatermarkSVG = () => (
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none" style={{ width: '100%', height: '100%' }}>
+      <circle cx="100" cy="100" r="95" stroke="#0a3318" strokeWidth="4" fill="none"/>
+      <circle cx="100" cy="100" r="87" stroke="#0a3318" strokeWidth="1.5" fill="none" strokeDasharray="4 3"/>
+      <g stroke="#0a3318" strokeWidth="2.5">
+        <line x1="100" y1="8" x2="100" y2="22"/><line x1="100" y1="178" x2="100" y2="192"/>
+        <line x1="8" y1="100" x2="22" y2="100"/><line x1="178" y1="100" x2="192" y2="100"/>
+        <line x1="34" y1="34" x2="44" y2="44"/><line x1="156" y1="156" x2="166" y2="166"/>
+        <line x1="166" y1="34" x2="156" y2="44"/><line x1="44" y1="156" x2="34" y2="166"/>
+        <line x1="17" y1="67" x2="29" y2="71"/><line x1="171" y1="129" x2="183" y2="133"/>
+        <line x1="67" y1="17" x2="71" y2="29"/><line x1="129" y1="171" x2="133" y2="183"/>
+        <line x1="183" y1="67" x2="171" y2="71"/><line x1="29" y1="129" x2="17" y2="133"/>
+        <line x1="133" y1="17" x2="129" y2="29"/><line x1="71" y1="171" x2="67" y2="183"/>
+      </g>
+      <g fill="#0a3318">
+        <polygon points="100,32 103,42 113,42 105,48 108,58 100,52 92,58 95,48 87,42 97,42" transform="scale(0.55) translate(82,30)"/>
+        <polygon points="100,32 103,42 113,42 105,48 108,58 100,52 92,58 95,48 87,42 97,42" transform="scale(0.55) translate(-28,140)"/>
+        <polygon points="100,32 103,42 113,42 105,48 108,58 100,52 92,58 95,48 87,42 97,42" transform="scale(0.55) translate(192,140)"/>
+      </g>
+      <g fill="#0a3318" opacity="0.9">
+        <path d="M100 50 C70 50 55 65 55 85 C55 120 75 145 100 158 C125 145 145 120 145 85 C145 65 130 50 100 50Z" fill="none" stroke="#0a3318" strokeWidth="2.5"/>
+        <rect x="93" y="68" width="14" height="52" rx="2" fill="#0a3318" opacity="0.7"/>
+        <rect x="74" y="87" width="52" height="14" rx="2" fill="#0a3318" opacity="0.7"/>
+      </g>
+      <defs>
+        <path id="arcTop" d="M 22,100 A 78,78 0 0,1 178,100"/>
+        <path id="arcBot" d="M 30,110 A 70,70 0 0,0 170,110"/>
+      </defs>
+      <text fontFamily="serif" fontSize="10" fill="#0a3318" letterSpacing="2">
+        <textPath href="#arcTop" startOffset="8%">REPUBLIKA NG PILIPINAS</textPath>
+      </text>
+      <text fontFamily="serif" fontSize="9" fill="#0a3318" letterSpacing="1.5">
+        <textPath href="#arcBot" startOffset="14%">UNIVERSAL HEALTH CARE</textPath>
+      </text>
+    </svg>
+  );
+
+  // Card Background Component with patterns and blobs
+  const CardBackground = () => (
+    <>
+      {/* Base background */}
+      <div style={{ position: 'absolute', inset: 0, background: '#eef6ee' }} />
+      {/* Pattern overlay */}
+      <div style={{ 
+        position: 'absolute', inset: 0, opacity: 0.09,
+        backgroundImage: `
+          repeating-radial-gradient(ellipse at 30% 40%, transparent 0, transparent 8px, rgba(0,120,50,0.5) 9px, transparent 10px),
+          repeating-radial-gradient(ellipse at 70% 60%, transparent 0, transparent 12px, rgba(0,100,40,0.4) 13px, transparent 14px),
+          repeating-linear-gradient(60deg, transparent 0, transparent 18px, rgba(0,120,50,0.15) 19px, transparent 20px)
+        `
+      }} />
+      {/* Security grid */}
+      <div style={{ 
+        position: 'absolute', inset: 0, opacity: 0.037,
+        backgroundImage: `
+          repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px),
+          repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px)
+        `
+      }} />
+      {/* Blobs */}
+      <div style={{ position: 'absolute', width: 300, height: 230, background: '#2d8a50', top: -55, left: 15, opacity: 0.17, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 260, height: 210, background: '#c8a018', top: 55, right: -15, opacity: 0.07, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 230, height: 190, background: '#1a6b3a', bottom: -28, right: 80, opacity: 0.13, borderRadius: '50%', filter: 'blur(46px)' }} />
+    </>
+  );
+
+  // Gold border strips
+  const GoldBorders = () => (
+    <>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 5, background: 'linear-gradient(90deg, #7a5c10, #c8a018, #f0d44a, #c8a018, #7a5c10)', zIndex: 2 }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5, background: 'linear-gradient(90deg, #7a5c10, #c8a018, #f0d44a, #c8a018, #7a5c10)', zIndex: 2 }} />
+    </>
+  );
+
+  // Front Side
+  const FrontSide = () => (
+    <div style={{ 
+      width: '100%', height: '100%', position: 'absolute', 
+      backfaceVisibility: 'hidden', borderRadius: 18, overflow: 'hidden', 
+      boxShadow: '0 2px 0 rgba(255,255,255,0.9) inset, 0 28px 70px rgba(0,0,0,0.26), 0 0 0 1px rgba(0,100,40,0.16)'
+    }}>
+      <CardBackground />
+      <GoldBorders />
+      
+      {/* Watermark */}
+      <div style={{ position: 'absolute', right: '12%', top: '50%', transform: 'translateY(-50%)', width: 220, height: 220, opacity: 0.055, zIndex: 1, pointerEvents: 'none' }}>
+        <WatermarkSVG />
+      </div>
+
+      {/* Front content */}
+      <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '10px 20px 10px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 8, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
+          {/* Full UHC Logo */}
+          <img src={darkLogo} alt="UHC Logo" style={{ height: 50, width: 'auto', flexShrink: 0 }} />
+          {/* Title */}
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 9, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas</div>
+            <div style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, color: '#2d6b40', letterSpacing: 1, fontStyle: 'italic' }}>Republic of the Philippines</div>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 17, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.1 }}>UNIVERSAL HEALTH CARE</div>
+            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 9, fontWeight: 600, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
+          </div>
+
+        </div>
+
+        {/* ID Row */}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid rgba(0,100,40,0.13)', flexShrink: 0 }}>
+          <span style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 11, fontWeight: 700, color: '#0d4022', letterSpacing: 1 }}>UHC-ID</span>
+          <span style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 13, fontWeight: 700, color: '#0a2e1a', letterSpacing: 1.5, marginLeft: 6 }}>{qrCodeValue.substring(4, 24).toUpperCase()}-NDC</span>
   const name = fullName(patient).toUpperCase();
   return (
     <div ref={cardRef} style={{
@@ -244,40 +363,160 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
             <div style={{ fontSize:10,color:'#bbf7d0',letterSpacing:'0.18em',marginTop:4,fontFamily:'Arial,sans-serif' }}>MEMBER IDENTIFICATION CARD</div>
           </div>
         </div>
-        <div style={{ height:1,background:'linear-gradient(90deg,transparent,#fbbf24 20%,#fbbf24 80%,transparent)',marginBottom:18 }} />
-        <div style={{ display:'flex',gap:22,alignItems:'flex-start' }}>
-          <div style={{ flex:1 }}>
-            <div style={{ background:'rgba(255,255,255,0.12)',border:'1px solid rgba(251,191,36,0.35)',borderRadius:10,padding:'10px 14px',marginBottom:10 }}>
-              <div style={{ fontSize:8,color:'#86efac',letterSpacing:'0.2em',marginBottom:4,fontFamily:'Arial,sans-serif' }}>MEMBER NAME</div>
-              <div style={{ fontSize:name.length>30?15:18,fontWeight:900,color:'#ffffff',lineHeight:1.2,letterSpacing:'0.02em' }}>{name}</div>
-            </div>
-            <div style={{ display:'grid',gridTemplateColumns:'1fr',gap:8 }}>
-              <div style={{ background:'rgba(255,255,255,0.09)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:8,padding:'9px 13px' }}>
-                <div style={{ fontSize:8,color:'#86efac',letterSpacing:'0.18em',marginBottom:4,fontFamily:'Arial,sans-serif' }}>DATE OF BIRTH</div>
-                <div style={{ fontSize:14,fontWeight:700,color:'#fff' }}>{formatDate(patient.birth_date)}</div>
+
+        {/* Body */}
+        <div style={{ display: 'flex', gap: 0, paddingTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {/* Photo */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 215 }}>
+            <div style={{ 
+              flex: 1, width: '100%', minHeight: 0,
+              border: '3px solid #c8a018', borderRadius: 8, overflow: 'hidden',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.22), 0 0 0 5px rgba(200,160,24,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'linear-gradient(160deg, #fef9c3 0%, #fde68a 50%, #f59e0b 100%)'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ width: 60, height: 65, background: '#c4c4c4', borderRadius: '50% 50% 8px 8px' }} />
+                <div style={{ width: 80, height: 40, background: '#c4c4c4', borderRadius: '8px 8px 50% 50%', marginTop: -10 }} />
               </div>
-              <div style={{ background:'rgba(255,255,255,0.09)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:8,padding:'9px 13px' }}>
-                <div style={{ fontSize:8,color:'#86efac',letterSpacing:'0.18em',marginBottom:4,fontFamily:'Arial,sans-serif' }}>ADDRESS</div>
-                <div style={{ fontSize:11,fontWeight:600,color:'#fff',lineHeight:1.4 }}>{getFullAddress(patient.brgy)}</div>
-              </div>
             </div>
+            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 600, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase', flexShrink: 0 }}>Card Holder</div>
           </div>
-          <div style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:10,flexShrink:0 }}>
-            <div style={{ background:'#fff',padding:8,borderRadius:14,border:'3.5px solid #fbbf24',boxShadow:'0 5px 22px rgba(0,0,0,0.35)' }}>
-              <img src={qrDataUrl} alt="QR Code" style={{ width:116,height:116,display:'block',borderRadius:4 }} />
+
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, paddingLeft: 55, paddingRight: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Apelyido</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Last Name</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lastName}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
             </div>
-            <div style={{ fontSize:7,color:'#86efac',textAlign:'center',lineHeight:1.5,maxWidth:134,wordBreak:'break-all',fontFamily:'monospace' }}>
-              {qrCodeValue.substring(0,24)}…
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Mga Pangalan</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Given Names</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{givenNames}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Petsa ng Kapanganakan</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Date of Birth</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatDate(patient.birth_date).toUpperCase()}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Kasarian</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Sex</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sex}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
             </div>
           </div>
         </div>
-        <div style={{ height:1,background:'linear-gradient(90deg,transparent,#fbbf24 20%,#fbbf24 80%,transparent)',margin:'16px 0 10px' }} />
-        <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between' }}>
-          <div style={{ fontSize:8,color:'#86efac',letterSpacing:'0.1em',fontFamily:'Arial,sans-serif' }}>VALID WHILE MEMBERSHIP IS ACTIVE</div>
-          <div style={{ fontSize:8,color:'#fbbf24',letterSpacing:'0.1em',fontWeight:700,fontFamily:'Arial,sans-serif' }}>DOH – UHC ACT R.A. 11223</div>
+
+        {/* Footer */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid rgba(0,100,40,0.13)', flexShrink: 0, marginTop: 6 }}>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 500, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase' }}>DOH — UHC Act R.A. 11223</div>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 10, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>DATE ISSUED: {dateIssued}</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 19, fontWeight: 700, color: '#1a6b3a', letterSpacing: 2, textShadow: '1px 1px 0 rgba(200,160,24,0.3)' }}>PHL</div>
         </div>
       </div>
-      <div style={{ height:5,background:'linear-gradient(90deg,#d97706,#fbbf24,#f59e0b,#fbbf24,#d97706)',position:'relative',zIndex:2 }} />
+    </div>
+  );
+
+  // Back Side
+  const BackSide = () => (
+    <div style={{ 
+      width: '100%', height: '100%', position: 'absolute', 
+      backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', 
+      borderRadius: 18, overflow: 'hidden', 
+      boxShadow: '0 2px 0 rgba(255,255,255,0.9) inset, 0 28px 70px rgba(0,0,0,0.26), 0 0 0 1px rgba(0,100,40,0.16)'
+    }}>
+      <CardBackground />
+      <GoldBorders />
+      
+      {/* Magnetic strip */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(135deg, #1a1a1a, #2d2d2d, #1a1a1a)', opacity: 0.88, zIndex: 5 }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(180deg, rgba(255,255,255,0.07), transparent)', zIndex: 6 }} />
+
+      {/* Watermark centered */}
+      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 220, height: 220, opacity: 0.045, zIndex: 1, pointerEvents: 'none' }}>
+        <WatermarkSVG />
+      </div>
+
+      {/* Back content */}
+      <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '42px 24px 10px', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ paddingBottom: 7, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 8, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas · Republic of the Philippines</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 15, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>UNIVERSAL HEALTH CARE</div>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 8, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
+        </div>
+
+        {/* QR Section */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+            <div style={{ 
+              width: 215, height: 215, flexShrink: 0,
+              border: '3px solid #c8a018', borderRadius: 9, padding: 7,
+              background: 'white', position: 'relative',
+              boxShadow: '0 5px 24px rgba(0,0,0,0.2), 0 0 0 5px rgba(200,160,24,0.13)'
+            }}>
+              <div style={{ position: 'absolute', inset: -7, border: '1.5px solid rgba(200,160,24,0.32)', borderRadius: 12, pointerEvents: 'none' }} />
+              <img src={qrDataUrl} alt="QR Code" style={{ width: '100%', height: '100%', display: 'block' }} />
+            </div>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 10.5, fontWeight: 700, color: '#0a3318', letterSpacing: 4, textAlign: 'center' }}>Scan to Verify</div>
+            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, color: '#2d6b40', letterSpacing: 1.5, textAlign: 'center' }}>UHC Member Verification Portal</div>
+            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 6.5, color: 'rgba(0,60,20,0.38)', letterSpacing: 0.8, textAlign: 'center' }}>{qrCodeValue}</div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid rgba(0,100,40,0.13)', flexShrink: 0 }}>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7, fontWeight: 500, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase' }}>DOH — UHC Act R.A. 11223</div>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 8, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>VALID WHILE MEMBERSHIP IS ACTIVE</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 19, fontWeight: 700, color: '#1a6b3a', letterSpacing: 2, textShadow: '1px 1px 0 rgba(200,160,24,0.3)' }}>PHL</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      {/* Card container with 3D perspective */}
+      <div ref={cardRef} style={{ width: 700, height: 420, perspective: '1000px' }}>
+        <div style={{
+          width: '100%', height: '100%', position: 'relative',
+          transformStyle: 'preserve-3d', transition: 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1)',
+          transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+        }}>
+          <FrontSide />
+          <BackSide />
+        </div>
+      </div>
+      {/* Flip text link */}
+      <button
+        onClick={() => setIsFlipped(!isFlipped)}
+        style={{
+          marginTop: 16, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
+          fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 14, fontWeight: 500,
+          color: '#2563eb', letterSpacing: 0.3, transition: 'all 0.2s ease',
+        }}
+        onMouseOver={(e) => { e.currentTarget.style.color = '#1d4ed8'; e.currentTarget.style.textDecoration = 'underline'; }}
+        onMouseOut={(e) => { e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.textDecoration = 'none'; }}
+      >
+        {isFlipped ? '← Show Front' : 'Show Backside →'}
+      </button>
     </div>
   );
 };
@@ -845,15 +1084,463 @@ const UhcMember = () => {
   // ── Active tab ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState('documents');
 
-  // ─── Canvas card builder ───────────────────────────────────────────────────
+  // ─── Canvas card builder (dual format - front & back) ─────────────────────
   const buildCardCanvas = useCallback(async (
     patient: PatientProfile, qrUrl: string, qrValue: string, picUrl?: string | null,
   ): Promise<HTMLCanvasElement> => {
-    const SCALE = 3, W = 640, H = 380;
+    const SCALE = 3, W = 700, H = 420;
+    const LABEL_H = 30, GAP = 20;
+    const TOTAL_H = LABEL_H + H + GAP + LABEL_H + H; // 920px
     const canvas = document.createElement('canvas');
-    canvas.width = W * SCALE; canvas.height = H * SCALE;
+    canvas.width = W * SCALE; canvas.height = TOTAL_H * SCALE;
     const ctx = canvas.getContext('2d')!;
     ctx.scale(SCALE, SCALE);
+
+    const rr = (x: number, y: number, w: number, h: number, r: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
+    // Helper: draw card base (background, blobs, gold borders)
+    const drawCardBase = (offsetY: number) => {
+      ctx.save();
+      ctx.translate(0, offsetY);
+      
+      // Card background
+      rr(0, 0, W, H, 18);
+      ctx.fillStyle = '#eef6ee';
+      ctx.fill();
+
+      // Clip for blobs
+      ctx.save();
+      rr(0, 0, W, H, 18);
+      ctx.clip();
+      
+      // Blob 1 - greenish top left
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = '#2d8a50';
+      ctx.beginPath();
+      ctx.ellipse(165, 60, 150, 115, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Blob 2 - gold top right
+      ctx.globalAlpha = 0.05;
+      ctx.fillStyle = '#c8a018';
+      ctx.beginPath();
+      ctx.ellipse(W + 15, 160, 130, 105, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Blob 3 - dark green bottom right
+      ctx.globalAlpha = 0.1;
+      ctx.fillStyle = '#1a6b3a';
+      ctx.beginPath();
+      ctx.ellipse(W - 195, H + 28, 115, 95, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.restore();
+      ctx.globalAlpha = 1;
+
+      // Gold borders
+      const goldGrad = ctx.createLinearGradient(0, 0, W, 0);
+      goldGrad.addColorStop(0, '#7a5c10');
+      goldGrad.addColorStop(0.25, '#c8a018');
+      goldGrad.addColorStop(0.5, '#f0d44a');
+      goldGrad.addColorStop(0.75, '#c8a018');
+      goldGrad.addColorStop(1, '#7a5c10');
+      ctx.fillStyle = goldGrad;
+      ctx.fillRect(0, 0, W, 5);
+      ctx.fillRect(0, H - 5, W, 5);
+      
+      ctx.restore();
+    };
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // FRONT SIDE
+    // ══════════════════════════════════════════════════════════════════════════
+    
+    // "FRONT" label
+    ctx.fillStyle = '#0d4422';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('— FRONT —', W / 2, 20);
+    
+    const frontY = LABEL_H;
+    drawCardBase(frontY);
+    
+    ctx.save();
+    ctx.translate(0, frontY);
+
+    // Header section
+    const headerH = 75;
+    
+    // Header border bottom
+    ctx.strokeStyle = 'rgba(0,100,40,0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(20, headerH);
+    ctx.lineTo(W - 20, headerH);
+    ctx.stroke();
+
+    // Full UHC logo (seal + text)
+    const logoImg = new Image();
+    logoImg.src = darkLogo;
+    await new Promise<void>((resolve) => {
+      logoImg.onload = () => {
+        // SVG is 3595x681 - draw full logo at appropriate size
+        // Height 50px, width proportional (3595/681 * 50 = 264)
+        ctx.drawImage(logoImg, 15, 15, 264, 50);
+        resolve();
+      };
+      logoImg.onerror = () => resolve();
+    });
+
+    // Header titles (centered)
+    const titleX = W / 2;
+    ctx.textAlign = 'center';
+    ctx.font = '600 9px serif';
+    ctx.fillStyle = '#0d4422';
+    ctx.fillText('Republika ng Pilipinas', titleX, 20);
+    ctx.font = 'italic 7.5px serif';
+    ctx.fillStyle = '#2d6b40';
+    ctx.fillText('Republic of the Philippines', titleX, 30);
+    ctx.font = 'bold 17px serif';
+    ctx.fillStyle = '#0a3318';
+    ctx.fillText('UNIVERSAL HEALTH CARE', titleX, 48);
+    ctx.font = '600 9px sans-serif';
+    ctx.fillStyle = '#1a6b3a';
+    ctx.fillText('Member Identification Card', titleX, 62);
+
+    // UHC-ID row
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#0d4022';
+    ctx.fillText('UHC-ID', 20, headerH + 18);
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = '#0a2e1a';
+    ctx.fillText(qrValue.substring(4, 24).toUpperCase() + '-NDC', 68, headerH + 18);
+    
+    // ID row border
+    ctx.strokeStyle = 'rgba(0,100,40,0.13)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(20, headerH + 26);
+    ctx.lineTo(W - 20, headerH + 26);
+    ctx.stroke();
+
+    // Watermark seal (faint)
+    ctx.save();
+    ctx.globalAlpha = 0.055;
+    ctx.strokeStyle = '#0a3318';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(W - 180, H / 2, 100, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.arc(W - 180, H / 2, 87, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Photo placeholder
+    const photoX = 20, photoY = headerH + 36, photoW = 195, photoH = 210;
+    const photoGrad = ctx.createLinearGradient(photoX, photoY, photoX + photoW, photoY + photoH);
+    photoGrad.addColorStop(0, '#fef9c3');
+    photoGrad.addColorStop(0.5, '#fde68a');
+    photoGrad.addColorStop(1, '#f59e0b');
+    rr(photoX, photoY, photoW, photoH, 8);
+    ctx.fillStyle = photoGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#c8a018';
+    ctx.lineWidth = 3;
+    rr(photoX, photoY, photoW, photoH, 8);
+    ctx.stroke();
+    // Person silhouette
+    ctx.fillStyle = '#c4c4c4';
+    ctx.beginPath();
+    ctx.ellipse(photoX + photoW / 2, photoY + 75, 30, 33, 0, 0, Math.PI * 2);
+    ctx.fill();
+    rr(photoX + photoW / 2 - 40, photoY + 115, 80, 45, 8);
+    ctx.fill();
+    // CARD HOLDER label
+    ctx.fillStyle = '#1a6b3a';
+    ctx.font = '600 7.5px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CARD HOLDER', photoX + photoW / 2, photoY + photoH + 14);
+
+    // Info fields (positioned to the right with padding)
+    const infoX = 280, infoY = headerH + 60;
+    ctx.textAlign = 'left';
+
+    // Last Name
+    ctx.font = 'italic 7.5px serif';
+    ctx.fillStyle = '#2d6b40';
+    ctx.fillText('Apelyido', infoX, infoY);
+    ctx.fillStyle = '#2d6b40';
+    ctx.fillText('/', infoX + 42, infoY);
+    ctx.fillStyle = '#666';
+    ctx.fillText('Last Name', infoX + 50, infoY);
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillStyle = '#0a2e1a';
+    ctx.fillText((patient.last_name || 'N/A').toUpperCase(), infoX, infoY + 18);
+    // Underline
+    ctx.strokeStyle = 'rgba(0,100,40,0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(infoX, infoY + 24);
+    ctx.lineTo(W - 30, infoY + 24);
+    ctx.stroke();
+
+    // Given Names
+    ctx.font = 'italic 7.5px serif';
+    ctx.fillStyle = '#2d6b40';
+    ctx.fillText('Mga Pangalan', infoX, infoY + 42);
+    ctx.fillStyle = '#2d6b40';
+    ctx.fillText('/', infoX + 64, infoY + 42);
+    ctx.fillStyle = '#666';
+    ctx.fillText('Given Names', infoX + 72, infoY + 42);
+    const givenNames = [patient.first_name, patient.middle_name].filter(Boolean).join(' ').toUpperCase();
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillStyle = '#0a2e1a';
+    ctx.fillText(givenNames || 'N/A', infoX, infoY + 60);
+    // Underline
+    ctx.beginPath();
+    ctx.moveTo(infoX, infoY + 66);
+    ctx.lineTo(W - 30, infoY + 66);
+    ctx.stroke();
+
+    // Date of Birth
+    ctx.font = 'italic 7.5px serif';
+    ctx.fillStyle = '#2d6b40';
+    ctx.fillText('Petsa ng Kapanganakan', infoX, infoY + 84);
+    ctx.fillStyle = '#2d6b40';
+    ctx.fillText('/', infoX + 100, infoY + 84);
+    ctx.fillStyle = '#666';
+    ctx.fillText('Date of Birth', infoX + 108, infoY + 84);
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillStyle = '#0a2e1a';
+    ctx.fillText(formatDate(patient.birth_date).toUpperCase(), infoX, infoY + 102);
+    // Underline
+    ctx.beginPath();
+    ctx.moveTo(infoX, infoY + 108);
+    ctx.lineTo(W - 30, infoY + 108);
+    ctx.stroke();
+
+    // Sex
+    ctx.font = 'italic 7.5px serif';
+    ctx.fillStyle = '#2d6b40';
+    ctx.fillText('Kasarian', infoX, infoY + 126);
+    ctx.fillStyle = '#2d6b40';
+    ctx.fillText('/', infoX + 40, infoY + 126);
+    ctx.fillStyle = '#666';
+    ctx.fillText('Sex', infoX + 48, infoY + 126);
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillStyle = '#0a2e1a';
+    ctx.fillText((patient.sex || 'N/A').toUpperCase(), infoX, infoY + 144);
+    // Underline
+    ctx.beginPath();
+    ctx.moveTo(infoX, infoY + 150);
+    ctx.lineTo(W - 30, infoY + 150);
+    ctx.stroke();
+
+    // Footer
+    const footerY = H - 40;
+    // Footer border top
+    ctx.strokeStyle = 'rgba(0,100,40,0.13)';
+    ctx.beginPath();
+    ctx.moveTo(20, footerY);
+    ctx.lineTo(W - 20, footerY);
+    ctx.stroke();
+
+    // DOH text
+    ctx.fillStyle = '#1a6b3a';
+    ctx.font = '500 7.5px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('DOH — UHC Act R.A. 11223', 20, footerY + 22);
+
+    // Date issued
+    const dateIssued = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+    ctx.fillStyle = '#0a3318';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('DATE ISSUED: ' + dateIssued, W / 2 - 20, footerY + 22);
+
+    // PHL text
+    ctx.font = 'bold 19px serif';
+    ctx.fillStyle = '#1a6b3a';
+    ctx.textAlign = 'right';
+    ctx.fillText('PHL', W - 60, footerY + 22);
+
+    // DOH-UHC badge (circular)
+    ctx.beginPath();
+    ctx.arc(W - 30, footerY + 16, 15, 0, Math.PI * 2);
+    const badgeGrad = ctx.createLinearGradient(W - 45, footerY + 1, W - 15, footerY + 31);
+    badgeGrad.addColorStop(0, '#1a6b3a');
+    badgeGrad.addColorStop(1, '#0d4422');
+    ctx.fillStyle = badgeGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#c8a018';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#e8c830';
+    ctx.font = 'bold 6px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('DOH', W - 30, footerY + 14);
+    ctx.fillText('UHC', W - 30, footerY + 22);
+
+    ctx.restore(); // End front side translation
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // BACK SIDE
+    // ══════════════════════════════════════════════════════════════════════════
+    
+    const backLabelY = LABEL_H + H + GAP;
+    ctx.fillStyle = '#0d4422';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('— BACK —', W / 2, backLabelY + 20);
+    
+    const backY = backLabelY + LABEL_H;
+    drawCardBase(backY);
+    
+    ctx.save();
+    ctx.translate(0, backY);
+
+    // Magnetic strip
+    ctx.save();
+    rr(0, 0, W, H, 18);
+    ctx.clip();
+    const stripGrad = ctx.createLinearGradient(0, 0, W, 0);
+    stripGrad.addColorStop(0, '#1a1a1a');
+    stripGrad.addColorStop(0.5, '#2d2d2d');
+    stripGrad.addColorStop(1, '#1a1a1a');
+    ctx.globalAlpha = 0.88;
+    ctx.fillStyle = stripGrad;
+    ctx.fillRect(0, 0, W, 34);
+    ctx.globalAlpha = 1;
+    // Shine on strip
+    const shineGrad = ctx.createLinearGradient(0, 0, 0, 34);
+    shineGrad.addColorStop(0, 'rgba(255,255,255,0.07)');
+    shineGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = shineGrad;
+    ctx.fillRect(0, 0, W, 34);
+    ctx.restore();
+
+    // Watermark seal (faint, centered)
+    ctx.save();
+    ctx.globalAlpha = 0.045;
+    ctx.strokeStyle = '#0a3318';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, 100, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, 87, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Back header
+    ctx.fillStyle = '#0d4422';
+    ctx.font = '600 8px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Republika ng Pilipinas · Republic of the Philippines', W / 2, 52);
+    ctx.fillStyle = '#0a3318';
+    ctx.font = 'bold 15px serif';
+    ctx.fillText('UNIVERSAL HEALTH CARE', W / 2, 70);
+    ctx.fillStyle = '#1a6b3a';
+    ctx.font = '600 8px sans-serif';
+    ctx.fillText('Member Identification Card', W / 2, 84);
+
+    // Header border
+    ctx.strokeStyle = 'rgba(0,100,40,0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(20, 92);
+    ctx.lineTo(W - 20, 92);
+    ctx.stroke();
+
+    // QR Code section
+    const qrSize = 180;
+    const qrX = (W - qrSize) / 2;
+    const qrY = 110;
+
+    // QR border (gold)
+    ctx.strokeStyle = '#c8a018';
+    ctx.lineWidth = 3;
+    rr(qrX - 8, qrY - 8, qrSize + 16, qrSize + 16, 9);
+    ctx.stroke();
+    // Outer glow
+    ctx.strokeStyle = 'rgba(200,160,24,0.32)';
+    ctx.lineWidth = 1.5;
+    rr(qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 12);
+    ctx.stroke();
+    // White background
+    ctx.fillStyle = '#ffffff';
+    rr(qrX, qrY, qrSize, qrSize, 4);
+    ctx.fill();
+
+    // Load and draw QR image
+    const qrImg = new Image();
+    qrImg.src = qrUrl;
+    await new Promise<void>((resolve) => {
+      qrImg.onload = () => {
+        ctx.drawImage(qrImg, qrX + 4, qrY + 4, qrSize - 8, qrSize - 8);
+        resolve();
+      };
+      qrImg.onerror = () => resolve();
+    });
+
+    // Scan to Verify text
+    ctx.fillStyle = '#0a3318';
+    ctx.font = 'bold 11px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Scan to Verify', W / 2, qrY + qrSize + 20);
+    ctx.fillStyle = '#2d6b40';
+    ctx.font = '600 8px sans-serif';
+    ctx.fillText('UHC Member Verification Portal', W / 2, qrY + qrSize + 34);
+    ctx.fillStyle = 'rgba(0,60,20,0.38)';
+    ctx.font = '6px sans-serif';
+    ctx.fillText(qrValue, W / 2, qrY + qrSize + 46);
+
+    // Back footer
+    const backFooterY = H - 40;
+    ctx.strokeStyle = 'rgba(0,100,40,0.13)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(20, backFooterY);
+    ctx.lineTo(W - 20, backFooterY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#1a6b3a';
+    ctx.font = '500 7.5px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('DOH — UHC Act R.A. 11223', 20, backFooterY + 22);
+
+    ctx.fillStyle = '#0a3318';
+    ctx.font = 'bold 8px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('VALID WHILE MEMBERSHIP IS ACTIVE', W / 2, backFooterY + 22);
+
+    ctx.font = 'bold 19px serif';
+    ctx.fillStyle = '#1a6b3a';
+    ctx.textAlign = 'right';
+    ctx.fillText('PHL', W - 20, backFooterY + 22);
+
+    ctx.restore(); // End back side translation
+
     const bg = ctx.createLinearGradient(0,0,W,H);
     bg.addColorStop(0,'#15803d'); bg.addColorStop(0.45,'#166534'); bg.addColorStop(1,'#14532d');
     ctx.fillStyle=bg;
@@ -1202,7 +1889,7 @@ const UhcMember = () => {
       const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl);
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
-      a.download = `HealthCard_${selectedPatient.last_name}_${selectedPatient.first_name}.png`;
+      a.download = `UHC_HealthCard_FrontBack_${selectedPatient.last_name}_${selectedPatient.first_name}.png`;
       a.click();
     } catch (e) { console.error('Download error:', e); }
     finally { setIsCapturing(false); }
