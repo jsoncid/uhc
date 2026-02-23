@@ -69,6 +69,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | Error | null>(null);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   // ── Shared utilities ──────────────────────────────────────────────────────
   const isRealUuid = (v: string | null | undefined): v is string =>
@@ -212,8 +213,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     // ── Fetch from Supabase when the user's assignment is known ─────────────
-    const fetchFromSupabase = async () => {
-      setLoading(true);
+    const fetchFromSupabase = async (isBackground = false) => {
+      if (!isBackground) setLoading(true);
       try {
         // Load real statuses from Supabase module2.status
         const { data: statusRows } = await supabaseM2.from('status').select('*');
@@ -236,11 +237,12 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .eq('status', false);
         if (deactError) throw deactError;
 
-        // Incoming — referrals directed to this facility
+        // Incoming — referrals directed to this facility (exclude deactivated by sender)
         const { data: inData, error: inError } = await supabaseM2
           .from('referral')
           .select(REFERRAL_SELECT)
-          .eq('to_assignment', userAssignmentId);
+          .eq('to_assignment', userAssignmentId)
+          .eq('status', true);
         if (inError) throw inError;
 
         // ── Batch-enrich: patient names + assignment names ───────────────────
@@ -294,7 +296,51 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     };
 
-    fetchFromSupabase();
+    fetchFromSupabase(refetchTrigger > 0);
+  }, [userAssignmentId, refetchTrigger]);
+
+  // ── Realtime subscriptions ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userAssignmentId) return;
+
+    let debounce: ReturnType<typeof setTimeout>;
+    const refetch = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => setRefetchTrigger((t) => t + 1), 800);
+    };
+
+    const channel = supabaseM2
+      .channel(`m2-realtime-${userAssignmentId}`)
+      // Outgoing referrals changed (sender side)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'module2',
+          table: 'referral',
+          filter: `from_assignment=eq.${userAssignmentId}`,
+        },
+        refetch,
+      )
+      // Incoming referrals changed (receiver side)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'module2',
+          table: 'referral',
+          filter: `to_assignment=eq.${userAssignmentId}`,
+        },
+        refetch,
+      )
+      // Any history entry change (status updates from either party)
+      .on('postgres_changes', { event: '*', schema: 'module2', table: 'referral_history' }, refetch)
+      .subscribe();
+
+    return () => {
+      clearTimeout(debounce);
+      supabaseM2.removeChannel(channel);
+    };
   }, [userAssignmentId]);
 
   const addReferral = async (newReferral: ReferralType) => {
@@ -768,20 +814,18 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       details: notes, // stored in referral_history.details — no separate DB column needed
       status_description: 'Discharged',
     };
-    setIncomingReferrals((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              latest_status: dischargedStatus,
-              history: [
-                ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
-                historyEntry,
-              ],
-            }
-          : r,
-      ),
-    );
+    const applyDischarge = (r: ReferralType) =>
+      r.id === id
+        ? {
+            ...r,
+            latest_status: dischargedStatus,
+            history: [...(r.history ?? []).map((h) => ({ ...h, is_active: false })), historyEntry],
+          }
+        : r;
+
+    setIncomingReferrals((prev) => prev.map(applyDischarge));
+    // Cross-sync to the outgoing referral so the sender sees Discharged + notes too
+    setReferrals((prev) => prev.map(applyDischarge));
     // Persist to Supabase
     persistHistoryEntry(id, 'Discharged', notes);
   };

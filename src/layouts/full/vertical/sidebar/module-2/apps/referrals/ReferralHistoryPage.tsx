@@ -515,11 +515,13 @@ const Paginator = ({
 const AllHistoryTab = ({
   referrals,
   deactivated,
+  incoming,
   onView,
   search,
 }: {
   referrals: ReferralType[];
   deactivated: ReferralType[];
+  incoming: ReferralType[];
   onView: (r: ReferralType) => void;
   search: string;
 }) => {
@@ -528,7 +530,13 @@ const AllHistoryTab = ({
     setPage(1);
   }, [search]);
 
-  const all = [...referrals, ...deactivated];
+  // Merge outgoing, deactivated, and incoming — deduplicate by id
+  const seen = new Set<string>();
+  const all = [...referrals, ...deactivated, ...incoming].filter((r) => {
+    if (seen.has(r.id)) return false;
+    seen.add(r.id);
+    return true;
+  });
   const allVisible = all
     .filter((r) => {
       const q = search.toLowerCase();
@@ -637,10 +645,12 @@ const AllHistoryTab = ({
 // ─── Tab: Discharged ──────────────────────────────────────────────────────────
 const DischargedTab = ({
   referrals,
+  incoming,
   onView,
   search,
 }: {
   referrals: ReferralType[];
+  incoming: ReferralType[];
   onView: (r: ReferralType) => void;
   search: string;
 }) => {
@@ -649,7 +659,15 @@ const DischargedTab = ({
     setPage(1);
   }, [search]);
 
-  const discharged = referrals.filter((r) => r.latest_status?.description === 'Discharged');
+  // Merge outgoing + incoming discharged, deduplicate by id
+  const seen = new Set<string>();
+  const discharged = [...referrals, ...incoming]
+    .filter((r) => r.latest_status?.description === 'Discharged')
+    .filter((r) => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
   const allVisible = discharged
     .filter((r) => {
       const q = search.toLowerCase();
@@ -884,14 +902,15 @@ const DeactivatedTab = ({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 const ReferralHistoryPage = () => {
-  const { referrals, deactivatedReferrals }: ReferralContextType = useContext(ReferralContext);
+  const { referrals, deactivatedReferrals, incomingReferrals }: ReferralContextType =
+    useContext(ReferralContext);
   const [selected, setSelected] = useState<ReferralType | null>(null);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('history');
 
-  const dischargedCount = referrals.filter(
-    (r) => r.latest_status?.description === 'Discharged',
-  ).length;
+  const dischargedCount = [...referrals, ...incomingReferrals]
+    .filter((r) => r.latest_status?.description === 'Discharged')
+    .reduce((acc, r) => (acc.has(r.id) ? acc : acc.add(r.id)), new Set<string>()).size;
 
   return (
     <>
@@ -947,13 +966,19 @@ const ReferralHistoryPage = () => {
             <AllHistoryTab
               referrals={referrals}
               deactivated={deactivatedReferrals}
+              incoming={incomingReferrals}
               onView={setSelected}
               search={search}
             />
           </TabsContent>
 
           <TabsContent value="discharged">
-            <DischargedTab referrals={referrals} onView={setSelected} search={search} />
+            <DischargedTab
+              referrals={referrals}
+              incoming={incomingReferrals}
+              onView={setSelected}
+              search={search}
+            />
           </TabsContent>
 
           <TabsContent value="deactivated">

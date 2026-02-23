@@ -945,6 +945,132 @@ const DeclinedTab = ({
   );
 };
 
+// ─── Discharged tab ───────────────────────────────────────────────────────────
+const DischargedTab = ({
+  referrals,
+  search,
+  onPrint,
+}: {
+  referrals: ReferralType[];
+  search: string;
+  onPrint: (r: ReferralType) => void;
+}) => {
+  const navigate = useNavigate();
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  const discharged = referrals.filter((r) => r.latest_status?.description === 'Discharged');
+  const allVisible = discharged
+    .filter((r) => {
+      const q = search.toLowerCase();
+      return (
+        !q ||
+        (r.patient_name ?? '').toLowerCase().includes(q) ||
+        (r.from_assignment_name ?? '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const visible = allVisible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  return (
+    <>
+      <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
+        <Table className="min-w-[900px]">
+          <TableHeader>
+            <TableRow className="bg-muted/30">
+              <TableHead className="font-semibold">Patient</TableHead>
+              <TableHead className="font-semibold">Referring Hospital</TableHead>
+              <TableHead className="font-semibold">Our Dept.</TableHead>
+              <TableHead className="font-semibold">Referring Doctor</TableHead>
+              <TableHead className="font-semibold">Discharge Summary</TableHead>
+              <TableHead className="font-semibold">Date</TableHead>
+              <TableHead className="font-semibold text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visible.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
+                  <div className="flex flex-col items-center gap-2">
+                    <Icon icon="solar:logout-3-bold-duotone" height={44} className="opacity-25" />
+                    <p className="text-sm">No discharged patients</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              visible.map((r) => {
+                const dischargeEntry = (r.history ?? []).find(
+                  (h) => h.status_description === 'Discharged',
+                );
+                return (
+                  <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                    <TableCell>
+                      <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.from_assignment_name ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.to_assignment_name ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {r.referral_info?.referring_doctor ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-sm max-w-xs">
+                      {dischargeEntry?.details ? (
+                        <span className="text-secondary line-clamp-2">
+                          {dischargeEntry.details}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {fmt(r.created_at)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Icon icon="solar:menu-dots-bold" height={16} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[160px]">
+                          <DropdownMenuItem
+                            onClick={() => navigate('/module-2/referrals/incoming/detail/' + r.id)}
+                          >
+                            <Icon
+                              icon="solar:eye-linear"
+                              height={15}
+                              className="mr-2 text-primary"
+                            />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onPrint(r)}>
+                            <Icon
+                              icon="solar:printer-minimalistic-bold-duotone"
+                              height={15}
+                              className="mr-2 text-muted-foreground"
+                            />
+                            Print Referral
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <Paginator total={allVisible.length} page={page} perPage={PAGE_SIZE} onPageChange={setPage} />
+    </>
+  );
+};
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 const IncomingReferralPage = () => {
   const {
@@ -973,6 +1099,9 @@ const IncomingReferralPage = () => {
   ).length;
   const declinedCount = dateFilteredReferrals.filter(
     (r) => r.latest_status?.description === 'Declined',
+  ).length;
+  const dischargedCount = dateFilteredReferrals.filter(
+    (r) => r.latest_status?.description === 'Discharged',
   ).length;
 
   return (
@@ -1033,6 +1162,18 @@ const IncomingReferralPage = () => {
                   </Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="discharged" className="flex items-center gap-1.5">
+                <Icon icon="solar:logout-3-bold-duotone" height={15} />
+                Discharged
+                {dischargedCount > 0 && (
+                  <Badge
+                    variant="outline"
+                    className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lightsecondary text-secondary border-secondary/20"
+                  >
+                    {dischargedCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
             </TabsList>
 
             {/* Search + Date range */}
@@ -1087,6 +1228,14 @@ const IncomingReferralPage = () => {
 
           <TabsContent value="declined">
             <DeclinedTab
+              referrals={dateFilteredReferrals}
+              search={search}
+              onPrint={setPrintTarget}
+            />
+          </TabsContent>
+
+          <TabsContent value="discharged">
+            <DischargedTab
               referrals={dateFilteredReferrals}
               search={search}
               onPrint={setPrintTarget}
