@@ -870,7 +870,8 @@ class PatientService {
   }
 
   /**
-   * Search patients in Supabase (patient_profile_with_locations view)
+   * Search patients in Supabase (patient_profile with full location joins)
+   * Searches by name, facility, and location (barangay, city, province, region)
    * For finding manually entered patients that may not have hpercode yet
    */
   async searchSupabasePatients(
@@ -878,19 +879,41 @@ class PatientService {
     options?: { limit?: number }
   ): Promise<{
     success: boolean;
-    data: PatientProfileDB['Row'][];
+    data: any[];
     count: number;
     message?: string;
   }> {
     try {
-      const limit = options?.limit || 10;
+      const limit = options?.limit || 100;
+      const searchTerm = search.trim().toLowerCase();
       
-      // Search by first_name, last_name, or combination
-      const { data, error, count } = await supabase
+      // Query with joins to get location hierarchy and facility info (same as getSupabasePatients)
+      const { data, error } = await supabase
         .schema('module3')
         .from('patient_profile')
-        .select('*', { count: 'exact' })
-        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`)
+        .select(`
+          *,
+          brgy:brgy(
+            id,
+            description,
+            city_municipality:city_municipality(
+              id,
+              description,
+              province:province(
+                id,
+                description,
+                region:region(
+                  id,
+                  description
+                )
+              )
+            )
+          ),
+          patient_repository(
+            facility_code,
+            hpercode
+          )
+        `, { count: 'exact' })
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -904,31 +927,49 @@ class PatientService {
         };
       }
 
-      // For each profile, get the linked repository data (hpercode, facility_code)
-      const enrichedData = await Promise.all(
-        (data || []).map(async (profile) => {
-          const { data: repoData } = await supabase
-            .schema('module3')
-            .from('patient_repository')
-            .select('hpercode, facility_code')
-            .eq('patient_profile', profile.id)
-            .maybeSingle();
-
-          return {
-            ...profile,
-            hpercode: repoData?.hpercode || null,
-            facility_code: repoData?.facility_code || null,
-            city_municipality: profile.city_municipality ?? null,
-            province: profile.province ?? null,
-            region: profile.region ?? null,
-          } as PatientProfileDB['Row'];
-        })
-      );
+      // Filter results client-side to search across name, location hierarchy, and facility
+      const filteredData = (data || []).filter((patient: any) => {
+        // Search in patient name fields
+        const firstName = patient.first_name?.toLowerCase() || '';
+        const middleName = patient.middle_name?.toLowerCase() || '';
+        const lastName = patient.last_name?.toLowerCase() || '';
+        const fullName = `${firstName} ${middleName} ${lastName}`.trim();
+        
+        // Search in location hierarchy
+        const brgyDesc = patient.brgy?.description?.toLowerCase() || '';
+        const brgyName = patient.brgy_name?.toLowerCase() || '';
+        const cityDesc = patient.brgy?.city_municipality?.description?.toLowerCase() || '';
+        const cityName = patient.city_name?.toLowerCase() || '';
+        const provinceDesc = patient.brgy?.city_municipality?.province?.description?.toLowerCase() || '';
+        const provinceName = patient.province_name?.toLowerCase() || '';
+        const regionDesc = patient.brgy?.city_municipality?.province?.region?.description?.toLowerCase() || '';
+        const regionName = patient.region_name?.toLowerCase() || '';
+        
+        // Search in facility
+        const facilityCode = patient.patient_repository?.[0]?.facility_code?.toLowerCase() || '';
+        
+        // Check if search term matches any field
+        return (
+          firstName.includes(searchTerm) ||
+          middleName.includes(searchTerm) ||
+          lastName.includes(searchTerm) ||
+          fullName.includes(searchTerm) ||
+          brgyDesc.includes(searchTerm) ||
+          brgyName.includes(searchTerm) ||
+          cityDesc.includes(searchTerm) ||
+          cityName.includes(searchTerm) ||
+          provinceDesc.includes(searchTerm) ||
+          provinceName.includes(searchTerm) ||
+          regionDesc.includes(searchTerm) ||
+          regionName.includes(searchTerm) ||
+          facilityCode.includes(searchTerm)
+        );
+      });
 
       return {
         success: true,
-        data: enrichedData,
-        count: count || 0,
+        data: filteredData,
+        count: filteredData.length,
       };
     } catch (error) {
       console.error('Search Supabase patients error:', error);
