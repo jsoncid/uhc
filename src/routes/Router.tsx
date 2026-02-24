@@ -9,11 +9,10 @@ import { ProtectedRoute } from '../components/ProtectedRoute';
 import { module1Routes } from './m1_routes';
 import { module2Routes } from './m2_routes';
 import { module3Routes } from './m3_routes';
-import { module4Routes } from './m4_routes';
+import { m4Routes } from './m4_routes';
 import { module5Routes } from './m5_routes';
 
-
-/* ***Layouts**** */
+/* **Layouts*** */
 const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
 const BlankLayout = Loadable(lazy(() => import('../layouts/blank/BlankLayout')));
 
@@ -32,7 +31,7 @@ const Modern = Loadable(lazy(() => import('../views/dashboards/Modern')));
 const UserProfile = Loadable(lazy(() => import('../views/pages/user-profile/UserProfile')));
 const About = Loadable(lazy(() => import('../views/about/About')));
 
-/* ****Apps***** */
+/* ***Apps**** */
 const Notes = Loadable(lazy(() => import('../views/apps/notes/Notes')));
 const Form = Loadable(lazy(() => import('../views/utilities/form/Form')));
 const Table = Loadable(lazy(() => import('../views/utilities/table/Table')));
@@ -100,7 +99,7 @@ const Router = [
       ...module1Routes,
       ...module2Routes,
       ...module3Routes,
-      ...module4Routes,
+      ...m4Routes,
       ...module5Routes,
       {
         path: '/apps/tickets',
