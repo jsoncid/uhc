@@ -114,7 +114,7 @@ export interface ReferralInfoDiagnostic {
   referral_info: string | null; // uuid → module2.referral_info.id
   diagnostics: string | null;
   date: string | null; // date
-  attachment: string | null;
+  attachments: string[]; // stored as JSON array in DB
   status: boolean | null;
 }
 
@@ -125,5 +125,6 @@ export interface ReferralInfoVaccination {
   referral_info: string | null; // uuid → module2.referral_info.id
   description: string | null;
   date: string | null; // date
+  attachments: string[]; // stored as JSON array in DB
   status: boolean | null;
 }

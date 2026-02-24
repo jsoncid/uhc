@@ -37,6 +37,7 @@ import {
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
 import ReferralPrintDocument from './ReferralPrintDocument';
+import EditClinicalInfoPanel from './EditClinicalInfoPanel';
 
 // ─── Status style map ─────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
@@ -469,9 +470,24 @@ const ActiveTab = ({
   onPrint: (r: ReferralType) => void;
 }) => {
   const navigate = useNavigate();
-  const { updateIncomingStatus, statuses, saveDischargeNotes }: ReferralContextType =
-    useContext(ReferralContext);
+  const {
+    updateIncomingStatus,
+    statuses,
+    saveDischargeNotes,
+    updateReferralInfo,
+    addDiagnostic,
+    deleteDiagnostic,
+    updateDiagnosticAttachment,
+    addVaccination,
+    deleteVaccination,
+    updateVaccinationAttachment,
+    incomingReferrals,
+  }: ReferralContextType = useContext(ReferralContext);
   const [dischargeTarget, setDischargeTarget] = useState<ReferralType | null>(null);
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
+  const editTarget = editTargetId
+    ? (incomingReferrals.find((r) => r.id === editTargetId) ?? null)
+    : null;
   const [page, setPage] = useState(1);
   useEffect(() => {
     setPage(1);
@@ -605,6 +621,16 @@ const ActiveTab = ({
                           <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
                           View Details
                         </DropdownMenuItem>
+                        {r.latest_status?.description === 'Admitted' && (
+                          <DropdownMenuItem onClick={() => setEditTargetId(r.id)}>
+                            <Icon
+                              icon="solar:pen-linear"
+                              height={15}
+                              className="mr-2 text-muted-foreground"
+                            />
+                            Edit Clinical Info
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => onPrint(r)}>
                           <Icon
                             icon="solar:printer-minimalistic-bold-duotone"
@@ -630,6 +656,24 @@ const ActiveTab = ({
         </Table>
       </div>
       <Paginator total={allVisible.length} page={page} perPage={PAGE_SIZE} onPageChange={setPage} />
+      <EditClinicalInfoPanel
+        open={!!editTarget}
+        referral={editTarget}
+        onClose={() => setEditTargetId(null)}
+        onConfirm={(updated) => {
+          if (editTargetId) updateReferralInfo(editTargetId, updated);
+        }}
+        addDiag={(d) => editTargetId && addDiagnostic(editTargetId, d)}
+        deleteDiag={(diagId) => editTargetId && deleteDiagnostic(diagId, editTargetId)}
+        updateDiagAttachment={(diagId, atts) =>
+          editTargetId && updateDiagnosticAttachment(diagId, editTargetId, atts)
+        }
+        addVac={(v) => editTargetId && addVaccination(editTargetId, v)}
+        deleteVac={(vacId) => editTargetId && deleteVaccination(vacId, editTargetId)}
+        updateVacAttachment={(vacId, atts) =>
+          editTargetId && updateVaccinationAttachment(vacId, editTargetId, atts)
+        }
+      />
       <DischargeDialog
         open={!!dischargeTarget}
         referral={dischargeTarget}

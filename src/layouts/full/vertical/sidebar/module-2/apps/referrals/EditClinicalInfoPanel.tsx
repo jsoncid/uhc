@@ -6,6 +6,8 @@ import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'src/components/ui/dialog';
+import { format } from 'date-fns';
 import { ReferralType, ReferralInfo } from '../../types/referral';
 
 // ─── Shared Edit Clinical Information Side Panel ───────────────────────────────
@@ -17,17 +19,43 @@ const EditClinicalInfoPanel = ({
   referral,
   onClose,
   onConfirm,
+  addDiag,
+  deleteDiag,
+  updateDiagAttachment,
+  addVac,
+  deleteVac,
+  updateVacAttachment,
 }: {
   open: boolean;
   referral: ReferralType | null;
   onClose: () => void;
   onConfirm: (updated: Partial<ReferralInfo>) => void;
+  addDiag?: (d: { diagnostics: string; date?: string | null }) => void;
+  deleteDiag?: (diagId: string) => void;
+  updateDiagAttachment?: (diagId: string, attachments: string[]) => void;
+  addVac?: (v: { description: string; date?: string | null }) => void;
+  deleteVac?: (vacId: string) => void;
+  updateVacAttachment?: (vacId: string, attachments: string[]) => void;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const prevOpenRef = useRef(false);
   const [showScrollIndicator, setShowScrollIndicator] = useState(false);
   const [isScrolling, setIsScrolling] = useState(false);
   const [showObGyne, setShowObGyne] = useState(false);
+
+  // Diagnostics inline form
+  const [diagForm, setDiagForm] = useState({ diagnostics: '', date: '' });
+  const [showDiagForm, setShowDiagForm] = useState(false);
+  const diagFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Vaccination inline form
+  const [vacForm, setVacForm] = useState({ description: '', date: '' });
+  const [showVacForm, setShowVacForm] = useState(false);
+  const vacFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Attachment preview
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const info = referral?.referral_info;
 
@@ -118,76 +146,133 @@ const EditClinicalInfoPanel = ({
     }
   }, [handleScroll, checkScroll]);
 
-  // Sync form with referral when panel opens
+  // Sync form with referral only when the panel first opens (not on every info change).
+  // Depending only on `open` prevents attachment updates from resetting unsaved edits.
   React.useEffect(() => {
-    if (open && info) {
-      const hasObGyne = !!(
-        info.lmp ||
-        info.aog ||
-        info.edc ||
-        info.gravida ||
-        info.parity ||
-        info.fh ||
-        info.fht ||
-        info.ie
-      );
-      setShowObGyne(hasObGyne);
-      setForm({
-        reason_referral: info.reason_referral ?? '',
-        chief_complaints: info.chief_complaints ?? '',
-        history_present_illness: info.history_present_illness ?? '',
-        pe: info.pe ?? '',
-        blood_pressure: info.blood_pressure ?? '',
-        temperature: info.temperature ?? '',
-        heart_rate: info.heart_rate ?? '',
-        respiratory_rate: info.respiratory_rate ?? '',
-        o2_sat: info.o2_sat ?? '',
-        o2_requirement: info.o2_requirement ?? '',
-        gcs: info.gcs ?? '',
-        eye: info.eye ?? '',
-        vision: info.vision ?? '',
-        motor: info.motor ?? '',
-        referring_doctor: info.referring_doctor ?? '',
-        contact_no: info.contact_no ?? '',
-        rtpcr: info.rtpcr ?? '',
-        rtpcr_date: info.rtpcr_date ?? '',
-        antigen: info.antigen ?? '',
-        antigen_date: info.antigen_date ?? '',
-        exposure_covid: info.exposure_covid ?? '',
-        medications: info.medications ?? '',
-        gravida: info.gravida ?? '',
-        parity: info.parity ?? '',
-        menarche: info.menarche ?? '',
-        lmp: info.lmp ?? '',
-        aog: info.aog ?? '',
-        edc: info.edc ?? '',
-        fh: info.fh ?? '',
-        fht: info.fht ?? '',
-        ie: info.ie ?? '',
-        dilatation: info.dilatation ?? '',
-        effacement: info.effacement ?? '',
-        station: info.station ?? '',
-        presenting_part: info.presenting_part ?? '',
-        prom_hours: info.prom_hours ?? '',
-        ultrasound_1st_date: info.ultrasound_1st_date ?? '',
-        ultrasound_1st_aog: info.ultrasound_1st_aog ?? '',
-        ultrasound_latest_date: info.ultrasound_latest_date ?? '',
-        ultrasound_efw: info.ultrasound_efw ?? '',
-        ultrasound_presentation: info.ultrasound_presentation ?? '',
-        ultrasound_impression: info.ultrasound_impression ?? '',
-        comorbidity: info.comorbidity ?? '',
-        previous_surgeries: info.previous_surgeries ?? '',
-        previous_cs: info.previous_cs ?? '',
-        lab_result: info.lab_result ?? '',
-        xray: info.xray ?? '',
-        other_diagnostics: info.other_diagnostics ?? '',
-      });
-    }
-  }, [open, info]);
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!justOpened || !info) return;
+    const hasObGyne = !!(
+      info.lmp ||
+      info.aog ||
+      info.edc ||
+      info.gravida ||
+      info.parity ||
+      info.fh ||
+      info.fht ||
+      info.ie
+    );
+    setShowObGyne(hasObGyne);
+    setForm({
+      reason_referral: info.reason_referral ?? '',
+      chief_complaints: info.chief_complaints ?? '',
+      history_present_illness: info.history_present_illness ?? '',
+      pe: info.pe ?? '',
+      blood_pressure: info.blood_pressure ?? '',
+      temperature: info.temperature ?? '',
+      heart_rate: info.heart_rate ?? '',
+      respiratory_rate: info.respiratory_rate ?? '',
+      o2_sat: info.o2_sat ?? '',
+      o2_requirement: info.o2_requirement ?? '',
+      gcs: info.gcs ?? '',
+      eye: info.eye ?? '',
+      vision: info.vision ?? '',
+      motor: info.motor ?? '',
+      referring_doctor: info.referring_doctor ?? '',
+      contact_no: info.contact_no ?? '',
+      rtpcr: info.rtpcr ?? '',
+      rtpcr_date: info.rtpcr_date ?? '',
+      antigen: info.antigen ?? '',
+      antigen_date: info.antigen_date ?? '',
+      exposure_covid: info.exposure_covid ?? '',
+      medications: info.medications ?? '',
+      gravida: info.gravida ?? '',
+      parity: info.parity ?? '',
+      menarche: info.menarche ?? '',
+      lmp: info.lmp ?? '',
+      aog: info.aog ?? '',
+      edc: info.edc ?? '',
+      fh: info.fh ?? '',
+      fht: info.fht ?? '',
+      ie: info.ie ?? '',
+      dilatation: info.dilatation ?? '',
+      effacement: info.effacement ?? '',
+      station: info.station ?? '',
+      presenting_part: info.presenting_part ?? '',
+      prom_hours: info.prom_hours ?? '',
+      ultrasound_1st_date: info.ultrasound_1st_date ?? '',
+      ultrasound_1st_aog: info.ultrasound_1st_aog ?? '',
+      ultrasound_latest_date: info.ultrasound_latest_date ?? '',
+      ultrasound_efw: info.ultrasound_efw ?? '',
+      ultrasound_presentation: info.ultrasound_presentation ?? '',
+      ultrasound_impression: info.ultrasound_impression ?? '',
+      comorbidity: info.comorbidity ?? '',
+      previous_surgeries: info.previous_surgeries ?? '',
+      previous_cs: info.previous_cs ?? '',
+      lab_result: info.lab_result ?? '',
+      xray: info.xray ?? '',
+      other_diagnostics: info.other_diagnostics ?? '',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const set =
     (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const handleAddDiag = () => {
+    if (!diagForm.diagnostics.trim() || !addDiag) return;
+    addDiag({ diagnostics: diagForm.diagnostics.trim(), date: diagForm.date || null });
+    setDiagForm({ diagnostics: '', date: '' });
+    setShowDiagForm(false);
+  };
+
+  const handleDiagFileChange = (
+    diagId: string,
+    current: string[],
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length || !updateDiagAttachment) return;
+    Promise.all(
+      files.map(
+        (f) =>
+          new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result as string);
+            r.readAsDataURL(f);
+          }),
+      ),
+    ).then((newUrls) => updateDiagAttachment(diagId, [...current, ...newUrls]));
+    e.target.value = '';
+  };
+
+  const handleAddVac = () => {
+    if (!vacForm.description.trim() || !addVac) return;
+    addVac({ description: vacForm.description.trim(), date: vacForm.date || null });
+    setVacForm({ description: '', date: '' });
+    setShowVacForm(false);
+  };
+
+  const handleVacFileChange = (
+    vacId: string,
+    current: string[],
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length || !updateVacAttachment) return;
+    Promise.all(
+      files.map(
+        (f) =>
+          new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result as string);
+            r.readAsDataURL(f);
+          }),
+      ),
+    ).then((newUrls) => updateVacAttachment(vacId, [...current, ...newUrls]));
+    e.target.value = '';
+  };
 
   const scrollToBottom = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -862,7 +947,348 @@ const EditClinicalInfoPanel = ({
                 </div>
               </>
             )}
+
+            {/* ── Diagnostics ──────────────────────────────────────────────── */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Icon
+                      icon="solar:test-tube-bold-duotone"
+                      height={13}
+                      className="text-primary"
+                    />
+                  </div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Diagnostics
+                  </p>
+                </div>
+                {addDiag && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowDiagForm((v) => !v)}
+                  >
+                    <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
+                    Add
+                  </Button>
+                )}
+              </div>
+
+              {showDiagForm && (
+                <div className="mb-3 p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">
+                      Finding / Test Result <span className="text-destructive">*</span>
+                    </Label>
+                    <Textarea
+                      rows={2}
+                      placeholder="e.g. CBC — Hgb 110 g/L"
+                      className="text-sm resize-none"
+                      value={diagForm.diagnostics}
+                      onChange={(e) => setDiagForm((f) => ({ ...f, diagnostics: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Date</Label>
+                    <Input
+                      type="date"
+                      className="h-8 text-sm"
+                      value={diagForm.date}
+                      onChange={(e) => setDiagForm((f) => ({ ...f, date: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setShowDiagForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={handleAddDiag}
+                      disabled={!diagForm.diagnostics.trim()}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                {(referral?.referral_info?.diagnostics ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-1">No diagnostics recorded.</p>
+                ) : (
+                  (referral?.referral_info?.diagnostics ?? []).map((d) => (
+                    <div
+                      key={d.id}
+                      className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border border-border"
+                    >
+                      <div className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Icon
+                          icon="solar:document-text-bold-duotone"
+                          height={11}
+                          className="text-primary"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-snug">{d.diagnostics}</p>
+                        {d.date && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {format(new Date(d.date), 'MMM dd, yyyy')}
+                          </p>
+                        )}
+                        {(d.attachments ?? []).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {(d.attachments ?? []).map((url, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-medium text-primary"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewUrl(url)}
+                                  className="hover:underline"
+                                >
+                                  {url.startsWith('data:image')
+                                    ? `Image ${idx + 1}`
+                                    : `PDF ${idx + 1}`}
+                                </button>
+                                {updateDiagAttachment && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateDiagAttachment(
+                                        d.id,
+                                        (d.attachments ?? []).filter((_, i) => i !== idx),
+                                      )
+                                    }
+                                    className="ml-1 text-muted-foreground hover:text-destructive"
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {updateDiagAttachment && (
+                          <label className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary cursor-pointer">
+                            <Icon icon="solar:paperclip-bold-duotone" height={11} />
+                            Attach file
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*,application/pdf"
+                              className="hidden"
+                              ref={(el) => {
+                                diagFileRefs.current[d.id] = el;
+                              }}
+                              onChange={(e) => handleDiagFileChange(d.id, d.attachments ?? [], e)}
+                            />
+                          </label>
+                        )}
+                      </div>
+                      {deleteDiag && (
+                        <button
+                          type="button"
+                          onClick={() => deleteDiag(d.id)}
+                          className="text-muted-foreground hover:text-destructive mt-0.5 flex-shrink-0"
+                        >
+                          <Icon icon="solar:trash-bin-trash-bold-duotone" height={15} />
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* ── Vaccination History ───────────────────────────────────────── */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Icon icon="solar:syringe-bold-duotone" height={13} className="text-primary" />
+                  </div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Vaccination History
+                  </p>
+                </div>
+                {addVac && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowVacForm((v) => !v)}
+                  >
+                    <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
+                    Add
+                  </Button>
+                )}
+              </div>
+
+              {showVacForm && (
+                <div className="mb-3 p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">
+                      Vaccine / Description <span className="text-destructive">*</span>
+                    </Label>
+                    <Textarea
+                      rows={2}
+                      placeholder="e.g. COVID-19 Booster — Pfizer"
+                      className="text-sm resize-none"
+                      value={vacForm.description}
+                      onChange={(e) => setVacForm((f) => ({ ...f, description: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Date</Label>
+                    <Input
+                      type="date"
+                      className="h-8 text-sm"
+                      value={vacForm.date}
+                      onChange={(e) => setVacForm((f) => ({ ...f, date: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setShowVacForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={handleAddVac}
+                      disabled={!vacForm.description.trim()}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                {(referral?.referral_info?.vaccinations ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-1">No vaccinations recorded.</p>
+                ) : (
+                  (referral?.referral_info?.vaccinations ?? []).map((v) => (
+                    <div
+                      key={v.id}
+                      className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border border-border"
+                    >
+                      <div className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Icon
+                          icon="solar:syringe-bold-duotone"
+                          height={11}
+                          className="text-primary"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-snug">{v.description}</p>
+                        {v.date && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {format(new Date(v.date), 'MMM dd, yyyy')}
+                          </p>
+                        )}
+                        {(v.attachments ?? []).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {(v.attachments ?? []).map((url, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-medium text-primary"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewUrl(url)}
+                                  className="hover:underline"
+                                >
+                                  {url.startsWith('data:image')
+                                    ? `Image ${idx + 1}`
+                                    : `PDF ${idx + 1}`}
+                                </button>
+                                {updateVacAttachment && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateVacAttachment(
+                                        v.id,
+                                        (v.attachments ?? []).filter((_, i) => i !== idx),
+                                      )
+                                    }
+                                    className="ml-1 text-muted-foreground hover:text-destructive"
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {updateVacAttachment && (
+                          <label className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary cursor-pointer">
+                            <Icon icon="solar:paperclip-bold-duotone" height={11} />
+                            Attach file
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*,application/pdf"
+                              className="hidden"
+                              ref={(el) => {
+                                vacFileRefs.current[v.id] = el;
+                              }}
+                              onChange={(e) => handleVacFileChange(v.id, v.attachments ?? [], e)}
+                            />
+                          </label>
+                        )}
+                      </div>
+                      {deleteVac && (
+                        <button
+                          type="button"
+                          onClick={() => deleteVac(v.id)}
+                          className="text-muted-foreground hover:text-destructive mt-0.5 flex-shrink-0"
+                        >
+                          <Icon icon="solar:trash-bin-trash-bold-duotone" height={15} />
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
+
+          {/* Attachment preview dialog */}
+          <Dialog open={!!previewUrl} onOpenChange={(v) => !v && setPreviewUrl(null)}>
+            <DialogContent className="max-w-3xl w-full">
+              <DialogHeader>
+                <DialogTitle className="text-sm">Attachment Preview</DialogTitle>
+              </DialogHeader>
+              {previewUrl?.startsWith('data:image') ? (
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="w-full rounded-lg object-contain max-h-[70vh]"
+                />
+              ) : (
+                <iframe
+                  src={previewUrl ?? ''}
+                  title="Preview"
+                  className="w-full rounded-lg"
+                  style={{ height: '70vh' }}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* Scroll indicator arrow */}
           {showScrollIndicator && !isScrolling && (

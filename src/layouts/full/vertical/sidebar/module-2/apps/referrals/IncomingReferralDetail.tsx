@@ -276,6 +276,7 @@ const IncomingReferralDetail = () => {
     updateDiagnosticAttachment,
     addVaccination,
     deleteVaccination,
+    updateVaccinationAttachment,
     updateReferralInfo,
   } = useContext<ReferralContextType>(ReferralContext);
 
@@ -294,9 +295,9 @@ const IncomingReferralDetail = () => {
   const [printOpen, setPrintOpen] = useState(false);
   const [showEditPanel, setShowEditPanel] = useState(false);
 
-  // Editable when status is not a terminal state (Declined / Discharged)
+  // Editable only when the patient is already in the receiving facility (Admitted)
   const statusDesc = referral?.latest_status?.description;
-  const canEditInfo = !!referral && statusDesc !== 'Declined' && statusDesc !== 'Discharged';
+  const canEditInfo = !!referral && statusDesc === 'Admitted';
 
   // Auto-mark as Seen when the receiving facility opens this referral
   useEffect(() => {
@@ -314,6 +315,9 @@ const IncomingReferralDetail = () => {
   const [vacForm, setVacForm] = useState({ description: '', date: '' });
   const [showVacForm, setShowVacForm] = useState(false);
 
+  // ── Attachment preview
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   const handleAddDiagnostic = () => {
     if (!diagForm.diagnostics.trim() || !id) return;
     addDiagnostic(id, { diagnostics: diagForm.diagnostics.trim(), date: diagForm.date || null });
@@ -321,15 +325,39 @@ const IncomingReferralDetail = () => {
     setShowDiagForm(false);
   };
 
-  const handleDiagFileChange = (diagId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !id) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') updateDiagnosticAttachment(diagId, id, reader.result);
-    };
-    reader.readAsDataURL(file);
+  const handleDiagFileChange = (
+    diagId: string,
+    currentAttachments: string[],
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length || !id) return;
+    Promise.all(
+      files.map(
+        (f) =>
+          new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result as string);
+            r.readAsDataURL(f);
+          }),
+      ),
+    ).then((newUrls) =>
+      updateDiagnosticAttachment(diagId, id, [...currentAttachments, ...newUrls]),
+    );
     e.target.value = '';
+  };
+
+  const handleRemoveDiagAttachment = (
+    diagId: string,
+    currentAttachments: string[],
+    idx: number,
+  ) => {
+    if (!id) return;
+    updateDiagnosticAttachment(
+      diagId,
+      id,
+      currentAttachments.filter((_, i) => i !== idx),
+    );
   };
 
   const handleAddVaccination = () => {
@@ -337,6 +365,37 @@ const IncomingReferralDetail = () => {
     addVaccination(id, { description: vacForm.description.trim(), date: vacForm.date || null });
     setVacForm({ description: '', date: '' });
     setShowVacForm(false);
+  };
+
+  const handleVacFileChange = (
+    vacId: string,
+    currentAttachments: string[],
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length || !id) return;
+    Promise.all(
+      files.map(
+        (f) =>
+          new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result as string);
+            r.readAsDataURL(f);
+          }),
+      ),
+    ).then((newUrls) =>
+      updateVaccinationAttachment(vacId, id, [...currentAttachments, ...newUrls]),
+    );
+    e.target.value = '';
+  };
+
+  const handleRemoveVacAttachment = (vacId: string, currentAttachments: string[], idx: number) => {
+    if (!id) return;
+    updateVaccinationAttachment(
+      vacId,
+      id,
+      currentAttachments.filter((_, i) => i !== idx),
+    );
   };
 
   const isPending =
@@ -1077,16 +1136,41 @@ const IncomingReferralDetail = () => {
                           {format(new Date(d.date), 'MMM dd, yyyy')}
                         </p>
                       )}
-                      {d.attachment && (
-                        <a
-                          href={d.attachment}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-primary mt-1 hover:underline"
-                        >
-                          <Icon icon="solar:paperclip-bold" height={11} />
-                          View Attachment
-                        </a>
+                      {(d.attachments ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {(d.attachments ?? []).map((url, idx) => (
+                            <div
+                              key={idx}
+                              className="inline-flex items-center gap-1 bg-primary/10 rounded px-1.5 py-0.5 text-xs"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setPreviewUrl(url)}
+                                className="inline-flex items-center gap-0.5 text-primary hover:underline"
+                              >
+                                <Icon
+                                  icon={
+                                    url.startsWith('data:image')
+                                      ? 'solar:gallery-bold-duotone'
+                                      : 'solar:file-text-bold-duotone'
+                                  }
+                                  height={11}
+                                />
+                                {url.startsWith('data:image') ? 'Image' : 'PDF'} {idx + 1}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleRemoveDiagAttachment(d.id, d.attachments ?? [], idx)
+                                }
+                                className="text-muted-foreground hover:text-error leading-none"
+                                title="Remove"
+                              >
+                                <Icon icon="solar:close-circle-bold" height={11} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -1094,9 +1178,10 @@ const IncomingReferralDetail = () => {
                       <input
                         type="file"
                         accept="image/*,application/pdf"
+                        multiple
                         className="hidden"
                         id={`att-${d.id}`}
-                        onChange={(e) => handleDiagFileChange(d.id, e)}
+                        onChange={(e) => handleDiagFileChange(d.id, d.attachments ?? [], e)}
                       />
                       <Button
                         variant="ghost"
@@ -1199,32 +1284,87 @@ const IncomingReferralDetail = () => {
                 (info.vaccinations ?? []).map((v) => (
                   <div
                     key={v.id}
-                    className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 border border-border"
+                    className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border border-border"
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-success/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <Icon
                         icon="solar:syringe-bold-duotone"
-                        height={14}
-                        className="text-success flex-shrink-0"
+                        height={13}
+                        className="text-success"
                       />
-                      <div>
-                        <span className="text-sm font-medium">{v.description}</span>
-                        {v.date && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {format(new Date(v.date), 'MMM dd, yyyy')}
-                          </p>
-                        )}
-                      </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-error flex-shrink-0"
-                      title="Delete"
-                      onClick={() => id && deleteVaccination(v.id, id)}
-                    >
-                      <Icon icon="solar:trash-bin-minimalistic-linear" height={13} />
-                    </Button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-snug">{v.description}</p>
+                      {v.date && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {format(new Date(v.date), 'MMM dd, yyyy')}
+                        </p>
+                      )}
+                      {(v.attachments ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {(v.attachments ?? []).map((url, idx) => (
+                            <div
+                              key={idx}
+                              className="inline-flex items-center gap-1 bg-success/10 rounded px-1.5 py-0.5 text-xs"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setPreviewUrl(url)}
+                                className="inline-flex items-center gap-0.5 text-success hover:underline"
+                              >
+                                <Icon
+                                  icon={
+                                    url.startsWith('data:image')
+                                      ? 'solar:gallery-bold-duotone'
+                                      : 'solar:file-text-bold-duotone'
+                                  }
+                                  height={11}
+                                />
+                                {url.startsWith('data:image') ? 'Image' : 'PDF'} {idx + 1}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleRemoveVacAttachment(v.id, v.attachments ?? [], idx)
+                                }
+                                className="text-muted-foreground hover:text-error leading-none"
+                                title="Remove"
+                              >
+                                <Icon icon="solar:close-circle-bold" height={11} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        multiple
+                        className="hidden"
+                        id={`vac-att-${v.id}`}
+                        onChange={(e) => handleVacFileChange(v.id, v.attachments ?? [], e)}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-success"
+                        title="Upload attachment"
+                        onClick={() => document.getElementById(`vac-att-${v.id}`)?.click()}
+                      >
+                        <Icon icon="solar:paperclip-bold" height={13} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-error flex-shrink-0"
+                        title="Delete"
+                        onClick={() => id && deleteVaccination(v.id, id)}
+                      >
+                        <Icon icon="solar:trash-bin-minimalistic-linear" height={13} />
+                      </Button>
+                    </div>
                   </div>
                 ))
               )}
@@ -1264,7 +1404,47 @@ const IncomingReferralDetail = () => {
         onConfirm={(updated) => {
           if (id) updateReferralInfo(id, updated);
         }}
+        addDiag={(d) => id && addDiagnostic(id, d)}
+        deleteDiag={(diagId) => id && deleteDiagnostic(diagId, id)}
+        updateDiagAttachment={(diagId, atts) => id && updateDiagnosticAttachment(diagId, id, atts)}
+        addVac={(v) => id && addVaccination(id, v)}
+        deleteVac={(vacId) => id && deleteVaccination(vacId, id)}
+        updateVacAttachment={(vacId, atts) => id && updateVaccinationAttachment(vacId, id, atts)}
       />
+
+      {/* Attachment Preview Dialog */}
+      <Dialog
+        open={!!previewUrl}
+        onOpenChange={(open) => {
+          if (!open) setPreviewUrl(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-3xl p-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b">
+            <DialogTitle className="flex items-center gap-2">
+              <Icon icon="solar:paperclip-bold" height={16} className="text-primary" />
+              Attachment Preview
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4">
+            {previewUrl &&
+              (previewUrl.startsWith('data:image') ? (
+                <img
+                  src={previewUrl}
+                  alt="Attachment"
+                  className="w-full rounded-lg object-contain max-h-[70vh]"
+                />
+              ) : (
+                <iframe
+                  src={previewUrl}
+                  title="Attachment Preview"
+                  className="w-full rounded-lg border"
+                  style={{ height: '70vh' }}
+                />
+              ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
