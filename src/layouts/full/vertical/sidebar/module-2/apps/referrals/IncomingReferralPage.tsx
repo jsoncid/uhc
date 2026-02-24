@@ -36,6 +36,13 @@ import {
 } from 'src/components/ui/dropdown-menu';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'src/components/ui/select';
 import ReferralPrintDocument from './ReferralPrintDocument';
 import EditClinicalInfoPanel from './EditClinicalInfoPanel';
 
@@ -988,32 +995,6 @@ const IncomingReferralPage = () => {
 
         {/* ── Filters ── */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { key: 'pending', label: 'Awaiting Response', count: pendingCount },
-              { key: 'active', label: 'Active Patients', count: activeCount },
-              { key: 'declined', label: 'Declined', count: declinedCount },
-              { key: 'discharged', label: 'Discharged', count: dischargedCount },
-            ].map((f) => (
-              <Button
-                key={f.key}
-                size="sm"
-                variant={activeTab === f.key ? 'default' : 'outline'}
-                className="h-7 text-xs px-3"
-                onClick={() => {
-                  setActiveTab(f.key);
-                  setSearch('');
-                }}
-              >
-                {f.label}
-                {f.count > 0 && (
-                  <Badge variant="outline" className="ml-1.5 text-[10px] px-1.5 py-0 h-4">
-                    {f.count}
-                  </Badge>
-                )}
-              </Button>
-            ))}
-          </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative sm:w-56 w-full">
               <Icon
@@ -1029,6 +1010,8 @@ const IncomingReferralPage = () => {
                 placeholder="Search patient, hospital..."
               />
             </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <Input
                 type="date"
@@ -1046,6 +1029,39 @@ const IncomingReferralPage = () => {
                 </button>
               )}
             </div>
+            <Select
+              value={activeTab}
+              onValueChange={(value) => {
+                setActiveTab(value);
+                setSearch('');
+              }}
+            >
+              <SelectTrigger className="w-56 h-9 text-sm">
+                <SelectValue placeholder="Select tab" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">
+                  <div className="flex items-center gap-2">
+                    Awaiting Response {pendingCount > 0 && `(${pendingCount})`}
+                  </div>
+                </SelectItem>
+                <SelectItem value="active">
+                  <div className="flex items-center gap-2">
+                    Active Patients {activeCount > 0 && `(${activeCount})`}
+                  </div>
+                </SelectItem>
+                <SelectItem value="declined">
+                  <div className="flex items-center gap-2">
+                    Declined {declinedCount > 0 && `(${declinedCount})`}
+                  </div>
+                </SelectItem>
+                <SelectItem value="discharged">
+                  <div className="flex items-center gap-2">
+                    Discharged {dischargedCount > 0 && `(${dischargedCount})`}
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

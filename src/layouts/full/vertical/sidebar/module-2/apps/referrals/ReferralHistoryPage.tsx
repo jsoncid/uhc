@@ -112,59 +112,6 @@ const HistoryPanel = ({
   onClose: () => void;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
-  const [isScrolling, setIsScrolling] = useState(false);
-
-  const checkScroll = useCallback(() => {
-    if (scrollRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-      const isScrollable = scrollHeight > clientHeight;
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 20;
-      setShowScrollIndicator(isScrollable && !isAtBottom);
-    }
-  }, []);
-
-  const handleScroll = useCallback(() => {
-    // Hide indicator immediately when scrolling starts
-    setIsScrolling(true);
-
-    // Clear any existing timeout
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-
-    // Show indicator again after scrolling stops (with a delay)
-    scrollTimeoutRef.current = setTimeout(() => {
-      setIsScrolling(false);
-      checkScroll();
-    }, 800);
-
-    // Also check if we've reached the bottom
-    checkScroll();
-  }, [checkScroll]);
-
-  useEffect(() => {
-    if (open) {
-      // Check scroll state when panel opens
-      setTimeout(checkScroll, 100);
-    }
-  }, [open, checkScroll]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) {
-      el.addEventListener('scroll', handleScroll);
-      window.addEventListener('resize', checkScroll);
-      return () => {
-        el.removeEventListener('scroll', handleScroll);
-        window.removeEventListener('resize', checkScroll);
-        if (scrollTimeoutRef.current) {
-          clearTimeout(scrollTimeoutRef.current);
-        }
-      };
-    }
-  }, [handleScroll, checkScroll]);
 
   if (!referral) return null;
   const sorted = [...(referral.history ?? [])].sort((a, b) => {
@@ -174,9 +121,7 @@ const HistoryPanel = ({
     return (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
   });
 
-  const scrollToBottom = () => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  };
+
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
@@ -371,18 +316,7 @@ const HistoryPanel = ({
             </div>
           </div>
 
-          {/* Scroll indicator arrow */}
-          {showScrollIndicator && !isScrolling && (
-            <div
-              className="absolute bottom-0 left-0 right-0 flex justify-center pb-2 pt-6 bg-gradient-to-t from-background via-background/80 to-transparent cursor-pointer"
-              onClick={scrollToBottom}
-            >
-              <div className="flex flex-col items-center gap-0.5 animate-bounce">
-                <span className="text-[10px] text-muted-foreground font-medium">Scroll down</span>
-                <Icon icon="solar:alt-arrow-down-bold" height={18} className="text-primary" />
-              </div>
-            </div>
-          )}
+
         </div>
 
         {/* Footer */}

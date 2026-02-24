@@ -38,10 +38,7 @@ const EditClinicalInfoPanel = ({
   updateVacAttachment?: (vacId: string, attachments: string[]) => void;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const prevOpenRef = useRef(false);
-  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
-  const [isScrolling, setIsScrolling] = useState(false);
   const [showObGyne, setShowObGyne] = useState(false);
 
   // Diagnostics inline form
@@ -110,41 +107,7 @@ const EditClinicalInfoPanel = ({
     other_diagnostics: '',
   });
 
-  const checkScroll = useCallback(() => {
-    if (scrollRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-      const isScrollable = scrollHeight > clientHeight;
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
-      setShowScrollIndicator(isScrollable && !isAtBottom);
-    }
-  }, []);
 
-  const handleScroll = useCallback(() => {
-    setIsScrolling(true);
-    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-    scrollTimeoutRef.current = setTimeout(() => {
-      setIsScrolling(false);
-      checkScroll();
-    }, 800);
-    checkScroll();
-  }, [checkScroll]);
-
-  useEffect(() => {
-    if (open) setTimeout(checkScroll, 100);
-  }, [open, checkScroll]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) {
-      el.addEventListener('scroll', handleScroll);
-      window.addEventListener('resize', checkScroll);
-      return () => {
-        el.removeEventListener('scroll', handleScroll);
-        window.removeEventListener('resize', checkScroll);
-        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-      };
-    }
-  }, [handleScroll, checkScroll]);
 
   // Sync form with referral only when the panel first opens (not on every info change).
   // Depending only on `open` prevents attachment updates from resetting unsaved edits.
@@ -274,9 +237,7 @@ const EditClinicalInfoPanel = ({
     e.target.value = '';
   };
 
-  const scrollToBottom = () => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  };
+
 
   const SectionHeader = ({
     icon,
@@ -1290,18 +1251,7 @@ const EditClinicalInfoPanel = ({
             </DialogContent>
           </Dialog>
 
-          {/* Scroll indicator arrow */}
-          {showScrollIndicator && !isScrolling && (
-            <div
-              className="absolute bottom-0 left-0 right-0 flex justify-center pb-2 pt-6 bg-gradient-to-t from-background via-background/80 to-transparent cursor-pointer"
-              onClick={scrollToBottom}
-            >
-              <div className="flex flex-col items-center gap-0.5 animate-bounce">
-                <span className="text-[10px] text-muted-foreground font-medium">Scroll down</span>
-                <Icon icon="solar:alt-arrow-down-bold" height={18} className="text-primary" />
-              </div>
-            </div>
-          )}
+
         </div>
 
         {/* Footer */}
