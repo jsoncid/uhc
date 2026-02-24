@@ -793,7 +793,7 @@ const ReferralDetail = () => {
                             <span className="text-xs text-success font-medium">● Active</span>
                           )}
                         </div>
-                        {h.user_name && (
+                        {h.email && (
                           <div className="flex items-center gap-1 bg-lightprimary text-primary rounded-full px-2 py-0.5 flex-shrink-0">
                             <Icon
                               icon="solar:user-bold-duotone"
@@ -801,7 +801,7 @@ const ReferralDetail = () => {
                               className="flex-shrink-0"
                             />
                             <span className="text-xs font-medium max-w-[100px] truncate">
-                              {h.user_name}
+                              {h.email}
                             </span>
                           </div>
                         )}

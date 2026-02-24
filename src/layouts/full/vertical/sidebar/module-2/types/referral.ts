@@ -43,7 +43,7 @@ export interface ReferralHistory {
   // Joined
   to_assignment_name?: string;
   status_description?: string;
-  user_name?: string | null; // resolved display name of auth.users record
+  email?: string | null; // email of the auth.users record who triggered this event
 }
 // ─── module2.referral_info ────────────────────────────────────────────────────
 export interface ReferralInfo {

@@ -82,10 +82,10 @@ const TimelineEntry = ({ entry, isLast }: { entry: ReferralHistory; isLast: bool
             {format(new Date(entry.created_at), 'MMM dd, yyyy – h:mm a')}
           </span>
         </div>
-        {entry.user_name && (
+        {entry.email && (
           <div className="flex items-center gap-1 bg-lightprimary text-primary rounded-full px-2 py-0.5 flex-shrink-0">
             <Icon icon="solar:user-bold-duotone" height={12} className="flex-shrink-0" />
-            <span className="text-xs font-medium max-w-[100px] truncate">{entry.user_name}</span>
+            <span className="text-xs font-medium max-w-[100px] truncate">{entry.email}</span>
           </div>
         )}
       </div>
@@ -120,8 +120,6 @@ const HistoryPanel = ({
     // Tiebreaker: active entry (most recent) always last
     return (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
   });
-
-
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
@@ -315,8 +313,6 @@ const HistoryPanel = ({
               )}
             </div>
           </div>
-
-
         </div>
 
         {/* Footer */}
@@ -764,7 +760,10 @@ const ReferralHistoryPage = () => {
               <TabsTrigger value="history" className="flex items-center gap-1.5">
                 <Icon icon="solar:history-bold-duotone" height={15} />
                 Referral History
-                <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 h-4 group-data-[state=active]:bg-white/20 group-data-[state=active]:border-white/40 group-data-[state=active]:text-white">
+                <Badge
+                  variant="outline"
+                  className="ml-1 text-[10px] px-1.5 py-0 h-4 group-data-[state=active]:bg-white/20 group-data-[state=active]:border-white/40 group-data-[state=active]:text-white"
+                >
                   {referrals.length + deactivatedReferrals.length}
                 </Badge>
               </TabsTrigger>

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState } from 'react';
 import React from 'react';
 import { Icon } from '@iconify/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from 'src/components/ui/sheet';
@@ -106,8 +106,6 @@ const EditClinicalInfoPanel = ({
     xray: '',
     other_diagnostics: '',
   });
-
-
 
   // Sync form with referral only when the panel first opens (not on every info change).
   // Depending only on `open` prevents attachment updates from resetting unsaved edits.
@@ -236,8 +234,6 @@ const EditClinicalInfoPanel = ({
     ).then((newUrls) => updateVacAttachment(vacId, [...current, ...newUrls]));
     e.target.value = '';
   };
-
-
 
   const SectionHeader = ({
     icon,
@@ -1250,8 +1246,6 @@ const EditClinicalInfoPanel = ({
               )}
             </DialogContent>
           </Dialog>
-
-
         </div>
 
         {/* Footer */}

@@ -7,10 +7,9 @@ import {
   ReferralInfoDiagnostic,
   ReferralInfoVaccination,
 } from '../types/referral';
-import { supabaseM2, supabaseM3 } from '@/lib/supabase';
+import { supabase, supabaseM2, supabaseM3 } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { assignmentService } from '@/services/assignmentService';
-import { userService } from '@/services/userService';
 
 export interface ReferralContextType {
   referrals: ReferralType[];
@@ -315,7 +314,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           /* non-fatal */
         }
 
-        // User display names from auth.users (who triggered each history event)
+        // User display names — query public.users directly (avoids backend dependency)
+        // Resolve user emails from public.user_status (stores id + email at signup — permanent)
         const userNameMap = new Map<string, string>();
         try {
           const allHistoryUserIds = [
@@ -327,13 +327,15 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             ),
           ];
           if (allHistoryUserIds.length) {
-            const authUsers = await userService.getUsersByIds(allHistoryUserIds);
-            authUsers.forEach((u) => {
-              if (u.id) userNameMap.set(u.id, u.username ?? u.email ?? u.id);
+            const { data: statusRows } = await (supabase.from('user_status') as any)
+              .select('id, email')
+              .in('id', allHistoryUserIds);
+            ((statusRows ?? []) as { id: string; email: string }[]).forEach((u) => {
+              if (u.id && u.email) userNameMap.set(u.id, u.email);
             });
           }
         } catch {
-          /* non-fatal — names may just be undefined */
+          /* non-fatal — emails may just be undefined */
         }
 
         const enrich = (r: ReferralType): ReferralType => ({
@@ -344,7 +346,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           to_assignment_name: assignmentNameMap.get(r.to_assignment ?? '') || r.to_assignment_name,
           history: (r.history ?? []).map((h) => ({
             ...h,
-            user_name: h.user ? (userNameMap.get(h.user) ?? null) : null,
+            email: h.user ? (userNameMap.get(h.user) ?? null) : null,
           })),
         });
 
