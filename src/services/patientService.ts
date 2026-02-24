@@ -842,6 +842,7 @@ class PatientService {
   /**
    * Save or update patient repository record
    * Links patient_profile with hpercode and facility
+   * Supports multiple links per patient (multiple HPERCODEs)
    */
   private async savePatientRepository(data: {
     patient_profile_id: string;
@@ -851,21 +852,21 @@ class PatientService {
     try {
       console.log('Saving patient repository record:', data);
       
-      // Check if repository record exists for this patient_profile
+      // Check if a record with this exact patient_profile + hpercode combination exists
       const { data: existingRepo } = await supabase
         .schema('module3')
         .from('patient_repository')
         .select('id')
         .eq('patient_profile', data.patient_profile_id)
+        .eq('hpercode', data.hpercode)
         .maybeSingle();
 
       if (existingRepo) {
-        // Update existing record
+        // Update existing record (same patient_profile + hpercode combo)
         const { error } = await supabase
           .schema('module3')
           .from('patient_repository')
           .update({
-            hpercode: data.hpercode,
             facility_code: data.facility_code || null,
           })
           .eq('id', existingRepo.id);
@@ -876,7 +877,7 @@ class PatientService {
           console.log('Patient repository record updated');
         }
       } else {
-        // Insert new record
+        // Insert new record (new hpercode for this patient)
         const { error } = await supabase
           .schema('module3')
           .from('patient_repository')

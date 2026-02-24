@@ -293,26 +293,37 @@ const PatientDetails = () => {
               <CardTitle className="text-lg flex items-center gap-2">
                 <Building2 className="h-5 w-5" />
                 Medical Facility Information
+                {patient.patient_repository?.length > 1 && (
+                  <span className="text-sm font-normal text-muted-foreground">
+                    ({patient.patient_repository.length} linked records)
+                  </span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Facility Name</p>
-                <p className="font-medium">{getFacility(patient)}</p>
-              </div>
-              <Separator />
-              <div>
-                <p className="text-sm text-muted-foreground">Hospital Code (HPERCODE)</p>
-                <p className="font-medium font-mono">{getHpercode(patient)}</p>
-              </div>
-              {patient.patient_repository?.[0]?.facility_code && (
-                <>
-                  <Separator />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Facility Code</p>
-                    <p className="font-medium font-mono">{patient.patient_repository[0].facility_code}</p>
+              {patient.patient_repository && patient.patient_repository.length > 0 ? (
+                patient.patient_repository.map((repo: any, index: number) => (
+                  <div key={repo.id || index}>
+                    {index > 0 && <Separator className="my-4" />}
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Hospital Code (HPERCODE)</p>
+                        <p className="font-medium font-mono">{repo.hpercode}</p>
+                      </div>
+                      {repo.facility_code && (
+                        <div>
+                          <p className="text-sm text-muted-foreground">Facility</p>
+                          <p className="font-medium">{getFacilityName(repo.facility_code)}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{repo.facility_code}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </>
+                ))
+              ) : (
+                <div className="text-muted-foreground italic">
+                  No linked hospital records
+                </div>
               )}
             </CardContent>
           </Card>

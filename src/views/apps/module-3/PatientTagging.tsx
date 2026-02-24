@@ -750,7 +750,7 @@ const PatientTagging = () => {
                                   </p>
                                   <Badge className="bg-green-600 hover:bg-green-700">
                                     <CheckCircle2 className="h-3 w-3 mr-1" />
-                                    Linked
+                                    Linked ({patient.patient_repository?.length || 0})
                                   </Badge>
                                 </div>
                                 <div className="flex items-center gap-3 text-sm text-muted-foreground mb-2">
@@ -758,15 +758,19 @@ const PatientTagging = () => {
                                   <span>•</span>
                                   <span>{patient.birth_date}</span>
                                 </div>
-                                <div className="flex items-center gap-2 text-xs flex-wrap">
-                                  <Badge variant="secondary" className="font-mono">
-                                    HPERCODE: {patient.patient_repository?.[0]?.hpercode}
-                                  </Badge>
-                                  {patient.patient_repository?.[0]?.facility_code && (
-                                    <Badge variant="secondary" className="font-mono">
-                                      Facility: {patient.patient_repository[0].facility_code}
-                                    </Badge>
-                                  )}
+                                <div className="flex flex-col gap-1">
+                                  {patient.patient_repository?.map((repo: any, index: number) => (
+                                    <div key={repo.id || index} className="flex items-center gap-2 text-xs flex-wrap">
+                                      <Badge variant="secondary" className="font-mono">
+                                        HPERCODE: {repo.hpercode}
+                                      </Badge>
+                                      {repo.facility_code && (
+                                        <Badge variant="secondary" className="font-mono">
+                                          Facility: {repo.facility_code}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
                                 <p className="text-xs text-green-700 dark:text-green-400 italic mt-2 flex items-center gap-1">
                                   <CheckCircle2 className="h-3 w-3" />
@@ -778,9 +782,9 @@ const PatientTagging = () => {
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  // Switch to view tab and search for this patient
+                                  // Switch to view tab and search for this patient (use first hpercode)
                                   setActiveTab('view');
-                                  setSearchTerm(patient.patient_repository[0].hpercode);
+                                  setSearchTerm(patient.patient_repository?.[0]?.hpercode || '');
                                   setTimeout(() => handleSearch(), 100);
                                 }}
                                 className="flex-shrink-0"
