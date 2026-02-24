@@ -229,7 +229,7 @@ const StaffQueueManager = () => {
     }
   };
 
-  const handlePing = async (serving: Sequence) => {
+  const handlePing = async (serving: Sequence, officeName: string) => {
     if (!pingChannelRef.current) return;
     await pingChannelRef.current.send({
       type: 'broadcast',
@@ -238,6 +238,7 @@ const StaffQueueManager = () => {
         sequenceId: serving.id,
         queueCode: serving.queue_data?.code || '---',
         windowLabel: serving.window_data?.description || 'the window',
+        officeName,
         priorityDesc: serving.priority_data?.description || null,
       },
     });
@@ -427,7 +428,7 @@ const StaffQueueManager = () => {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handlePing(serving)}
+                                  onClick={() => handlePing(serving, office.description || '')}
                                   disabled={isLoading}
                                   title="Re-announce this queue on the display"
                                 >

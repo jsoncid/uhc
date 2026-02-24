@@ -199,14 +199,18 @@ const QueueDisplay = () => {
         !seenIds.current.has(seq.id)
       ) {
         seenIds.current.add(seq.id);
-        const office = offices.find((o) => o.id === seq.office);
         // Spell out the queue code so TTS reads each letter: "C T B" not "CTB"
         const spokenCode = (seq.queue_data?.code || '').split('').join(' ');
+        // Use enriched office_data first (always present on the sequence), fallback to offices store
+        const officeName =
+          seq.office_data?.description ||
+          offices.find((o) => o.id === seq.office)?.description ||
+          '';
         fresh.push({
           id: seq.id,
           queueCode: seq.queue_data?.code || '---',
           windowLabel: seq.window_data?.description || 'the window',
-          officeName: office?.description || '',
+          officeName,
           priorityText: seq.priority_data?.description || 'Regular',
           priorityStyle: getPriorityStyle(seq.priority_data?.description),
           // store spokenCode on the object — cast through unknown to extend the type inline
@@ -229,7 +233,7 @@ const QueueDisplay = () => {
     setActiveNotif(next);
 
     const announcement =
-      `Now calling, ${next.spokenCode ?? next.queueCode}. ` +
+      `Now calling, ${next.spokenCode ?? next.queueCode} at ${next.officeName || 'the office'}. ` +
       `Please proceed to ${next.windowLabel}.`;
 
     speakRepeat(announcement, REPEAT_COUNT, () => {
@@ -254,7 +258,7 @@ const QueueDisplay = () => {
             id: notifId,
             queueCode: code,
             windowLabel: (payload.windowLabel as string) || 'the window',
-            officeName: '',
+            officeName: (payload.officeName as string) || '',
             priorityText: (payload.priorityDesc as string) || 'Regular',
             priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
             ...({ spokenCode } as { spokenCode: string }),
