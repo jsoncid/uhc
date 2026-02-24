@@ -125,7 +125,7 @@ const StaffQueueManager = () => {
   };
 
   const getSequencesForOffice = (officeId: string) => {
-    return sequences.filter((seq) => seq.office === officeId);
+    return sequences.filter((seq) => seq.office === officeId && seq.is_active !== false);
   };
 
   const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
@@ -162,7 +162,7 @@ const StaffQueueManager = () => {
     const servingStatus = getStatusByDescription('serving');
     const arrivedStatus = getStatusByDescription('arrived');
     const activeStatusIds = [servingStatus?.id, arrivedStatus?.id].filter(Boolean) as string[];
-    const officeSequences = getSequencesForOffice(officeId);
+    const officeSequences = getSequencesForOffice(officeId); // already filters is_active
     if (windowId) {
       return officeSequences.find(
         (seq) => activeStatusIds.includes(seq.status) && seq.window === windowId,
