@@ -11,6 +11,7 @@ export interface ChildItem {
   badge?: boolean;
   badgeType?: string;
   isPro?: boolean;
+  module?: string;
 }
 
 export interface MenuItem {
@@ -30,56 +31,39 @@ export interface MenuItem {
 }
 
 import { uniqueId } from 'lodash';
-
-//RESTRICTION: This is to prevent unauthorized users from even seeing the menu items of modules they don't have access to.
-
-// import { MODULE_IDS, ROLE_IDS } from 'src/constants/moduleAccess';
-
-// export const getModule1Items = (userRoleId: string, userModuleId: string) => {
-//   const hasAccess =
-//     userModuleId === MODULE_IDS.module1 &&
-//     [ROLE_IDS.administrator].includes(userRoleId);
-
-//   if (!hasAccess) return [];
-
-//   return [
-//     { id: 'module1-page', title: 'Module 1 Page', href: '/module-1' },
-//   ];
-// };
+import { PAGE_MODULES } from 'src/constants/moduleAccess';
 
 const SidebarContent: MenuItem[] = [
   {
     heading: 'Module 1 - QUEUEING',
     children: [
       {
-        name: 'Tables',
-        icon: 'solar:server-linear',
-        id: uniqueId(),
-        url: '/module-1/table',
-      },
-      {
         name: 'Admin Page',
         icon: 'solar:settings-linear',
         id: uniqueId(),
         url: '/module-1/admin',
+        module: PAGE_MODULES.MODULE_1_ADMIN,
       },
       {
         name: 'Queue Generator',
         icon: 'solar:ticket-linear',
         id: uniqueId(),
         url: '/module-1/queue-generator',
+        module: PAGE_MODULES.MODULE_1_QG,
       },
       {
         name: 'Queue Display',
         icon: 'solar:monitor-linear',
         id: uniqueId(),
         url: '/module-1/queue-display',
+        module: PAGE_MODULES.MODULE_1_QD,
       },
       {
         name: 'Staff Queue Manager',
         icon: 'solar:user-check-linear',
         id: uniqueId(),
         url: '/module-1/staff-queue-manager',
+        module: PAGE_MODULES.MODULE_1_SQM,
       },
     ],
   },

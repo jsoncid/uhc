@@ -7,7 +7,6 @@ import {
   ReferralInfoDiagnostic,
   ReferralInfoVaccination,
 } from '../types/referral';
-import { StatusData } from '../data/referral-data';
 import { supabaseM2, supabaseM3 } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { assignmentService } from '@/services/assignmentService';
@@ -65,11 +64,12 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [referrals, setReferrals] = useState<ReferralType[]>([]);
   const [deactivatedReferrals, setDeactivatedReferrals] = useState<ReferralType[]>([]);
   const [incomingReferrals, setIncomingReferrals] = useState<ReferralType[]>([]);
-  const [statuses, setStatuses] = useState<ReferralStatus[]>(StatusData);
+  const [statuses, setStatuses] = useState<ReferralStatus[]>([]);
   const [referralSearch, setReferralSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | Error | null>(null);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   // ── Shared utilities ──────────────────────────────────────────────────────
   const isRealUuid = (v: string | null | undefined): v is string =>
@@ -95,8 +95,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // ── Map a raw Supabase row to ReferralType ────────────────────────────────
   const mapReferral = (row: any, resolvedStatuses: ReferralStatus[] = []): ReferralType => {
-    // Use passed statuses first, fall back to StatusData for description lookup
-    const allStatuses = resolvedStatuses.length ? resolvedStatuses : StatusData;
+    // Use passed statuses first, fall back to current statuses state for description lookup
+    const allStatuses = resolvedStatuses.length ? resolvedStatuses : statuses;
     const history: ReferralHistory[] = (row.referral_history ?? []).map(
       (h: any): ReferralHistory => ({
         id: h.id,
@@ -213,8 +213,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     // ── Fetch from Supabase when the user's assignment is known ─────────────
-    const fetchFromSupabase = async () => {
-      setLoading(true);
+    const fetchFromSupabase = async (isBackground = false) => {
+      if (!isBackground) setLoading(true);
       try {
         // Load real statuses from Supabase module2.status
         const { data: statusRows } = await supabaseM2.from('status').select('*');
@@ -237,11 +237,12 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .eq('status', false);
         if (deactError) throw deactError;
 
-        // Incoming — referrals directed to this facility
+        // Incoming — referrals directed to this facility (exclude deactivated by sender)
         const { data: inData, error: inError } = await supabaseM2
           .from('referral')
           .select(REFERRAL_SELECT)
-          .eq('to_assignment', userAssignmentId);
+          .eq('to_assignment', userAssignmentId)
+          .eq('status', true);
         if (inError) throw inError;
 
         // ── Batch-enrich: patient names + assignment names ───────────────────
@@ -295,7 +296,51 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     };
 
-    fetchFromSupabase();
+    fetchFromSupabase(refetchTrigger > 0);
+  }, [userAssignmentId, refetchTrigger]);
+
+  // ── Realtime subscriptions ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userAssignmentId) return;
+
+    let debounce: ReturnType<typeof setTimeout>;
+    const refetch = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => setRefetchTrigger((t) => t + 1), 800);
+    };
+
+    const channel = supabaseM2
+      .channel(`m2-realtime-${userAssignmentId}`)
+      // Outgoing referrals changed (sender side)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'module2',
+          table: 'referral',
+          filter: `from_assignment=eq.${userAssignmentId}`,
+        },
+        refetch,
+      )
+      // Incoming referrals changed (receiver side)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'module2',
+          table: 'referral',
+          filter: `to_assignment=eq.${userAssignmentId}`,
+        },
+        refetch,
+      )
+      // Any history entry change (status updates from either party)
+      .on('postgres_changes', { event: '*', schema: 'module2', table: 'referral_history' }, refetch)
+      .subscribe();
+
+    return () => {
+      clearTimeout(debounce);
+      supabaseM2.removeChannel(channel);
+    };
   }, [userAssignmentId]);
 
   const addReferral = async (newReferral: ReferralType) => {
@@ -440,15 +485,15 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       to_assignment: null,
       status: statusId,
       is_active: true,
-      details: `Status updated to ${StatusData.find((s) => s.id === statusId)?.description ?? statusId}`,
-      status_description: StatusData.find((s) => s.id === statusId)?.description ?? undefined,
+      details: `Status updated to ${statuses.find((s) => s.id === statusId)?.description ?? statusId}`,
+      status_description: statuses.find((s) => s.id === statusId)?.description ?? undefined,
     };
     setReferrals((prev) =>
       prev.map((r) =>
         r.id === id
           ? {
               ...r,
-              latest_status: StatusData.find((s) => s.id === statusId),
+              latest_status: statuses.find((s) => s.id === statusId),
               history: [
                 ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
                 newHistoryEntry,
@@ -497,14 +542,14 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // ── Incoming referral actions ───────────────────────────────────────────────
   const acceptIncomingReferral = (id: string, acceptedBy: string) => {
-    const acceptedStatus = StatusData.find((s) => s.description === 'Accepted');
+    const acceptedStatus = statuses.find((s) => s.description === 'Accepted');
     const now = new Date().toISOString();
     const historyEntry: ReferralHistory = {
       id: `rh-${Date.now()}`,
       created_at: now,
       referral: id,
       to_assignment: null,
-      status: acceptedStatus?.id ?? 'st-0002',
+      status: acceptedStatus?.id ?? null,
       is_active: true,
       details: `Accepted by ${acceptedBy}.`,
       status_description: 'Accepted',
@@ -554,7 +599,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     declineReason: string,
     redirectHospital?: string,
   ) => {
-    const declinedStatus = StatusData.find((s) => s.description === 'Declined');
+    const declinedStatus = statuses.find((s) => s.description === 'Declined');
     const now = new Date().toISOString();
     const detailText = `Declined — ${declineReason}${redirectHospital ? ` Suggested redirect: ${redirectHospital}.` : ''}`;
     const historyEntry: ReferralHistory = {
@@ -562,7 +607,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       created_at: now,
       referral: id,
       to_assignment: null,
-      status: declinedStatus?.id ?? 'st-0005',
+      status: declinedStatus?.id ?? null,
       is_active: true,
       details: detailText,
       status_description: 'Declined',
@@ -596,7 +641,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         created_at: now,
         referral: id,
         to_assignment: null,
-        status: declinedStatus?.id ?? 'st-0005',
+        status: declinedStatus?.id ?? null,
         is_active: true,
         details: detailText,
         status_description: 'Declined',
@@ -637,14 +682,14 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Sending facility marks their referral as In Transit, cross-syncs to incoming side
   const markOutgoingInTransit = (id: string) => {
-    const inTransitStatus = StatusData.find((s) => s.description === 'In Transit');
+    const inTransitStatus = statuses.find((s) => s.description === 'In Transit');
     const now = new Date().toISOString();
     const historyEntry: ReferralHistory = {
       id: `rh-${Date.now()}`,
       created_at: now,
       referral: id,
       to_assignment: null,
-      status: inTransitStatus?.id ?? 'st-0003',
+      status: inTransitStatus?.id ?? null,
       is_active: true,
       details: 'Patient dispatched — In Transit',
       status_description: 'In Transit',
@@ -691,7 +736,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const updateIncomingStatus = (id: string, statusId: string) => {
-    const newStatus = StatusData.find((s) => s.id === statusId);
+    const newStatus = statuses.find((s) => s.id === statusId);
     const now = new Date().toISOString();
     const historyEntry: ReferralHistory = {
       id: `rh-${Date.now()}`,
@@ -757,32 +802,30 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const saveDischargeNotes = (id: string, notes: string) => {
-    const dischargedStatus = StatusData.find((s) => s.description === 'Discharged');
+    const dischargedStatus = statuses.find((s) => s.description === 'Discharged');
     const now = new Date().toISOString();
     const historyEntry: ReferralHistory = {
       id: `rh-${Date.now()}`,
       created_at: now,
       referral: id,
       to_assignment: null,
-      status: dischargedStatus?.id ?? 'st-0004',
+      status: dischargedStatus?.id ?? null,
       is_active: true,
       details: notes, // stored in referral_history.details — no separate DB column needed
       status_description: 'Discharged',
     };
-    setIncomingReferrals((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              latest_status: dischargedStatus,
-              history: [
-                ...(r.history ?? []).map((h) => ({ ...h, is_active: false })),
-                historyEntry,
-              ],
-            }
-          : r,
-      ),
-    );
+    const applyDischarge = (r: ReferralType) =>
+      r.id === id
+        ? {
+            ...r,
+            latest_status: dischargedStatus,
+            history: [...(r.history ?? []).map((h) => ({ ...h, is_active: false })), historyEntry],
+          }
+        : r;
+
+    setIncomingReferrals((prev) => prev.map(applyDischarge));
+    // Cross-sync to the outgoing referral so the sender sees Discharged + notes too
+    setReferrals((prev) => prev.map(applyDischarge));
     // Persist to Supabase
     persistHistoryEntry(id, 'Discharged', notes);
   };

@@ -171,8 +171,8 @@ const UserProfile = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                                    {role.modules.map((module) => (
-                                                        <tr key={module.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                                    {role.modules.map((module, moduleIndex) => (
+                                                        <tr key={`${role.id}-${module.id}-${moduleIndex}`} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                                                             <td className="py-2 px-2">
                                                                 <div className="flex items-center gap-2">
                                                                     <Icon icon="solar:widget-4-bold" className="w-4 h-4 text-amber-500 flex-shrink-0" />

@@ -1,12 +1,14 @@
 import { useParams, useNavigate } from 'react-router';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { ReferralContext, ReferralContextType } from '../../context/ReferralContext';
+import { assignmentService } from '@/services/assignmentService';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Badge } from 'src/components/ui/badge';
 import { Separator } from 'src/components/ui/separator';
+import ReferralPrintDocument from './ReferralPrintDocument';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +20,13 @@ import {
 import { Label } from 'src/components/ui/label';
 import { Input } from 'src/components/ui/input';
 import { Textarea } from 'src/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'src/components/ui/select';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
@@ -136,10 +145,27 @@ const RejectDialog = ({
 }) => {
   const [reason, setReason] = useState('');
   const [redirectHospital, setRedirectHospital] = useState('');
+  const [assignments, setAssignments] = useState<{ id: string; description: string }[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      assignmentService.getAllAssignments().then((data) => {
+        setAssignments(
+          data
+            .filter((a) => a.description)
+            .map((a) => ({ id: a.id, description: a.description! }))
+            .sort((a, b) => a.description.localeCompare(b.description)),
+        );
+      });
+    } else {
+      setReason('');
+      setRedirectHospital('');
+    }
+  }, [open]);
 
   const handleConfirm = () => {
     if (reason.trim()) {
-      onConfirm(reason.trim(), redirectHospital.trim() || undefined);
+      onConfirm(reason.trim(), redirectHospital || undefined);
       setReason('');
       setRedirectHospital('');
       onClose();
@@ -162,7 +188,7 @@ const RejectDialog = ({
             hospital will be notified and updated immediately.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3 mt-2">
+        <div className="flex flex-col gap-4 mt-2">
           <div className="flex flex-col gap-1.5">
             <Label className="text-sm font-medium">
               Reason for Declining <span className="text-error">*</span>
@@ -176,20 +202,42 @@ const RejectDialog = ({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label className="text-sm font-medium">Redirect to Hospital (optional)</Label>
-            <div className="relative">
-              <Icon
-                icon="solar:buildings-2-bold-duotone"
-                height={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                placeholder="e.g. St. Luke's Medical Center"
-                className="pl-8"
-                value={redirectHospital}
-                onChange={(e) => setRedirectHospital(e.target.value)}
-              />
-            </div>
+            <Label className="text-sm font-medium">
+              Redirect to Facility{' '}
+              <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Select value={redirectHospital} onValueChange={setRedirectHospital}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select a facility to redirect to..." />
+              </SelectTrigger>
+              <SelectContent>
+                {assignments.map((a) => (
+                  <SelectItem key={a.id} value={a.description}>
+                    <div className="flex items-center gap-2">
+                      <Icon
+                        icon="solar:buildings-2-bold-duotone"
+                        height={14}
+                        className="text-muted-foreground flex-shrink-0"
+                      />
+                      {a.description}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {redirectHospital && (
+              <button
+                type="button"
+                className="self-start text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                onClick={() => setRedirectHospital('')}
+              >
+                <Icon icon="solar:close-circle-linear" height={13} />
+                Clear selection
+              </button>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Suggest a nearby facility so the referring hospital can re-route the patient.
+            </p>
           </div>
         </div>
         <DialogFooter className="gap-2 mt-4">
@@ -235,6 +283,7 @@ const IncomingReferralDetail = () => {
 
   const [showAccept, setShowAccept] = useState(false);
   const [showReject, setShowReject] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
 
   // ── Diagnostic inline-add form state
   const [diagForm, setDiagForm] = useState({ diagnostics: '', date: '' });
@@ -283,13 +332,13 @@ const IncomingReferralDetail = () => {
           />
           <p className="text-muted-foreground font-medium">Referral not found.</p>
           <Button
-            onClick={() => navigate('/module-2/referrals/incoming')}
+            onClick={() => navigate('/module-2/referrals')}
             variant="outline"
             size="sm"
             className="mt-2"
           >
             <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
-            Back to Incoming
+            Back to Referrals
           </Button>
         </div>
       </CardBox>
@@ -355,11 +404,15 @@ const IncomingReferralDetail = () => {
                   </Button>
                 </>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/module-2/referrals/incoming')}
-              >
+              <Button variant="outline" size="sm" onClick={() => setPrintOpen(true)}>
+                <Icon
+                  icon="solar:printer-minimalistic-bold-duotone"
+                  height={16}
+                  className="mr-1.5"
+                />
+                Print
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigate('/module-2/referrals')}>
                 <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
                 Back
               </Button>
@@ -412,6 +465,27 @@ const IncomingReferralDetail = () => {
               )}
             </div>
           )}
+
+          {/* Discharge summary bar */}
+          {referral.latest_status?.description === 'Discharged' &&
+            (() => {
+              const dischargeEntry = history.find((h) => h.status_description === 'Discharged');
+              return dischargeEntry?.details ? (
+                <div className="mt-4 p-3 rounded-lg bg-lightsecondary border border-secondary/20 flex flex-col gap-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon
+                      icon="solar:hospital-bold-duotone"
+                      height={14}
+                      className="text-secondary flex-shrink-0"
+                    />
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                      Discharge Summary
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium text-secondary">{dischargeEntry.details}</p>
+                </div>
+              ) : null;
+            })()}
         </CardBox>
       </div>
 
@@ -1133,6 +1207,11 @@ const IncomingReferralDetail = () => {
           if (id) declineIncomingReferral(id, reason, redirectHospital);
         }}
       />
+
+      {/* Print Document */}
+      {printOpen && (
+        <ReferralPrintDocument referral={referral} onClose={() => setPrintOpen(false)} />
+      )}
     </div>
   );
 };

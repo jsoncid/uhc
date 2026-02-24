@@ -354,7 +354,7 @@ const QueueRealtimeDisplay = () => {
                         className="py-4 px-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
                       >
                         <span className={`text-2xl font-bold tracking-widest ${colors.text}`}>
-                          {seq.queue}
+                          {seq.queue_data?.code || '---'}
                         </span>
                         <Badge className={colors.badge}>
                           {seq.priority_data?.description || 'Regular'}

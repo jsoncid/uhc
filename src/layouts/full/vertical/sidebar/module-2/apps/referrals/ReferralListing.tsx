@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import React from 'react';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
@@ -37,11 +37,22 @@ import ReferralPrintDocument from './ReferralPrintDocument';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
 import { Separator } from 'src/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'src/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from 'src/components/ui/sheet';
+import { assignmentService } from '@/services/assignmentService';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
+  Arrived: 'bg-lightprimary text-primary',
+  Admitted: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
   Discharged: 'bg-lightsecondary text-secondary',
   Declined: 'bg-lighterror text-error',
 };
@@ -125,9 +136,26 @@ const ReReferDialog = ({
   open: boolean;
   referral: ReferralType | null;
   onClose: () => void;
-  onConfirm: (newHospital: string) => void;
+  onConfirm: (selected: { id: string; description: string }) => void;
 }) => {
   const [hospital, setHospital] = useState('');
+  const [assignments, setAssignments] = useState<{ id: string; description: string }[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      assignmentService.getAllAssignments().then((data) => {
+        setAssignments(
+          data
+            .filter((a) => a.description)
+            .map((a) => ({ id: a.id, description: a.description! }))
+            .sort((a, b) => a.description.localeCompare(b.description)),
+        );
+      });
+    } else {
+      setHospital('');
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-md">
@@ -155,11 +183,25 @@ const ReReferDialog = ({
             <Label className="text-sm font-medium">
               New Destination Hospital <span className="text-error">*</span>
             </Label>
-            <Input
-              placeholder="e.g. Philippine General Hospital"
-              value={hospital}
-              onChange={(e) => setHospital(e.target.value)}
-            />
+            <Select value={hospital} onValueChange={setHospital}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select a facility..." />
+              </SelectTrigger>
+              <SelectContent>
+                {assignments.map((a) => (
+                  <SelectItem key={a.id} value={a.description}>
+                    <div className="flex items-center gap-2">
+                      <Icon
+                        icon="solar:buildings-2-bold-duotone"
+                        height={14}
+                        className="text-muted-foreground flex-shrink-0"
+                      />
+                      {a.description}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter className="gap-2 mt-4">
@@ -176,13 +218,16 @@ const ReReferDialog = ({
           <Button
             size="sm"
             onClick={() => {
-              if (hospital.trim()) {
-                onConfirm(hospital.trim());
-                setHospital('');
-                onClose();
+              if (hospital) {
+                const selected = assignments.find((a) => a.description === hospital);
+                if (selected) {
+                  onConfirm(selected);
+                  setHospital('');
+                  onClose();
+                }
               }
             }}
-            disabled={!hospital.trim()}
+            disabled={!hospital}
           >
             <Icon icon="solar:refresh-circle-bold-duotone" height={15} className="mr-1.5" />
             Create Re-referral
@@ -193,8 +238,8 @@ const ReReferDialog = ({
   );
 };
 
-// ─── Edit Referral Info Dialog ───────────────────────────────────────────────────────────
-const EditReferralDialog = ({
+// ─── Edit Referral Info Panel ───────────────────────────────────────────────────────────
+const EditReferralPanel = ({
   open,
   referral,
   onClose,
@@ -205,6 +250,11 @@ const EditReferralDialog = ({
   onClose: () => void;
   onConfirm: (updated: Record<string, string>) => void;
 }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+
   const info = referral?.referral_info;
   const [form, setForm] = useState({
     reason_referral: '',
@@ -220,7 +270,43 @@ const EditReferralDialog = ({
     medications: '',
   });
 
-  // Sync form with referral when dialog opens
+  const checkScroll = useCallback(() => {
+    if (scrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const isScrollable = scrollHeight > clientHeight;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
+      setShowScrollIndicator(isScrollable && !isAtBottom);
+    }
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    setIsScrolling(true);
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = setTimeout(() => {
+      setIsScrolling(false);
+      checkScroll();
+    }, 800);
+    checkScroll();
+  }, [checkScroll]);
+
+  useEffect(() => {
+    if (open) setTimeout(checkScroll, 100);
+  }, [open, checkScroll]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.addEventListener('scroll', handleScroll);
+      window.addEventListener('resize', checkScroll);
+      return () => {
+        el.removeEventListener('scroll', handleScroll);
+        window.removeEventListener('resize', checkScroll);
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      };
+    }
+  }, [handleScroll, checkScroll]);
+
+  // Sync form with referral when panel opens
   React.useEffect(() => {
     if (open && info) {
       setForm({
@@ -242,92 +328,205 @@ const EditReferralDialog = ({
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  const scrollToBottom = () => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-full bg-lightprimary flex items-center justify-center flex-shrink-0">
-              <Icon icon="solar:pen-bold-duotone" height={20} className="text-primary" />
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md lg:max-w-lg p-0 flex flex-col h-full"
+      >
+        {/* Header */}
+        <SheetHeader className="px-4 sm:px-6 py-4 border-b bg-muted/30 flex-shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-lightprimary flex items-center justify-center flex-shrink-0">
+                <Icon
+                  icon="solar:pen-bold-duotone"
+                  height={20}
+                  className="text-primary sm:hidden"
+                />
+                <Icon
+                  icon="solar:pen-bold-duotone"
+                  height={24}
+                  className="text-primary hidden sm:block"
+                />
+              </div>
+              <div className="min-w-0">
+                <SheetTitle className="text-sm sm:text-base font-semibold truncate">
+                  Edit Clinical Information
+                </SheetTitle>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {referral?.patient_name} · {referral?.to_assignment_name}
+                </p>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-base">Edit Clinical Information</DialogTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {referral?.patient_name} · {referral?.to_assignment_name}
-              </p>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0 rounded-full"
+              onClick={onClose}
+            >
+              <Icon
+                icon="solar:close-circle-bold-duotone"
+                height={20}
+                className="text-muted-foreground"
+              />
+            </Button>
+          </div>
+        </SheetHeader>
+
+        {/* Scrollable Content */}
+        <div className="relative flex-1">
+          <div
+            ref={scrollRef}
+            className="absolute inset-0 overflow-y-auto scrollbar-none px-4 sm:px-6 py-4"
+          >
+            {/* Reason & Complaints Card */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4 mb-4">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Icon icon="solar:document-text-bold-duotone" height={14} />
+                Referral Information
+              </h4>
+              <div className="flex flex-col gap-3 sm:gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs sm:text-sm font-medium">Reason for Referral</Label>
+                  <Textarea
+                    className="resize-none text-sm"
+                    rows={2}
+                    value={form.reason_referral}
+                    onChange={set('reason_referral')}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs sm:text-sm font-medium">Chief Complaints</Label>
+                  <Textarea
+                    className="resize-none text-sm"
+                    rows={2}
+                    value={form.chief_complaints}
+                    onChange={set('chief_complaints')}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-        </DialogHeader>
-        <div className="flex flex-col gap-4 mt-2">
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm font-medium">Reason for Referral</Label>
-            <Textarea
-              className="resize-none"
-              rows={2}
-              value={form.reason_referral}
-              onChange={set('reason_referral')}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm font-medium">Chief Complaints</Label>
-            <Textarea
-              className="resize-none"
-              rows={2}
-              value={form.chief_complaints}
-              onChange={set('chief_complaints')}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium">History of Present Illness</Label>
+
+            {/* History & PE Card */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4 mb-4">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Icon icon="solar:clipboard-list-bold-duotone" height={14} />
+                Clinical History
+              </h4>
+              <div className="grid grid-cols-1 gap-3 sm:gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs sm:text-sm font-medium">
+                    History of Present Illness
+                  </Label>
+                  <Textarea
+                    className="resize-none text-sm"
+                    rows={3}
+                    value={form.history_present_illness}
+                    onChange={set('history_present_illness')}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs sm:text-sm font-medium">Physical Examination</Label>
+                  <Textarea
+                    className="resize-none text-sm"
+                    rows={3}
+                    value={form.pe}
+                    onChange={set('pe')}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Vital Signs Card */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4 mb-4">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Icon icon="solar:health-bold-duotone" height={14} />
+                Vital Signs
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  {
+                    key: 'blood_pressure',
+                    label: 'Blood Pressure',
+                    icon: 'solar:heart-pulse-bold-duotone',
+                  },
+                  {
+                    key: 'temperature',
+                    label: 'Temperature (°C)',
+                    icon: 'solar:thermometer-bold-duotone',
+                  },
+                  { key: 'heart_rate', label: 'Heart Rate', icon: 'solar:pulse-bold-duotone' },
+                  {
+                    key: 'respiratory_rate',
+                    label: 'Respiratory Rate',
+                    icon: 'solar:wind-bold-duotone',
+                  },
+                  { key: 'o2_sat', label: 'O2 Sat', icon: 'solar:water-bold-duotone' },
+                  {
+                    key: 'o2_requirement',
+                    label: 'O2 Requirement',
+                    icon: 'solar:mask-happi-bold-duotone',
+                  },
+                ].map(({ key, label, icon }) => (
+                  <div key={key} className="flex flex-col gap-1.5">
+                    <Label className="text-[10px] sm:text-xs font-medium text-muted-foreground flex items-center gap-1">
+                      <Icon icon={icon} height={12} className="flex-shrink-0" />
+                      {label}
+                    </Label>
+                    <Input
+                      className="h-8 sm:h-9 text-sm"
+                      value={(form as Record<string, string>)[key]}
+                      onChange={set(key)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Medications Card */}
+            <div className="rounded-lg border bg-card p-3 sm:p-4">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Icon icon="solar:pill-bold-duotone" height={14} />
+                Medications
+              </h4>
               <Textarea
-                className="resize-none"
+                className="resize-none text-sm"
                 rows={3}
-                value={form.history_present_illness}
-                onChange={set('history_present_illness')}
+                placeholder="List current medications..."
+                value={form.medications}
+                onChange={set('medications')}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium">Physical Examination</Label>
-              <Textarea className="resize-none" rows={3} value={form.pe} onChange={set('pe')} />
-            </div>
           </div>
-          <Separator />
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Vital Signs
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {[
-              { key: 'blood_pressure', label: 'Blood Pressure' },
-              { key: 'temperature', label: 'Temperature (°C)' },
-              { key: 'heart_rate', label: 'Heart Rate' },
-              { key: 'respiratory_rate', label: 'Respiratory Rate' },
-              { key: 'o2_sat', label: 'O2 Sat' },
-              { key: 'o2_requirement', label: 'O2 Requirement' },
-            ].map(({ key, label }) => (
-              <div key={key} className="flex flex-col gap-1.5">
-                <Label className="text-sm font-medium">{label}</Label>
-                <Input value={(form as Record<string, string>)[key]} onChange={set(key)} />
+
+          {/* Scroll indicator arrow */}
+          {showScrollIndicator && !isScrolling && (
+            <div
+              className="absolute bottom-0 left-0 right-0 flex justify-center pb-2 pt-6 bg-gradient-to-t from-background via-background/80 to-transparent cursor-pointer"
+              onClick={scrollToBottom}
+            >
+              <div className="flex flex-col items-center gap-0.5 animate-bounce">
+                <span className="text-[10px] text-muted-foreground font-medium">Scroll down</span>
+                <Icon icon="solar:alt-arrow-down-bold" height={18} className="text-primary" />
               </div>
-            ))}
-          </div>
-          <Separator />
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm font-medium">Medications</Label>
-            <Textarea
-              className="resize-none"
-              rows={2}
-              value={form.medications}
-              onChange={set('medications')}
-            />
-          </div>
+            </div>
+          )}
         </div>
-        <DialogFooter className="gap-2 mt-4">
-          <Button variant="outline" size="sm" onClick={onClose}>
+
+        {/* Footer */}
+        <div className="px-4 sm:px-6 py-3 border-t bg-muted/20 flex-shrink-0 flex flex-col sm:flex-row gap-2">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={onClose}>
+            <Icon icon="solar:close-circle-linear" height={15} className="mr-1.5" />
             Cancel
           </Button>
           <Button
             size="sm"
+            className="w-full sm:w-auto"
             onClick={() => {
               onConfirm(form);
               onClose();
@@ -336,9 +535,9 @@ const EditReferralDialog = ({
             <Icon icon="solar:diskette-bold-duotone" height={15} className="mr-1.5" />
             Save Changes
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 };
 
@@ -350,19 +549,32 @@ const ReferralListing = () => {
     searchReferrals,
     referralSearch,
     filter,
+    setFilter,
     deactivateReferral,
   }: ReferralContextType = useContext(ReferralContext);
   const navigate = useNavigate();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState<string>('');
+  const [confirmDeactivatedBy, setConfirmDeactivatedBy] = useState<string>('');
   const [printReferral, setPrintReferral] = useState<ReferralType | null>(null);
   const [reReferTarget, setReReferTarget] = useState<ReferralType | null>(null);
   const [editTarget, setEditTarget] = useState<ReferralType | null>(null);
   const [page, setPage] = useState(1);
+  const [dateFrom, setDateFrom] = useState('');
+  const [sortKey, setSortKey] = useState<'patient_name' | 'status' | 'created_at'>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   React.useEffect(() => {
     setPage(1);
-  }, [referralSearch, filter]);
+  }, [referralSearch, filter, dateFrom]);
 
   const handleDeactivateClick = (id: string, name: string) => {
     setConfirmId(id);
@@ -371,8 +583,9 @@ const ReferralListing = () => {
 
   const handleConfirmDeactivate = () => {
     if (confirmId) {
-      deactivateReferral(confirmId);
+      deactivateReferral(confirmId, confirmDeactivatedBy.trim() || 'Unknown');
       setConfirmId(null);
+      setConfirmDeactivatedBy('');
     }
   };
 
@@ -385,9 +598,20 @@ const ReferralListing = () => {
         (r.from_assignment_name ?? '').toLowerCase().includes(search) ||
         (r.referral_info?.referring_doctor ?? '').toLowerCase().includes(search);
       const matchFilter = filter === 'all' || (r.latest_status?.description ?? '') === filter;
-      return matchSearch && matchFilter;
+      const matchDate = !dateFrom || new Date(r.created_at).toISOString().slice(0, 10) === dateFrom;
+      return matchSearch && matchFilter && matchDate;
     })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    .sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      if (sortKey === 'patient_name')
+        return dir * (a.patient_name ?? '').localeCompare(b.patient_name ?? '');
+      if (sortKey === 'status')
+        return (
+          dir *
+          (a.latest_status?.description ?? '').localeCompare(b.latest_status?.description ?? '')
+        );
+      return dir * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    });
 
   const visible = allVisible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -396,12 +620,74 @@ const ReferralListing = () => {
 
   return (
     <CardBox>
-      <div className="flex flex-wrap justify-between items-center gap-4 ">
+      {/* ── Header ── */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h5 className="card-title">Referral List</h5>
+          <h5 className="text-lg font-semibold">Sent Referrals</h5>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Referrals sent from your facility to other hospitals
+          </p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative sm:w-60 w-full">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" className="whitespace-nowrap">
+              <Icon icon="solar:add-circle-bold-duotone" height={17} className="mr-1.5" />
+              New Referral
+              <Icon icon="solar:alt-arrow-down-bold" height={14} className="ml-1.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[190px]">
+            <DropdownMenuItem onClick={() => navigate('/module-2/referrals/create')}>
+              <Icon
+                icon="solar:document-medicine-bold-duotone"
+                height={16}
+                className="mr-2 text-primary"
+              />
+              Regular Referral
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/module-2/referrals/create-obgyne')}>
+              <Icon
+                icon="solar:heart-angle-bold-duotone"
+                height={16}
+                className="mr-2 text-pink-500"
+              />
+              OB/GYNE Referral
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <Separator className="my-4" />
+
+      {/* ── Filters ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            'all',
+            'Pending',
+            'Accepted',
+            'In Transit',
+            'Arrived',
+            'Admitted',
+            'Discharged',
+            'Declined',
+          ].map((f) => (
+            <Button
+              key={f}
+              size="sm"
+              variant={filter === f ? 'default' : 'outline'}
+              className="h-7 text-xs px-3"
+              onClick={() => {
+                setFilter(f);
+                setPage(1);
+              }}
+            >
+              {f === 'all' ? 'All' : f}
+            </Button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative sm:w-56 w-full">
             <Icon
               icon="tabler:search"
               height={16}
@@ -417,53 +703,104 @@ const ReferralListing = () => {
               placeholder="Search patient, doctor..."
             />
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" className="whitespace-nowrap">
-                <Icon icon="solar:add-circle-bold-duotone" height={17} className="mr-1.5" />
-                New Referral
-                <Icon icon="solar:alt-arrow-down-bold" height={14} className="ml-1.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[190px]">
-              <DropdownMenuItem onClick={() => navigate('/module-2/referrals/create')}>
-                <Icon
-                  icon="solar:document-medicine-bold-duotone"
-                  height={16}
-                  className="mr-2 text-primary"
-                />
-                Regular Referral
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/module-2/referrals/create-obgyne')}>
-                <Icon
-                  icon="solar:heart-angle-bold-duotone"
-                  height={16}
-                  className="mr-2 text-pink-500"
-                />
-                OB/GYNE Referral
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="relative">
+            <Input
+              type="date"
+              className={`h-9 text-sm ${dateFrom ? 'w-44 pr-7' : 'w-36'}`}
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+            />
+            {dateFrom && (
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setDateFrom('');
+                  setPage(1);
+                }}
+              >
+                <Icon icon="solar:close-circle-linear" height={14} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
       <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
         <Table className="min-w-[960px]">
           <TableHeader>
             <TableRow className="bg-muted/30">
-              <TableHead className="font-semibold">Patient</TableHead>
+              <TableHead
+                className="font-semibold cursor-pointer select-none"
+                onClick={() => toggleSort('patient_name')}
+              >
+                <span className="flex items-center">
+                  Patient
+                  <Icon
+                    icon={
+                      sortKey === 'patient_name'
+                        ? sortDir === 'asc'
+                          ? 'solar:sort-from-bottom-to-top-bold'
+                          : 'solar:sort-from-top-to-bottom-bold'
+                        : 'solar:sort-bold'
+                    }
+                    height={13}
+                    className={`ml-1 ${sortKey === 'patient_name' ? 'text-primary' : 'opacity-30'}`}
+                  />
+                </span>
+              </TableHead>
               <TableHead className="font-semibold">From Assignment</TableHead>
               <TableHead className="font-semibold">Referred To</TableHead>
               <TableHead className="font-semibold">Referring Doctor</TableHead>
               <TableHead className="font-semibold">Reason for Referral</TableHead>
-              <TableHead className="font-semibold">Status</TableHead>
-              <TableHead className="font-semibold">Date Created</TableHead>
+              <TableHead
+                className="font-semibold cursor-pointer select-none"
+                onClick={() => toggleSort('status')}
+              >
+                <span className="flex items-center">
+                  Status
+                  <Icon
+                    icon={
+                      sortKey === 'status'
+                        ? sortDir === 'asc'
+                          ? 'solar:sort-from-bottom-to-top-bold'
+                          : 'solar:sort-from-top-to-bottom-bold'
+                        : 'solar:sort-bold'
+                    }
+                    height={13}
+                    className={`ml-1 ${sortKey === 'status' ? 'text-primary' : 'opacity-30'}`}
+                  />
+                </span>
+              </TableHead>
+              <TableHead
+                className="font-semibold cursor-pointer select-none"
+                onClick={() => toggleSort('created_at')}
+              >
+                <span className="flex items-center">
+                  Date Created
+                  <Icon
+                    icon={
+                      sortKey === 'created_at'
+                        ? sortDir === 'asc'
+                          ? 'solar:sort-from-bottom-to-top-bold'
+                          : 'solar:sort-from-top-to-bottom-bold'
+                        : 'solar:sort-bold'
+                    }
+                    height={13}
+                    className={`ml-1 ${sortKey === 'created_at' ? 'text-primary' : 'opacity-30'}`}
+                  />
+                </span>
+              </TableHead>
               <TableHead className="font-semibold text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon
                       icon="solar:clipboard-remove-bold-duotone"
@@ -533,7 +870,9 @@ const ReferralListing = () => {
                             Re-refer Patient
                           </DropdownMenuItem>
                         )}
-                        {referral.latest_status?.description === 'Pending' && (
+                        {!['Declined', 'Discharged', 'Deactivated'].includes(
+                          referral.latest_status?.description ?? '',
+                        ) && (
                           <DropdownMenuItem onClick={() => setEditTarget(referral)}>
                             <Icon
                               icon="solar:pen-linear"
@@ -573,6 +912,13 @@ const ReferralListing = () => {
                 </TableRow>
               ))
             )}
+            {/* Filler rows — keep table height fixed at PAGE_SIZE rows */}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={8} className="h-[53px]" />
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>
@@ -589,7 +935,7 @@ const ReferralListing = () => {
         open={!!reReferTarget}
         referral={reReferTarget}
         onClose={() => setReReferTarget(null)}
-        onConfirm={(newHospital) => {
+        onConfirm={(selected) => {
           if (!reReferTarget) return;
           const newId = `ref-${Date.now()}`;
           addReferral({
@@ -598,17 +944,26 @@ const ReferralListing = () => {
             status: true,
             patient_profile: reReferTarget.patient_profile,
             from_assignment: reReferTarget.from_assignment,
-            to_assignment: null,
+            to_assignment: selected.id,
             patient_name: reReferTarget.patient_name,
             from_assignment_name: reReferTarget.from_assignment_name,
-            to_assignment_name: newHospital,
-            referral_info: reReferTarget.referral_info,
+            to_assignment_name: selected.description,
+            // Strip the old referral_info.id so Supabase generates a new one,
+            // and clear diagnostics/vaccinations to avoid UUID conflicts
+            referral_info: reReferTarget.referral_info
+              ? {
+                  ...reReferTarget.referral_info,
+                  id: '',
+                  diagnostics: [],
+                  vaccinations: [],
+                }
+              : undefined,
           });
         }}
       />
 
-      {/* Edit Clinical Info Dialog */}
-      <EditReferralDialog
+      {/* Edit Clinical Info Panel */}
+      <EditReferralPanel
         open={!!editTarget}
         referral={editTarget}
         onClose={() => setEditTarget(null)}
@@ -643,8 +998,25 @@ const ReferralListing = () => {
               undone.
             </DialogDescription>
           </DialogHeader>
+          <div className="flex flex-col gap-1.5 px-1">
+            <Label className="text-sm font-medium">
+              Deactivated By <span className="text-error">*</span>
+            </Label>
+            <Input
+              placeholder="e.g. Dr. Santos"
+              value={confirmDeactivatedBy}
+              onChange={(e) => setConfirmDeactivatedBy(e.target.value)}
+            />
+          </div>
           <DialogFooter className="gap-2 mt-2">
-            <Button variant="outline" size="sm" onClick={() => setConfirmId(null)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setConfirmId(null);
+                setConfirmDeactivatedBy('');
+              }}
+            >
               Cancel
             </Button>
             <Button

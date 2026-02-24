@@ -10,12 +10,19 @@ import { Separator } from 'src/components/ui/separator';
 import { Input } from 'src/components/ui/input';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from 'src/components/ui/dropdown-menu';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Arrived: 'bg-lightprimary text-primary',
+  Admitted: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
   Discharged: 'bg-lightsecondary text-secondary',
   Declined: 'bg-lighterror text-error',
 };
@@ -59,6 +66,8 @@ const ReferralDetail = () => {
     updateOutgoingDiagnosticAttachment,
     addOutgoingVaccination,
     deleteOutgoingVaccination,
+    updateReferralStatus,
+    statuses,
   } = useContext<ReferralContextType>(ReferralContext);
 
   // Live context first (active), then check deactivated
@@ -171,6 +180,29 @@ const ReferralDetail = () => {
                   Mark as In Transit
                 </Button>
               )}
+              {/* Override Status — allows admins to manually correct the workflow state */}
+              {referral.status !== false && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Icon icon="solar:pen-bold-duotone" height={15} className="mr-1.5" />
+                      Override Status
+                      <Icon icon="solar:alt-arrow-down-bold" height={14} className="ml-1.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[160px]">
+                    {statuses.map((s) => (
+                      <DropdownMenuItem
+                        key={s.id}
+                        onClick={() => id && updateReferralStatus(id, s.id)}
+                        disabled={referral.latest_status?.id === s.id}
+                      >
+                        {s.description}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <Button variant="outline" size="sm" onClick={() => navigate('/module-2/referrals')}>
                 <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
                 Back
@@ -226,6 +258,27 @@ const ReferralDetail = () => {
               )}
             </div>
           )}
+
+          {/* Discharge summary bar */}
+          {referral.latest_status?.description === 'Discharged' &&
+            (() => {
+              const dischargeEntry = history.find((h) => h.status_description === 'Discharged');
+              return dischargeEntry?.details ? (
+                <div className="mt-4 p-3 rounded-lg bg-lightsecondary border border-secondary/20 flex flex-col gap-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon
+                      icon="solar:hospital-bold-duotone"
+                      height={14}
+                      className="text-secondary flex-shrink-0"
+                    />
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                      Discharge Summary
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium text-secondary">{dischargeEntry.details}</p>
+                </div>
+              ) : null;
+            })()}
         </CardBox>
       </div>
 

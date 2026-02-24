@@ -11,7 +11,7 @@ import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
 import { Badge } from 'src/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from 'src/components/ui/tabs';
+import { Separator } from 'src/components/ui/separator';
 import {
   Table,
   TableBody,
@@ -36,15 +36,25 @@ import {
 } from 'src/components/ui/dropdown-menu';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'src/components/ui/select';
+import ReferralPrintDocument from './ReferralPrintDocument';
+import { assignmentService } from '@/services/assignmentService';
 
 // ─── Status style map ─────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
+  Arrived: 'bg-lightprimary text-primary',
+  Admitted: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
   Discharged: 'bg-lightsecondary text-secondary',
   Declined: 'bg-lighterror text-error',
-  Arrived: 'bg-lightprimary text-primary',
 };
 
 const getStatusStyle = (d?: string | null) =>
@@ -122,8 +132,8 @@ const Paginator = ({
   );
 };
 
-// ─── Incoming stat cards ─────────────────────────────────────────────────────
-const IncomingStatCards = ({ referrals }: { referrals: ReferralType[] }) => {
+// ─── Incoming stat cards (exported for standalone use) ────────────────────────
+export const IncomingStatCards = ({ referrals }: { referrals: ReferralType[] }) => {
   const total = referrals.length;
   const count = (desc: string) =>
     referrals.filter((r) => r.latest_status?.description === desc).length;
@@ -180,10 +190,32 @@ const IncomingStatCards = ({ referrals }: { referrals: ReferralType[] }) => {
       value: count('Arrived'),
       pct: pct(count('Arrived')),
       icon: 'solar:hospital-bold-duotone',
-      text: 'text-secondary',
-      iconBg: 'bg-lightsecondary',
-      bar: 'bg-secondary',
-      accent: 'border-t-secondary',
+      text: 'text-primary',
+      iconBg: 'bg-lightprimary',
+      bar: 'bg-primary',
+      accent: 'border-t-primary',
+    },
+    {
+      label: 'Admitted',
+      sub: 'Admitted to ward/dept',
+      value: count('Admitted'),
+      pct: pct(count('Admitted')),
+      icon: 'solar:bed-bold-duotone',
+      text: 'text-purple-600 dark:text-purple-400',
+      iconBg: 'bg-purple-100 dark:bg-purple-900/30',
+      bar: 'bg-purple-500',
+      accent: 'border-t-purple-500',
+    },
+    {
+      label: 'Discharged',
+      sub: 'Patient discharged',
+      value: count('Discharged'),
+      pct: pct(count('Discharged')),
+      icon: 'solar:exit-bold-duotone',
+      text: 'text-slate-500',
+      iconBg: 'bg-slate-100 dark:bg-slate-800',
+      bar: 'bg-slate-400',
+      accent: 'border-t-slate-400',
     },
     {
       label: 'Declined',
@@ -199,7 +231,7 @@ const IncomingStatCards = ({ referrals }: { referrals: ReferralType[] }) => {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
       {cards.map((card) => (
         <CardBox key={card.label} className={`p-0 overflow-hidden border-t-4 ${card.accent}`}>
           <div className="p-5">
@@ -317,10 +349,27 @@ const RejectDialog = ({
 }) => {
   const [reason, setReason] = useState('');
   const [redirectHospital, setRedirectHospital] = useState('');
+  const [assignments, setAssignments] = useState<{ id: string; description: string }[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      assignmentService.getAllAssignments().then((data) => {
+        setAssignments(
+          data
+            .filter((a) => a.description)
+            .map((a) => ({ id: a.id, description: a.description! }))
+            .sort((a, b) => a.description.localeCompare(b.description)),
+        );
+      });
+    } else {
+      setReason('');
+      setRedirectHospital('');
+    }
+  }, [open]);
 
   const handleConfirm = () => {
     if (!reason.trim()) return;
-    onConfirm(reason.trim(), redirectHospital.trim() || undefined);
+    onConfirm(reason.trim(), redirectHospital || undefined);
     setReason('');
     setRedirectHospital('');
     onClose();
@@ -359,24 +408,39 @@ const RejectDialog = ({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="redirect-hospital" className="text-sm font-medium">
-              Redirect to Hospital{' '}
+            <Label className="text-sm font-medium">
+              Redirect to Facility{' '}
               <span className="text-muted-foreground font-normal">(optional)</span>
             </Label>
-            <div className="relative">
-              <Icon
-                icon="solar:buildings-2-bold-duotone"
-                height={15}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                id="redirect-hospital"
-                className="pl-9"
-                placeholder="e.g. Jose Reyes Memorial Medical Center"
-                value={redirectHospital}
-                onChange={(e) => setRedirectHospital(e.target.value)}
-              />
-            </div>
+            <Select value={redirectHospital} onValueChange={setRedirectHospital}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select a facility to redirect to..." />
+              </SelectTrigger>
+              <SelectContent>
+                {assignments.map((a) => (
+                  <SelectItem key={a.id} value={a.description}>
+                    <div className="flex items-center gap-2">
+                      <Icon
+                        icon="solar:buildings-2-bold-duotone"
+                        height={14}
+                        className="text-muted-foreground flex-shrink-0"
+                      />
+                      {a.description}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {redirectHospital && (
+              <button
+                type="button"
+                className="self-start text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                onClick={() => setRedirectHospital('')}
+              >
+                <Icon icon="solar:close-circle-linear" height={13} />
+                Clear selection
+              </button>
+            )}
             <p className="text-xs text-muted-foreground">
               Suggest a nearby facility so the referring hospital can re-route the patient.
             </p>
@@ -483,11 +547,13 @@ const PendingTab = ({
   search,
   onAccept,
   onReject,
+  onPrint,
 }: {
   referrals: ReferralType[];
   search: string;
   onAccept: (r: ReferralType) => void;
   onReject: (r: ReferralType) => void;
+  onPrint: (r: ReferralType) => void;
 }) => {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -526,7 +592,7 @@ const PendingTab = ({
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon icon="solar:inbox-bold-duotone" height={44} className="opacity-25" />
                     <p className="text-sm">No pending incoming referrals</p>
@@ -575,6 +641,14 @@ const PendingTab = ({
                           <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
                           View Details
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onPrint(r)}>
+                          <Icon
+                            icon="solar:printer-minimalistic-bold-duotone"
+                            height={15}
+                            className="mr-2 text-muted-foreground"
+                          />
+                          Print Referral
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onAccept(r)}>
                           <Icon
                             icon="solar:check-circle-linear"
@@ -600,6 +674,13 @@ const PendingTab = ({
                 </TableRow>
               ))
             )}
+            {/* Filler rows — keep table height fixed at PAGE_SIZE rows */}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={7} className="h-[53px]" />
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>
@@ -609,7 +690,15 @@ const PendingTab = ({
 };
 
 // ─── Active (Accepted / In Transit / Arrived) tab ────────────────────────────
-const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: string }) => {
+const ActiveTab = ({
+  referrals,
+  search,
+  onPrint,
+}: {
+  referrals: ReferralType[];
+  search: string;
+  onPrint: (r: ReferralType) => void;
+}) => {
   const navigate = useNavigate();
   const { updateIncomingStatus, statuses, saveDischargeNotes }: ReferralContextType =
     useContext(ReferralContext);
@@ -619,11 +708,13 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
     setPage(1);
   }, [search]);
 
-  // Sending facility now owns the 'In Transit' transition.
-  // Receiving side only advances: Accepted → Arrived → Discharge.
+  // Sending facility marks 'In Transit'; receiving side advances the patient.
+  // Receiving advances: Accepted → Arrived, In Transit → Arrived, Arrived → Admitted, Admitted → Discharge.
   const NEXT_STATUS: Record<string, string> = {
     Accepted: 'Arrived',
-    Arrived: 'Discharge Patient',
+    'In Transit': 'Arrived',
+    Arrived: 'Admitted',
+    Admitted: 'Discharge Patient',
   };
 
   const handleAdvance = (r: ReferralType) => {
@@ -638,7 +729,7 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
   };
 
   const active = referrals.filter((r) =>
-    ['Accepted', 'In Transit', 'Arrived'].includes(r.latest_status?.description ?? ''),
+    ['Accepted', 'In Transit', 'Arrived', 'Admitted'].includes(r.latest_status?.description ?? ''),
   );
   const allVisible = active
     .filter((r) => {
@@ -671,7 +762,7 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-14 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon icon="solar:hospital-bold-duotone" height={44} className="opacity-25" />
                     <p className="text-sm">No active incoming patients</p>
@@ -738,12 +829,20 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
                           <Icon icon="solar:menu-dots-bold" height={16} />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-[150px]">
+                      <DropdownMenuContent align="end" className="min-w-[160px]">
                         <DropdownMenuItem
                           onClick={() => navigate('/module-2/referrals/incoming/detail/' + r.id)}
                         >
                           <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
                           View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onPrint(r)}>
+                          <Icon
+                            icon="solar:printer-minimalistic-bold-duotone"
+                            height={15}
+                            className="mr-2 text-muted-foreground"
+                          />
+                          Print Referral
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -751,6 +850,13 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
                 </TableRow>
               ))
             )}
+            {/* Filler rows — keep table height fixed at PAGE_SIZE rows */}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={8} className="h-[53px]" />
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>
@@ -768,7 +874,15 @@ const ActiveTab = ({ referrals, search }: { referrals: ReferralType[]; search: s
 };
 
 // ─── Declined tab ─────────────────────────────────────────────────────────────
-const DeclinedTab = ({ referrals, search }: { referrals: ReferralType[]; search: string }) => {
+const DeclinedTab = ({
+  referrals,
+  search,
+  onPrint,
+}: {
+  referrals: ReferralType[];
+  search: string;
+  onPrint: (r: ReferralType) => void;
+}) => {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   useEffect(() => {
@@ -805,7 +919,7 @@ const DeclinedTab = ({ referrals, search }: { referrals: ReferralType[]; search:
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon
                       icon="solar:close-circle-bold-duotone"
@@ -850,18 +964,173 @@ const DeclinedTab = ({ referrals, search }: { referrals: ReferralType[]; search:
                     {fmt(r.created_at)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-primary hover:bg-primary/10"
-                      onClick={() => navigate('/module-2/referrals/incoming/detail/' + r.id)}
-                    >
-                      <Icon icon="solar:eye-linear" height={16} />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Icon icon="solar:menu-dots-bold" height={16} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[160px]">
+                        <DropdownMenuItem
+                          onClick={() => navigate('/module-2/referrals/incoming/detail/' + r.id)}
+                        >
+                          <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onPrint(r)}>
+                          <Icon
+                            icon="solar:printer-minimalistic-bold-duotone"
+                            height={15}
+                            className="mr-2 text-muted-foreground"
+                          />
+                          Print Referral
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))
             )}
+            {/* Filler rows — keep table height fixed at PAGE_SIZE rows */}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={7} className="h-[53px]" />
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
+      </div>
+      <Paginator total={allVisible.length} page={page} perPage={PAGE_SIZE} onPageChange={setPage} />
+    </>
+  );
+};
+
+// ─── Discharged tab ───────────────────────────────────────────────────────────
+const DischargedTab = ({
+  referrals,
+  search,
+  onPrint,
+}: {
+  referrals: ReferralType[];
+  search: string;
+  onPrint: (r: ReferralType) => void;
+}) => {
+  const navigate = useNavigate();
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  const discharged = referrals.filter((r) => r.latest_status?.description === 'Discharged');
+  const allVisible = discharged
+    .filter((r) => {
+      const q = search.toLowerCase();
+      return (
+        !q ||
+        (r.patient_name ?? '').toLowerCase().includes(q) ||
+        (r.from_assignment_name ?? '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const visible = allVisible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  return (
+    <>
+      <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
+        <Table className="min-w-[900px]">
+          <TableHeader>
+            <TableRow className="bg-muted/30">
+              <TableHead className="font-semibold">Patient</TableHead>
+              <TableHead className="font-semibold">Referring Hospital</TableHead>
+              <TableHead className="font-semibold">Our Dept.</TableHead>
+              <TableHead className="font-semibold">Referring Doctor</TableHead>
+              <TableHead className="font-semibold">Discharge Summary</TableHead>
+              <TableHead className="font-semibold">Date</TableHead>
+              <TableHead className="font-semibold text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visible.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center h-[530px] text-muted-foreground">
+                  <div className="flex flex-col items-center gap-2">
+                    <Icon icon="solar:logout-3-bold-duotone" height={44} className="opacity-25" />
+                    <p className="text-sm">No discharged patients</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              visible.map((r) => {
+                const dischargeEntry = (r.history ?? []).find(
+                  (h) => h.status_description === 'Discharged',
+                );
+                return (
+                  <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                    <TableCell>
+                      <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.from_assignment_name ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.to_assignment_name ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {r.referral_info?.referring_doctor ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-sm max-w-xs">
+                      {dischargeEntry?.details ? (
+                        <span className="text-secondary line-clamp-2">
+                          {dischargeEntry.details}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {fmt(r.created_at)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Icon icon="solar:menu-dots-bold" height={16} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[160px]">
+                          <DropdownMenuItem
+                            onClick={() => navigate('/module-2/referrals/incoming/detail/' + r.id)}
+                          >
+                            <Icon
+                              icon="solar:eye-linear"
+                              height={15}
+                              className="mr-2 text-primary"
+                            />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onPrint(r)}>
+                            <Icon
+                              icon="solar:printer-minimalistic-bold-duotone"
+                              height={15}
+                              className="mr-2 text-muted-foreground"
+                            />
+                            Print Referral
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+            {/* Filler rows — keep table height fixed at PAGE_SIZE rows */}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={7} className="h-[53px]" />
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>
@@ -879,82 +1148,75 @@ const IncomingReferralPage = () => {
   }: ReferralContextType = useContext(ReferralContext);
 
   const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
   const [activeTab, setActiveTab] = useState('pending');
   const [acceptTarget, setAcceptTarget] = useState<ReferralType | null>(null);
   const [rejectTarget, setRejectTarget] = useState<ReferralType | null>(null);
+  const [printTarget, setPrintTarget] = useState<ReferralType | null>(null);
 
-  const pendingCount = incomingReferrals.filter(
+  // Apply date filter before passing referrals to each tab
+  const dateFilteredReferrals = incomingReferrals.filter(
+    (r) => !dateFrom || new Date(r.created_at).toISOString().slice(0, 10) === dateFrom,
+  );
+
+  const pendingCount = dateFilteredReferrals.filter(
     (r) => r.latest_status?.description === 'Pending',
   ).length;
-  const activeCount = incomingReferrals.filter((r) =>
-    ['Accepted', 'In Transit', 'Arrived'].includes(r.latest_status?.description ?? ''),
+  const activeCount = dateFilteredReferrals.filter((r) =>
+    ['Accepted', 'In Transit', 'Arrived', 'Admitted'].includes(r.latest_status?.description ?? ''),
   ).length;
-  const declinedCount = incomingReferrals.filter(
+  const declinedCount = dateFilteredReferrals.filter(
     (r) => r.latest_status?.description === 'Declined',
+  ).length;
+  const dischargedCount = dateFilteredReferrals.filter(
+    (r) => r.latest_status?.description === 'Discharged',
   ).length;
 
   return (
     <>
-      {/* Incoming-only stat cards */}
-      <IncomingStatCards referrals={incomingReferrals} />
-
       <CardBox>
-        <div className="flex flex-col gap-1">
-          <h5 className="card-title">Incoming Referrals</h5>
-          <p className="text-xs text-muted-foreground">
-            Referrals from other hospitals directed to your facility
-          </p>
+        {/* ── Header ── */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h5 className="text-lg font-semibold">Received Referrals</h5>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Referrals from other hospitals directed to your facility
+            </p>
+          </div>
         </div>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => {
-            setActiveTab(v);
-            setSearch('');
-          }}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <TabsList>
-              <TabsTrigger value="pending" className="flex items-center gap-1.5">
-                <Icon icon="solar:clock-circle-bold-duotone" height={15} />
-                Awaiting Response
-                {pendingCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lightwarning text-warning border-warning/20"
-                  >
-                    {pendingCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="active" className="flex items-center gap-1.5">
-                <Icon icon="solar:hospital-bold-duotone" height={15} />
-                Active Patients
-                {activeCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lightsuccess text-success border-success/20"
-                  >
-                    {activeCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="declined" className="flex items-center gap-1.5">
-                <Icon icon="solar:close-circle-bold-duotone" height={15} />
-                Declined
-                {declinedCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lighterror text-error border-error/20"
-                  >
-                    {declinedCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
+        <Separator className="my-4" />
 
-            {/* Search */}
-            <div className="relative sm:w-60 w-full">
+        {/* ── Filters ── */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { key: 'pending', label: 'Awaiting Response', count: pendingCount },
+              { key: 'active', label: 'Active Patients', count: activeCount },
+              { key: 'declined', label: 'Declined', count: declinedCount },
+              { key: 'discharged', label: 'Discharged', count: dischargedCount },
+            ].map((f) => (
+              <Button
+                key={f.key}
+                size="sm"
+                variant={activeTab === f.key ? 'default' : 'outline'}
+                className="h-7 text-xs px-3"
+                onClick={() => {
+                  setActiveTab(f.key);
+                  setSearch('');
+                }}
+              >
+                {f.label}
+                {f.count > 0 && (
+                  <Badge variant="outline" className="ml-1.5 text-[10px] px-1.5 py-0 h-4">
+                    {f.count}
+                  </Badge>
+                )}
+              </Button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative sm:w-56 w-full">
               <Icon
                 icon="tabler:search"
                 height={16}
@@ -968,25 +1230,49 @@ const IncomingReferralPage = () => {
                 placeholder="Search patient, hospital..."
               />
             </div>
+            <div className="relative">
+              <Input
+                type="date"
+                className={`h-9 text-sm ${dateFrom ? 'w-44 pr-7' : 'w-36'}`}
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+              {dateFrom && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setDateFrom('')}
+                >
+                  <Icon icon="solar:close-circle-linear" height={14} />
+                </button>
+              )}
+            </div>
           </div>
+        </div>
 
-          <TabsContent value="pending">
-            <PendingTab
-              referrals={incomingReferrals}
-              search={search}
-              onAccept={setAcceptTarget}
-              onReject={setRejectTarget}
-            />
-          </TabsContent>
-
-          <TabsContent value="active">
-            <ActiveTab referrals={incomingReferrals} search={search} />
-          </TabsContent>
-
-          <TabsContent value="declined">
-            <DeclinedTab referrals={incomingReferrals} search={search} />
-          </TabsContent>
-        </Tabs>
+        {/* ── Content ── */}
+        {activeTab === 'pending' && (
+          <PendingTab
+            referrals={dateFilteredReferrals}
+            search={search}
+            onAccept={setAcceptTarget}
+            onReject={setRejectTarget}
+            onPrint={setPrintTarget}
+          />
+        )}
+        {activeTab === 'active' && (
+          <ActiveTab referrals={dateFilteredReferrals} search={search} onPrint={setPrintTarget} />
+        )}
+        {activeTab === 'declined' && (
+          <DeclinedTab referrals={dateFilteredReferrals} search={search} onPrint={setPrintTarget} />
+        )}
+        {activeTab === 'discharged' && (
+          <DischargedTab
+            referrals={dateFilteredReferrals}
+            search={search}
+            onPrint={setPrintTarget}
+          />
+        )}
       </CardBox>
 
       {/* Accept Dialog */}
@@ -1008,6 +1294,11 @@ const IncomingReferralPage = () => {
           if (rejectTarget) declineIncomingReferral(rejectTarget.id, reason, redirectHospital);
         }}
       />
+
+      {/* Print Document */}
+      {printTarget && (
+        <ReferralPrintDocument referral={printTarget} onClose={() => setPrintTarget(null)} />
+      )}
     </>
   );
 };

@@ -1,6 +1,5 @@
 import { Link } from 'react-router';
 import ReferralDetail from '../apps/referrals/ReferralDetail';
-import { ReferralProvider } from '../context/ReferralContext';
 
 const BCrumb = [
   { to: '/', title: 'Home' },
@@ -10,7 +9,7 @@ const BCrumb = [
 
 const ReferralDetails = () => {
   return (
-    <ReferralProvider>
+    <>
       {/* Header without background */}
       <div className="mb-6 py-4">
         <h4 className="font-semibold text-xl mb-3">Referral Details</h4>
@@ -41,7 +40,7 @@ const ReferralDetails = () => {
         </ol>
       </div>
       <ReferralDetail />
-    </ReferralProvider>
+    </>
   );
 };
 
