@@ -13,8 +13,6 @@ import { m4Routes } from './m4_routes';
 import { module5Routes } from './m5_routes';
 
 /* **Layouts*** */
-
-/* ***Layouts**** */
 const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
 const BlankLayout = Loadable(lazy(() => import('../layouts/blank/BlankLayout')));
 
