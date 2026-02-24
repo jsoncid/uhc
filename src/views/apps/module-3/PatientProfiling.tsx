@@ -215,7 +215,6 @@ const PatientProfiling = () => {
   const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('success');
   const [isSaving, setIsSaving] = useState(false);
   const [modalStep, setModalStep] = useState<1 | 2 | 3>(1);
-  const [selectedFacilityDatabaseForSave, setSelectedFacilityDatabaseForSave] = useState('');
   
   // Search state
   const [searchResults, setSearchResults] = useState<APIPatientProfile[]>([]);
@@ -302,7 +301,6 @@ const PatientProfiling = () => {
   const handleReset = () => {
     setPatient({ ...INITIAL_PROFILE });
     setStatusMessage(null);
-    setSelectedFacilityDatabaseForSave('');
   };
 
   const handleSave = async () => {
@@ -317,17 +315,8 @@ const PatientProfiling = () => {
     setStatusMessage(null);
     
     try {
-      const facilityCodeForSupabase = selectedFacilityDatabaseForSave === 'ndh_ihomis_plus'
-        ? '0005028'
-        : patient.facility_code;
-
-      const patientToSave = {
-        ...patient,
-        facility_code: facilityCodeForSupabase,
-      };
-
       // Save patient data to Supabase (location fields are used to find/create brgy UUID)
-      const result = await patientService.saveToSupabase(patientToSave);
+      const result = await patientService.saveToSupabase(patient);
       
       if (result.success) {
         setStatusMessage(result.message || 'Patient profile saved successfully to Supabase');
@@ -472,7 +461,6 @@ const PatientProfiling = () => {
     setModalStep(1);
     setSearchResults([]);
     setModalSearchName('');
-    setSelectedFacilityDatabaseForSave(modalFacilityDatabase);
   };
 
   // Find selected facility from loaded facilities
