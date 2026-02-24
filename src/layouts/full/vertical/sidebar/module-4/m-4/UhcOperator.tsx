@@ -935,6 +935,30 @@ const UhcOperator = () => {
     return () => clearTimeout(t);
   }, []);
 
+  // ── Fetch current user role name on mount ─────────────────────────────────
+  useEffect(() => {
+    const fetchCurrentRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: userRole } = await supabase
+          .from('user_role')
+          .select('role')
+          .eq('user', user.id)
+          .single();
+        if (userRole?.role) {
+          const { data: roleData } = await supabase
+            .from('role')
+            .select('description')
+            .eq('id', userRole.role)
+            .single();
+          if (roleData?.description) setCurrentRoleName(roleData.description);
+        }
+      } catch { /* ignore */ }
+    };
+    fetchCurrentRole();
+  }, []);
+
   const stopCamera = useCallback(async () => {
     if (scannerRef.current) {
       try {
