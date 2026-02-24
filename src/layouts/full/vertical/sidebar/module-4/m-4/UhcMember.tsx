@@ -6,7 +6,6 @@ import { Input } from 'src/components/ui/input';
 import { Button } from 'src/components/ui/button';
 import { Card } from 'src/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'src/components/ui/tabs';
-import darkLogo from 'src/assets/images/logos/uhc-logo.png';
 import {
   Search, QrCode, FileText, Eye, Archive, ArchiveRestore, IdCard,
   Heart, Accessibility, Building2, Stethoscope, ClipboardList,
@@ -212,8 +211,6 @@ const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
 );
 
 // ─── Health ID Card visual (Flip Card) ────────────────────────────────────────
-const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef }: {
-// ─── Health ID Card visual ────────────────────────────────────────────────────
 const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl }: {
   patient: PatientProfile; qrDataUrl: string; qrCodeValue: string;
   cardRef?: React.RefObject<HTMLDivElement | null>;
@@ -319,8 +316,18 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
       <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '10px 20px 10px' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 8, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
-          {/* Full UHC Logo */}
-          <img src={darkLogo} alt="UHC Logo" style={{ height: 50, width: 'auto', flexShrink: 0 }} />
+          {/* Profile Pic or UHC Seal */}
+          {profilePicUrl ? (
+            <img src={profilePicUrl} alt="Profile" style={{ width: 50, height: 50, flexShrink: 0, borderRadius: '50%', border: '2px solid #c8a018', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ width: 50, height: 50, flexShrink: 0, background: 'radial-gradient(circle at 35% 35%, #fef9c3, #fbbf24 60%, #d97706)', borderRadius: '50%', border: '2px solid #c8a018', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, fontWeight: 900, color: '#14532d', letterSpacing: '0.05em' }}>UHC</div>
+                <div style={{ width: 28, height: 1, background: '#166534', margin: '1px auto' }} />
+                <div style={{ fontSize: 8, fontWeight: 700, color: '#166534' }}>2026</div>
+              </div>
+            </div>
+          )}
           {/* Title */}
           <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontFamily: '"Cinzel", serif', fontSize: 9, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas</div>
@@ -328,40 +335,12 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
             <div style={{ fontFamily: '"Cinzel", serif', fontSize: 17, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.1 }}>UNIVERSAL HEALTH CARE</div>
             <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 9, fontWeight: 600, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
           </div>
-
         </div>
 
         {/* ID Row */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid rgba(0,100,40,0.13)', flexShrink: 0 }}>
           <span style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 11, fontWeight: 700, color: '#0d4022', letterSpacing: 1 }}>UHC-ID</span>
           <span style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 13, fontWeight: 700, color: '#0a2e1a', letterSpacing: 1.5, marginLeft: 6 }}>{qrCodeValue.substring(4, 24).toUpperCase()}-NDC</span>
-  const name = fullName(patient).toUpperCase();
-  return (
-    <div ref={cardRef} style={{
-      width: 640, background: 'linear-gradient(135deg,#15803d 0%,#166534 45%,#14532d 100%)',
-      borderRadius: 20, fontFamily: '"Georgia","Times New Roman",serif', position: 'relative',
-      overflow: 'hidden', boxShadow: '0 25px 70px rgba(0,0,0,0.45)', userSelect: 'none',
-    }}>
-      <div style={{ position:'absolute',inset:0,opacity:0.035,zIndex:1,backgroundImage:'repeating-linear-gradient(45deg,#ffffff 0,#ffffff 1px,transparent 0,transparent 14px)' }} />
-      <div style={{ height:7,background:'linear-gradient(90deg,#d97706,#fbbf24,#f59e0b,#fbbf24,#d97706)',position:'relative',zIndex:2 }} />
-      <div style={{ padding:'22px 28px 20px',position:'relative',zIndex:2 }}>
-        <div style={{ display:'flex',alignItems:'center',gap:16,marginBottom:16 }}>
-          {profilePicUrl ? (
-            <img src={profilePicUrl} alt="Profile" style={{ width:68,height:68,flexShrink:0,borderRadius:'50%',border:'3px solid #fbbf24',boxShadow:'0 3px 14px rgba(251,191,36,0.55)',objectFit:'cover' }} />
-          ) : (
-            <div style={{ width:68,height:68,flexShrink:0,background:'radial-gradient(circle at 35% 35%,#fef9c3,#fbbf24 60%,#d97706)',borderRadius:'50%',border:'3px solid #fbbf24',boxShadow:'0 3px 14px rgba(251,191,36,0.55)',display:'flex',alignItems:'center',justifyContent:'center' }}>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:12,fontWeight:900,color:'#14532d',letterSpacing:'0.05em' }}>UHC</div>
-                <div style={{ width:36,height:1,background:'#166534',margin:'2px auto' }} />
-                <div style={{ fontSize:10,fontWeight:700,color:'#166534' }}>2026</div>
-              </div>
-            </div>
-          )}
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:9,color:'#86efac',letterSpacing:'0.25em',marginBottom:3,fontFamily:'Arial,sans-serif' }}>REPUBLIC OF THE PHILIPPINES</div>
-            <div style={{ fontSize:21,fontWeight:900,color:'#fbbf24',letterSpacing:'0.04em',lineHeight:1 }}>UNIVERSAL HEALTH CARE</div>
-            <div style={{ fontSize:10,color:'#bbf7d0',letterSpacing:'0.18em',marginTop:4,fontFamily:'Arial,sans-serif' }}>MEMBER IDENTIFICATION CARD</div>
-          </div>
         </div>
 
         {/* Body */}
@@ -520,6 +499,7 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
     </div>
   );
 };
+
 
 // ─── Member PIN Gate Modal ────────────────────────────────────────────────────
 // Shown after patient search selection:
@@ -1190,18 +1170,53 @@ const UhcMember = () => {
     ctx.lineTo(W - 20, headerH);
     ctx.stroke();
 
-    // Full UHC logo (seal + text)
-    const logoImg = new Image();
-    logoImg.src = darkLogo;
-    await new Promise<void>((resolve) => {
-      logoImg.onload = () => {
-        // SVG is 3595x681 - draw full logo at appropriate size
-        // Height 50px, width proportional (3595/681 * 50 = 264)
-        ctx.drawImage(logoImg, 15, 15, 264, 50);
-        resolve();
-      };
-      logoImg.onerror = () => resolve();
-    });
+    // Profile pic circle or UHC seal
+    if (picUrl) {
+      await new Promise<void>((resolve) => {
+        const profImg = new Image();
+        profImg.crossOrigin = 'anonymous';
+        profImg.src = picUrl;
+        profImg.onload = () => {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(40, 38, 25, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(profImg, 15, 13, 50, 50);
+          ctx.restore();
+          // Gold border
+          ctx.strokeStyle = '#c8a018';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(40, 38, 25, 0, Math.PI * 2);
+          ctx.stroke();
+          resolve();
+        };
+        profImg.onerror = () => resolve();
+      });
+    } else {
+      // Fallback: gold gradient circle with "UHC / 2026" text
+      const cx = 40, cy = 38, r = 25;
+      const sealGrad = ctx.createRadialGradient(cx - 5, cy - 5, 2, cx, cy, r);
+      sealGrad.addColorStop(0, '#fef9c3');
+      sealGrad.addColorStop(0.6, '#fbbf24');
+      sealGrad.addColorStop(1, '#d97706');
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = sealGrad;
+      ctx.fill();
+      ctx.strokeStyle = '#c8a018';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillStyle = '#14532d';
+      ctx.fillText('UHC', cx, cy - 1);
+      ctx.fillStyle = '#166534';
+      ctx.fillRect(cx - 14, cy + 2, 28, 1);
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillText('2026', cx, cy + 12);
+    }
 
     // Header titles (centered)
     const titleX = W / 2;
@@ -1541,84 +1556,6 @@ const UhcMember = () => {
 
     ctx.restore(); // End back side translation
 
-    const bg = ctx.createLinearGradient(0,0,W,H);
-    bg.addColorStop(0,'#15803d'); bg.addColorStop(0.45,'#166534'); bg.addColorStop(1,'#14532d');
-    ctx.fillStyle=bg;
-    const R=20;
-    ctx.beginPath();ctx.moveTo(R,0);ctx.lineTo(W-R,0);ctx.quadraticCurveTo(W,0,W,R);
-    ctx.lineTo(W,H-R);ctx.quadraticCurveTo(W,H,W-R,H);ctx.lineTo(R,H);
-    ctx.quadraticCurveTo(0,H,0,H-R);ctx.lineTo(0,R);ctx.quadraticCurveTo(0,0,R,0);
-    ctx.closePath();ctx.fill();
-    ctx.save();ctx.clip();ctx.globalAlpha=0.035;ctx.strokeStyle='#ffffff';ctx.lineWidth=1;
-    for(let i=-H;i<W+H;i+=14){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i+H,H);ctx.stroke();}
-    ctx.restore();ctx.globalAlpha=1;
-    const gld=ctx.createLinearGradient(0,0,W,0);
-    gld.addColorStop(0,'#d97706');gld.addColorStop(0.25,'#fbbf24');
-    gld.addColorStop(0.5,'#f59e0b');gld.addColorStop(0.75,'#fbbf24');gld.addColorStop(1,'#d97706');
-    ctx.fillStyle=gld;ctx.fillRect(0,0,W,7);ctx.fillRect(0,H-5,W,5);
-    const PX=28,PY=22,sX=PX+34,sY=PY+34;
-    // Profile picture or UHC seal
-    let drewProfilePic = false;
-    if (picUrl) {
-      try {
-        const pi = new Image(); pi.crossOrigin = 'anonymous';
-        await new Promise<void>((res,rej)=>{pi.onload=()=>res();pi.onerror=rej;pi.src=picUrl;});
-        ctx.save();
-        ctx.beginPath();ctx.arc(sX,sY,34,0,Math.PI*2);ctx.closePath();ctx.clip();
-        ctx.drawImage(pi,sX-34,sY-34,68,68);
-        ctx.restore();
-        ctx.strokeStyle='#fbbf24';ctx.lineWidth=3;
-        ctx.beginPath();ctx.arc(sX,sY,34,0,Math.PI*2);ctx.stroke();
-        drewProfilePic = true;
-      } catch { /* fall back to UHC seal */ }
-    }
-    if (!drewProfilePic) {
-      const sg=ctx.createRadialGradient(sX-10,sY-10,4,sX,sY,34);
-      sg.addColorStop(0,'#fef9c3');sg.addColorStop(0.6,'#fbbf24');sg.addColorStop(1,'#d97706');
-      ctx.beginPath();ctx.arc(sX,sY,34,0,Math.PI*2);ctx.fillStyle=sg;ctx.fill();
-      ctx.strokeStyle='#fbbf24';ctx.lineWidth=3;ctx.stroke();
-      ctx.fillStyle='#14532d';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText('UHC',sX,sY-4);
-      ctx.fillStyle='#fbbf24';ctx.fillRect(sX-18,sY+1,36,1);
-      ctx.fillStyle='#166534';ctx.font='bold 10px Arial';ctx.fillText('2026',sX,sY+14);
-    }
-    ctx.textAlign='left';const tX=PX+68+16;
-    ctx.fillStyle='#86efac';ctx.font='9px Arial';ctx.fillText('REPUBLIC OF THE PHILIPPINES',tX,PY+14);
-    ctx.fillStyle='#fbbf24';ctx.font='bold 21px Georgia';ctx.fillText('UNIVERSAL HEALTH CARE',tX,PY+36);
-    ctx.fillStyle='#bbf7d0';ctx.font='10px Arial';ctx.fillText('MEMBER IDENTIFICATION CARD',tX,PY+52);
-    const dDiv=(y:number)=>{const dg=ctx.createLinearGradient(0,0,W,0);dg.addColorStop(0,'transparent');dg.addColorStop(0.2,'#fbbf24');dg.addColorStop(0.8,'#fbbf24');dg.addColorStop(1,'transparent');ctx.fillStyle=dg;ctx.fillRect(PX,y,W-PX*2,1);};
-    const rr=(x:number,y:number,w:number,h:number,r:number)=>{ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();};
-    const dY=PY+68;dDiv(dY);
-    const bY=dY+12,lW=380,rX=PX+lW+16;
-    ctx.fillStyle='rgba(255,255,255,0.12)';rr(PX,bY,lW,48,10);ctx.fill();
-    ctx.strokeStyle='rgba(251,191,36,0.35)';ctx.lineWidth=1;rr(PX,bY,lW,48,10);ctx.stroke();
-    ctx.fillStyle='#86efac';ctx.font='8px Arial';ctx.fillText('MEMBER NAME',PX+14,bY+14);
-    const nm=fullName(patient).toUpperCase();
-    ctx.fillStyle='#ffffff';ctx.font=`bold ${nm.length>30?15:18}px Georgia`;ctx.fillText(nm,PX+14,bY+36);
-    const dY2=bY+56;
-    ctx.fillStyle='rgba(255,255,255,0.09)';rr(PX,dY2,lW,44,8);ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=1;rr(PX,dY2,lW,44,8);ctx.stroke();
-    ctx.fillStyle='#86efac';ctx.font='8px Arial';ctx.fillText('DATE OF BIRTH',PX+13,dY2+16);
-    ctx.fillStyle='#ffffff';ctx.font='bold 14px Georgia';ctx.fillText(formatDate(patient.birth_date),PX+13,dY2+34);
-    const aY=dY2+52;
-    ctx.fillStyle='rgba(255,255,255,0.09)';rr(PX,aY,lW,52,8);ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=1;rr(PX,aY,lW,52,8);ctx.stroke();
-    ctx.fillStyle='#86efac';ctx.font='8px Arial';ctx.fillText('ADDRESS',PX+13,aY+16);
-    ctx.fillStyle='#ffffff';ctx.font='bold 11px Georgia';
-    const addr=getFullAddress(patient.brgy),ws=addr.split(' ');
-    let line='',lY=aY+32;
-    for(const w of ws){const t=line?`${line} ${w}`:w;if(ctx.measureText(t).width>lW-26&&line){ctx.fillText(line,PX+13,lY);line=w;lY+=14;}else line=t;}
-    if(line)ctx.fillText(line,PX+13,lY);
-    const qi=new Image();
-    await new Promise<void>((res,rej)=>{qi.onload=()=>res();qi.onerror=rej;qi.src=qrUrl;});
-    const qs=116;
-    ctx.fillStyle='#ffffff';rr(rX-8,bY-8,qs+19,qs+19,14);ctx.fill();
-    ctx.strokeStyle='#fbbf24';ctx.lineWidth=3.5;rr(rX-8,bY-8,qs+19,qs+19,14);ctx.stroke();
-    ctx.drawImage(qi,rX,bY,qs,qs);
-    ctx.fillStyle='#86efac';ctx.font='7px monospace';ctx.textAlign='center';
-    ctx.fillText(qrValue.substring(0,22)+'…',rX+qs/2,bY+qs+26);
-    dDiv(H-30);
-    ctx.fillStyle='#86efac';ctx.font='8px Arial';ctx.textAlign='left';ctx.fillText('VALID WHILE MEMBERSHIP IS ACTIVE',PX,H-16);
-    ctx.fillStyle='#fbbf24';ctx.font='bold 8px Arial';ctx.textAlign='right';ctx.fillText('DOH – UHC ACT R.A. 11223',W-PX,H-16);
     return canvas;
   }, []);
 
