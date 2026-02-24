@@ -941,8 +941,10 @@ class PatientService {
             )
           ),
           patient_repository!left(
+            id,
             facility_code,
-            hpercode
+            hpercode,
+            status
           )
         `, { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -1068,8 +1070,10 @@ class PatientService {
             )
           ),
           patient_repository(
+            id,
             facility_code,
-            hpercode
+            hpercode,
+            status
           )
         `, { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -1149,6 +1153,44 @@ class PatientService {
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to link patient',
+      };
+    }
+  }
+
+  /**
+   * Unlink a patient repository entry by setting status to false (soft delete)
+   * @param repositoryId - The UUID of the patient_repository record
+   */
+  async unlinkPatientRepository(repositoryId: string): Promise<{
+    success: boolean;
+    message?: string;
+  }> {
+    try {
+      console.log('Unlinking patient repository:', repositoryId);
+
+      const { error } = await supabase
+        .schema('module3')
+        .from('patient_repository')
+        .update({ status: false })
+        .eq('id', repositoryId);
+
+      if (error) {
+        console.error('Error unlinking patient repository:', error);
+        return {
+          success: false,
+          message: error.message,
+        };
+      }
+
+      return {
+        success: true,
+        message: 'Patient link removed successfully',
+      };
+    } catch (error) {
+      console.error('Unlink patient repository error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to unlink patient',
       };
     }
   }

@@ -20,12 +20,15 @@ import {
   CheckCircle2,
   Edit,
   RefreshCw,
+  Trash2,
+  Plus,
 } from 'lucide-react';
 import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
 import PatientSearchPanel, { PatientSearchResultProfile } from './components/PatientSearchPanel';
 import PatientInfoCard from './components/PatientInfoCard';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientLinkingDialog from './components/PatientLinkingDialog';
+import { ConfirmDialog } from 'src/components/ui/confirm-dialog';
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -62,6 +65,11 @@ const PatientTagging = () => {
   // Linking dialog state
   const [isLinkingDialogOpen, setIsLinkingDialogOpen] = useState(false);
   const [patientToLink, setPatientToLink] = useState<any>(null);
+
+  // Unlink confirmation dialog state
+  const [isUnlinkDialogOpen, setIsUnlinkDialogOpen] = useState(false);
+  const [repositoryToUnlink, setRepositoryToUnlink] = useState<{ id: string; hpercode: string; patientName: string } | null>(null);
+  const [isUnlinking, setIsUnlinking] = useState(false);
 
   // Patient history state
   const [patientHistory, setPatientHistory] = useState<PatientHistory[]>([]);
@@ -157,15 +165,24 @@ const PatientTagging = () => {
     try {
       const result = await patientService.getSupabasePatients(page, 20);
       if (result.success) {
-        // Filter only linked patients
+        // Filter only linked patients with active status (true or null for backwards compatibility)
         const linked = result.data.filter((patient: any) => {
-          return patient.patient_repository?.[0]?.hpercode != null;
-        });
+          const activeRepos = patient.patient_repository?.filter(
+            (repo: any) => repo.hpercode != null && (repo.status === true || repo.status === null || repo.status === undefined)
+          );
+          return activeRepos && activeRepos.length > 0;
+        }).map((patient: any) => ({
+          ...patient,
+          // Filter patient_repository to only include active ones
+          patient_repository: patient.patient_repository?.filter(
+            (repo: any) => repo.hpercode != null && (repo.status === true || repo.status === null || repo.status === undefined)
+          ) || []
+        }));
         setLinkedPatients(linked);
         setLinkedPage(page);
         
         // Calculate total linked patients
-        const totalLinked = result.data.filter((p: any) => p.patient_repository?.[0]?.hpercode != null).length;
+        const totalLinked = linked.length;
         setLinkedTotal(totalLinked);
       }
     } catch (error) {
@@ -190,18 +207,31 @@ const PatientTagging = () => {
       if (allPatientsResult.success) {
         const searchLower = linkedSearchTerm.toLowerCase();
         const linked = allPatientsResult.data.filter((patient: any) => {
-          const hasHpercode = patient.patient_repository?.[0]?.hpercode != null;
-          if (!hasHpercode) return false;
+          // Filter only active repositories
+          const activeRepos = patient.patient_repository?.filter(
+            (repo: any) => repo.hpercode != null && (repo.status === true || repo.status === null || repo.status === undefined)
+          );
+          if (!activeRepos || activeRepos.length === 0) return false;
           
           // Search in name
           const firstName = patient.first_name?.toLowerCase() || '';
           const middleName = patient.middle_name?.toLowerCase() || '';
           const lastName = patient.last_name?.toLowerCase() || '';
           const fullName = `${firstName} ${middleName} ${lastName}`.trim();
-          const hpercode = patient.patient_repository?.[0]?.hpercode?.toLowerCase() || '';
           
-          return fullName.includes(searchLower) || hpercode.includes(searchLower);
-        });
+          // Search in any hpercode
+          const hpercodeMatch = activeRepos.some(
+            (repo: any) => repo.hpercode?.toLowerCase().includes(searchLower)
+          );
+          
+          return fullName.includes(searchLower) || hpercodeMatch;
+        }).map((patient: any) => ({
+          ...patient,
+          // Filter patient_repository to only include active ones
+          patient_repository: patient.patient_repository?.filter(
+            (repo: any) => repo.hpercode != null && (repo.status === true || repo.status === null || repo.status === undefined)
+          ) || []
+        }));
         setLinkedPatients(linked);
         setLinkedTotal(linked.length);
       }
@@ -243,10 +273,40 @@ const PatientTagging = () => {
     }
   };
 
-  const handleEditLink = (patient: any) => {
-    // Open the linking dialog with the patient to re-link
+  const handleAddLink = (patient: any) => {
+    // Open the linking dialog with the patient to add a new link
     setPatientToLink(patient);
     setIsLinkingDialogOpen(true);
+  };
+
+  const handleOpenUnlinkDialog = (repositoryId: string, hpercode: string, patientName: string) => {
+    setRepositoryToUnlink({ id: repositoryId, hpercode, patientName });
+    setIsUnlinkDialogOpen(true);
+  };
+
+  const handleUnlink = async () => {
+    if (!repositoryToUnlink) return;
+
+    setIsUnlinking(true);
+    try {
+      const result = await patientService.unlinkPatientRepository(repositoryToUnlink.id);
+      if (result.success) {
+        // Refresh the linked patients list
+        if (linkedSearchTerm) {
+          await handleSearchLinked();
+        } else {
+          await loadAllLinkedPatients(linkedPage);
+        }
+      } else {
+        console.error('Failed to unlink:', result.message);
+      }
+    } catch (error) {
+      console.error('Error unlinking patient:', error);
+    } finally {
+      setIsUnlinking(false);
+      setIsUnlinkDialogOpen(false);
+      setRepositoryToUnlink(null);
+    }
   };
 
   /* ------------------------------------------------------------------ */
@@ -758,7 +818,7 @@ const PatientTagging = () => {
                                   <span>•</span>
                                   <span>{patient.birth_date}</span>
                                 </div>
-                                <div className="flex flex-col gap-1">
+                                <div className="flex flex-col gap-2">
                                   {patient.patient_repository?.map((repo: any, index: number) => (
                                     <div key={repo.id || index} className="flex items-center gap-2 text-xs flex-wrap">
                                       <Badge variant="secondary" className="font-mono">
@@ -769,6 +829,39 @@ const PatientTagging = () => {
                                           Facility: {repo.facility_code}
                                         </Badge>
                                       )}
+                                      <div className="flex items-center gap-1 ml-1">
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                          onClick={() => {
+                                            // Pre-fill the linking dialog for editing this specific link
+                                            setPatientToLink({
+                                              ...patient,
+                                              editingRepositoryId: repo.id,
+                                              editingHpercode: repo.hpercode,
+                                              editingFacilityCode: repo.facility_code
+                                            });
+                                            setIsLinkingDialogOpen(true);
+                                          }}
+                                          title="Edit this link"
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                          onClick={() => handleOpenUnlinkDialog(
+                                            repo.id,
+                                            repo.hpercode,
+                                            `${patient.last_name}, ${patient.first_name}`
+                                          )}
+                                          title="Remove this link"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -795,11 +888,11 @@ const PatientTagging = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleEditLink(patient)}
+                                onClick={() => handleAddLink(patient)}
                                 className="flex-shrink-0"
                               >
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit Link
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Link
                               </Button>
                             </div>
                           </div>
@@ -862,6 +955,22 @@ const PatientTagging = () => {
         onOpenChange={setIsLinkingDialogOpen}
         supabasePatient={patientToLink}
         onLinkSuccess={handleLinkSuccess}
+      />
+
+      {/* Unlink Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isUnlinkDialogOpen}
+        onClose={() => {
+          setIsUnlinkDialogOpen(false);
+          setRepositoryToUnlink(null);
+        }}
+        onConfirm={handleUnlink}
+        title="Remove Patient Link"
+        description={`Are you sure you want to remove the link for HPERCODE ${repositoryToUnlink?.hpercode} from ${repositoryToUnlink?.patientName}? This will disable access to the hospital history for this record.`}
+        confirmText="Remove Link"
+        cancelText="Cancel"
+        isLoading={isUnlinking}
+        variant="destructive"
       />
     </div>
   );
