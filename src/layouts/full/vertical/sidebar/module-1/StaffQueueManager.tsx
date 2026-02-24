@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,6 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
-import { supabase } from '@/lib/supabase';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
 import { useOfficeUserAssignmentStore } from '@/stores/module-1_stores/useOfficeUserAssignmentStore';
@@ -35,9 +34,6 @@ const StaffQueueManager = () => {
   const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
   const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
   const [transferSuccess, setTransferSuccess] = useState<string>('');
-
-  // Persistent broadcast channel for pings — stays subscribed for the component lifetime
-  const pingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
@@ -58,16 +54,6 @@ const StaffQueueManager = () => {
   const userAssignmentIds = useMemo(() => {
     return profile?.assignments?.map((a) => a.id) || [];
   }, [profile?.assignments]);
-
-  useEffect(() => {
-    const ch = supabase.channel('queue-ping-broadcast', { config: { broadcast: { self: true } } });
-    ch.subscribe();
-    pingChannelRef.current = ch;
-    return () => {
-      supabase.removeChannel(ch);
-      pingChannelRef.current = null;
-    };
-  }, []);
 
   useEffect(() => {
     fetchStatuses();
@@ -230,17 +216,32 @@ const StaffQueueManager = () => {
   };
 
   const handlePing = async (serving: Sequence, officeName: string) => {
-    if (!pingChannelRef.current) return;
-    await pingChannelRef.current.send({
-      type: 'broadcast',
-      event: 'ping',
-      payload: {
-        sequenceId: serving.id,
-        queueCode: serving.queue_data?.code || '---',
-        windowLabel: serving.window_data?.description || 'the window',
-        officeName,
-        priorityDesc: serving.priority_data?.description || null,
+    // Use the Supabase REST broadcast API — no WebSocket subscription needed,
+    // fires instantly on the very first click with no channel-ready race condition.
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+    await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
       },
+      body: JSON.stringify({
+        messages: [
+          {
+            topic: 'queue-ping-broadcast',
+            event: 'ping',
+            payload: {
+              sequenceId: serving.id,
+              queueCode: serving.queue_data?.code || '---',
+              windowLabel: serving.window_data?.description || 'the window',
+              officeName,
+              priorityDesc: serving.priority_data?.description || null,
+            },
+          },
+        ],
+      }),
     });
   };
 
