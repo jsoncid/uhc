@@ -11,7 +11,7 @@ import {
   ChevronDown, ChevronRight, CheckCircle2, User, Building2, Heart,
   Accessibility, ClipboardList, IdCard, Loader2, Eye, Calendar, Clock,
   Download, Printer, Save, Stethoscope, Camera, CameraOff, RefreshCw,
-  Lock, EyeOff, ShieldCheck, ShieldX, ArrowLeft,
+  Lock, EyeOff, ShieldCheck, ShieldX, ArrowLeft, Tag,
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import QRCodeLib from 'qrcode';
@@ -646,7 +646,7 @@ const UhcOperator = () => {
   const [cameraActive, setCameraActive] = useState(false);
 
   // ── Operator mode selection ────────────────────────────────────────────────
-  const [operatorMode, setOperatorMode] = useState<'documents' | 'scanner' | null>(null);
+  const [operatorMode, setOperatorMode] = useState<'documents' | 'scanner' | 'tagging' | null>(null);
   const [scanLookup,   setScanLookup]   = useState(false);
   const [scanResult,   setScanResult]   = useState<ScanResult | null>(null);
   const [cameraError,  setCameraError]  = useState('');
@@ -1426,7 +1426,7 @@ const UhcOperator = () => {
               <h2 className="text-2xl font-bold text-gray-800">What would you like to do?</h2>
               <p className="text-sm text-gray-500 mt-1">Choose an action to get started</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-2xl">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-3xl">
               {/* Upload Documents Card */}
               <button
                 onClick={() => { setOperatorMode('documents'); setActiveTab('documents'); }}
@@ -1460,6 +1460,23 @@ const UhcOperator = () => {
                   <ChevronRight className="w-4 h-4 text-blue-600" />
                 </div>
               </button>
+
+              {/* Member Tagging Card */}
+              <button
+                onClick={() => { setOperatorMode('tagging'); setActiveTab('tagging'); }}
+                className="group relative flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-gray-200 bg-white hover:border-amber-500 hover:shadow-xl transition-all duration-200 text-center"
+              >
+                <div className="w-20 h-20 rounded-2xl bg-amber-100 group-hover:bg-amber-200 flex items-center justify-center transition-colors">
+                  <Tag className="w-10 h-10 text-amber-700" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-800 group-hover:text-amber-700 transition-colors">Member Tagging</p>
+                  <p className="text-sm text-gray-500 mt-1">Tag and categorize health card members</p>
+                </div>
+                <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                  <ChevronRight className="w-4 h-4 text-amber-600" />
+                </div>
+              </button>
             </div>
           </div>
         )}
@@ -1477,6 +1494,10 @@ const UhcOperator = () => {
           {operatorMode === 'documents' ? (
             <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="documents">Document Manager</TabsTrigger>
+            </TabsList>
+          ) : operatorMode === 'tagging' ? (
+            <TabsList className="grid w-full grid-cols-1">
+              <TabsTrigger value="tagging">Member Tagging</TabsTrigger>
             </TabsList>
           ) : (
             <TabsList className="grid w-full grid-cols-2">
@@ -2002,6 +2023,30 @@ const UhcOperator = () => {
               )}
             </Card>
           </TabsContent>
+
+          {/* ═══ MEMBER TAGGING ═══ */}
+          <TabsContent value="tagging">
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                  <Tag className="w-5 h-5 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-900">Health Card Member Tagging</h3>
+                  <p className="text-xs text-gray-400">Tag and categorize health card members.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center py-16 text-gray-400">
+                <Tag className="w-16 h-16 opacity-20 mb-4" />
+                <p className="font-medium text-gray-500">Coming Soon</p>
+                <p className="text-sm mt-1 text-center max-w-sm">
+                  This section will allow you to tag and categorize health card members for better organization and tracking.
+                </p>
+              </div>
+            </Card>
+          </TabsContent>
+
         </Tabs>
         </>
         )}
