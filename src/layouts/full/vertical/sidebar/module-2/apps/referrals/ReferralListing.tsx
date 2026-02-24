@@ -367,32 +367,6 @@ const ReferralListing = () => {
 
       {/* ── Filters ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-1.5">
-          {[
-            'all',
-            'Pending',
-            'Seen',
-            'Accepted',
-            'In Transit',
-            'Arrived',
-            'Admitted',
-            'Discharged',
-            'Declined',
-          ].map((f) => (
-            <Button
-              key={f}
-              size="sm"
-              variant={filter === f ? 'default' : 'outline'}
-              className="h-7 text-xs px-3"
-              onClick={() => {
-                setFilter(f);
-                setPage(1);
-              }}
-            >
-              {f === 'all' ? 'All' : f}
-            </Button>
-          ))}
-        </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative sm:w-56 w-full">
             <Icon
@@ -410,6 +384,8 @@ const ReferralListing = () => {
               placeholder="Search patient, doctor..."
             />
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Input
               type="date"
@@ -433,6 +409,25 @@ const ReferralListing = () => {
               </button>
             )}
           </div>
+          <Select value={filter} onValueChange={(v) => {
+            setFilter(v);
+            setPage(1);
+          }}>
+            <SelectTrigger className="w-40 h-9 text-sm">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Pending">Pending</SelectItem>
+              <SelectItem value="Seen">Seen</SelectItem>
+              <SelectItem value="Accepted">Accepted</SelectItem>
+              <SelectItem value="In Transit">In Transit</SelectItem>
+              <SelectItem value="Arrived">Arrived</SelectItem>
+              <SelectItem value="Admitted">Admitted</SelectItem>
+              <SelectItem value="Discharged">Discharged</SelectItem>
+              <SelectItem value="Declined">Declined</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
