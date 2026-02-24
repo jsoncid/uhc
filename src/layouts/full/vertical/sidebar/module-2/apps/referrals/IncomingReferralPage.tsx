@@ -49,6 +49,7 @@ import { assignmentService } from '@/services/assignmentService';
 // ─── Status style map ─────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
+  Seen: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Arrived: 'bg-lightprimary text-primary',

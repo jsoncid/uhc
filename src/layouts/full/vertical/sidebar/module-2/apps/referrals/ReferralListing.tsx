@@ -46,9 +46,11 @@ import {
 } from 'src/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from 'src/components/ui/sheet';
 import { assignmentService } from '@/services/assignmentService';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
+  Seen: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Arrived: 'bg-lightprimary text-primary',
@@ -553,9 +555,11 @@ const ReferralListing = () => {
     deactivateReferral,
   }: ReferralContextType = useContext(ReferralContext);
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const currentUserName =
+    user?.user_metadata?.full_name ?? user?.user_metadata?.username ?? user?.email ?? 'Unknown';
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState<string>('');
-  const [confirmDeactivatedBy, setConfirmDeactivatedBy] = useState<string>('');
   const [printReferral, setPrintReferral] = useState<ReferralType | null>(null);
   const [reReferTarget, setReReferTarget] = useState<ReferralType | null>(null);
   const [editTarget, setEditTarget] = useState<ReferralType | null>(null);
@@ -583,9 +587,8 @@ const ReferralListing = () => {
 
   const handleConfirmDeactivate = () => {
     if (confirmId) {
-      deactivateReferral(confirmId, confirmDeactivatedBy.trim() || 'Unknown');
+      deactivateReferral(confirmId, currentUserName);
       setConfirmId(null);
-      setConfirmDeactivatedBy('');
     }
   };
 
@@ -998,25 +1001,19 @@ const ReferralListing = () => {
               undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-1.5 px-1">
-            <Label className="text-sm font-medium">
-              Deactivated By <span className="text-error">*</span>
-            </Label>
-            <Input
-              placeholder="e.g. Dr. Santos"
-              value={confirmDeactivatedBy}
-              onChange={(e) => setConfirmDeactivatedBy(e.target.value)}
+          <div className="flex items-center gap-2 px-1 py-2 rounded-lg bg-muted/50">
+            <Icon
+              icon="solar:user-bold-duotone"
+              height={16}
+              className="text-muted-foreground flex-shrink-0"
             />
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">Deactivating as</span>
+              <span className="text-sm font-medium">{currentUserName}</span>
+            </div>
           </div>
           <DialogFooter className="gap-2 mt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setConfirmId(null);
-                setConfirmDeactivatedBy('');
-              }}
-            >
+            <Button variant="outline" size="sm" onClick={() => setConfirmId(null)}>
               Cancel
             </Button>
             <Button

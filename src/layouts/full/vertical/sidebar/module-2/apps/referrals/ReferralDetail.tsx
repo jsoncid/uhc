@@ -19,6 +19,7 @@ import {
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
+  Seen: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Arrived: 'bg-lightprimary text-primary',
@@ -74,7 +75,12 @@ const ReferralDetail = () => {
   const referral =
     referrals.find((r) => r.id === id) ?? deactivatedReferrals.find((r) => r.id === id);
   const info = referral?.referral_info;
-  const history = referral?.history ?? [];
+  const history = [...(referral?.history ?? [])].sort((a, b) => {
+    const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    if (diff !== 0) return diff;
+    // Tiebreaker: active entry (most recent) always last
+    return (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
+  });
 
   // ── Diagnostic inline-add form state
   const [diagForm, setDiagForm] = useState({ diagnostics: '', date: '' });
@@ -669,15 +675,29 @@ const ReferralDetail = () => {
                     </div>
                   </div>
                   <div className="grow pt-0.5 pb-5">
-                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${STATUS_STYLES[h.status_description ?? ''] ?? 'bg-lightprimary text-primary'} ${h.is_active ? '' : 'opacity-60'}`}
-                      >
-                        {h.status_description ?? '—'}
-                      </Badge>
-                      {h.is_active && (
-                        <span className="text-xs text-success font-medium">● Active</span>
+                    <div className="flex items-start justify-between gap-2 mb-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${STATUS_STYLES[h.status_description ?? ''] ?? 'bg-lightprimary text-primary'} ${h.is_active ? '' : 'opacity-60'}`}
+                        >
+                          {h.status_description ?? '—'}
+                        </Badge>
+                        {h.is_active && (
+                          <span className="text-xs text-success font-medium">● Active</span>
+                        )}
+                      </div>
+                      {h.user_name && (
+                        <div className="flex items-center gap-1 bg-lightprimary text-primary rounded-full px-2 py-0.5 flex-shrink-0">
+                          <Icon
+                            icon="solar:user-bold-duotone"
+                            height={12}
+                            className="flex-shrink-0"
+                          />
+                          <span className="text-xs font-medium max-w-[100px] truncate">
+                            {h.user_name}
+                          </span>
+                        </div>
                       )}
                     </div>
                     {h.to_assignment_name && (

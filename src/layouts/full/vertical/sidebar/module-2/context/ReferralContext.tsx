@@ -10,6 +10,7 @@ import {
 import { supabaseM2, supabaseM3 } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { assignmentService } from '@/services/assignmentService';
+import { userService } from '@/services/userService';
 
 export interface ReferralContextType {
   referrals: ReferralType[];
@@ -60,7 +61,7 @@ export interface ReferralContextType {
 export const ReferralContext = createContext<ReferralContextType>({} as ReferralContextType);
 
 export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { userAssignmentId } = useAuthStore();
+  const { userAssignmentId, user } = useAuthStore();
   const [referrals, setReferrals] = useState<ReferralType[]>([]);
   const [deactivatedReferrals, setDeactivatedReferrals] = useState<ReferralType[]>([]);
   const [incomingReferrals, setIncomingReferrals] = useState<ReferralType[]>([]);
@@ -86,7 +87,13 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       .then(() =>
         supabaseM2
           .from('referral_history')
-          .insert({ referral: referralId, status: realStatus.id, is_active: true, details })
+          .insert({
+            referral: referralId,
+            status: realStatus.id,
+            is_active: true,
+            details,
+            user: user?.id ?? null,
+          })
           .then(({ error }) => {
             if (error) console.error('[persistHistoryEntry] INSERT failed:', error);
           }),
@@ -106,6 +113,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         to_assignment: h.to_assignment,
         status: h.status,
         is_active: h.is_active,
+        user: h.user ?? null,
         status_description: allStatuses.find((s) => s.id === h.status)?.description ?? undefined,
       }),
     );
@@ -198,7 +206,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       referral_info_vaccination(id, created_at, referral_info, description, date, status)
     ),
     referral_history(
-      id, created_at, details, referral, to_assignment, status, is_active
+      id, created_at, details, referral, to_assignment, status, is_active, user
     )
   `;
 
@@ -226,7 +234,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .from('referral')
           .select(REFERRAL_SELECT)
           .eq('from_assignment', userAssignmentId)
-          .eq('status', true);
+          .eq('status', true)
+          .order('created_at', { referencedTable: 'referral_history', ascending: true });
         if (outError) throw outError;
 
         // Outgoing deactivated
@@ -234,7 +243,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .from('referral')
           .select(REFERRAL_SELECT)
           .eq('from_assignment', userAssignmentId)
-          .eq('status', false);
+          .eq('status', false)
+          .order('created_at', { referencedTable: 'referral_history', ascending: true });
         if (deactError) throw deactError;
 
         // Incoming — referrals directed to this facility (exclude deactivated by sender)
@@ -242,7 +252,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .from('referral')
           .select(REFERRAL_SELECT)
           .eq('to_assignment', userAssignmentId)
-          .eq('status', true);
+          .eq('status', true)
+          .order('created_at', { referencedTable: 'referral_history', ascending: true });
         if (inError) throw inError;
 
         // ── Batch-enrich: patient names + assignment names ───────────────────
@@ -276,12 +287,37 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           /* non-fatal */
         }
 
+        // User display names from auth.users (who triggered each history event)
+        const userNameMap = new Map<string, string>();
+        try {
+          const allHistoryUserIds = [
+            ...new Set(
+              mappedAll
+                .flatMap((r) => r.history ?? [])
+                .map((h) => h.user)
+                .filter((u): u is string => !!u),
+            ),
+          ];
+          if (allHistoryUserIds.length) {
+            const authUsers = await userService.getUsersByIds(allHistoryUserIds);
+            authUsers.forEach((u) => {
+              if (u.id) userNameMap.set(u.id, u.username ?? u.email ?? u.id);
+            });
+          }
+        } catch {
+          /* non-fatal — names may just be undefined */
+        }
+
         const enrich = (r: ReferralType): ReferralType => ({
           ...r,
           patient_name: patientNameMap.get(r.patient_profile ?? '') || r.patient_name,
           from_assignment_name:
             assignmentNameMap.get(r.from_assignment ?? '') || r.from_assignment_name,
           to_assignment_name: assignmentNameMap.get(r.to_assignment ?? '') || r.to_assignment_name,
+          history: (r.history ?? []).map((h) => ({
+            ...h,
+            user_name: h.user ? (userNameMap.get(h.user) ?? null) : null,
+          })),
         });
 
         const outCount = (outData ?? []).length;
@@ -396,6 +432,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             status: pendingStatus?.id,
             is_active: true,
             details: 'Referral created — status set to Pending.',
+            user: user?.id ?? null,
           });
         }
 
