@@ -22,7 +22,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
-import PatientSearchPanel from './components/PatientSearchPanel';
+import PatientSearchPanel, { PatientSearchResultProfile } from './components/PatientSearchPanel';
 import PatientInfoCard from './components/PatientInfoCard';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientLinkingDialog from './components/PatientLinkingDialog';
@@ -31,15 +31,20 @@ import PatientLinkingDialog from './components/PatientLinkingDialog';
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
+const FACILITY_NAME_BY_CODE: Record<string, string> = {
+  '0005027': 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL',
+  '0005028': 'NASIPIT DISTRICT HOSPITAL',
+};
+
 const PatientTagging = () => {
   // Active tab
   const [activeTab, setActiveTab] = useState<'view' | 'link' | 'linked'>('view');
 
   // MySQL Search state (existing patients from hospital database)
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<PatientProfile[]>([]);
+  const [searchResults, setSearchResults] = useState<PatientSearchResultProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<PatientProfile | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<PatientSearchResultProfile | null>(null);
 
   // Supabase Search state (manually entered patients - unlinked)
   const [supabaseSearchTerm, setSupabaseSearchTerm] = useState('');
@@ -89,7 +94,38 @@ const PatientTagging = () => {
     try {
       const result = await patientService.searchPatients(searchTerm, { limit: 10 });
       if (result.success) {
-        setSearchResults(result.data);
+        const annotate = (
+          patients: PatientProfile[],
+          fallbackName: string,
+          sourceDatabase?: string,
+          forceFallback = false
+        ) =>
+          patients.map((patient) => ({
+            ...patient,
+            facility_display_name: forceFallback
+              ? fallbackName
+              : FACILITY_NAME_BY_CODE[patient.facility_code || ''] || fallbackName,
+            sourceDatabase,
+          }));
+
+        const combined: PatientSearchResultProfile[] = [];
+        if (result.database1) {
+          const fallback = result.database1.name === 'adnph_ihomis_plus'
+            ? 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL'
+            : result.database1.name;
+          combined.push(...annotate(result.database1.data, fallback, result.database1.name));
+        }
+        if (result.database2) {
+          const fallback = result.database2.name === 'ndh_ihomis_plus'
+            ? 'NASIPIT DISTRICT HOSPITAL'
+            : result.database2.name;
+          combined.push(...annotate(result.database2.data, fallback, result.database2.name, true));
+        }
+        if (!combined.length && result.data) {
+          combined.push(...annotate(result.data, 'Hospital Repository'));
+        }
+
+        setSearchResults(combined);
       }
     } catch (error) {
       console.error('Error searching patients:', error);
@@ -176,14 +212,14 @@ const PatientTagging = () => {
     }
   };
 
-  const handleSelectPatient = async (patient: PatientProfile) => {
+  const handleSelectPatient = async (patient: PatientSearchResultProfile) => {
     setSelectedPatient(patient);
     setSearchResults([]);
     setSearchTerm('');
 
     // Load patient history using hpercode
     if (patient.hpercode) {
-      await loadPatientHistory(patient.hpercode);
+      await loadPatientHistory(patient.hpercode, patient.sourceDatabase);
     }
   };
 
@@ -217,10 +253,10 @@ const PatientTagging = () => {
   /*  Data Loading Functions                                            */
   /* ------------------------------------------------------------------ */
 
-  const loadPatientHistory = async (hpercode: string) => {
+  const loadPatientHistory = async (hpercode: string, database?: string) => {
     setIsLoadingHistory(true);
     try {
-      const result = await patientService.getPatientHistory(hpercode);
+      const result = await patientService.getPatientHistory(hpercode, { database });
       if (result.success) {
         setPatientHistory(result.data);
       } else {

@@ -1259,6 +1259,7 @@ class PatientService {
     offset?: number;
     startDate?: string;
     endDate?: string;
+    database?: string;
   }): Promise<PatientHistoryResult> {
     try {
       const params = new URLSearchParams();
@@ -1266,6 +1267,7 @@ class PatientService {
       if (options?.offset) params.append('offset', String(options.offset));
       if (options?.startDate) params.append('startDate', options.startDate);
       if (options?.endDate) params.append('endDate', options.endDate);
+      if (options?.database) params.append('database', options.database);
 
       const queryString = params.toString();
       const url = `${this.baseUrl}/history/${encodeURIComponent(hpercode)}${queryString ? `?${queryString}` : ''}`;

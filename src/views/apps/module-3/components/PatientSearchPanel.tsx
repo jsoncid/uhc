@@ -8,13 +8,18 @@ import { PatientProfileWithLocations as PatientProfile } from 'src/services/pati
 import { cn } from 'src/lib/utils';
 import { formatDate, calculateAge } from '../utils/dateFormatters';
 
+export interface PatientSearchResultProfile extends PatientProfile {
+  sourceDatabase?: string;
+  facility_display_name?: string;
+}
+
 interface PatientSearchPanelProps {
   searchTerm: string;
   onSearchTermChange: (term: string) => void;
   onSearch: () => void;
   isSearching: boolean;
-  searchResults: PatientProfile[];
-  onSelectPatient: (patient: PatientProfile) => void;
+  searchResults: PatientSearchResultProfile[];
+  onSelectPatient: (patient: PatientSearchResultProfile) => void;
   onClearResults: () => void;
 }
 
@@ -95,9 +100,9 @@ const PatientSearchPanel = ({
             </div>
             <div className="border rounded-lg overflow-hidden shadow-sm">
               <div className="max-h-[350px] overflow-y-auto">
-                {searchResults.map((patient) => (
+                {searchResults.map((patient, index) => (
                   <div
-                    key={patient.id}
+                    key={`${patient.id}-${patient.hpercode ?? 'nohper'}-${patient.facility_code ?? 'nofac'}-${index}`}
                     className={cn(
                       "p-3 hover:bg-primary/5 cursor-pointer transition-all duration-200 border-b last:border-b-0",
                       "hover:shadow-sm"
@@ -130,10 +135,10 @@ const PatientSearchPanel = ({
                                 {patient.hpercode}
                               </Badge>
                             )}
-                            {patient.facility_code && (
+                            {(patient.facility_display_name || patient.facility_code) && (
                               <span className="flex items-center gap-1.5">
                                 <Building2 className="h-3.5 w-3.5" />
-                                {patient.facility_code}
+                                {patient.facility_display_name || patient.facility_code}
                               </span>
                             )}
                           </div>

@@ -237,17 +237,17 @@ const PatientProfiling = () => {
       if (result.success) {
         // Merge facilities from both databases and tag with database source
         const db1Facilities = result.database1.data.map(f => ({ ...f, database: result.database1.name }));
-        const db2Facilities = result.database2.data.map(f => {
-          // Rename facility from database2 for display (cannot update MySQL database)
-          if (f.facility_code === '0005027' || f.facility_code === '0005028') {
-            return {
-              ...f,
-              facility_name: 'NASIPIT DISTRICT HOSPITAL',
-              database: result.database2.name
-            };
-          }
-          return { ...f, database: result.database2.name };
-        });
+          const db2Facilities = result.database2.data.map(f => {
+            // Rename facility from database2 for display (cannot update MySQL database)
+            if (f.facility_code === '0005027' || f.facility_code === '0005028') {
+              return {
+                ...f,
+                facility_name: 'NASIPIT DISTRICT HOSPITAL',
+                database: result.database2.name
+              };
+            }
+            return { ...f, database: result.database2.name };
+          });
         const allFacilities = [...db1Facilities, ...db2Facilities];
         
         // Filter to only show facilities with patients
