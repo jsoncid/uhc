@@ -396,11 +396,7 @@ const PendingTab = ({
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     <div className="flex items-center gap-1.5">
-                      <Icon
-                        icon="solar:buildings-bold-duotone"
-                        height={14}
-                        className="text-muted-foreground flex-shrink-0"
-                      />
+               
                       {r.from_assignment_name ?? '—'}
                     </div>
                   </TableCell>
