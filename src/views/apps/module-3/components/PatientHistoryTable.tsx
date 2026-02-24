@@ -1,9 +1,17 @@
 import { Badge } from 'src/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from 'src/components/ui/table';
-import { Loader2, History as HistoryIcon } from 'lucide-react';
+import { Loader2, History as HistoryIcon, Building2 } from 'lucide-react';
 import { PatientHistory } from 'src/services/patientService';
 import { formatDateOnly } from '../utils/dateFormatters';
 import { getEncounterType, getStatusBadge } from '../utils/patientHelpers';
+
+// Helper to get short facility name
+const getShortFacilityName = (facilityName?: string): string => {
+  if (!facilityName) return '-';
+  if (facilityName.toLowerCase().includes('agusan') || facilityName === 'adnph_ihomis_plus') return 'ADNPH';
+  if (facilityName.toLowerCase().includes('nasipit') || facilityName === 'ndh_ihomis_plus') return 'NDH';
+  return facilityName.substring(0, 10);
+};
 
 interface PatientHistoryTableProps {
   history: PatientHistory[];
@@ -38,6 +46,7 @@ const PatientHistoryTable = ({ history, isLoading }: PatientHistoryTableProps) =
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              <TableHead className="font-bold">Facility</TableHead>
               <TableHead className="font-bold">Encounter</TableHead>
               <TableHead className="font-bold">Admission</TableHead>
               <TableHead className="font-bold">Discharge</TableHead>
@@ -54,6 +63,16 @@ const PatientHistoryTable = ({ history, isLoading }: PatientHistoryTableProps) =
                 key={record.enccode}
                 className="hover:bg-muted/30 transition-colors"
               >
+                <TableCell>
+                  <Badge 
+                    variant="outline" 
+                    className="text-xs font-medium border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950 dark:text-blue-300 whitespace-nowrap"
+                    title={record.source_facility_name}
+                  >
+                    <Building2 className="h-3 w-3 mr-1" />
+                    {getShortFacilityName(record.source_facility_name)}
+                  </Badge>
+                </TableCell>
                 <TableCell className="font-semibold">
                   <Badge variant="outline" className="font-semibold text-xs">
                     {getEncounterType(record)}

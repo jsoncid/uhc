@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader } from 'src/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from 'src/components/ui/card';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
 import { Badge } from 'src/components/ui/badge';
+import { Alert, AlertDescription } from 'src/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -26,9 +27,15 @@ import {
   Building2,
   Filter,
   ArrowUpDown,
+  X,
+  History as HistoryIcon,
+  Info,
+  LinkIcon,
 } from 'lucide-react';
-import patientService, { PatientProfile } from 'src/services/patientService';
+import patientService, { PatientProfile, PatientHistory } from 'src/services/patientService';
 import { getFacilityName } from 'src/utils/facilityMapping';
+import PatientHistoryTabs from './components/PatientHistoryTabs';
+import PatientInfoCard from './components/PatientInfoCard';
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -48,6 +55,13 @@ const PatientList = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalPatients, setTotalPatients] = useState(0);
   const [limit] = useState(20);
+
+  // Selected patient and history state
+  const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [patientHistory, setPatientHistory] = useState<PatientHistory[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
 
   /* ------------------------------------------------------------------ */
   /*  Effects                                                           */
@@ -110,6 +124,43 @@ const PatientList = () => {
     loadPatients();
   };
 
+  const handleSelectPatient = async (patient: any) => {
+    setSelectedPatient(patient);
+    
+    // Check if patient is linked (has hpercode from patient_repository)
+    const hpercode = patient.patient_repository?.[0]?.hpercode;
+    
+    if (hpercode) {
+      await loadPatientHistory(hpercode);
+    } else {
+      setPatientHistory([]);
+    }
+  };
+
+  const loadPatientHistory = async (hpercode: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const result = await patientService.getPatientHistory(hpercode);
+      if (result.success) {
+        setPatientHistory(result.data);
+      } else {
+        console.error('Failed to load history:', result.message);
+        setPatientHistory([]);
+      }
+    } catch (error) {
+      console.error('Error loading patient history:', error);
+      setPatientHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const handleClosePatientView = () => {
+    setSelectedPatient(null);
+    setPatientHistory([]);
+    setTypeFilter('all');
+  };
+
   const handleViewPatient = (patientId: string) => {
     navigate(`/module-3/patient-details?id=${patientId}`);
   };
@@ -167,6 +218,56 @@ const PatientList = () => {
     // Get facility_code from patient_repository array (first entry)
     const facilityCode = patient.patient_repository?.[0]?.facility_code;
     return getFacilityName(facilityCode);
+  };
+
+  // Filtered history based on type filter
+  const filteredHistory = patientHistory.filter(item => {
+    const matchesType = typeFilter === 'all' || 
+      (typeFilter === 'admission' && item.admdate && !item.disdate) ||
+      (typeFilter === 'discharge' && item.disdate);
+    return matchesType;
+  });
+
+  // Patient stats for selected patient
+  const patientStats = useMemo(() => {
+    const totalVisits = patientHistory.length;
+    const admissions = patientHistory.filter(h => h.admdate && !h.disdate).length;
+    const discharges = patientHistory.filter(h => h.disdate).length;
+    
+    const recentVisit = patientHistory.length > 0 
+      ? patientHistory.sort((a, b) => {
+          const dateA = new Date(a.encounter_date || a.admdate || '');
+          const dateB = new Date(b.encounter_date || b.admdate || '');
+          return dateB.getTime() - dateA.getTime();
+        })[0]
+      : null;
+
+    return {
+      totalVisits,
+      admissions,
+      discharges,
+      recentVisit,
+    };
+  }, [patientHistory]);
+
+  // Helper to convert Supabase patient to the format expected by PatientInfoCard
+  const getPatientInfoForCard = (patient: any) => {
+    return {
+      hpercode: patient.patient_repository?.[0]?.hpercode || patient.id,
+      first_name: patient.first_name,
+      middle_name: patient.middle_name,
+      last_name: patient.last_name,
+      ext_name: patient.ext_name,
+      sex: patient.sex,
+      birth_date: patient.birth_date,
+      facility_code: patient.patient_repository?.[0]?.facility_code,
+      facility_display_name: getFacility(patient),
+      brgy_name: patient.brgy?.description || patient.brgy_name,
+      city_name: patient.brgy?.city_municipality?.description || patient.city_name,
+      province_name: patient.brgy?.city_municipality?.province?.description || patient.province_name,
+      region_name: patient.brgy?.city_municipality?.province?.region?.description || patient.region_name,
+      street: patient.street,
+    };
   };
 
   /* ------------------------------------------------------------------ */
@@ -312,8 +413,10 @@ const PatientList = () => {
                     {patients.map((patient, index) => (
                       <TableRow 
                         key={patient.id}
-                        className="cursor-pointer hover:bg-muted/50 transition-all duration-200 group border-b"
-                        onClick={() => handleViewPatient(patient.id)}
+                        className={`cursor-pointer hover:bg-muted/50 transition-all duration-200 group border-b ${
+                          selectedPatient?.id === patient.id ? 'bg-primary/10 hover:bg-primary/15' : ''
+                        }`}
+                        onClick={() => handleSelectPatient(patient)}
                       >
                         <TableCell className="py-4">
                           <div className="flex items-start gap-2 max-w-[200px]">
@@ -390,6 +493,68 @@ const PatientList = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Selected Patient History Section */}
+      {selectedPatient && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Header with Close Button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <HistoryIcon className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">
+                  {selectedPatient.first_name} {selectedPatient.middle_name} {selectedPatient.last_name}
+                </h2>
+                <p className="text-sm text-muted-foreground">Patient Medical History</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleClosePatientView}>
+              <X className="h-4 w-4 mr-2" />
+              Close
+            </Button>
+          </div>
+
+          {/* Check if patient is linked */}
+          {!selectedPatient.patient_repository?.[0]?.hpercode ? (
+            <Alert className="border-amber-200 bg-amber-50">
+              <Info className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                <div className="flex items-center gap-2">
+                  <LinkIcon className="h-4 w-4" />
+                  <span>
+                    This patient is not linked to the hospital database. Link the patient in{' '}
+                    <strong>Patient Tagging</strong> to view their medical history.
+                  </span>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="grid grid-cols-12 gap-4">
+              {/* Patient Information Card */}
+              <div className="col-span-12 lg:col-span-4">
+                <PatientInfoCard
+                  patient={getPatientInfoForCard(selectedPatient)}
+                  recentVisit={patientStats.recentVisit}
+                />
+              </div>
+
+              {/* Patient History */}
+              <div className="col-span-12 lg:col-span-8">
+                <PatientHistoryTabs
+                  history={filteredHistory}
+                  isLoading={isLoadingHistory}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  typeFilter={typeFilter}
+                  onTypeFilterChange={setTypeFilter}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

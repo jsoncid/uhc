@@ -211,6 +211,9 @@ export interface PatientHistory {
   encounter_tacode?: string;
   encounter_consentphie?: string;
   encounter_cf4attendprov?: string;
+  // Source tracking (added by frontend)
+  source_database?: string;
+  source_facility_name?: string;
 }
 
 export interface PatientTagResult {
@@ -1286,28 +1289,44 @@ class PatientService {
 
       const result = await response.json();
       
+      // Helper to map database name to friendly facility name
+      const getFacilityNameFromDb = (dbName: string): string => {
+        if (dbName === 'adnph_ihomis_plus') return 'Agusan del Norte Provincial Hospital';
+        if (dbName === 'ndh_ihomis_plus') return 'Nasipit District Hospital';
+        return dbName;
+      };
+      
       // API returns database1 and database2 structure
       // Combine data from both databases, or use specific database if requested
       let historyData: PatientHistory[] = [];
       
+      // Helper to tag records with source
+      const tagRecords = (records: PatientHistory[], dbName: string): PatientHistory[] => {
+        return records.map(record => ({
+          ...record,
+          source_database: dbName,
+          source_facility_name: getFacilityNameFromDb(dbName),
+        }));
+      };
+      
       if (options?.database) {
         // If specific database requested, try to match
         if (result.database1?.name === options.database) {
-          historyData = result.database1?.data || [];
+          historyData = tagRecords(result.database1?.data || [], result.database1.name);
         } else if (result.database2?.name === options.database) {
-          historyData = result.database2?.data || [];
+          historyData = tagRecords(result.database2?.data || [], result.database2.name);
         } else {
           // Fallback: check both databases
           historyData = [
-            ...(result.database1?.data || []),
-            ...(result.database2?.data || []),
+            ...tagRecords(result.database1?.data || [], result.database1?.name || 'database1'),
+            ...tagRecords(result.database2?.data || [], result.database2?.name || 'database2'),
           ];
         }
       } else {
         // No specific database, combine both
         historyData = [
-          ...(result.database1?.data || []),
-          ...(result.database2?.data || []),
+          ...tagRecords(result.database1?.data || [], result.database1?.name || 'database1'),
+          ...tagRecords(result.database2?.data || [], result.database2?.name || 'database2'),
         ];
       }
       

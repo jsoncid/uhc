@@ -56,6 +56,7 @@ export const PatientLinkingDialog = ({
   // State
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [selectedFacility, setSelectedFacility] = useState('');
+  const [selectedDatabase, setSelectedDatabase] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [mysqlSearchResults, setMysqlSearchResults] = useState<PatientProfile[]>([]);
   const [selectedMysqlPatient, setSelectedMysqlPatient] = useState<PatientProfile | null>(null);
@@ -64,34 +65,37 @@ export const PatientLinkingDialog = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  // The only 2 supported facilities for patient linking/history
+  const SUPPORTED_FACILITIES: Facility[] = [
+    {
+      facility_code: '0005027',
+      facility_name: 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL',
+      patient_count: 17468,
+      database: 'adnph_ihomis_plus',
+    },
+    {
+      facility_code: '0005028',
+      facility_name: 'NASIPIT DISTRICT HOSPITAL',
+      patient_count: 17468,
+      database: 'ndh_ihomis_plus',
+    },
+  ];
+
   // Load facilities on mount
   useEffect(() => {
     if (open) {
-      loadFacilities();
+      // Use only the 2 supported facilities instead of loading all
+      setFacilities(SUPPORTED_FACILITIES);
       // Reset state when dialog opens
       setSearchTerm('');
       setMysqlSearchResults([]);
       setSelectedMysqlPatient(null);
+      setSelectedFacility('');
+      setSelectedDatabase('');
       setError(null);
       setSuccess(false);
     }
   }, [open]);
-
-  const loadFacilities = async () => {
-    try {
-      const result = await patientService.getFacilities();
-      if (result.success) {
-        // Combine facilities from both databases
-        const allFacilities = [
-          ...result.database1.data.map(f => ({ ...f, database: result.database1.name })),
-          ...result.database2.data.map(f => ({ ...f, database: result.database2.name })),
-        ];
-        setFacilities(allFacilities);
-      }
-    } catch (err) {
-      console.error('Error loading facilities:', err);
-    }
-  };
 
   const handleSearchMySQL = async () => {
     if (!searchTerm.trim()) {
@@ -103,14 +107,33 @@ export const PatientLinkingDialog = ({
     setError(null);
     try {
       const result = await patientService.searchPatients(searchTerm, {
-        facility: selectedFacility || undefined,
-        limit: 10,
+        database: selectedDatabase || undefined,
+        limit: 20,
       });
 
-      if (result.success && result.data) {
-        setMysqlSearchResults(result.data);
-        if (result.data.length === 0) {
-          setError('No patients found in MySQL database with that search term');
+      if (result.success) {
+        // Handle new API format with database1 and database2
+        let allPatients: PatientProfile[] = [];
+        
+        if (result.database1?.data) {
+          allPatients = [...allPatients, ...result.database1.data];
+        }
+        if (result.database2?.data) {
+          allPatients = [...allPatients, ...result.database2.data];
+        }
+        // Fallback to legacy format
+        if (allPatients.length === 0 && result.data) {
+          allPatients = result.data;
+        }
+        
+        // Filter by selected facility if one is chosen
+        if (selectedFacility) {
+          allPatients = allPatients.filter(p => p.facility_code === selectedFacility);
+        }
+        
+        setMysqlSearchResults(allPatients);
+        if (allPatients.length === 0) {
+          setError('No patients found in hospital database with that search term');
         }
       } else {
         setError(result.message || 'Failed to search patients');
@@ -234,14 +257,22 @@ export const PatientLinkingDialog = ({
               Facility (Optional)
             </Label>
             <div className="flex gap-2">
-              <Select value={selectedFacility} onValueChange={setSelectedFacility}>
+              <Select 
+                value={selectedFacility} 
+                onValueChange={(value) => {
+                  setSelectedFacility(value);
+                  // Also set the database based on the selected facility
+                  const facility = SUPPORTED_FACILITIES.find(f => f.facility_code === value);
+                  setSelectedDatabase(facility?.database || '');
+                }}
+              >
                 <SelectTrigger id="facility">
                   <SelectValue placeholder="Select a facility to filter results" />
                 </SelectTrigger>
                 <SelectContent>
                   {facilities.map((facility) => (
                     <SelectItem key={facility.facility_code} value={facility.facility_code}>
-                      {facility.facility_name} ({facility.patient_count} patients)
+                      {facility.facility_name} ({facility.patient_count.toLocaleString()} patients)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -250,7 +281,10 @@ export const PatientLinkingDialog = ({
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setSelectedFacility('')}
+                  onClick={() => {
+                    setSelectedFacility('');
+                    setSelectedDatabase('');
+                  }}
                   title="Clear facility filter"
                 >
                   ✕

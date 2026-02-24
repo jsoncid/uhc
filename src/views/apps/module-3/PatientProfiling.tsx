@@ -229,39 +229,28 @@ const PatientProfiling = () => {
 
   const completion = useProfileCompletion(patient);
 
+  // The only 2 supported facilities for patient linking/history
+  const SUPPORTED_FACILITIES: Facility[] = [
+    {
+      facility_code: '0005027',
+      facility_name: 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL',
+      patient_count: 17468,
+      database: 'adnph_ihomis_plus',
+    },
+    {
+      facility_code: '0005028',
+      facility_name: 'NASIPIT DISTRICT HOSPITAL',
+      patient_count: 17468,
+      database: 'ndh_ihomis_plus',
+    },
+  ];
+
   const loadFacilities = async () => {
     setIsLoadingFacilities(true);
     setFacilityLoadError(null);
     try {
-      const result = await patientService.getFacilities();
-      if (result.success) {
-        // Merge facilities from both databases and tag with database source
-        const db1Facilities = result.database1.data.map(f => ({ ...f, database: result.database1.name }));
-          const db2Facilities = result.database2.data.map(f => {
-            // Rename facility from database2 for display (cannot update MySQL database)
-            if (f.facility_code === '0005027' || f.facility_code === '0005028') {
-              return {
-                ...f,
-                facility_name: 'NASIPIT DISTRICT HOSPITAL',
-                database: result.database2.name
-              };
-            }
-            return { ...f, database: result.database2.name };
-          });
-        const allFacilities = [...db1Facilities, ...db2Facilities];
-        
-        // Filter to only show facilities with patients
-        const facilitiesWithPatients = allFacilities.filter(f => f.patient_count > 0);
-        
-        setFacilities(facilitiesWithPatients);
-        
-        if (facilitiesWithPatients.length === 0) {
-          setFacilityLoadError('No facilities with patient records found');
-        }
-      } else {
-        setFacilities([]);
-        setFacilityLoadError(result.message || 'No facilities available');
-      }
+      // Use only the 2 supported facilities instead of loading all
+      setFacilities(SUPPORTED_FACILITIES);
     } catch (error) {
       console.warn(`Failed to load facilities:`, error);
       setFacilities([]);
