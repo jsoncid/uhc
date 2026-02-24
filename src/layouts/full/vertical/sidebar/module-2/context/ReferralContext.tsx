@@ -455,6 +455,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             patient_profile: newReferral.patient_profile,
             from_assignment: userAssignmentId,
             to_assignment: newReferral.to_assignment,
+            user: user?.id ?? null,
           })
           .select('id')
           .single();
@@ -535,13 +536,27 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             .single();
           if (infoErr) throw infoErr;
 
+          const diags = (ri.diagnostics ?? []).filter((d) => d.diagnostics);
+          if (diags.length && infoRow) {
+            await supabaseM2.from('referral_info_diagnostic').insert(
+              diags.map((d) => ({
+                referral_info: infoRow.id,
+                diagnostics: d.diagnostics,
+                date: d.date ?? null,
+                attachment: d.attachments?.length ? JSON.stringify(d.attachments) : null,
+                status: true,
+              })),
+            );
+          }
+
           const vacs = (ri.vaccinations ?? []).filter((v) => v.description);
           if (vacs.length && infoRow) {
             await supabaseM2.from('referral_info_vaccination').insert(
               vacs.map((v) => ({
                 referral_info: infoRow.id,
                 description: v.description,
-                date: v.date,
+                date: v.date ?? null,
+                attachment: v.attachments?.length ? JSON.stringify(v.attachments) : null,
                 status: true,
               })),
             );

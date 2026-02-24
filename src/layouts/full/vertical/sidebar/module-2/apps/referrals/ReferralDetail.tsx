@@ -701,7 +701,7 @@ const ReferralDetail = () => {
                       title="OB/GYNE — Comorbidities & Surgical History"
                     />
                     <div className="flex flex-col gap-4">
-                      <Field label="Comorbidity" value={info.comorbidity} />
+                      <Field label="Comorbidities" value={info.comorbidity} />
                       <Field label="Previous Surgeries" value={info.previous_surgeries} />
                       <Field
                         label="Previous CS (When / Where / Indication)"

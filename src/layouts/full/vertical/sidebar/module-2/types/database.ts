@@ -271,6 +271,7 @@ export type Module2Database = {
         referral_info: string | null;
         description: string | null;
         date: string | null;
+        attachment: string | null;
         status: boolean | null;
       };
       Insert: {
@@ -279,6 +280,7 @@ export type Module2Database = {
         referral_info?: string | null;
         description?: string | null;
         date?: string | null;
+        attachment?: string | null;
         status?: boolean | null;
       };
       Update: {
@@ -287,6 +289,7 @@ export type Module2Database = {
         referral_info?: string | null;
         description?: string | null;
         date?: string | null;
+        attachment?: string | null;
         status?: boolean | null;
       };
     };
