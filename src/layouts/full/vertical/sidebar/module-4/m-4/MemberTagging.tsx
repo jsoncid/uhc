@@ -10,7 +10,35 @@ import {
   Tag, Search, User, CheckCircle2, AlertCircle, Loader2,
   Link2, X, ChevronRight, UserCheck, ShieldCheck,
   Mail, Calendar, MapPin, ArrowRight, RefreshCw, Info,
+  Building, Landmark,
 } from 'lucide-react';
+
+// ─── Role Type Options ────────────────────────────────────────────────────────
+type RoleType = 'Member' | 'Barangay Officer' | 'Hospital Operator';
+
+const ROLE_OPTIONS: { value: RoleType; label: string; description: string; icon: React.ReactNode; color: string; border: string; bg: string; text: string }[] = [
+  {
+    value: 'Member',
+    label: 'Member',
+    description: 'Standard health card member',
+    icon: <UserCheck className="w-5 h-5" />,
+    color: 'amber', border: 'border-amber-300', bg: 'bg-amber-50', text: 'text-amber-700',
+  },
+  {
+    value: 'Barangay Officer',
+    label: 'Barangay Officer',
+    description: 'Local barangay health officer',
+    icon: <Landmark className="w-5 h-5" />,
+    color: 'indigo', border: 'border-indigo-300', bg: 'bg-indigo-50', text: 'text-indigo-700',
+  },
+  {
+    value: 'Hospital Operator',
+    label: 'Hospital Operator',
+    description: 'Hospital operations staff',
+    icon: <Building className="w-5 h-5" />,
+    color: 'teal', border: 'border-teal-300', bg: 'bg-teal-50', text: 'text-teal-700',
+  },
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,9 +115,12 @@ const MemberTagging = () => {
   const [isSearchingPatient, setIsSearchingPatient] = useState(false);
   const [patientError,       setPatientError]       = useState('');
 
-  // Step 3: confirm & tag
+  // Step 3: role selection
+  const [selectedRole,  setSelectedRole]  = useState<RoleType>('Member');
+
+  // Step 4: confirm & tag
   const [tagging,       setTagging]       = useState<TaggingState>({ status: 'idle', message: '' });
-  const [memberRoleId,  setMemberRoleId]  = useState<string | null>(null);
+  const [cachedRoleIds, setCachedRoleIds] = useState<Record<string, string>>({});
 
   const userInputRef    = useRef<HTMLInputElement>(null);
   const patientInputRef = useRef<HTMLInputElement>(null);
@@ -252,24 +283,25 @@ const MemberTagging = () => {
         );
       }
 
-      // ── A. Get "Member" role ID from public.role ──────────────────────────
-      let roleId = memberRoleId;
+      // ── A. Get role ID from public.role based on selected role ─────────────
+      let roleId = cachedRoleIds[selectedRole] ?? null;
       if (!roleId) {
+        const searchTerm = selectedRole.toLowerCase();
         const { data: roleData, error: roleError } = await supabase
           .from('role')
           .select('id')
-          .ilike('description', '%member%')
+          .ilike('description', `%${searchTerm}%`)
           .eq('is_active', true)
           .single();
 
         if (roleError || !roleData) {
-          throw new Error('Could not find "Member" role. Please ensure a role named "Member" exists in the system.');
+          throw new Error(`Could not find "${selectedRole}" role. Please ensure a role named "${selectedRole}" exists in the system.`);
         }
         roleId = roleData.id;
-        setMemberRoleId(roleId);
+        setCachedRoleIds((prev) => ({ ...prev, [selectedRole]: roleId! }));
       }
 
-      // ── B. Assign "Member" role in public.user_role (if not already) ─────
+      // ── B. Assign selected role in public.user_role (if not already) ─────
       const { data: existingRole } = await supabase
         .from('user_role')
         .select('id')
@@ -337,7 +369,7 @@ const MemberTagging = () => {
 
       setTagging({
         status: 'success',
-        message: `${fullName(selectedPatient)} has been successfully tagged as a Member and linked to ${selectedUser.email}.`,
+        message: `${fullName(selectedPatient)} has been successfully tagged as ${selectedRole} and linked to ${selectedUser.email}.`,
       });
     } catch (err: any) {
       console.error('Tagging error:', err);
@@ -357,12 +389,14 @@ const MemberTagging = () => {
     setPatientResults([]);
     setUserError('');
     setPatientError('');
+    setSelectedRole('Member');
     setTagging({ status: 'idle', message: '' });
   };
 
   const step1Done = !!selectedUser;
   const step2Done = !!selectedPatient;
-  const step3Active = step1Done && step2Done;
+  const step3Done = step1Done && step2Done && !!selectedRole;
+  const step4Active = step3Done;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -375,9 +409,9 @@ const MemberTagging = () => {
             <Tag className="w-6 h-6 text-amber-700" />
           </div>
           <div className="flex-1">
-            <h3 className="font-bold text-lg text-gray-900">Health Card Member Tagging</h3>
+            <h3 className="font-bold text-lg text-gray-900">Health Card Tagging</h3>
             <p className="text-sm text-gray-500 mt-0.5">
-              Link a registered system user to their patient profile and issue them a Health Card membership.
+              Link a registered system user to their patient profile and assign a role (Member, Barangay Officer, or Hospital Operator).
             </p>
           </div>
           {(step1Done || step2Done) && (
@@ -391,7 +425,7 @@ const MemberTagging = () => {
         <div className="mt-5 flex items-center gap-2 overflow-x-auto pb-1">
           {[
             { label: 'auth.users', sublabel: 'Registered account', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-            { label: 'public.user_role', sublabel: 'Assign "Member" role', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+            { label: 'public.user_role', sublabel: 'Assign selected role', color: 'bg-purple-100 text-purple-700 border-purple-200' },
             { label: 'module3.patient_profile', sublabel: 'Patient record', color: 'bg-green-100 text-green-700 border-green-200' },
             { label: 'module4.health_card', sublabel: 'Issue health card', color: 'bg-amber-100 text-amber-700 border-amber-200' },
           ].map((node, i, arr) => (
@@ -603,17 +637,60 @@ const MemberTagging = () => {
         )}
       </Card>
 
-      {/* ── STEP 3: Confirm & Tag ─────────────────────────────────────────── */}
-      <Card className={`p-6 transition-all ${!step3Active ? 'opacity-50 pointer-events-none' : ''}`}>
+      {/* ── STEP 3: Select Role ────────────────────────────────────────── */}
+      <Card className={`p-6 transition-all ${!step2Done ? 'opacity-50 pointer-events-none' : ''}`}>
         <div className="flex items-center gap-3 mb-4">
-          <StepBadge n={3} active={step3Active && tagging.status === 'idle'} done={tagging.status === 'success'} />
+          <StepBadge n={3} active={step1Done && step2Done} done={step3Done} />
           <div>
-            <p className="font-semibold text-gray-800">Confirm & Tag as Member</p>
-            <p className="text-xs text-gray-400">Review the link and assign membership</p>
+            <p className="font-semibold text-gray-800">Select Role</p>
+            <p className="text-xs text-gray-400">Choose the role to assign to this user</p>
           </div>
         </div>
 
-        {step3Active && tagging.status === 'idle' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {ROLE_OPTIONS.map((role) => {
+            const isSelected = selectedRole === role.value;
+            return (
+              <button
+                key={role.value}
+                onClick={() => setSelectedRole(role.value)}
+                className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                  isSelected
+                    ? `${role.border} ${role.bg} ring-2 ring-offset-1 ring-${role.color}-200`
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${
+                  isSelected ? `${role.bg} ${role.text}` : 'bg-gray-100 text-gray-400'
+                }`}>
+                  {role.icon}
+                </div>
+                <p className={`font-semibold text-sm ${isSelected ? role.text : 'text-gray-700'}`}>
+                  {role.label}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">{role.description}</p>
+                {isSelected && (
+                  <div className="absolute top-2 right-2">
+                    <CheckCircle2 className={`w-5 h-5 ${role.text}`} />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* ── STEP 4: Confirm & Tag ─────────────────────────────────────────── */}
+      <Card className={`p-6 transition-all ${!step4Active ? 'opacity-50 pointer-events-none' : ''}`}>
+        <div className="flex items-center gap-3 mb-4">
+          <StepBadge n={4} active={step4Active && tagging.status === 'idle'} done={tagging.status === 'success'} />
+          <div>
+            <p className="font-semibold text-gray-800">Confirm & Tag as {selectedRole}</p>
+            <p className="text-xs text-gray-400">Review the link and assign role</p>
+          </div>
+        </div>
+
+        {step4Active && tagging.status === 'idle' && (
           <>
             {/* Summary linking card */}
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-5">
@@ -647,7 +724,7 @@ const MemberTagging = () => {
               <div className="mt-4 space-y-2">
                 <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Actions that will be performed:</p>
                 {[
-                  { icon: <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />, text: 'Assign "Member" role in public.user_role', color: 'bg-purple-50 border-purple-200' },
+                  { icon: <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />, text: `Assign "${selectedRole}" role in public.user_role`, color: 'bg-purple-50 border-purple-200' },
                   { icon: <UserCheck  className="w-3.5 h-3.5 text-amber-600"  />, text: 'Link auth user to patient_profile in module4.health_card', color: 'bg-amber-50 border-amber-200' },
                   { icon: <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />, text: 'Create health card if one doesn\'t exist yet', color: 'bg-green-50 border-green-200' },
                 ].map((item, i) => (
@@ -705,8 +782,8 @@ const MemberTagging = () => {
             <div className="w-full mt-2 p-3 bg-green-50 border border-green-200 rounded-xl flex gap-2">
               <Info className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-green-700">
-                The user can now log in and access their <strong>My Health Card</strong> page. 
-                Remind them to set a PIN for security.
+                The user can now log in and access the system as <strong>{selectedRole}</strong>.
+                {selectedRole === 'Member' && ' Remind them to set a PIN for security.'}
               </p>
             </div>
 
