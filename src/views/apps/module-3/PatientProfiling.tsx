@@ -465,11 +465,10 @@ const PatientProfiling = () => {
       const result = await patientService.saveToSupabase(patient);
 
       if (result.success) {
-        setStatusMessage(result.message || 'Patient profile saved successfully to Supabase');
-        setStatusType('success');
-
-        // Clear inputs after successful save
+        // Clear inputs first, then show success message (handleReset clears statusMessage)
         handleReset();
+        setStatusMessage(result.message || 'Patient profile saved successfully!');
+        setStatusType('success');
       } else {
         setStatusMessage(result.message || 'Failed to save patient profile');
         setStatusType('error');
@@ -516,14 +515,13 @@ const PatientProfiling = () => {
 
     console.log('Searching with:', {
       name: modalSearchName.trim(),
-      facility: modalFacilityId,
       database: modalFacilityDatabase,
     });
 
     try {
       // Use the database from the selected facility
+      // Note: Don't filter by facility_code as it may not match across databases
       const result = await patientService.searchPatients(modalSearchName.trim(), {
-        facility: modalFacilityId || undefined,
         database: modalFacilityDatabase,
         limit: 50,
       });
