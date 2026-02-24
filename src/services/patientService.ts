@@ -1285,9 +1285,40 @@ class PatientService {
       }
 
       const result = await response.json();
+      
+      // API returns database1 and database2 structure
+      // Combine data from both databases, or use specific database if requested
+      let historyData: PatientHistory[] = [];
+      
+      if (options?.database) {
+        // If specific database requested, try to match
+        if (result.database1?.name === options.database) {
+          historyData = result.database1?.data || [];
+        } else if (result.database2?.name === options.database) {
+          historyData = result.database2?.data || [];
+        } else {
+          // Fallback: check both databases
+          historyData = [
+            ...(result.database1?.data || []),
+            ...(result.database2?.data || []),
+          ];
+        }
+      } else {
+        // No specific database, combine both
+        historyData = [
+          ...(result.database1?.data || []),
+          ...(result.database2?.data || []),
+        ];
+      }
+      
+      // Also support legacy flat data structure
+      if (historyData.length === 0 && result.data) {
+        historyData = result.data;
+      }
+      
       return {
         success: true,
-        data: result.data || [],
+        data: historyData,
         pagination: result.pagination,
       };
     } catch (error) {
