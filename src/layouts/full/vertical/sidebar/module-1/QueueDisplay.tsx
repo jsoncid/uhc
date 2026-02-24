@@ -129,8 +129,10 @@ const QueueDisplay = () => {
   const [activeNotif, setActiveNotif] = useState<CallNotification | null>(null);
   // Tracks sequence IDs already enqueued so we never repeat
   const seenIds = useRef<Set<string>>(new Set());
-  // True once the initial sequence snapshot has been seeded (no announcement on load)
+  // Prevents announcements on the initial page load snapshot
   const initializedRef = useRef(false);
+  // Reference to the ping broadcast channel so the processor can send ping-done
+  const pingChRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isDisplayMode = useMemo(() => {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('display') === '1';
@@ -237,6 +239,12 @@ const QueueDisplay = () => {
 
     speakRepeat(announcement, REPEAT_COUNT, () => {
       setTimeout(() => {
+        // Notify StaffQueueManager the announcement is done so Ping button re-enables
+        pingChRef.current?.send({
+          type: 'broadcast',
+          event: 'ping-done',
+          payload: { sequenceId: next.id },
+        });
         setActiveNotif(null); // state change → effect re-runs → picks up next item
       }, POPUP_GAP_MS);
     });
@@ -265,8 +273,10 @@ const QueueDisplay = () => {
         ]);
       })
       .subscribe();
+    pingChRef.current = ch;
     return () => {
       supabase.removeChannel(ch);
+      pingChRef.current = null;
     };
   }, []);
 

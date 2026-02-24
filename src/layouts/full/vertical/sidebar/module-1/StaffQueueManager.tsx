@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
+import { supabase } from '@/lib/supabase';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
 import { useOfficeUserAssignmentStore } from '@/stores/module-1_stores/useOfficeUserAssignmentStore';
@@ -34,6 +35,10 @@ const StaffQueueManager = () => {
   const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
   const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
   const [transferSuccess, setTransferSuccess] = useState<string>('');
+  // Tracks which sequenceId is currently being announced; Ping is disabled until it finishes
+  const [pingingId, setPingingId] = useState<string | null>(null);
+  // Channel ref for receiving ping-done callbacks from QueueDisplay
+  const pingDoneChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
@@ -59,6 +64,23 @@ const StaffQueueManager = () => {
     fetchStatuses();
     fetchSequences();
   }, [fetchStatuses, fetchSequences]);
+
+  useEffect(() => {
+    // Subscribe to ping-done so we know when to re-enable the Ping button
+    const ch = supabase
+      .channel('queue-ping-done-listener')
+      .on('broadcast', { event: 'ping-done' }, ({ payload }) => {
+        setPingingId((curr) =>
+          curr === (payload.sequenceId as string) ? null : curr,
+        );
+      })
+      .subscribe();
+    pingDoneChannelRef.current = ch;
+    return () => {
+      supabase.removeChannel(ch);
+      pingDoneChannelRef.current = null;
+    };
+  }, []);
 
   // Fetch offices filtered by user's assignments
   useEffect(() => {
@@ -243,6 +265,8 @@ const StaffQueueManager = () => {
         ],
       }),
     });
+    // Disable the button immediately — re-enabled when QueueDisplay broadcasts ping-done
+    setPingingId(serving.id);
   };
 
   const handleOpenTransferDialog = (sequence: Sequence) => {
@@ -430,7 +454,7 @@ const StaffQueueManager = () => {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handlePing(serving, office.description || '')}
-                                  disabled={isLoading}
+                                  disabled={isLoading || pingingId === serving.id}
                                   title="Re-announce this queue on the display"
                                 >
                                   <Bell className="h-4 w-4 mr-2" />
