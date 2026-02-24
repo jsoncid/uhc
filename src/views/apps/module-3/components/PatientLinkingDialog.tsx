@@ -21,6 +21,7 @@ import { Card, CardContent } from 'src/components/ui/card';
 import { Badge } from 'src/components/ui/badge';
 import { Alert, AlertDescription } from 'src/components/ui/alert';
 import { Separator } from 'src/components/ui/separator';
+import { Checkbox } from 'src/components/ui/checkbox';
 import {
   Search,
   User,
@@ -30,6 +31,8 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import patientService, { PatientProfileWithLocations as PatientProfile, Facility } from 'src/services/patientService';
 
@@ -59,11 +62,12 @@ export const PatientLinkingDialog = ({
   const [selectedDatabase, setSelectedDatabase] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [mysqlSearchResults, setMysqlSearchResults] = useState<PatientProfile[]>([]);
-  const [selectedMysqlPatient, setSelectedMysqlPatient] = useState<PatientProfile | null>(null);
+  const [selectedMysqlPatients, setSelectedMysqlPatients] = useState<PatientProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [linkingProgress, setLinkingProgress] = useState({ current: 0, total: 0 });
 
   // The only 2 supported facilities for patient linking/history
   const SUPPORTED_FACILITIES: Facility[] = [
@@ -89,13 +93,41 @@ export const PatientLinkingDialog = ({
       // Reset state when dialog opens
       setSearchTerm('');
       setMysqlSearchResults([]);
-      setSelectedMysqlPatient(null);
+      setSelectedMysqlPatients([]);
       setSelectedFacility('');
       setSelectedDatabase('');
       setError(null);
       setSuccess(false);
+      setLinkingProgress({ current: 0, total: 0 });
     }
   }, [open]);
+
+  // Toggle single patient selection
+  const togglePatientSelection = (patient: PatientProfile) => {
+    setSelectedMysqlPatients(prev => {
+      const isSelected = prev.some(p => p.hpercode === patient.hpercode);
+      if (isSelected) {
+        return prev.filter(p => p.hpercode !== patient.hpercode);
+      } else {
+        return [...prev, patient];
+      }
+    });
+  };
+
+  // Select all visible patients
+  const selectAll = () => {
+    setSelectedMysqlPatients(mysqlSearchResults);
+  };
+
+  // Deselect all patients
+  const deselectAll = () => {
+    setSelectedMysqlPatients([]);
+  };
+
+  // Check if a patient is selected
+  const isPatientSelected = (patient: PatientProfile) => {
+    return selectedMysqlPatients.some(p => p.hpercode === patient.hpercode);
+  };
 
   const handleSearchMySQL = async () => {
     if (!searchTerm.trim()) {
@@ -146,32 +178,58 @@ export const PatientLinkingDialog = ({
   };
 
   const handleLink = async () => {
-    if (!supabasePatient || !selectedMysqlPatient) {
-      setError('Please select a MySQL patient to link');
+    if (!supabasePatient || selectedMysqlPatients.length === 0) {
+      setError('Please select at least one MySQL patient to link');
       return;
     }
 
     setIsLinking(true);
     setError(null);
-    try {
-      const result = await patientService.linkPatientToMySQL(
-        supabasePatient.id,
-        selectedMysqlPatient.hpercode!,
-        selectedFacility || undefined
-      );
+    setLinkingProgress({ current: 0, total: selectedMysqlPatients.length });
 
-      if (result.success) {
+    const errors: string[] = [];
+    let successCount = 0;
+
+    try {
+      for (let i = 0; i < selectedMysqlPatients.length; i++) {
+        const patient = selectedMysqlPatients[i];
+        setLinkingProgress({ current: i + 1, total: selectedMysqlPatients.length });
+        
+        try {
+          const result = await patientService.linkPatientToMySQL(
+            supabasePatient.id,
+            patient.hpercode!,
+            patient.facility_code || selectedFacility || undefined
+          );
+
+          if (result.success) {
+            successCount++;
+          } else {
+            errors.push(`${patient.last_name}, ${patient.first_name}: ${result.message || 'Failed'}`);
+          }
+        } catch (err) {
+          errors.push(`${patient.last_name}, ${patient.first_name}: ${err instanceof Error ? err.message : 'Failed'}`);
+        }
+      }
+
+      if (successCount === selectedMysqlPatients.length) {
         setSuccess(true);
-        // Wait a moment to show success message
         setTimeout(() => {
           onLinkSuccess?.();
           onOpenChange(false);
         }, 1500);
+      } else if (successCount > 0) {
+        setSuccess(true);
+        setError(`Linked ${successCount} of ${selectedMysqlPatients.length} patients. Errors: ${errors.join('; ')}`);
+        setTimeout(() => {
+          onLinkSuccess?.();
+          onOpenChange(false);
+        }, 3000);
       } else {
-        setError(result.message || 'Failed to link patient');
+        setError(`Failed to link patients: ${errors.join('; ')}`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to link patient');
+      setError(err instanceof Error ? err.message : 'Failed to link patients');
     } finally {
       setIsLinking(false);
     }
@@ -326,62 +384,100 @@ export const PatientLinkingDialog = ({
           {/* MySQL Search Results */}
           {mysqlSearchResults.length > 0 && (
             <div>
-              <Label className="mb-2">Select Hospital Patient to Link</Label>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {mysqlSearchResults.map((patient) => (
-                  <Card
-                    key={patient.hpercode}
-                    className={`cursor-pointer transition-all ${
-                      selectedMysqlPatient?.hpercode === patient.hpercode
-                        ? 'border-primary bg-primary/5'
-                        : 'hover:border-primary/50'
-                    }`}
-                    onClick={() => setSelectedMysqlPatient(patient)}
+              <div className="flex items-center justify-between mb-2">
+                <Label>Select Hospital Patient(s) to Link</Label>
+                <div className="flex items-center gap-2">
+                  {selectedMysqlPatients.length > 0 && (
+                    <Badge variant="secondary">
+                      {selectedMysqlPatients.length} selected
+                    </Badge>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={selectAll}
+                    disabled={selectedMysqlPatients.length === mysqlSearchResults.length}
+                    className="h-7 px-2 text-xs"
                   >
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold truncate">
-                            {patient.last_name}, {patient.first_name} {patient.middle_name}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                            <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
-                              {patient.hpercode}
-                            </span>
-                            <span className="capitalize">{patient.sex}</span>
-                            <span>•</span>
-                            <span>{patient.birth_date}</span>
-                          </div>
-                          {patient.facility_code && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Facility: {patient.facility_code}
+                    <CheckSquare className="h-3 w-3 mr-1" />
+                    Select All
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={deselectAll}
+                    disabled={selectedMysqlPatients.length === 0}
+                    className="h-7 px-2 text-xs"
+                  >
+                    <Square className="h-3 w-3 mr-1" />
+                    Clear
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {mysqlSearchResults.map((patient) => {
+                  const isSelected = isPatientSelected(patient);
+                  return (
+                    <Card
+                      key={patient.hpercode}
+                      className={`cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-primary bg-primary/5'
+                          : 'hover:border-primary/50'
+                      }`}
+                      onClick={() => togglePatientSelection(patient)}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => togglePatientSelection(patient)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-1"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold truncate">
+                              {patient.last_name}, {patient.first_name} {patient.middle_name}
                             </p>
+                            <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                              <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
+                                {patient.hpercode}
+                              </span>
+                              <span className="capitalize">{patient.sex}</span>
+                              <span>•</span>
+                              <span>{patient.birth_date}</span>
+                            </div>
+                            {patient.facility_code && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Facility: {patient.facility_code}
+                              </p>
+                            )}
+                          </div>
+                          {isSelected && (
+                            <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
                           )}
                         </div>
-                        {selectedMysqlPatient?.hpercode === patient.hpercode && (
-                          <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 ml-2" />
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLinking}>
             Cancel
           </Button>
           <Button
             onClick={handleLink}
-            disabled={!selectedMysqlPatient || isLinking || success}
+            disabled={selectedMysqlPatients.length === 0 || isLinking || success}
           >
             {isLinking ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Linking...
+                Linking {linkingProgress.current} of {linkingProgress.total}...
               </>
             ) : success ? (
               <>
@@ -391,7 +487,12 @@ export const PatientLinkingDialog = ({
             ) : (
               <>
                 <LinkIcon className="h-4 w-4 mr-2" />
-                Link Patient
+                {selectedMysqlPatients.length === 0 
+                  ? 'Link Patient' 
+                  : selectedMysqlPatients.length === 1 
+                    ? 'Link Patient' 
+                    : `Link ${selectedMysqlPatients.length} Patients`
+                }
               </>
             )}
           </Button>
