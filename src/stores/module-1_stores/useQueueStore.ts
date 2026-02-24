@@ -71,6 +71,7 @@ interface QueueState {
   ) => Promise<void>;
   isWindowAvailable: (windowId: string) => boolean;
   getServingSequenceForWindow: (windowId: string) => Sequence | undefined;
+  callNextSequence: (officeId: string, servingStatusId: string, windowId: string) => Promise<boolean>;
   subscribeToSequences: () => () => void;
   clearError: () => void;
 }
@@ -503,6 +504,37 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     return sequences.find(
       (seq) => seq.window === windowId && seq.status === servingStatus.id && seq.is_active,
     );
+  },
+
+  callNextSequence: async (
+    officeId: string,
+    servingStatusId: string,
+    windowId: string,
+  ): Promise<boolean> => {
+    set({ error: null });
+    try {
+      const { data, error } = await module1.rpc('claim_next_sequence', {
+        p_office_id: officeId,
+        p_serve_status_id: servingStatusId,
+        p_window_id: windowId,
+      });
+
+      if (error) throw error;
+
+      // null means no pending sequences available
+      if (data === null) {
+        return false;
+      }
+
+      // Refresh local state so the newly-serving sequence appears
+      await get().fetchSequences();
+      return true;
+    } catch (error: unknown) {
+      console.error('❌ Failed to claim next sequence:', error);
+      const errorObj = error as { message?: string };
+      set({ error: errorObj.message || 'Failed to call next sequence' });
+      return false;
+    }
   },
 
   transferSequence: async (sequenceId: string, targetOfficeId: string) => {

@@ -44,6 +44,7 @@ const StaffQueueManager = () => {
     fetchStatuses,
     updateSequenceStatus,
     transferSequence,
+    callNextSequence,
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
@@ -178,24 +179,24 @@ const StaffQueueManager = () => {
       return;
     }
 
-    console.log('📞 Calling next - servingStatus:', servingStatus);
-
     const windowId = selectedWindowByOffice[officeId];
-    // Do NOT auto-complete current serving — staff must click Complete manually
+
+    // Guard: block if this window already has someone serving/arrived
     const currentServing = getServingSequence(officeId, windowId);
     if (currentServing) {
       console.log('ℹ️ Someone is already being served, Call Next is blocked');
       return;
     }
 
-    // Prioritize arrived patients, then fall back to pending
-    const waiting = getWaitingSequences(officeId, windowId);
-    const nextInQueue = waiting[0]; // Already sorted by priority
+    if (!windowId) {
+      console.error('No window selected');
+      return;
+    }
 
-    if (nextInQueue) {
-      console.log('➡️ Calling next in queue:', nextInQueue.id, 'to window:', windowId);
-      await updateSequenceStatus(nextInQueue.id, servingStatus.id, windowId ?? undefined);
-    } else {
+    // Atomically claim the next pending sequence via DB function —
+    // prevents two windows from grabbing the same queue number simultaneously.
+    const claimed = await callNextSequence(officeId, servingStatus.id, windowId);
+    if (!claimed) {
       console.log('ℹ️ No one waiting in queue');
     }
   };
