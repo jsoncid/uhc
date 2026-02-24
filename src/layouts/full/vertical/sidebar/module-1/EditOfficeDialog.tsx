@@ -5,12 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -184,7 +179,9 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
                         <Check className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom"><p>Save</p></TooltipContent>
+                    <TooltipContent side="bottom">
+                      <p>Save</p>
+                    </TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -200,7 +197,9 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
                         <X className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom"><p>Cancel</p></TooltipContent>
+                    <TooltipContent side="bottom">
+                      <p>Cancel</p>
+                    </TooltipContent>
                   </Tooltip>
                 </div>
               ) : (
@@ -224,7 +223,10 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
                   <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Windows
                   </Label>
-                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-bold rounded-full">
+                  <Badge
+                    variant="secondary"
+                    className="h-5 px-1.5 text-[10px] font-bold rounded-full"
+                  >
                     {windows.length}
                   </Badge>
                 </div>
@@ -264,61 +266,52 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
                             if (e.key === 'Escape') handleCancelEditWindow();
                           }}
                         />
-                        <div className="flex items-center gap-0.5">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                            onClick={handleSaveWindow}
-                            disabled={isLoading}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                            onClick={handleCancelEditWindow}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                              onClick={() => {
+                                if (editingWindowId) handleDeleteWindow(editingWindowId);
+                              }}
+                              disabled={isLoading}
+                            >
+                              <Trash2 className="h-4.5 w-4.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            <p>Delete</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </>
                     ) : (
                       <>
                         <span className="text-xs font-mono text-muted-foreground/60 w-5 text-center select-none">
                           {index + 1}
                         </span>
-                        <span className="flex-1 text-sm">
+                        <span
+                          className="flex-1 text-sm cursor-pointer"
+                          onClick={() => handleStartEditWindow(w.id, w.description || '')}
+                        >
                           {w.description || `Window ${index + 1}`}
                         </span>
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-0.5">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-7 w-7 text-muted-foreground hover:text-primary transition-colors"
-                                onClick={() => handleStartEditWindow(w.id, w.description || '')}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom"><p>Edit</p></TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 transition-colors"
                                 onClick={() => handleDeleteWindow(w.id)}
                                 disabled={isLoading}
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Trash2 className="h-4.5 w-4.5" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent side="bottom"><p>Delete</p></TooltipContent>
+                            <TooltipContent side="bottom">
+                              <p>Delete</p>
+                            </TooltipContent>
                           </Tooltip>
                         </div>
                       </>
@@ -388,12 +381,19 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
           {/* ── Footer ── */}
           <Separator />
           <DialogFooter className="px-6 py-4 bg-muted/20">
+            <Button variant="outline" onClick={handleClose} className="px-5 transition-colors">
+              Close
+            </Button>
             <Button
-              variant="outline"
-              onClick={handleClose}
+              onClick={async () => {
+                if (isEditingName) await handleSaveOfficeName();
+                if (editingWindowId) await handleSaveWindow();
+                handleClose();
+              }}
+              disabled={isLoading}
               className="px-5 transition-colors"
             >
-              Close
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

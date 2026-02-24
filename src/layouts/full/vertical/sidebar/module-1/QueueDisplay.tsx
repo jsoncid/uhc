@@ -8,9 +8,9 @@ import { supabase } from '@/lib/supabase';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 
-const REPEAT_COUNT = 3;       // how many times to announce
+const REPEAT_COUNT = 3; // how many times to announce
 const PAUSE_BETWEEN_MS = 800; // pause between each announcement
-const POPUP_GAP_MS = 600;     // gap after speech before picking up the next item
+const POPUP_GAP_MS = 600; // gap after speech before picking up the next item
 
 interface CallNotification {
   id: string;
@@ -108,17 +108,19 @@ const getPriorityWeight = (priorityDescription: string | null | undefined): numb
 
 const getPriorityStyle = (priority: string | null | undefined) => {
   const desc = (priority ?? '').toLowerCase();
-  if (desc.includes('senior'))
-    return { text: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', dot: 'bg-blue-500' };
-  if (desc.includes('pwd'))
-    return { text: 'text-violet-700 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/30', dot: 'bg-violet-500' };
-  if (desc.includes('priority'))
-    return { text: 'text-rose-700 dark:text-rose-400', bg: 'bg-rose-100 dark:bg-rose-900/30', dot: 'bg-rose-500' };
-  if (desc.includes('urgent'))
-    return { text: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30', dot: 'bg-amber-500' };
-  if (desc.includes('vip'))
-    return { text: 'text-amber-800 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', dot: 'bg-amber-400' };
-  return { text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/30', dot: 'bg-emerald-500' };
+  // Anything that is not explicitly "regular" is treated as priority (red)
+  const isRegular = desc === '' || desc.includes('regular');
+  if (isRegular)
+    return {
+      text: 'text-emerald-700 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-900/30',
+      dot: 'bg-emerald-500',
+    };
+  return {
+    text: 'text-rose-600 dark:text-rose-400',
+    bg: 'bg-rose-100 dark:bg-rose-900/30',
+    dot: 'bg-rose-500',
+  };
 };
 
 const QueueDisplay = () => {
@@ -138,10 +140,8 @@ const QueueDisplay = () => {
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
   const {
     sequences,
-    priorities,
     fetchSequences,
     fetchStatuses,
-    fetchPriorities,
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
@@ -154,8 +154,7 @@ const QueueDisplay = () => {
   useEffect(() => {
     fetchStatuses();
     fetchSequences();
-    fetchPriorities();
-  }, [fetchStatuses, fetchSequences, fetchPriorities]);
+  }, [fetchStatuses, fetchSequences]);
 
   useEffect(() => {
     if (!profileLoading) {
@@ -219,7 +218,7 @@ const QueueDisplay = () => {
       }
     });
     if (fresh.length > 0) setNotifQueue((prev) => [...prev, ...fresh]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sequences]);
 
   // Sequential processor: one announcement at a time.
@@ -266,7 +265,9 @@ const QueueDisplay = () => {
         ]);
       })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, []);
 
   const formatTime = (d: Date) =>
@@ -274,12 +275,13 @@ const QueueDisplay = () => {
   const formatDate = (d: Date) =>
     d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
-  const dynamicPriorityLegend = useMemo(() => {
-    return priorities.map((p) => ({
-      label: p.description || 'Unknown',
-      style: getPriorityStyle(p.description),
-    }));
-  }, [priorities]);
+  const staticPriorityLegend = [
+    {
+      label: 'Regular',
+      style: { text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500' },
+    },
+    { label: 'Priority', style: { text: 'text-rose-600 dark:text-rose-400', dot: 'bg-rose-500' } },
+  ];
 
   const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
@@ -310,7 +312,7 @@ const QueueDisplay = () => {
           </h1>
           <div className="flex items-baseline gap-4">
             <div className="flex items-center gap-2">
-              {dynamicPriorityLegend.map((item) => (
+              {staticPriorityLegend.map((item) => (
                 <div key={item.label} className="flex items-center gap-1">
                   <span className={`h-4 w-4 shrink-0 rounded-full ${item.style.dot}`} aria-hidden />
                   <span className={`text-xl font-semibold ${item.style.text}`}>{item.label}</span>
@@ -380,7 +382,7 @@ const QueueDisplay = () => {
                 >
                   {/* Office header */}
                   <div className="shrink-0 border-b border-border px-3 py-2">
-                    <p className="truncate text-sm font-bold text-foreground">{officeName}</p>
+                    <p className="break-words text-sm font-bold text-foreground">{officeName}</p>
                   </div>
 
                   {/* Now serving — stacked per active window */}
