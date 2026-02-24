@@ -4,12 +4,13 @@ import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore, Office } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { supabase } from '@/lib/supabase';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 
-const REPEAT_COUNT = 3;       // how many times to announce
+const REPEAT_COUNT = 3; // how many times to announce
 const PAUSE_BETWEEN_MS = 800; // pause between each announcement
-const POPUP_GAP_MS = 600;     // gap after speech before picking up the next item
+const POPUP_GAP_MS = 600; // gap after speech before picking up the next item
 
 interface CallNotification {
   id: string;
@@ -20,53 +21,107 @@ interface CallNotification {
   priorityStyle: { text: string; bg: string; dot: string };
 }
 
-/** Pick the best female English voice available, or null to let the browser decide. */
+/** Cached voices — populated once when the browser fires voiceschanged */
+let cachedVoices: SpeechSynthesisVoice[] = [];
+
+function loadVoices() {
+  const v = window.speechSynthesis.getVoices();
+  if (v.length > 0) cachedVoices = v;
+}
+
+// Load immediately (works in Firefox) and on voiceschanged (works in Chrome/Edge)
+loadVoices();
+if (typeof window !== 'undefined') {
+  window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+}
+
+/** Pick the best female English voice from the cached list */
 function getFemaleVoice(): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis.getVoices();
-  // Prefer voices whose name explicitly signals female / Zira / Samantha / Google US English
-  const femaleKeywords = ['female', 'woman', 'zira', 'samantha', 'google us english', 'hazel', 'susan', 'victoria', 'karen'];
-  const enVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
-  for (const kw of femaleKeywords) {
-    const match = enVoices.find((v) => v.name.toLowerCase().includes(kw));
-    if (match) return match;
-  }
-  // Fallback: first English voice that doesn't contain male indicators
-  const notMale = enVoices.find((v) => !['male', 'man', 'david', 'mark', 'james', 'richard'].some((m) => v.name.toLowerCase().includes(m)));
-  return notMale ?? enVoices[0] ?? null;
+  const voices = cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();
+
+  const femaleKeywords = ['zira', 'samantha', 'google us english', 'hazel', 'susan', 'victoria', 'karen', 'female', 'woman'];
+  const maleKeywords   = ['david', 'mark', 'james', 'richard', 'male', 'man'];
+
+  const englishVoices = voices.filter(v => v.lang.toLowerCase().startsWith('en'));
+
+  // Priority 1: explicitly female-named voice
+  const explicit = englishVoices.find(v =>
+    femaleKeywords.some(k => v.name.toLowerCase().includes(k))
+  );
+  if (explicit) return explicit;
+
+  // Priority 2: english voice with no male indicators
+  const likely = englishVoices.find(v =>
+    !maleKeywords.some(k => v.name.toLowerCase().includes(k))
+  );
+  if (likely) return likely;
+
+  // Priority 3: first english voice
+  return englishVoices[0] ?? null;
 }
 
 /** Speak `text` exactly `times` times, with a pause between each. Calls `onDone` when finished. */
 function speakRepeat(text: string, times: number, onDone: () => void): void {
-  if (!window.speechSynthesis) { onDone(); return; }
   window.speechSynthesis.cancel();
 
-  let remaining = times;
+  let count = 0;
 
-  const sayOnce = () => {
+  const speakOnce = () => {
     const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.9;
-    utter.pitch = 1.15;  // slightly higher pitch for a feminine tone
-    utter.lang = 'en-US';
-    const femaleVoice = getFemaleVoice();
-    if (femaleVoice) utter.voice = femaleVoice;
+    const voice = getFemaleVoice();
+    if (voice) utter.voice = voice;
+    utter.pitch = 1.15;
+    utter.rate  = 0.95;
+
     utter.onend = () => {
-      remaining -= 1;
-      if (remaining > 0) {
-        setTimeout(sayOnce, PAUSE_BETWEEN_MS);
+      count++;
+      if (count < times) {
+        setTimeout(speakOnce, PAUSE_BETWEEN_MS);
       } else {
         onDone();
       }
     };
+
     utter.onerror = () => {
-      remaining -= 1;
-      if (remaining > 0) setTimeout(sayOnce, PAUSE_BETWEEN_MS);
+      count++;
+      if (count < times) setTimeout(speakOnce, PAUSE_BETWEEN_MS);
       else onDone();
     };
+
     window.speechSynthesis.speak(utter);
   };
 
-  sayOnce();
+  speakOnce();
 }
+
+// ── Pure helpers at module scope so effects can reference them without stale-closure issues ──
+
+const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
+  const desc = (priorityDescription ?? '').toLowerCase();
+  if (desc.includes('urgent')) return 1;
+  if (desc.includes('vip')) return 2;
+  if (desc.includes('priority')) return 3;
+  if (desc.includes('pwd')) return 4;
+  if (desc.includes('senior')) return 5;
+  return 10;
+};
+
+const getPriorityStyle = (priority: string | null | undefined) => {
+  const desc = (priority ?? '').toLowerCase();
+  // Anything that is not explicitly "regular" is treated as priority (red)
+  const isRegular = desc === '' || desc.includes('regular');
+  if (isRegular)
+    return {
+      text: 'text-emerald-700 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-900/30',
+      dot: 'bg-emerald-500',
+    };
+  return {
+    text: 'text-rose-600 dark:text-rose-400',
+    bg: 'bg-rose-100 dark:bg-rose-900/30',
+    dot: 'bg-rose-500',
+  };
+};
 
 const QueueDisplay = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -74,8 +129,10 @@ const QueueDisplay = () => {
   const [activeNotif, setActiveNotif] = useState<CallNotification | null>(null);
   // Tracks sequence IDs already enqueued so we never repeat
   const seenIds = useRef<Set<string>>(new Set());
-  // True once the initial sequence snapshot has been seeded (no announcement on load)
+  // Prevents announcements on the initial page load snapshot
   const initializedRef = useRef(false);
+  // Reference to the ping broadcast channel so the processor can send ping-done
+  const pingChRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isDisplayMode = useMemo(() => {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('display') === '1';
@@ -85,10 +142,8 @@ const QueueDisplay = () => {
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
   const {
     sequences,
-    priorities,
     fetchSequences,
     fetchStatuses,
-    fetchPriorities,
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
@@ -101,8 +156,7 @@ const QueueDisplay = () => {
   useEffect(() => {
     fetchStatuses();
     fetchSequences();
-    fetchPriorities();
-  }, [fetchStatuses, fetchSequences, fetchPriorities]);
+  }, [fetchStatuses, fetchSequences]);
 
   useEffect(() => {
     if (!profileLoading) {
@@ -146,14 +200,18 @@ const QueueDisplay = () => {
         !seenIds.current.has(seq.id)
       ) {
         seenIds.current.add(seq.id);
-        const office = offices.find((o) => o.id === seq.office);
         // Spell out the queue code so TTS reads each letter: "C T B" not "CTB"
         const spokenCode = (seq.queue_data?.code || '').split('').join(' ');
+        // Use enriched office_data first (always present on the sequence), fallback to offices store
+        const officeName =
+          seq.office_data?.description ||
+          offices.find((o) => o.id === seq.office)?.description ||
+          '';
         fresh.push({
           id: seq.id,
           queueCode: seq.queue_data?.code || '---',
           windowLabel: seq.window_data?.description || 'the window',
-          officeName: office?.description || '',
+          officeName,
           priorityText: seq.priority_data?.description || 'Regular',
           priorityStyle: getPriorityStyle(seq.priority_data?.description),
           // store spokenCode on the object — cast through unknown to extend the type inline
@@ -162,7 +220,7 @@ const QueueDisplay = () => {
       }
     });
     if (fresh.length > 0) setNotifQueue((prev) => [...prev, ...fresh]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sequences]);
 
   // Sequential processor: one announcement at a time.
@@ -176,77 +234,64 @@ const QueueDisplay = () => {
     setActiveNotif(next);
 
     const announcement =
-      `Now calling, ${next.spokenCode ?? next.queueCode}. ` +
+      `Now calling, ${next.spokenCode ?? next.queueCode} at ${next.officeName || 'the office'}. ` +
       `Please proceed to ${next.windowLabel}.`;
 
     speakRepeat(announcement, REPEAT_COUNT, () => {
       setTimeout(() => {
+        // Notify StaffQueueManager the announcement is done so Ping button re-enables
+        pingChRef.current?.send({
+          type: 'broadcast',
+          event: 'ping-done',
+          payload: { sequenceId: next.id },
+        });
         setActiveNotif(null); // state change → effect re-runs → picks up next item
       }, POPUP_GAP_MS);
     });
   }, [notifQueue, activeNotif]);
 
+  // Subscribe to ping broadcasts sent by staff — bypasses seenIds so it always re-announces
+  useEffect(() => {
+    const ch = supabase
+      .channel('queue-ping-broadcast', { config: { broadcast: { self: true } } })
+      .on('broadcast', { event: 'ping' }, ({ payload }) => {
+        const code = (payload.queueCode as string) || '---';
+        const spokenCode = code.split('').join(' ');
+        // Use the real sequenceId as the notification id so the blink matches seq.id in the display
+        const notifId = (payload.sequenceId as string) || `ping-${Date.now()}`;
+        setNotifQueue((prev) => [
+          ...prev,
+          {
+            id: notifId,
+            queueCode: code,
+            windowLabel: (payload.windowLabel as string) || 'the window',
+            officeName: (payload.officeName as string) || '',
+            priorityText: (payload.priorityDesc as string) || 'Regular',
+            priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
+            ...({ spokenCode } as { spokenCode: string }),
+          } as CallNotification,
+        ]);
+      })
+      .subscribe();
+    pingChRef.current = ch;
+    return () => {
+      supabase.removeChannel(ch);
+      pingChRef.current = null;
+    };
+  }, []);
 
   const formatTime = (d: Date) =>
     d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const formatDate = (d: Date) =>
     d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
-  const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
-    const desc = (priorityDescription ?? '').toLowerCase();
-    if (desc.includes('urgent')) return 1;
-    if (desc.includes('vip')) return 2;
-    if (desc.includes('priority')) return 3;
-    if (desc.includes('pwd')) return 4;
-    if (desc.includes('senior')) return 5;
-    return 10;
-  };
-
-  const getPriorityStyle = (priority: string | null | undefined) => {
-    const desc = (priority ?? '').toLowerCase();
-    if (desc.includes('senior'))
-      return {
-        text: 'text-blue-700 dark:text-blue-400',
-        bg: 'bg-blue-100 dark:bg-blue-900/30',
-        dot: 'bg-blue-500',
-      };
-    if (desc.includes('pwd'))
-      return {
-        text: 'text-violet-700 dark:text-violet-400',
-        bg: 'bg-violet-100 dark:bg-violet-900/30',
-        dot: 'bg-violet-500',
-      };
-    if (desc.includes('priority'))
-      return {
-        text: 'text-rose-700 dark:text-rose-400',
-        bg: 'bg-rose-100 dark:bg-rose-900/30',
-        dot: 'bg-rose-500',
-      };
-    if (desc.includes('urgent'))
-      return {
-        text: 'text-amber-700 dark:text-amber-400',
-        bg: 'bg-amber-100 dark:bg-amber-900/30',
-        dot: 'bg-amber-500',
-      };
-    if (desc.includes('vip'))
-      return {
-        text: 'text-amber-800 dark:text-amber-300',
-        bg: 'bg-amber-100 dark:bg-amber-900/30',
-        dot: 'bg-amber-400',
-      };
-    return {
-      text: 'text-emerald-700 dark:text-emerald-400',
-      bg: 'bg-emerald-50 dark:bg-emerald-900/30',
-      dot: 'bg-emerald-500',
-    };
-  };
-
-  const dynamicPriorityLegend = useMemo(() => {
-    return priorities.map((p) => ({
-      label: p.description || 'Unknown',
-      style: getPriorityStyle(p.description),
-    }));
-  }, [priorities]);
+  const staticPriorityLegend = [
+    {
+      label: 'Regular',
+      style: { text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500' },
+    },
+    { label: 'Priority', style: { text: 'text-rose-600 dark:text-rose-400', dot: 'bg-rose-500' } },
+  ];
 
   const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
@@ -277,7 +322,7 @@ const QueueDisplay = () => {
           </h1>
           <div className="flex items-baseline gap-4">
             <div className="flex items-center gap-2">
-              {dynamicPriorityLegend.map((item) => (
+              {staticPriorityLegend.map((item) => (
                 <div key={item.label} className="flex items-center gap-1">
                   <span className={`h-4 w-4 shrink-0 rounded-full ${item.style.dot}`} aria-hidden />
                   <span className={`text-xl font-semibold ${item.style.text}`}>{item.label}</span>
@@ -347,7 +392,7 @@ const QueueDisplay = () => {
                 >
                   {/* Office header */}
                   <div className="shrink-0 border-b border-border px-3 py-2">
-                    <p className="truncate text-sm font-bold text-foreground">{officeName}</p>
+                    <p className="break-words text-sm font-bold text-foreground">{officeName}</p>
                   </div>
 
                   {/* Now serving — stacked per active window */}
