@@ -538,7 +538,6 @@ const ActiveTab = ({
               <TableHead className="font-semibold">Referring Hospital</TableHead>
               <TableHead className="font-semibold">Our Dept.</TableHead>
               <TableHead className="font-semibold">Accepted By</TableHead>
-              <TableHead className="font-semibold">Dept. / Service</TableHead>
               <TableHead className="font-semibold">Status</TableHead>
               <TableHead className="font-semibold">Date</TableHead>
               <TableHead className="font-semibold text-right">Actions</TableHead>
@@ -547,7 +546,7 @@ const ActiveTab = ({
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center h-[530px] text-muted-foreground">
+                <TableCell colSpan={7} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon icon="solar:hospital-bold-duotone" height={44} className="opacity-25" />
                     <p className="text-sm">No active incoming patients</p>
@@ -579,9 +578,6 @@ const ActiveTab = ({
                     ) : (
                       '—'
                     )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {r.to_assignment_name ?? '—'}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2 flex-wrap">

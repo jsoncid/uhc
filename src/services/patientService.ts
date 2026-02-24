@@ -213,7 +213,7 @@ class PatientService {
    */
   async searchPatients(
     name: string,
-    options?: { facility?: string; limit?: number }
+    options?: { facility?: string; limit?: number },
   ): Promise<PatientSearchResult> {
     try {
       const params = new URLSearchParams({ name });
@@ -337,8 +337,8 @@ class PatientService {
   /**
    * Check backend health
    */
-  async checkHealth(): Promise<{ 
-    status: string; 
+  async checkHealth(): Promise<{
+    status: string;
     databases?: { postgres?: string; mysql?: string };
     timestamp?: string;
     uptime?: number;
@@ -387,7 +387,7 @@ class PatientService {
         region: locationData.region_name,
         province: locationData.province_name,
         city: locationData.city_name,
-        brgy: locationData.brgy_name
+        brgy: locationData.brgy_name,
       });
 
       // Step 1: Find or create Region
@@ -438,9 +438,9 @@ class PatientService {
           const { data: newProvince, error } = await supabase
             .schema('module3')
             .from('province')
-            .insert({ 
+            .insert({
               description: locationData.province_name,
-              region: regionId
+              region: regionId,
             })
             .select('id')
             .single();
@@ -472,9 +472,9 @@ class PatientService {
           const { data: newCity, error } = await supabase
             .schema('module3')
             .from('city_municipality')
-            .insert({ 
+            .insert({
               description: locationData.city_name,
-              province: provinceId
+              province: provinceId,
             })
             .select('id')
             .single();
@@ -507,7 +507,7 @@ class PatientService {
             .from('brgy')
             .insert({
               description: locationData.brgy_name,
-              city_municipality: cityId
+              city_municipality: cityId,
             })
             .select('id')
             .single();
@@ -535,29 +535,27 @@ class PatientService {
    * Save patient profile to Supabase
    * Also creates/updates patient_repository record if hpercode is provided
    */
-  async saveToSupabase(
-    patientData: {
-      id?: string;
-      created_at?: string;
-      first_name: string;
-      middle_name?: string;
-      last_name: string;
-      ext_name?: string;
-      sex: string;
-      birth_date: string;
-      brgy?: string;
-      brgy_name?: string;
-      street?: string;
-      city_code?: string;
-      city_name?: string;
-      province_code?: string;
-      province_name?: string;
-      region_name?: string;
-      zip_code?: string;
-      hpercode?: string;
-      facility_code?: string;
-    }
-  ): Promise<{ success: boolean; data?: PatientProfileDB['Row']; message?: string }> {
+  async saveToSupabase(patientData: {
+    id?: string;
+    created_at?: string;
+    first_name: string;
+    middle_name?: string;
+    last_name: string;
+    ext_name?: string;
+    sex: string;
+    birth_date: string;
+    brgy?: string;
+    brgy_name?: string;
+    street?: string;
+    city_code?: string;
+    city_name?: string;
+    province_code?: string;
+    province_name?: string;
+    region_name?: string;
+    zip_code?: string;
+    hpercode?: string;
+    facility_code?: string;
+  }): Promise<{ success: boolean; data?: PatientProfileDB['Row']; message?: string }> {
     try {
       // Helper function to convert empty strings to undefined
       const cleanValue = (value: string | undefined) => {
@@ -573,7 +571,9 @@ class PatientService {
       // Check if patient ID is a valid UUID
       const patientIdToUse = isValidUuid(patientData.id) ? patientData.id : undefined;
       if (patientData.id && !patientIdToUse) {
-        console.log(`Patient ID "${patientData.id}" is not a valid UUID. Supabase will generate a new one.`);
+        console.log(
+          `Patient ID "${patientData.id}" is not a valid UUID. Supabase will generate a new one.`,
+        );
       }
 
       // Check if brgy is a valid UUID, if not, try to find/create one
@@ -609,7 +609,7 @@ class PatientService {
 
       // Check if patient already exists (by UUID if provided, or by name combination)
       let existingPatient = null;
-      
+
       if (patientIdToUse) {
         console.log('Checking if patient exists by UUID:', patientIdToUse);
         const { data: checkById, error: checkError } = await supabase
@@ -618,11 +618,11 @@ class PatientService {
           .select('*')
           .eq('id', patientIdToUse)
           .maybeSingle();
-        
+
         if (checkError) {
           console.error('Error checking patient by ID:', checkError);
         }
-        
+
         existingPatient = checkById;
         if (existingPatient) {
           console.log('Found existing patient by UUID:', existingPatient.id);
@@ -630,7 +630,12 @@ class PatientService {
       }
 
       // If no UUID match, check by name and birth date combination
-      if (!existingPatient && patientData.first_name && patientData.last_name && patientData.birth_date) {
+      if (
+        !existingPatient &&
+        patientData.first_name &&
+        patientData.last_name &&
+        patientData.birth_date
+      ) {
         console.log('Checking if patient exists by name and birth date');
         const { data: checkByName, error: checkError } = await supabase
           .schema('module3')
@@ -640,11 +645,11 @@ class PatientService {
           .eq('last_name', patientData.last_name.trim())
           .eq('birth_date', patientData.birth_date)
           .maybeSingle();
-        
+
         if (checkError) {
           console.error('Error checking patient by name:', checkError);
         }
-        
+
         existingPatient = checkByName;
         if (existingPatient) {
           console.log('Found existing patient by name/birthdate:', existingPatient.id);
@@ -665,18 +670,18 @@ class PatientService {
         if (error) {
           console.error('Error updating patient in Supabase:');
           console.error('Full error object:', error);
-          
+
           const err = error as any;
           const errorCode = error.code || err.error_code || err?.error?.code;
           const errorMessage = error.message || err.msg || err?.error?.message || 'Unknown error';
           const errorDetails = error.details || err.detail || err?.error?.details;
           const errorHint = error.hint || err?.error?.hint;
-          
+
           console.error('Error code:', errorCode);
           console.error('Error message:', errorMessage);
           console.error('Error details:', errorDetails);
           console.error('Error hint:', errorHint);
-          
+
           let errorMsg = `Failed to update patient: ${errorMessage}`;
           if (errorCode === '42P01') {
             errorMsg += ' - Table does not exist. Please run the SQL schema file first.';
@@ -687,7 +692,7 @@ class PatientService {
         }
 
         console.log('Patient updated successfully:', data);
-        
+
         // If hpercode is provided, create/update patient_repository record
         if (patientData.hpercode && data.id) {
           await this.savePatientRepository({
@@ -696,7 +701,7 @@ class PatientService {
             facility_code: patientData.facility_code,
           });
         }
-        
+
         return {
           success: true,
           data,
@@ -705,7 +710,7 @@ class PatientService {
       } else {
         console.log('Patient does not exist, inserting new patient');
         console.log('Insert payload:', JSON.stringify(supabaseData, null, 2));
-        
+
         // Insert new patient
         const { data, error } = await supabase
           .schema('module3')
@@ -719,20 +724,20 @@ class PatientService {
           console.error('Full error object:', error);
           console.error('Error type:', typeof error);
           console.error('Error keys:', Object.keys(error));
-          
+
           // Try different ways to access error properties
           const err = error as any;
           const errorCode = error.code || err.error_code || err?.error?.code;
           const errorMessage = error.message || err.msg || err?.error?.message || 'Unknown error';
           const errorDetails = error.details || err.detail || err?.error?.details;
           const errorHint = error.hint || err?.error?.hint;
-          
+
           console.error('Error code:', errorCode);
           console.error('Error message:', errorMessage);
           console.error('Error details:', errorDetails);
           console.error('Error hint:', errorHint);
           console.error('Data being inserted:', JSON.stringify(supabaseData, null, 2));
-          
+
           // Provide helpful error message
           let errorMsg = `Failed to insert patient: ${errorMessage}`;
           if (errorCode === '42P01') {
@@ -746,7 +751,7 @@ class PatientService {
         }
 
         console.log('Patient inserted successfully:', data);
-        
+
         // If hpercode is provided, create/update patient_repository record
         if (patientData.hpercode && data.id) {
           await this.savePatientRepository({
@@ -755,7 +760,7 @@ class PatientService {
             facility_code: patientData.facility_code,
           });
         }
-        
+
         return {
           success: true,
           data,
@@ -782,7 +787,7 @@ class PatientService {
   }): Promise<void> {
     try {
       console.log('Saving patient repository record:', data);
-      
+
       // Check if repository record exists for this patient_profile
       const { data: existingRepo } = await supabase
         .schema('module3')
@@ -865,7 +870,10 @@ class PatientService {
   /**
    * Add patient tag to MySQL
    */
-  async addPatientTag(hpercode: string, tag: Omit<PatientTag, 'id' | 'created_at' | 'patient_id' | 'hpercode'>): Promise<{
+  async addPatientTag(
+    hpercode: string,
+    tag: Omit<PatientTag, 'id' | 'created_at' | 'patient_id' | 'hpercode'>,
+  ): Promise<{
     success: boolean;
     data?: PatientTag;
     message?: string;
@@ -902,17 +910,23 @@ class PatientService {
   /**
    * Remove patient tag from MySQL
    */
-  async removePatientTag(hpercode: string, tagId: string): Promise<{
+  async removePatientTag(
+    hpercode: string,
+    tagId: string,
+  ): Promise<{
     success: boolean;
     message?: string;
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/${encodeURIComponent(hpercode)}/tags/${encodeURIComponent(tagId)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `${this.baseUrl}/${encodeURIComponent(hpercode)}/tags/${encodeURIComponent(tagId)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -935,12 +949,15 @@ class PatientService {
   /**
    * Get patient history from MySQL (hadmlog table)
    */
-  async getPatientHistory(hpercode: string, options?: {
-    limit?: number;
-    offset?: number;
-    startDate?: string;
-    endDate?: string;
-  }): Promise<PatientHistoryResult> {
+  async getPatientHistory(
+    hpercode: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<PatientHistoryResult> {
     try {
       const params = new URLSearchParams();
       if (options?.limit) params.append('limit', String(options.limit));
@@ -950,7 +967,7 @@ class PatientService {
 
       const queryString = params.toString();
       const url = `${this.baseUrl}/history/${encodeURIComponent(hpercode)}${queryString ? `?${queryString}` : ''}`;
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -982,7 +999,10 @@ class PatientService {
   /**
    * Add patient history record to MySQL
    */
-  async addPatientHistory(hpercode: string, history: Omit<PatientHistory, 'id' | 'created_at' | 'patient_id' | 'hpercode'>): Promise<{
+  async addPatientHistory(
+    hpercode: string,
+    history: Omit<PatientHistory, 'id' | 'created_at' | 'patient_id' | 'hpercode'>,
+  ): Promise<{
     success: boolean;
     data?: PatientHistory;
     message?: string;
@@ -1013,6 +1033,37 @@ class PatientService {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to add patient history',
       };
+    }
+  }
+
+  /**
+   * Fetch resolved address fields for a patient by their UUID,
+   * using the module3.patient_profile_with_locations view.
+   * Returns { street, brgy_name, city_name, province_name, region_name } or null.
+   */
+  async getPatientAddressById(patientId: string): Promise<{
+    street: string | null;
+    brgy_name: string | null;
+    city_name: string | null;
+    province_name: string | null;
+    region_name: string | null;
+  } | null> {
+    try {
+      const { data, error } = await (supabase.schema('module3') as any)
+        .from('patient_profile_with_locations')
+        .select('street, brgy_name, city_name, province_name, region_name')
+        .eq('id', patientId)
+        .single();
+      if (error || !data) return null;
+      return data as {
+        street: string | null;
+        brgy_name: string | null;
+        city_name: string | null;
+        province_name: string | null;
+        region_name: string | null;
+      };
+    } catch {
+      return null;
     }
   }
 }

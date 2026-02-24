@@ -1,8 +1,9 @@
 import { useParams, useNavigate } from 'react-router';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { ReferralContext, ReferralContextType } from '../../context/ReferralContext';
+import { patientService } from 'src/services/patientService';
 import EditClinicalInfoPanel from './EditClinicalInfoPanel';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
@@ -85,6 +86,22 @@ const ReferralDetail = () => {
     // Tiebreaker: active entry (most recent) always last
     return (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
   });
+
+  // ── Patient address
+  const [patientAddress, setPatientAddress] = useState<string | null>(null);
+  useEffect(() => {
+    if (!referral?.patient_profile) return;
+    patientService.getPatientAddressById(referral.patient_profile).then((a) => {
+      if (a) {
+        const parts = [a.street, a.brgy_name, a.city_name, a.province_name, a.region_name].filter(
+          Boolean,
+        );
+        setPatientAddress(parts.join(', ') || null);
+      } else {
+        setPatientAddress(null);
+      }
+    });
+  }, [referral?.patient_profile]);
 
   // ── Edit clinical info panel state
   const [showEditPanel, setShowEditPanel] = useState(false);
@@ -398,6 +415,13 @@ const ReferralDetail = () => {
                   label="Date Created"
                   value={format(new Date(referral.created_at), 'MMM dd, yyyy')}
                   icon="solar:calendar-bold-duotone"
+                />
+              </div>
+              <div className="col-span-12">
+                <Field
+                  label="Patient Address"
+                  value={patientAddress}
+                  icon="solar:map-point-bold-duotone"
                 />
               </div>
             </div>
@@ -782,9 +806,22 @@ const ReferralDetail = () => {
                           </div>
                         )}
                       </div>
-                      {h.to_assignment_name && (
-                        <p className="text-sm font-medium">{h.to_assignment_name}</p>
-                      )}
+                      {(() => {
+                        const receiverSide = new Set([
+                          'Seen',
+                          'Accepted',
+                          'Declined',
+                          'Arrived',
+                          'Admitted',
+                          'Discharged',
+                        ]);
+                        const facility =
+                          h.to_assignment_name ??
+                          (receiverSide.has(h.status_description ?? '')
+                            ? (referral.to_assignment_name ?? referral.from_assignment_name)
+                            : referral.from_assignment_name);
+                        return facility ? <p className="text-sm font-medium">{facility}</p> : null;
+                      })()}
                       {h.details && (
                         <p className="text-xs text-muted-foreground mt-0.5">{h.details}</p>
                       )}
@@ -813,15 +850,17 @@ const ReferralDetail = () => {
                     </div>
                     <h3 className="text-base font-semibold">Diagnostics</h3>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setShowDiagForm((v) => !v)}
-                  >
-                    <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
-                    Add
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setShowDiagForm((v) => !v)}
+                    >
+                      <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
+                      Add
+                    </Button>
+                  )}
                 </div>
 
                 {showDiagForm && (
@@ -977,15 +1016,17 @@ const ReferralDetail = () => {
                     </div>
                     <h3 className="text-base font-semibold">Vaccination History</h3>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setShowVacForm((v) => !v)}
-                  >
-                    <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
-                    Add
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setShowVacForm((v) => !v)}
+                    >
+                      <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
+                      Add
+                    </Button>
+                  )}
                 </div>
 
                 {showVacForm && (

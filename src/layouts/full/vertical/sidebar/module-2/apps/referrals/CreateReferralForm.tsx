@@ -6,6 +6,7 @@ import { ReferralType, ReferralInfo } from '../../types/referral';
 import { supabaseM3 } from 'src/lib/supabase';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { assignmentService } from 'src/services/assignmentService';
+import { patientService } from 'src/services/patientService';
 import { Database } from 'src/lib/supabase';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
@@ -132,7 +133,7 @@ const CreateReferralForm = () => {
     }
   };
 
-  const selectPatient = (p: PatientRow) => {
+  const selectPatient = async (p: PatientRow) => {
     const fullName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ');
     const birthYear = p.birth_date ? new Date(p.birth_date).getFullYear() : null;
     const computedAge = birthYear ? new Date().getFullYear() - birthYear : '';
@@ -141,8 +142,25 @@ const CreateReferralForm = () => {
     setAge(String(computedAge));
     setSex(p.sex ?? '');
     setBirthDate(p.birth_date ?? '');
-    setCompleteAddress('');
     setPatientPickerOpen(false);
+
+    // Fetch resolved address via patientService (module3.patient_profile_with_locations)
+    const addr = await patientService.getPatientAddressById(p.id);
+    if (addr) {
+      const shortParts = [addr.street, addr.brgy_name].filter(Boolean);
+      const fullParts = [
+        addr.street,
+        addr.brgy_name,
+        addr.city_name,
+        addr.province_name,
+        addr.region_name,
+      ].filter(Boolean);
+      setFacilityAddress(shortParts.join(', '));
+      setCompleteAddress(fullParts.join(', '));
+    } else {
+      setFacilityAddress('');
+      setCompleteAddress('');
+    }
   };
 
   const handleClearPatient = () => {

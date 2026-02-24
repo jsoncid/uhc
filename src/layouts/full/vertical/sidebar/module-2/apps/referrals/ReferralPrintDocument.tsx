@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
 import { ReferralType } from '../../types/referral';
+import { patientService } from 'src/services/patientService';
 
 interface Props {
   referral: ReferralType;
@@ -88,6 +89,21 @@ const Grid = ({ columns = 3, children }: { columns?: number; children: React.Rea
 const ReferralPrintDocument = ({ referral, onClose }: Props) => {
   const info = referral.referral_info;
   const history = referral.history ?? [];
+
+  const [patientAddress, setPatientAddress] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (referral.patient_profile) {
+      patientService.getPatientAddressById(referral.patient_profile).then((a) => {
+        if (a) {
+          const parts = [a.street, a.brgy_name, a.city_name, a.province_name, a.region_name].filter(
+            Boolean,
+          );
+          setPatientAddress(parts.join(', ') || null);
+        }
+      });
+    }
+  }, [referral.patient_profile]);
 
   useEffect(() => {
     const handleAfterPrint = () => {
@@ -206,6 +222,7 @@ const ReferralPrintDocument = ({ referral, onClose }: Props) => {
           <PrintField label="Referring Facility" value={referral.from_assignment_name} />
           <PrintField label="Referred To" value={referral.to_assignment_name} />
           <PrintField label="Current Status" value={referral.latest_status?.description} />
+          <PrintField label="Patient Address" value={patientAddress} full />
         </Grid>
 
         {/* ── REFERRAL INFORMATION ── */}
@@ -251,6 +268,8 @@ const ReferralPrintDocument = ({ referral, onClose }: Props) => {
           <PrintField label="O2 Saturation" value={info?.o2_sat} />
           <PrintField label="O2 Requirement" value={info?.o2_requirement} />
           <PrintField label="GCS" value={info?.gcs} />
+          <PrintField label="Eye" value={info?.eye} />
+          <PrintField label="Vision" value={info?.vision} />
           <PrintField label="Motor" value={info?.motor} />
         </Grid>
 
@@ -433,6 +452,24 @@ const ReferralPrintDocument = ({ referral, onClose }: Props) => {
           <PrintField label="COVID-19 Exposure" value={info?.exposure_covid} />
         </Grid>
 
+        {/* ── REFERRAL RESOLUTION ── */}
+        {(referral.accepted_by || referral.rejection_reason) && (
+          <>
+            <SectionHeader title="Referral Resolution" />
+            <Grid columns={2}>
+              {referral.accepted_by && (
+                <PrintField label="Accepted By" value={referral.accepted_by} />
+              )}
+              {referral.rejection_reason && (
+                <PrintField label="Rejection Reason" value={referral.rejection_reason} />
+              )}
+              {referral.redirect_to && (
+                <PrintField label="Suggested Redirect Facility" value={referral.redirect_to} />
+              )}
+            </Grid>
+          </>
+        )}
+
         {/* ── DIAGNOSTICS ── */}
         {diagnostics.length > 0 && (
           <>
@@ -593,7 +630,17 @@ const ReferralPrintDocument = ({ referral, onClose }: Props) => {
                         {h.status_description ?? '—'}
                       </td>
                       <td style={{ padding: '4px 8px', border: '1px solid #e5e7eb' }}>
-                        {h.to_assignment_name ?? '—'}
+                        {h.to_assignment_name ??
+                          ([
+                            'Seen',
+                            'Accepted',
+                            'Declined',
+                            'Arrived',
+                            'Admitted',
+                            'Discharged',
+                          ].includes(h.status_description ?? '')
+                            ? (referral.to_assignment_name ?? referral.from_assignment_name ?? '—')
+                            : (referral.from_assignment_name ?? '—'))}
                       </td>
                       <td style={{ padding: '4px 8px', border: '1px solid #e5e7eb' }}>
                         {h.details ?? '—'}
