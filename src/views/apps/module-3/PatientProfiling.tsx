@@ -215,7 +215,6 @@ const PatientProfiling = () => {
   const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('success');
   const [isSaving, setIsSaving] = useState(false);
   const [modalStep, setModalStep] = useState<1 | 2 | 3>(1);
-  const [selectedFacilityDatabaseForSave, setSelectedFacilityDatabaseForSave] = useState('');
   
   // Search state
   const [searchResults, setSearchResults] = useState<APIPatientProfile[]>([]);
@@ -238,17 +237,17 @@ const PatientProfiling = () => {
       if (result.success) {
         // Merge facilities from both databases and tag with database source
         const db1Facilities = result.database1.data.map(f => ({ ...f, database: result.database1.name }));
-        const db2Facilities = result.database2.data.map(f => {
-          // Rename facility from database2 for display (cannot update MySQL database)
-          if (f.facility_code === '0005027' || f.facility_code === '0005028') {
-            return {
-              ...f,
-              facility_name: 'NASIPIT DISTRICT HOSPITAL',
-              database: result.database2.name
-            };
-          }
-          return { ...f, database: result.database2.name };
-        });
+          const db2Facilities = result.database2.data.map(f => {
+            // Rename facility from database2 for display (cannot update MySQL database)
+            if (f.facility_code === '0005027' || f.facility_code === '0005028') {
+              return {
+                ...f,
+                facility_name: 'NASIPIT DISTRICT HOSPITAL',
+                database: result.database2.name
+              };
+            }
+            return { ...f, database: result.database2.name };
+          });
         const allFacilities = [...db1Facilities, ...db2Facilities];
         
         // Filter to only show facilities with patients
@@ -302,7 +301,6 @@ const PatientProfiling = () => {
   const handleReset = () => {
     setPatient({ ...INITIAL_PROFILE });
     setStatusMessage(null);
-    setSelectedFacilityDatabaseForSave('');
   };
 
   const handleSave = async () => {
@@ -317,17 +315,8 @@ const PatientProfiling = () => {
     setStatusMessage(null);
     
     try {
-      const facilityCodeForSupabase = selectedFacilityDatabaseForSave === 'ndh_ihomis_plus'
-        ? '0005028'
-        : patient.facility_code;
-
-      const patientToSave = {
-        ...patient,
-        facility_code: facilityCodeForSupabase,
-      };
-
       // Save patient data to Supabase (location fields are used to find/create brgy UUID)
-      const result = await patientService.saveToSupabase(patientToSave);
+      const result = await patientService.saveToSupabase(patient);
       
       if (result.success) {
         setStatusMessage(result.message || 'Patient profile saved successfully to Supabase');
@@ -472,7 +461,6 @@ const PatientProfiling = () => {
     setModalStep(1);
     setSearchResults([]);
     setModalSearchName('');
-    setSelectedFacilityDatabaseForSave(modalFacilityDatabase);
   };
 
   // Find selected facility from loaded facilities
