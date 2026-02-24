@@ -830,7 +830,7 @@ const ReferralHistoryPage = () => {
               <TabsTrigger value="history" className="flex items-center gap-1.5">
                 <Icon icon="solar:history-bold-duotone" height={15} />
                 Referral History
-                <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 h-4">
+                <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 h-4 group-data-[state=active]:bg-white/20 group-data-[state=active]:border-white/40 group-data-[state=active]:text-white">
                   {referrals.length + deactivatedReferrals.length}
                 </Badge>
               </TabsTrigger>
@@ -839,7 +839,7 @@ const ReferralHistoryPage = () => {
                 Deactivated
                 <Badge
                   variant="outline"
-                  className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lighterror text-error border-error/20"
+                  className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-lighterror text-error border-error/20 group-data-[state=active]:bg-white/20 group-data-[state=active]:border-white/40 group-data-[state=active]:text-white"
                 >
                   {deactivatedReferrals.length}
                 </Badge>

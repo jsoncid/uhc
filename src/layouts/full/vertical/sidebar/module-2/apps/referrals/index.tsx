@@ -21,14 +21,14 @@ const ReferralApp = () => {
           <TabsTrigger value="sent" className="flex items-center gap-2 px-4">
             <Icon icon="solar:square-top-down-bold-duotone" height={16} />
             Sent Referrals
-            <Badge variant="outline" className="ml-0.5 text-[10px] px-1.5 py-0 h-4">
+            <Badge variant="outline" className="ml-0.5 text-[10px] px-1.5 py-0 h-4 group-data-[state=active]:bg-white/20 group-data-[state=active]:border-white/40 group-data-[state=active]:text-white">
               {referrals.length}
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="received" className="flex items-center gap-2 px-4">
             <Icon icon="solar:inbox-bold-duotone" height={16} />
             Received Referrals
-            <Badge variant="outline" className="ml-0.5 text-[10px] px-1.5 py-0 h-4">
+            <Badge variant="outline" className="ml-0.5 text-[10px] px-1.5 py-0 h-4 group-data-[state=active]:bg-white/20 group-data-[state=active]:border-white/40 group-data-[state=active]:text-white">
               {incomingReferrals.length}
             </Badge>
           </TabsTrigger>
