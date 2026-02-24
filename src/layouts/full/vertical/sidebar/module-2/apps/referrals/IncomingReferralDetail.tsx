@@ -9,6 +9,7 @@ import { Button } from 'src/components/ui/button';
 import { Badge } from 'src/components/ui/badge';
 import { Separator } from 'src/components/ui/separator';
 import ReferralPrintDocument from './ReferralPrintDocument';
+import EditClinicalInfoPanel from './EditClinicalInfoPanel';
 import {
   Dialog,
   DialogContent,
@@ -275,6 +276,7 @@ const IncomingReferralDetail = () => {
     updateDiagnosticAttachment,
     addVaccination,
     deleteVaccination,
+    updateReferralInfo,
   } = useContext<ReferralContextType>(ReferralContext);
 
   // Look up from live context (reflects accept/reject state changes)
@@ -290,6 +292,11 @@ const IncomingReferralDetail = () => {
   const [showAccept, setShowAccept] = useState(false);
   const [showReject, setShowReject] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
+  const [showEditPanel, setShowEditPanel] = useState(false);
+
+  // Editable when status is not a terminal state (Declined / Discharged)
+  const statusDesc = referral?.latest_status?.description;
+  const canEditInfo = !!referral && statusDesc !== 'Declined' && statusDesc !== 'Discharged';
 
   // Auto-mark as Seen when the receiving facility opens this referral
   useEffect(() => {
@@ -428,6 +435,12 @@ const IncomingReferralDetail = () => {
                 />
                 Print
               </Button>
+              {canEditInfo && (
+                <Button variant="outline" size="sm" onClick={() => setShowEditPanel(true)}>
+                  <Icon icon="solar:pen-bold-duotone" height={15} className="mr-1.5" />
+                  Edit Clinical Info
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => navigate('/module-2/referrals')}>
                 <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
                 Back
@@ -1242,6 +1255,16 @@ const IncomingReferralDetail = () => {
       {printOpen && (
         <ReferralPrintDocument referral={referral} onClose={() => setPrintOpen(false)} />
       )}
+
+      {/* Edit Clinical Info Panel */}
+      <EditClinicalInfoPanel
+        open={showEditPanel}
+        referral={referral}
+        onClose={() => setShowEditPanel(false)}
+        onConfirm={(updated) => {
+          if (id) updateReferralInfo(id, updated);
+        }}
+      />
     </div>
   );
 };
