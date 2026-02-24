@@ -306,21 +306,8 @@ const PatientProfiling = () => {
         setStatusMessage(result.message || 'Patient profile saved successfully to Supabase');
         setStatusType('success');
 
-        // Update the patient state with the saved data while preserving location display fields
-        if (result.data) {
-          setPatient({
-            ...patient, // Keep all existing fields including location data
-            id: result.data.id,
-            created_at: result.data.created_at,
-            first_name: result.data.first_name,
-            middle_name: result.data.middle_name || '',
-            last_name: result.data.last_name,
-            ext_name: result.data.ext_name || '',
-            sex: result.data.sex,
-            birth_date: result.data.birth_date,
-            brgy: result.data.brgy || patient.brgy,
-          });
-        }
+        // Clear inputs after successful save
+        setPatient({ ...INITIAL_PROFILE });
       } else {
         setStatusMessage(result.message || 'Failed to save patient profile');
         setStatusType('error');
