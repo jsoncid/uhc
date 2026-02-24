@@ -42,6 +42,7 @@ import {
   Users,
 } from 'lucide-react';
 import patientService, { PatientProfileWithLocations as APIPatientProfile, Facility } from 'src/services/patientService';
+import psgcService, { PSGCRegion, PSGCEntity } from 'src/services/psgcService';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -222,6 +223,22 @@ const PatientProfiling = () => {
   const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
   const [facilityLoadError, setFacilityLoadError] = useState<string | null>(null);
 
+  // PSGC State
+  const [regions, setRegions] = useState<PSGCRegion[]>([]);
+  const [provinces, setProvinces] = useState<PSGCEntity[]>([]);
+  const [cities, setCities] = useState<PSGCEntity[]>([]);
+  const [barangays, setBarangays] = useState<PSGCEntity[]>([]);
+
+  const [selectedRegionCode, setSelectedRegionCode] = useState('');
+  const [selectedProvinceCode, setSelectedProvinceCode] = useState('');
+  const [selectedCityCode, setSelectedCityCode] = useState('');
+  const [selectedBrgyCode, setSelectedBrgyCode] = useState('');
+
+  const [isLoadingRegions, setIsLoadingRegions] = useState(false);
+  const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
+  const [isLoadingCities, setIsLoadingCities] = useState(false);
+  const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
+
   const completion = useProfileCompletion(patient);
 
   // The only 2 supported facilities for patient linking/history
@@ -271,6 +288,147 @@ const PatientProfiling = () => {
     initialize();
   }, []);
 
+  // Use effect to load regions
+  useEffect(() => {
+    const loadRegions = async () => {
+      setIsLoadingRegions(true);
+      try {
+        const data = await psgcService.getRegions();
+        // Sort regions by name or as they come
+        setRegions(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (error) {
+        console.error('Failed to load regions:', error);
+      } finally {
+        setIsLoadingRegions(false);
+      }
+    };
+    loadRegions();
+  }, []);
+
+  // Use effect to load provinces when region changes
+  useEffect(() => {
+    if (!selectedRegionCode) {
+      setProvinces([]);
+      return;
+    }
+
+    const loadProvinces = async () => {
+      setIsLoadingProvinces(true);
+      try {
+        // First, check for provinces
+        const provData = await psgcService.getProvinces(selectedRegionCode);
+
+        // Some areas (like NCR) don't have provinces but have cities directly
+        if (provData.length === 0) {
+          setProvinces([]);
+          // If no provinces, try loading cities directly for this region
+          const cityData = await psgcService.getCitiesByRegion(selectedRegionCode);
+          setCities(cityData.sort((a, b) => a.name.localeCompare(b.name)));
+          setSelectedProvinceCode(''); // Signal no province
+        } else {
+          setProvinces(provData.sort((a, b) => a.name.localeCompare(b.name)));
+        }
+      } catch (error) {
+        console.error('Failed to load provinces:', error);
+      } finally {
+        setIsLoadingProvinces(false);
+      }
+    };
+    loadProvinces();
+  }, [selectedRegionCode]);
+
+  // Use effect to load cities when province changes
+  useEffect(() => {
+    if (!selectedProvinceCode) {
+      // If region is selected but no province, cities might have been loaded by region effect
+      // But if province was selected and then cleared, we might want to clear cities
+      // However, NCR case handles it differently.
+      return;
+    }
+
+    const loadCities = async () => {
+      setIsLoadingCities(true);
+      try {
+        const data = await psgcService.getCities(selectedProvinceCode);
+        setCities(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (error) {
+        console.error('Failed to load cities:', error);
+      } finally {
+        setIsLoadingCities(false);
+      }
+    };
+    loadCities();
+  }, [selectedProvinceCode]);
+
+  // Use effect to load barangays when city changes
+  useEffect(() => {
+    if (!selectedCityCode) {
+      setBarangays([]);
+      return;
+    }
+
+    const loadBarangays = async () => {
+      setIsLoadingBarangays(true);
+      try {
+        const data = await psgcService.getBarangays(selectedCityCode);
+        setBarangays(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (error) {
+        console.error('Failed to load barangays:', error);
+      } finally {
+        setIsLoadingBarangays(false);
+      }
+    };
+    loadBarangays();
+  }, [selectedCityCode]);
+
+  const handleRegionChange = (value: string) => {
+    setSelectedRegionCode(value);
+    setSelectedProvinceCode('');
+    setSelectedCityCode('');
+
+    const regionName = regions.find(r => r.code === value)?.name || '';
+    setPatient(prev => ({
+      ...prev,
+      region_name: regionName,
+      province_name: '',
+      city_name: '',
+      brgy_name: ''
+    }));
+  };
+
+  const handleProvinceChange = (value: string) => {
+    setSelectedProvinceCode(value);
+    setSelectedCityCode('');
+
+    const provinceName = provinces.find(p => p.code === value)?.name || '';
+    setPatient(prev => ({
+      ...prev,
+      province_name: provinceName,
+      city_name: '',
+      brgy_name: ''
+    }));
+  };
+
+  const handleCityChange = (value: string) => {
+    setSelectedCityCode(value);
+
+    const cityName = cities.find(c => c.code === value)?.name || '';
+    setPatient(prev => ({
+      ...prev,
+      city_name: cityName,
+      brgy_name: ''
+    }));
+  };
+
+  const handleBrgyChange = (value: string) => {
+    setSelectedBrgyCode(value);
+    const brgyName = barangays.find(b => b.code === value)?.name || '';
+    setPatient(prev => ({
+      ...prev,
+      brgy_name: brgyName
+    }));
+  };
+
   const handleInputChange =
     (key: keyof PatientProfile) => (event: ChangeEvent<HTMLInputElement>) => {
       setPatient((prev) => ({ ...prev, [key]: event.target.value }));
@@ -285,6 +443,10 @@ const PatientProfiling = () => {
   const handleReset = () => {
     setPatient({ ...INITIAL_PROFILE });
     setStatusMessage(null);
+    setSelectedRegionCode('');
+    setSelectedProvinceCode('');
+    setSelectedCityCode('');
+    setSelectedBrgyCode('');
   };
 
   const handleSave = async () => {
@@ -307,7 +469,7 @@ const PatientProfiling = () => {
         setStatusType('success');
 
         // Clear inputs after successful save
-        setPatient({ ...INITIAL_PROFILE });
+        handleReset();
       } else {
         setStatusMessage(result.message || 'Failed to save patient profile');
         setStatusType('error');
@@ -432,6 +594,12 @@ const PatientProfiling = () => {
     setModalStep(1);
     setSearchResults([]);
     setModalSearchName('');
+
+    // Reset PSGC codes as we don't have codes for repository patients yet
+    setSelectedRegionCode('');
+    setSelectedProvinceCode('');
+    setSelectedCityCode('');
+    setSelectedBrgyCode('');
   };
 
   // Find selected facility from loaded facilities
@@ -680,12 +848,90 @@ const PatientProfiling = () => {
           <SectionHeader
             icon={MapPin}
             title="Location"
-            description="Geographic assignment and barangay link."
+            description="Geographic assignment and barangay link using PSGC."
           />
           <Separator className="my-5" />
 
+          {/* Region and Province */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <FormField label="Region" htmlFor="region" required>
+              <Select value={selectedRegionCode} onValueChange={handleRegionChange}>
+                <SelectTrigger id="region" className="w-full">
+                  <SelectValue placeholder={isLoadingRegions ? "Loading regions..." : "Select Region"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {regions.map((region) => (
+                    <SelectItem key={region.code} value={region.code}>
+                      {region.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Province" htmlFor="province">
+              <Select
+                value={selectedProvinceCode}
+                onValueChange={handleProvinceChange}
+                disabled={provinces.length === 0 && !isLoadingProvinces}
+              >
+                <SelectTrigger id="province" className="w-full">
+                  <SelectValue placeholder={isLoadingProvinces ? "Loading provinces..." : "Select Province"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {provinces.map((province) => (
+                    <SelectItem key={province.code} value={province.code}>
+                      {province.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          </div>
+
+          {/* City and Barangay */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <FormField label="City / Municipality" htmlFor="city" required>
+              <Select
+                value={selectedCityCode}
+                onValueChange={handleCityChange}
+                disabled={cities.length === 0 && !isLoadingCities}
+              >
+                <SelectTrigger id="city" className="w-full">
+                  <SelectValue placeholder={isLoadingCities ? "Loading cities..." : "Select City"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities.map((city) => (
+                    <SelectItem key={city.code} value={city.code}>
+                      {city.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Barangay" htmlFor="barangay" required>
+              <Select
+                value={selectedBrgyCode}
+                onValueChange={handleBrgyChange}
+                disabled={barangays.length === 0 && !isLoadingBarangays}
+              >
+                <SelectTrigger id="barangay" className="w-full">
+                  <SelectValue placeholder={isLoadingBarangays ? "Loading barangays..." : "Select Barangay"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {barangays.map((brgy) => (
+                    <SelectItem key={brgy.code} value={brgy.code}>
+                      {brgy.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          </div>
+
           {/* Street Address */}
-          <div className="mb-6">
+          <div>
             <FormField label="Street Address" htmlFor="street">
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
@@ -694,78 +940,6 @@ const PatientProfiling = () => {
                   value={patient.street || ''}
                   onChange={handleInputChange('street')}
                   placeholder="e.g. 123 Main St., Building A"
-                  className="pl-10"
-                />
-              </div>
-            </FormField>
-          </div>
-
-          {/* Barangay and City */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField
-              label="Barangay"
-              htmlFor="brgy_name"
-              hint="Enter the barangay name."
-            >
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="brgy_name"
-                  value={patient.brgy_name || ''}
-                  onChange={handleInputChange('brgy_name')}
-                  placeholder="e.g. Barangay Poblacion"
-                  className="pl-10"
-                />
-              </div>
-            </FormField>
-            <FormField
-              label="City / Municipality"
-              htmlFor="city_name"
-              hint="Enter the city or municipality name."
-            >
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="city_name"
-                  value={patient.city_name || ''}
-                  onChange={handleInputChange('city_name')}
-                  placeholder="e.g. Manila City"
-                  className="pl-10"
-                />
-              </div>
-            </FormField>
-          </div>
-
-          {/* Province and Region */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-            <FormField
-              label="Province"
-              htmlFor="province_name"
-              hint="Enter the province name."
-            >
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="province_name"
-                  value={patient.province_name || ''}
-                  onChange={handleInputChange('province_name')}
-                  placeholder="e.g. Metro Manila"
-                  className="pl-10"
-                />
-              </div>
-            </FormField>
-            <FormField
-              label="Region"
-              htmlFor="region_name"
-              hint="Enter the region name."
-            >
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="region_name"
-                  value={patient.region_name || ''}
-                  onChange={handleInputChange('region_name')}
-                  placeholder="e.g. NCR - National Capital Region"
                   className="pl-10"
                 />
               </div>
