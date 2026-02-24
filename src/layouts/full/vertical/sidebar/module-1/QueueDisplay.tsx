@@ -4,6 +4,7 @@ import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore, Office } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { supabase } from '@/lib/supabase';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 
@@ -67,6 +68,33 @@ function speakRepeat(text: string, times: number, onDone: () => void): void {
 
   sayOnce();
 }
+
+// ── Pure helpers at module scope so effects can reference them without stale-closure issues ──
+
+const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
+  const desc = (priorityDescription ?? '').toLowerCase();
+  if (desc.includes('urgent')) return 1;
+  if (desc.includes('vip')) return 2;
+  if (desc.includes('priority')) return 3;
+  if (desc.includes('pwd')) return 4;
+  if (desc.includes('senior')) return 5;
+  return 10;
+};
+
+const getPriorityStyle = (priority: string | null | undefined) => {
+  const desc = (priority ?? '').toLowerCase();
+  if (desc.includes('senior'))
+    return { text: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', dot: 'bg-blue-500' };
+  if (desc.includes('pwd'))
+    return { text: 'text-violet-700 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/30', dot: 'bg-violet-500' };
+  if (desc.includes('priority'))
+    return { text: 'text-rose-700 dark:text-rose-400', bg: 'bg-rose-100 dark:bg-rose-900/30', dot: 'bg-rose-500' };
+  if (desc.includes('urgent'))
+    return { text: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30', dot: 'bg-amber-500' };
+  if (desc.includes('vip'))
+    return { text: 'text-amber-800 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', dot: 'bg-amber-400' };
+  return { text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/30', dot: 'bg-emerald-500' };
+};
 
 const QueueDisplay = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -186,60 +214,36 @@ const QueueDisplay = () => {
     });
   }, [notifQueue, activeNotif]);
 
+  // Subscribe to ping broadcasts sent by staff — bypasses seenIds so it always re-announces
+  useEffect(() => {
+    const ch = supabase
+      .channel('queue-ping-broadcast', { config: { broadcast: { self: true } } })
+      .on('broadcast', { event: 'ping' }, ({ payload }) => {
+        const code = (payload.queueCode as string) || '---';
+        const spokenCode = code.split('').join(' ');
+        // Use the real sequenceId as the notification id so the blink matches seq.id in the display
+        const notifId = (payload.sequenceId as string) || `ping-${Date.now()}`;
+        setNotifQueue((prev) => [
+          ...prev,
+          {
+            id: notifId,
+            queueCode: code,
+            windowLabel: (payload.windowLabel as string) || 'the window',
+            officeName: '',
+            priorityText: (payload.priorityDesc as string) || 'Regular',
+            priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
+            ...({ spokenCode } as { spokenCode: string }),
+          } as CallNotification,
+        ]);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   const formatTime = (d: Date) =>
     d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const formatDate = (d: Date) =>
     d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-
-  const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
-    const desc = (priorityDescription ?? '').toLowerCase();
-    if (desc.includes('urgent')) return 1;
-    if (desc.includes('vip')) return 2;
-    if (desc.includes('priority')) return 3;
-    if (desc.includes('pwd')) return 4;
-    if (desc.includes('senior')) return 5;
-    return 10;
-  };
-
-  const getPriorityStyle = (priority: string | null | undefined) => {
-    const desc = (priority ?? '').toLowerCase();
-    if (desc.includes('senior'))
-      return {
-        text: 'text-blue-700 dark:text-blue-400',
-        bg: 'bg-blue-100 dark:bg-blue-900/30',
-        dot: 'bg-blue-500',
-      };
-    if (desc.includes('pwd'))
-      return {
-        text: 'text-violet-700 dark:text-violet-400',
-        bg: 'bg-violet-100 dark:bg-violet-900/30',
-        dot: 'bg-violet-500',
-      };
-    if (desc.includes('priority'))
-      return {
-        text: 'text-rose-700 dark:text-rose-400',
-        bg: 'bg-rose-100 dark:bg-rose-900/30',
-        dot: 'bg-rose-500',
-      };
-    if (desc.includes('urgent'))
-      return {
-        text: 'text-amber-700 dark:text-amber-400',
-        bg: 'bg-amber-100 dark:bg-amber-900/30',
-        dot: 'bg-amber-500',
-      };
-    if (desc.includes('vip'))
-      return {
-        text: 'text-amber-800 dark:text-amber-300',
-        bg: 'bg-amber-100 dark:bg-amber-900/30',
-        dot: 'bg-amber-400',
-      };
-    return {
-      text: 'text-emerald-700 dark:text-emerald-400',
-      bg: 'bg-emerald-50 dark:bg-emerald-900/30',
-      dot: 'bg-emerald-500',
-    };
-  };
 
   const dynamicPriorityLegend = useMemo(() => {
     return priorities.map((p) => ({
