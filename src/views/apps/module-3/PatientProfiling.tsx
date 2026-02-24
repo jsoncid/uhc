@@ -465,11 +465,10 @@ const PatientProfiling = () => {
       const result = await patientService.saveToSupabase(patient);
 
       if (result.success) {
-        setStatusMessage(result.message || 'Patient profile saved successfully to Supabase');
-        setStatusType('success');
-
-        // Clear inputs after successful save
+        // Clear inputs first, then show success message (handleReset clears statusMessage)
         handleReset();
+        setStatusMessage(result.message || 'Patient profile saved successfully!');
+        setStatusType('success');
       } else {
         setStatusMessage(result.message || 'Failed to save patient profile');
         setStatusType('error');
