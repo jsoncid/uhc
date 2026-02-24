@@ -207,18 +207,31 @@ const PatientTagging = () => {
       if (allPatientsResult.success) {
         const searchLower = linkedSearchTerm.toLowerCase();
         const linked = allPatientsResult.data.filter((patient: any) => {
-          const hasHpercode = patient.patient_repository?.[0]?.hpercode != null;
-          if (!hasHpercode) return false;
+          // Filter only active repositories
+          const activeRepos = patient.patient_repository?.filter(
+            (repo: any) => repo.hpercode != null && (repo.status === true || repo.status === null || repo.status === undefined)
+          );
+          if (!activeRepos || activeRepos.length === 0) return false;
           
           // Search in name
           const firstName = patient.first_name?.toLowerCase() || '';
           const middleName = patient.middle_name?.toLowerCase() || '';
           const lastName = patient.last_name?.toLowerCase() || '';
           const fullName = `${firstName} ${middleName} ${lastName}`.trim();
-          const hpercode = patient.patient_repository?.[0]?.hpercode?.toLowerCase() || '';
           
-          return fullName.includes(searchLower) || hpercode.includes(searchLower);
-        });
+          // Search in any hpercode
+          const hpercodeMatch = activeRepos.some(
+            (repo: any) => repo.hpercode?.toLowerCase().includes(searchLower)
+          );
+          
+          return fullName.includes(searchLower) || hpercodeMatch;
+        }).map((patient: any) => ({
+          ...patient,
+          // Filter patient_repository to only include active ones
+          patient_repository: patient.patient_repository?.filter(
+            (repo: any) => repo.hpercode != null && (repo.status === true || repo.status === null || repo.status === undefined)
+          ) || []
+        }));
         setLinkedPatients(linked);
         setLinkedTotal(linked.length);
       }
