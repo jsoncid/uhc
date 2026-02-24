@@ -20,6 +20,21 @@ interface CallNotification {
   priorityStyle: { text: string; bg: string; dot: string };
 }
 
+/** Pick the best female English voice available, or null to let the browser decide. */
+function getFemaleVoice(): SpeechSynthesisVoice | null {
+  const voices = window.speechSynthesis.getVoices();
+  // Prefer voices whose name explicitly signals female / Zira / Samantha / Google US English
+  const femaleKeywords = ['female', 'woman', 'zira', 'samantha', 'google us english', 'hazel', 'susan', 'victoria', 'karen'];
+  const enVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+  for (const kw of femaleKeywords) {
+    const match = enVoices.find((v) => v.name.toLowerCase().includes(kw));
+    if (match) return match;
+  }
+  // Fallback: first English voice that doesn't contain male indicators
+  const notMale = enVoices.find((v) => !['male', 'man', 'david', 'mark', 'james', 'richard'].some((m) => v.name.toLowerCase().includes(m)));
+  return notMale ?? enVoices[0] ?? null;
+}
+
 /** Speak `text` exactly `times` times, with a pause between each. Calls `onDone` when finished. */
 function speakRepeat(text: string, times: number, onDone: () => void): void {
   if (!window.speechSynthesis) { onDone(); return; }
@@ -30,8 +45,10 @@ function speakRepeat(text: string, times: number, onDone: () => void): void {
   const sayOnce = () => {
     const utter = new SpeechSynthesisUtterance(text);
     utter.rate = 0.9;
-    utter.pitch = 1;
+    utter.pitch = 1.15;  // slightly higher pitch for a feminine tone
     utter.lang = 'en-US';
+    const femaleVoice = getFemaleVoice();
+    if (femaleVoice) utter.voice = femaleVoice;
     utter.onend = () => {
       remaining -= 1;
       if (remaining > 0) {
