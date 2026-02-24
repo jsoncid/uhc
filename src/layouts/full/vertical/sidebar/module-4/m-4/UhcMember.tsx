@@ -12,12 +12,14 @@ import {
   ChevronDown, ChevronRight, AlertCircle, Loader2, Download, X,
   Printer, CheckCircle2, RefreshCw, ArchiveX, CreditCard, Lock,
   KeyRound, ShieldCheck, EyeOff, ShieldAlert, ShieldX, User,
+  Camera, Upload,
 } from 'lucide-react';
 import { supabase } from 'src/lib/supabase';
 import Threads from 'src/components/ui/Threads';
 import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
 import darkLogo from 'src/assets/images/logos/uhc-logo.png';
 import adnSeal from 'src/assets/images/logos/adn-seal.png';
+import defaultProfile from 'src/assets/images/profile/default_profile.jpg';
 
 // ─── Offscreen Threads renderer (single frame capture for print) ──────────────
 const _vtxSrc = `
@@ -400,14 +402,7 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'linear-gradient(160deg, #fef9c3 0%, #fde68a 50%, #f59e0b 100%)'
             }}>
-              {profilePicUrl ? (
-                <img src={profilePicUrl} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ width: 60, height: 65, background: '#c4c4c4', borderRadius: '50% 50% 8px 8px' }} />
-                  <div style={{ width: 80, height: 40, background: '#c4c4c4', borderRadius: '8px 8px 50% 50%', marginTop: -10 }} />
-                </div>
-              )}
+              <img src={profilePicUrl || defaultProfile} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
             <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 600, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase', flexShrink: 0 }}>Card Holder</div>
           </div>
@@ -1081,7 +1076,10 @@ const UhcMember = () => {
   const [isAutoLoading,   setIsAutoLoading]   = useState(true);
 
   // ── Profile picture ─────────────────────────────────────────────────────────
-  const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
+  const [profilePicUrl,   setProfilePicUrl]   = useState<string | null>(null);
+  const [isUploadingPic,  setIsUploadingPic]  = useState(false);
+  const [profilePicError, setProfilePicError] = useState('');
+  const profilePicInputRef = useRef<HTMLInputElement>(null);
 
   // ── module4 health card data ───────────────────────────────────────────────
   const [healthCardId, setHealthCardId] = useState<string | null>(null);
@@ -1372,13 +1370,26 @@ const UhcMember = () => {
         picImg.onerror = () => resolve();
       });
     } else {
-      // Person silhouette
-      ctx.fillStyle = '#c4c4c4';
-      ctx.beginPath();
-      ctx.ellipse(photoX + photoW / 2, photoY + 75, 30, 33, 0, 0, Math.PI * 2);
-      ctx.fill();
-      rr(photoX + photoW / 2 - 40, photoY + 115, 80, 45, 8);
-      ctx.fill();
+      // Default profile image fallback
+      await new Promise<void>((resolve) => {
+        const defImg = new Image();
+        defImg.crossOrigin = 'anonymous';
+        defImg.src = defaultProfile;
+        defImg.onload = () => {
+          ctx.save();
+          rr(photoX + 3, photoY + 3, photoW - 6, photoH - 6, 6);
+          ctx.clip();
+          const scale = Math.max((photoW - 6) / defImg.width, (photoH - 6) / defImg.height);
+          const sw = defImg.width * scale;
+          const sh = defImg.height * scale;
+          const sx = photoX + 3 + ((photoW - 6) - sw) / 2;
+          const sy = photoY + 3 + ((photoH - 6) - sh) / 2;
+          ctx.drawImage(defImg, sx, sy, sw, sh);
+          ctx.restore();
+          resolve();
+        };
+        defImg.onerror = () => resolve();
+      });
     }
 
 
@@ -1736,12 +1747,12 @@ const UhcMember = () => {
       });
       setDocuments(docs);
 
-      // Step 5: load profile picture from card-user-picture bucket
+      // Step 5: load profile picture from card-attachments/Profile Picture/ bucket
       try {
-        const { data: picFiles } = await supabase.storage.from('card-user-picture').list('', { search: patient.id });
+        const { data: picFiles } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: patient.id });
         const picMatch = picFiles?.find((f) => f.name.startsWith(patient.id));
         if (picMatch) {
-          const { data: pub } = supabase.storage.from('card-user-picture').getPublicUrl(picMatch.name);
+          const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(`Profile Picture/${picMatch.name}`);
           setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
         }
       } catch { /* profile pic is optional */ }
@@ -1750,6 +1761,33 @@ const UhcMember = () => {
       setErrorMessage('Failed to load patient data. Please try again.');
       setIsLoadingQr(false);
     } finally { setIsLoadingDocs(false); }
+  };
+
+  // ── Upload profile picture to card-attachments bucket (Profile Picture folder) ──
+  const handleProfilePicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedPatient) return;
+    if (!file.type.startsWith('image/')) { setProfilePicError('Please select an image file (JPG, PNG, etc.).'); return; }
+    if (file.size > 5 * 1024 * 1024) { setProfilePicError('File size must be under 5 MB.'); return; }
+    setIsUploadingPic(true);
+    setProfilePicError('');
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const path = `Profile Picture/${selectedPatient.id}.${ext}`;
+      // Remove old picture first (ignore errors — might not exist)
+      await supabase.storage.from('card-attachments').remove([path]);
+      const { error: upErr } = await supabase.storage.from('card-attachments').upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(path);
+      setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
+    } catch (err: any) {
+      console.error('Profile pic upload error:', err);
+      setProfilePicError(err.message ?? 'Upload failed.');
+    } finally {
+      setIsUploadingPic(false);
+      // Reset the input so the same file can be re-selected
+      if (profilePicInputRef.current) profilePicInputRef.current.value = '';
+    }
   };
 
   // ─── Auto-load tagged patient on mount ────────────────────────────────────
@@ -2018,22 +2056,58 @@ const UhcMember = () => {
               </h3>
               <p className="text-xs text-gray-400 mb-2">Your account is linked to the patient profile below.</p>
 
-              {/* Selected patient banner */}
+              {/* Selected patient banner with profile picture upload */}
               {selectedPatient && (
                 <div className="mt-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-3">
-                    {profilePicUrl ? (
-                      <img src={profilePicUrl} alt="Profile" className="w-10 h-10 rounded-full object-cover border-2 border-green-300" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
-                        {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
-                      </div>
-                    )}
+                    {/* Profile picture with upload overlay */}
+                    <div className="relative group flex-shrink-0">
+                      {profilePicUrl ? (
+                        <img src={profilePicUrl} alt="Profile" className="w-14 h-14 rounded-full object-cover border-2 border-green-300" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-lg">
+                          {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
+                        </div>
+                      )}
+                      {/* Hover overlay to trigger upload */}
+                      <button
+                        onClick={() => profilePicInputRef.current?.click()}
+                        className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                        title="Upload profile picture"
+                      >
+                        <Camera className="w-5 h-5 text-white" />
+                      </button>
+                      {/* Uploading spinner */}
+                      {isUploadingPic && (
+                        <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
+                          <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        </div>
+                      )}
+                      {/* Hidden file input */}
+                      <input
+                        ref={profilePicInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleProfilePicUpload}
+                      />
+                    </div>
                     <div>
                       <p className="font-semibold text-green-900">{fullName(selectedPatient)}</p>
                       <p className="text-xs text-green-600">
                         {selectedPatient.sex} · {formatDate(selectedPatient.birth_date)} · {computeAge(selectedPatient.birth_date)} · {getFullAddress(selectedPatient.brgy)}
                       </p>
+                      {/* Upload text link */}
+                      <button
+                        onClick={() => profilePicInputRef.current?.click()}
+                        className="text-[11px] text-green-700 hover:text-green-900 font-medium flex items-center gap-1 mt-1 transition-colors"
+                      >
+                        <Upload className="w-3 h-3" />
+                        {profilePicUrl ? 'Change Photo' : 'Upload Photo'}
+                      </button>
+                      {profilePicError && (
+                        <p className="text-[10px] text-red-500 mt-0.5">{profilePicError}</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-xs font-medium">

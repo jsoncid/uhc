@@ -18,6 +18,10 @@ import QRCodeLib from 'qrcode';
 import jsPDF from 'jspdf';
 import { supabase } from 'src/lib/supabase';
 import MemberTagging from './MemberTagging';
+import Threads from 'src/components/ui/Threads';
+import darkLogo from 'src/assets/images/logos/uhc-logo.png';
+import adnSeal from 'src/assets/images/logos/adn-seal.png';
+import defaultProfile from 'src/assets/images/profile/default_profile.jpg';
 
 // ─── Document Type Options per Folder ────────────────────────────────────────
 const FOLDER_DOC_TYPES: Record<string, string[]> = {
@@ -154,7 +158,228 @@ const CATEGORY_COLORS: Record<string, ColorKey> = {
   'Admission Requirements': 'teal',
 };
 
-const BCrumb = [{ to: '/', title: 'Home' }, { title: 'QR Scanner' }];
+const BCrumb = [{ to: '/', title: 'Home' }];
+
+// ─── Health ID Card visual (Flip Card) — same as UhcMember ──────────────────
+const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl }: {
+  patient: PatientProfile; qrDataUrl: string; qrCodeValue: string;
+  cardRef?: React.RefObject<HTMLDivElement | null>;
+  profilePicUrl?: string | null;
+}) => {
+  const [isFlipped, setIsFlipped] = useState(false);
+  const lastName = patient.last_name?.toUpperCase() || 'N/A';
+  const givenNames = [patient.first_name, patient.middle_name].filter(Boolean).join(' ').toUpperCase();
+  const sex = patient.sex?.toUpperCase() || 'N/A';
+  const dateIssued = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+
+  const WatermarkLogo = () => (
+    <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'grayscale(100%) brightness(0.4)' }} />
+  );
+
+  const WatermarkSVG = () => (
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none" style={{ width: '100%', height: '100%' }}>
+      <circle cx="100" cy="100" r="95" stroke="#0a3318" strokeWidth="4" fill="none"/>
+      <circle cx="100" cy="100" r="87" stroke="#0a3318" strokeWidth="1.5" fill="none" strokeDasharray="4 3"/>
+      <g stroke="#0a3318" strokeWidth="2.5">
+        <line x1="100" y1="8" x2="100" y2="22"/><line x1="100" y1="178" x2="100" y2="192"/>
+        <line x1="8" y1="100" x2="22" y2="100"/><line x1="178" y1="100" x2="192" y2="100"/>
+        <line x1="34" y1="34" x2="44" y2="44"/><line x1="156" y1="156" x2="166" y2="166"/>
+        <line x1="166" y1="34" x2="156" y2="44"/><line x1="44" y1="156" x2="34" y2="166"/>
+        <line x1="17" y1="67" x2="29" y2="71"/><line x1="171" y1="129" x2="183" y2="133"/>
+        <line x1="67" y1="17" x2="71" y2="29"/><line x1="129" y1="171" x2="133" y2="183"/>
+        <line x1="183" y1="67" x2="171" y2="71"/><line x1="29" y1="129" x2="17" y2="133"/>
+        <line x1="133" y1="17" x2="129" y2="29"/><line x1="71" y1="171" x2="67" y2="183"/>
+      </g>
+      <g fill="#0a3318">
+        <polygon points="100,32 103,42 113,42 105,48 108,58 100,52 92,58 95,48 87,42 97,42" transform="scale(0.55) translate(82,30)"/>
+        <polygon points="100,32 103,42 113,42 105,48 108,58 100,52 92,58 95,48 87,42 97,42" transform="scale(0.55) translate(-28,140)"/>
+        <polygon points="100,32 103,42 113,42 105,48 108,58 100,52 92,58 95,48 87,42 97,42" transform="scale(0.55) translate(192,140)"/>
+      </g>
+      <g fill="#0a3318" opacity="0.9">
+        <path d="M100 50 C70 50 55 65 55 85 C55 120 75 145 100 158 C125 145 145 120 145 85 C145 65 130 50 100 50Z" fill="none" stroke="#0a3318" strokeWidth="2.5"/>
+        <rect x="93" y="68" width="14" height="52" rx="2" fill="#0a3318" opacity="0.7"/>
+        <rect x="74" y="87" width="52" height="14" rx="2" fill="#0a3318" opacity="0.7"/>
+      </g>
+      <defs>
+        <path id="opArcTop" d="M 22,100 A 78,78 0 0,1 178,100"/>
+        <path id="opArcBot" d="M 30,110 A 70,70 0 0,0 170,110"/>
+      </defs>
+      <text fontFamily="serif" fontSize="10" fill="#0a3318" letterSpacing="2">
+        <textPath href="#opArcTop" startOffset="8%">REPUBLIKA NG PILIPINAS</textPath>
+      </text>
+      <text fontFamily="serif" fontSize="9" fill="#0a3318" letterSpacing="1.5">
+        <textPath href="#opArcBot" startOffset="14%">UNIVERSAL HEALTH CARE</textPath>
+      </text>
+    </svg>
+  );
+
+  const CardBackground = () => (
+    <>
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #e8f5e9 0%, #eef6ee 40%, #e0f2e1 100%)' }} />
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.18, zIndex: 0, pointerEvents: 'none' }}>
+        <Threads color={[0.18, 0.72, 0.36]} amplitude={1.4} distance={0} enableMouseInteraction={false} />
+      </div>
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.03, zIndex: 0,
+        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px), repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px)` }} />
+      <div style={{ position: 'absolute', width: 300, height: 230, background: '#2d8a50', top: -55, left: 15, opacity: 0.10, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 260, height: 210, background: '#c8a018', top: 55, right: -15, opacity: 0.05, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 230, height: 190, background: '#1a6b3a', bottom: -28, right: 80, opacity: 0.08, borderRadius: '50%', filter: 'blur(46px)' }} />
+    </>
+  );
+
+  const GoldBorders = () => (
+    <>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 5, background: 'linear-gradient(90deg, #7a5c10, #c8a018, #f0d44a, #c8a018, #7a5c10)', zIndex: 2 }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5, background: 'linear-gradient(90deg, #7a5c10, #c8a018, #f0d44a, #c8a018, #7a5c10)', zIndex: 2 }} />
+    </>
+  );
+
+  const FrontSide = () => (
+    <div style={{ width: '100%', height: '100%', position: 'absolute', backfaceVisibility: 'hidden', borderRadius: 18, overflow: 'hidden',
+      boxShadow: '0 2px 0 rgba(255,255,255,0.9) inset, 0 28px 70px rgba(0,0,0,0.26), 0 0 0 1px rgba(0,100,40,0.16)' }}>
+      <CardBackground />
+      <GoldBorders />
+      <div style={{ position: 'absolute', right: '8%', top: '50%', transform: 'translateY(-50%)', width: 260, height: 260, opacity: 0.06, zIndex: 1, pointerEvents: 'none' }}>
+        <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      </div>
+      <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '10px 20px 10px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 8, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
+          <img src={adnSeal} alt="ADN Seal" style={{ width: 50, height: 50, flexShrink: 0, borderRadius: '50%', objectFit: 'contain' }} />
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 9, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas</div>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 13, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.2 }}>AGUSAN DEL NORTE</div>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 17, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.1 }}>UNIVERSAL HEALTH CARE</div>
+            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 9, fontWeight: 600, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
+          </div>
+          <img src={darkLogo} alt="UHC Logo" style={{ width: 55, height: 55, flexShrink: 0, objectFit: 'contain' }} />
+        </div>
+        {/* ID Row */}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid rgba(0,100,40,0.13)', flexShrink: 0 }}>
+          <span style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 11, fontWeight: 700, color: '#0d4022', letterSpacing: 1 }}>UHC-ID</span>
+          <span style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 13, fontWeight: 700, color: '#0a2e1a', letterSpacing: 1.5, marginLeft: 6 }}>{qrCodeValue.substring(4, 24).toUpperCase()}-NDC</span>
+        </div>
+        {/* Body */}
+        <div style={{ display: 'flex', gap: 0, paddingTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {/* Photo */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 215 }}>
+            <div style={{ flex: 1, width: '100%', minHeight: 0, border: '3px solid #c8a018', borderRadius: 8, overflow: 'hidden',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.22), 0 0 0 5px rgba(200,160,24,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'linear-gradient(160deg, #fef9c3 0%, #fde68a 50%, #f59e0b 100%)' }}>
+              <img src={profilePicUrl || defaultProfile} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 600, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase', flexShrink: 0 }}>Card Holder</div>
+          </div>
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, paddingLeft: 55, paddingRight: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Apelyido</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Last Name</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lastName}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Mga Pangalan</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Given Names</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{givenNames}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Petsa ng Kapanganakan</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Date of Birth</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatDate(patient.birth_date).toUpperCase()}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Kasarian</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Sex</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sex}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
+            </div>
+          </div>
+        </div>
+        {/* Footer */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid rgba(0,100,40,0.13)', flexShrink: 0, marginTop: 6 }}>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 500, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase' }}>DOH — UHC Act R.A. 11223</div>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 10, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>DATE ISSUED: {dateIssued}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 19, fontWeight: 700, color: '#1a6b3a', letterSpacing: 2, textShadow: '1px 1px 0 rgba(200,160,24,0.3)' }}>PHL</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const BackSide = () => (
+    <div style={{ width: '100%', height: '100%', position: 'absolute', backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', borderRadius: 18, overflow: 'hidden',
+      boxShadow: '0 2px 0 rgba(255,255,255,0.9) inset, 0 28px 70px rgba(0,0,0,0.26), 0 0 0 1px rgba(0,100,40,0.16)' }}>
+      <CardBackground />
+      <GoldBorders />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(135deg, #1a1a1a, #2d2d2d, #1a1a1a)', opacity: 0.88, zIndex: 5 }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(180deg, rgba(255,255,255,0.07), transparent)', zIndex: 6 }} />
+      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 200, height: 200, opacity: 0.05, zIndex: 1, pointerEvents: 'none' }}>
+        <WatermarkLogo />
+      </div>
+      <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '42px 24px 10px', overflow: 'hidden' }}>
+        <div style={{ paddingBottom: 7, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 8, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 11, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.2 }}>AGUSAN DEL NORTE</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 14, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>UNIVERSAL HEALTH CARE</div>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 8, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 215, height: 215, flexShrink: 0, border: '3px solid #c8a018', borderRadius: 9, padding: 7, background: 'white', position: 'relative',
+              boxShadow: '0 5px 24px rgba(0,0,0,0.2), 0 0 0 5px rgba(200,160,24,0.13)' }}>
+              <div style={{ position: 'absolute', inset: -7, border: '1.5px solid rgba(200,160,24,0.32)', borderRadius: 12, pointerEvents: 'none' }} />
+              <img src={qrDataUrl} alt="QR Code" style={{ width: '100%', height: '100%', display: 'block' }} />
+            </div>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 10.5, fontWeight: 700, color: '#0a3318', letterSpacing: 4, textAlign: 'center' }}>Scan to Verify</div>
+            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, color: '#2d6b40', letterSpacing: 1.5, textAlign: 'center' }}>UHC Member Verification Portal</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid rgba(0,100,40,0.13)', flexShrink: 0 }}>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7, fontWeight: 500, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase' }}>DOH — UHC Act R.A. 11223</div>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 8, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>VALID WHILE MEMBERSHIP IS ACTIVE</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 19, fontWeight: 700, color: '#1a6b3a', letterSpacing: 2, textShadow: '1px 1px 0 rgba(200,160,24,0.3)' }}>PHL</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div ref={cardRef} style={{ width: 700, height: 420, perspective: '1000px' }}>
+        <div style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d', transition: 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1)',
+          transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
+          <FrontSide />
+          <BackSide />
+        </div>
+      </div>
+      <button onClick={() => setIsFlipped(!isFlipped)}
+        style={{ marginTop: 16, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
+          fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 14, fontWeight: 500,
+          color: '#2563eb', letterSpacing: 0.3, transition: 'all 0.2s ease' }}
+        onMouseOver={(e) => { e.currentTarget.style.color = '#1d4ed8'; e.currentTarget.style.textDecoration = 'underline'; }}
+        onMouseOut={(e) => { e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.textDecoration = 'none'; }}>
+        {isFlipped ? '← Show Front' : 'Show Backside →'}
+      </button>
+    </div>
+  );
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fullName = (p: PatientProfile) =>
@@ -178,6 +403,11 @@ const getFullAddress = (brgy: PatientProfile['brgy']): string => {
   if (prov?.description) parts.push(prov.description);
   if (prov?.region?.description) parts.push(prov.region.description);
   return parts.join(', ');
+};
+
+const formatDate = (dateStr?: string | null): string => {
+  if (!dateStr) return 'N/A';
+  try { return new Date(dateStr).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }); } catch { return dateStr; }
 };
 
 
@@ -646,12 +876,20 @@ const UhcOperator = () => {
   const [activeTab,    setActiveTab]    = useState('documents');
   const [cameraActive, setCameraActive] = useState(false);
 
+  // ── Current user role ──────────────────────────────────────────────────────
+  const [currentRoleName, setCurrentRoleName] = useState<string | null>(null);
+  const isBarangayOfficer = currentRoleName?.toLowerCase().includes('barangay') ?? false;
+
   // ── Operator mode selection ────────────────────────────────────────────────
   const [operatorMode, setOperatorMode] = useState<'documents' | 'scanner' | 'tagging' | null>(null);
   const [scanLookup,   setScanLookup]   = useState(false);
   const [scanResult,   setScanResult]   = useState<ScanResult | null>(null);
   const [cameraError,  setCameraError]  = useState('');
   const [scanError,    setScanError]    = useState('');
+
+  // ── Scan result card display (HealthIdCard) ──────────────────────────────
+  const [scanQrDataUrl,      setScanQrDataUrl]      = useState<string | null>(null);
+  const [scanProfilePicUrl,  setScanProfilePicUrl]  = useState<string | null>(null);
 
   // ── PIN: QR scanner gate ──────────────────────────────────────────────────
   const [pendingScanResult, setPendingScanResult] = useState<ScanResult | null>(null);
@@ -709,6 +947,29 @@ const UhcOperator = () => {
 
   useEffect(() => { if (activeTab !== 'scanner') stopCamera(); }, [activeTab, stopCamera]);
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
+
+  // ── Generate QR data URL + load profile pic when scan result changes ─────
+  useEffect(() => {
+    if (!scanResult) { setScanQrDataUrl(null); setScanProfilePicUrl(null); return; }
+    // Generate QR image
+    QRCodeLib.toDataURL(scanResult.qrValue, { width: 256, margin: 2, color: { dark: '#166534', light: '#FFFFFF' } })
+      .then((url: string) => setScanQrDataUrl(url))
+      .catch(() => setScanQrDataUrl(null));
+    // Load profile picture
+    const pid = scanResult.patient?.id;
+    if (pid) {
+      (async () => {
+        try {
+          const { data: files } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: pid });
+          const match = files?.find((f) => f.name.startsWith(pid));
+          if (match) {
+            const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(`Profile Picture/${match.name}`);
+            setScanProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
+          } else { setScanProfilePicUrl(null); }
+        } catch { setScanProfilePicUrl(null); }
+      })();
+    }
+  }, [scanResult]);
 
   // ── Fetch scan history from DB when tab changes ──────────────────────────
   useEffect(() => {
@@ -1462,21 +1723,39 @@ const UhcOperator = () => {
                 </div>
               </button>
 
-              {/* Member Tagging Card */}
+              {/* Member Tagging Card — disabled for Barangay Officers */}
               <button
-                onClick={() => { setOperatorMode('tagging'); setActiveTab('tagging'); }}
-                className="group relative flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-gray-200 bg-white hover:border-amber-500 hover:shadow-xl transition-all duration-200 text-center"
+                onClick={() => { if (!isBarangayOfficer) { setOperatorMode('tagging'); setActiveTab('tagging'); } }}
+                disabled={isBarangayOfficer}
+                className={`group relative flex flex-col items-center gap-4 p-8 rounded-2xl border-2 transition-all duration-200 text-center ${
+                  isBarangayOfficer
+                    ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                    : 'border-gray-200 bg-white hover:border-amber-500 hover:shadow-xl'
+                }`}
               >
-                <div className="w-20 h-20 rounded-2xl bg-amber-100 group-hover:bg-amber-200 flex items-center justify-center transition-colors">
-                  <Tag className="w-10 h-10 text-amber-700" />
+                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center transition-colors ${
+                  isBarangayOfficer ? 'bg-gray-200' : 'bg-amber-100 group-hover:bg-amber-200'
+                }`}>
+                  <Tag className={`w-10 h-10 ${isBarangayOfficer ? 'text-gray-400' : 'text-amber-700'}`} />
                 </div>
                 <div>
-                  <p className="text-lg font-bold text-gray-800 group-hover:text-amber-700 transition-colors">Member Tagging</p>
-                  <p className="text-sm text-gray-500 mt-1">Tag and categorize health card members</p>
+                  <p className={`text-lg font-bold transition-colors ${
+                    isBarangayOfficer ? 'text-gray-400' : 'text-gray-800 group-hover:text-amber-700'
+                  }`}>Member Tagging</p>
+                  <p className={`text-sm mt-1 ${isBarangayOfficer ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {isBarangayOfficer ? 'Not available for Barangay Officers' : 'Tag and categorize health card members'}
+                  </p>
                 </div>
+                {!isBarangayOfficer && (
                 <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
                   <ChevronRight className="w-4 h-4 text-amber-600" />
                 </div>
+                )}
+                {isBarangayOfficer && (
+                  <div className="absolute top-3 right-3">
+                    <Lock className="w-4 h-4 text-gray-400" />
+                  </div>
+                )}
               </button>
             </div>
           </div>
@@ -1496,7 +1775,7 @@ const UhcOperator = () => {
             <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="documents">Document Manager</TabsTrigger>
             </TabsList>
-          ) : operatorMode === 'tagging' ? (
+          ) : operatorMode === 'tagging' && !isBarangayOfficer ? (
             <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="tagging">Member Tagging</TabsTrigger>
             </TabsList>
@@ -1512,7 +1791,7 @@ const UhcOperator = () => {
             <div className="flex flex-col gap-5">
               <Card className="p-6">
                 <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
-                  <Search className="w-5 h-5 text-green-600" /> Search Patient
+                  <Search className="w-5 h-5 text-green-600" /> Search Member
                 </h3>
                 <div className="flex gap-2">
                   <Input
@@ -1581,47 +1860,6 @@ const UhcOperator = () => {
                   </div>
                 )}
               </Card>
-
-              {/* ── Profile Picture Upload ── */}
-              {selectedPatient && (
-                <Card className="p-6">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                    <Camera className="w-5 h-5 text-green-600" /> Profile Picture
-                  </h3>
-                  <div className="flex items-center gap-6">
-                    <div className="relative flex-shrink-0">
-                      {profilePicUrl ? (
-                        <img src={profilePicUrl} alt="Profile" className="w-24 h-24 rounded-full object-cover border-4 border-green-200 shadow-md" />
-                      ) : (
-                        <div className="w-24 h-24 rounded-full bg-gray-100 border-4 border-dashed border-gray-300 flex items-center justify-center">
-                          <User className="w-10 h-10 text-gray-300" />
-                        </div>
-                      )}
-                      {isUploadingPic && (
-                        <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
-                          <Loader2 className="w-6 h-6 text-white animate-spin" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-600 mb-3">
-                        Upload a profile photo for <strong>{fullName(selectedPatient)}</strong>. This will appear on their Health ID Card.
-                      </p>
-                      <Button variant="outline" disabled={isUploadingPic}
-                        onClick={() => profilePicInputRef.current?.click()}
-                        className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50">
-                        <Upload className="w-4 h-4" />
-                        {profilePicUrl ? 'Change Photo' : 'Upload Photo'}
-                      </Button>
-                      <input ref={profilePicInputRef} type="file" accept="image/*" className="hidden"
-                        onChange={handleProfilePicUpload} />
-                      {profilePicError && (
-                        <p className="text-xs text-red-600 mt-2 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{profilePicError}</p>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              )}
 
               <Card className="p-6">
                 <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
@@ -1721,49 +1959,6 @@ const UhcOperator = () => {
                   </div>
                 )}
               </Card>
-
-              {selectedPatient && (
-                <Card className="p-6">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                    <QrCode className="w-5 h-5 text-green-600" /> Generate QR Code
-                  </h3>
-                  <div className="flex flex-col md:flex-row gap-6 items-start">
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-600 mb-4">
-                        Generate a unique, permanent QR code for <strong>{fullName(selectedPatient)}</strong>.
-                      </p>
-                      <Button onClick={handleGenerateQr} disabled={isGenerating} className="bg-green-700 hover:bg-green-800 flex gap-2">
-                        {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
-                        {isGenerating ? 'Generating…' : generatedQr ? 'Regenerate QR Code' : 'Generate QR Code'}
-                      </Button>
-                      {generatedQr && (
-                        <div className="mt-4 p-3 bg-gray-50 rounded-lg border text-xs font-mono text-gray-700 break-all">
-                          <p className="text-xs text-gray-400 mb-1">QR Code Value:</p>{generatedQr}
-                        </div>
-                      )}
-                      {errorMessage && selectedPatient && (
-                        <div className="mt-3 flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" /><p>{errorMessage}</p>
-                        </div>
-                      )}
-                    </div>
-                    {qrDataUrl && (
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="p-4 bg-white border-4 border-green-700 rounded-2xl shadow-lg">
-                          <img src={qrDataUrl} alt="Generated QR Code" className="w-40 h-40" />
-                        </div>
-                        <a
-                          href={qrDataUrl}
-                          download={`QR_${selectedPatient.last_name}_${selectedPatient.first_name}.png`}
-                          className="flex items-center gap-1 text-sm text-green-700 hover:underline font-medium"
-                        >
-                          <Download className="w-4 h-4" /> Download QR
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              )}
             </div>
           </TabsContent>
 
@@ -1846,84 +2041,14 @@ const UhcOperator = () => {
                   </div>
 
                   {/* Health ID Card */}
-                  <div className="max-w-2xl mx-auto w-full">
-                    <div className="bg-yellow-400 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-                      <div className="absolute top-0 left-0 right-0 h-24">
-                        <svg className="absolute bottom-0 w-full" viewBox="0 0 1200 80" preserveAspectRatio="none">
-                          <path d="M0,40 Q300,10 600,40 T1200,40 L1200,80 L0,80 Z" fill="#16a34a" />
-                        </svg>
-                      </div>
-                      <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-8 pt-4">
-                          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center border-4 border-green-700 flex-shrink-0">
-                            <div className="text-center">
-                              <p className="text-xs font-bold text-green-700 leading-none">UHC</p>
-                              <p className="text-xs font-bold text-green-700 leading-none">2026</p>
-                            </div>
-                          </div>
-                          <h1 className="text-3xl font-bold text-green-700">HEALTH ID CARD</h1>
-                          <span className="ml-auto flex items-center gap-1 bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Verified
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-5 items-start">
-                          <div className="col-span-2 space-y-3">
-                            <div className="bg-green-600 text-white px-5 py-3 rounded-xl">
-                              <p className="text-xs uppercase tracking-wide opacity-80 mb-0.5">First Name</p>
-                              <h2 className="text-2xl font-bold leading-tight">{scanResult.patient.first_name}</h2>
-                            </div>
-                            <div className="bg-green-600 text-white px-5 py-3 rounded-xl">
-                              <p className="text-xs uppercase tracking-wide opacity-80 mb-0.5">Last Name</p>
-                              <h2 className="text-2xl font-bold leading-tight">{scanResult.patient.last_name}</h2>
-                            </div>
-                            {scanResult.patient.ext_name && (
-                              <div className="bg-green-500 text-white px-5 py-3 rounded-xl flex items-center gap-3">
-                                <User className="w-5 h-5 opacity-80 flex-shrink-0" />
-                                <div>
-                                  <p className="text-xs uppercase tracking-wide opacity-80">Extension Name</p>
-                                  <p className="font-bold">{scanResult.patient.ext_name}</p>
-                                </div>
-                              </div>
-                            )}
-                            {scanResult.patient.sex && (
-                              <div className="bg-green-500 text-white px-5 py-3 rounded-xl flex items-center gap-3">
-                                <User className="w-5 h-5 opacity-80 flex-shrink-0" />
-                                <div>
-                                  <p className="text-xs uppercase tracking-wide opacity-80">Sex</p>
-                                  <p className="font-bold">{scanResult.patient.sex}</p>
-                                </div>
-                              </div>
-                            )}
-                            {scanResult.patient.birth_date && (
-                              <div className="bg-green-500 text-white px-5 py-3 rounded-xl flex items-center gap-3">
-                                <Calendar className="w-5 h-5 opacity-80 flex-shrink-0" />
-                                <div>
-                                  <p className="text-xs uppercase tracking-wide opacity-80">Date of Birth</p>
-                                  <p className="font-bold">{scanResult.patient.birth_date}</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex flex-col items-center gap-3">
-                            <div className="bg-white p-3 rounded-2xl border-4 border-green-700 shadow-lg">
-                              {scanResult.qrCodeDataUrl
-                                ? <img src={scanResult.qrCodeDataUrl} alt="QR" className="w-28 h-28 rounded" />
-                                : <div className="w-28 h-28 flex flex-col items-center justify-center bg-gray-50 rounded p-1">
-                                    <QrCode className="w-16 h-16 text-green-700 opacity-60" />
-                                    <p className="text-[7px] font-mono text-gray-400 break-all text-center mt-1">{scanResult.qrValue.substring(0, 24)}</p>
-                                  </div>
-                              }
-                            </div>
-                            <p className="text-[10px] font-mono text-green-800 text-center opacity-70 leading-tight max-w-[7rem] break-all">
-                              {scanResult.qrValue.substring(0, 20)}…
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  {scanQrDataUrl && (
+                    <HealthIdCard
+                      patient={scanResult.patient}
+                      qrDataUrl={scanQrDataUrl}
+                      qrCodeValue={scanResult.qrValue}
+                      profilePicUrl={scanProfilePicUrl}
+                    />
+                  )}
 
                   <Card className="p-6">
                     <div className="flex items-center justify-between mb-2">
@@ -2025,10 +2150,12 @@ const UhcOperator = () => {
             </Card>
           </TabsContent>
 
-          {/* ═══ MEMBER TAGGING ═══ */}
+        {/* ═══ MEMBER TAGGING ═══ */}
+          {!isBarangayOfficer && (
           <TabsContent value="tagging">
             <MemberTagging />
           </TabsContent>
+          )}
 
         </Tabs>
         </>
