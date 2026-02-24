@@ -10,6 +10,7 @@ import {
 import { supabaseM2, supabaseM3 } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { assignmentService } from '@/services/assignmentService';
+import { userService } from '@/services/userService';
 
 export interface ReferralContextType {
   referrals: ReferralType[];
@@ -37,9 +38,10 @@ export interface ReferralContextType {
     diag: { diagnostics: string; date?: string | null; attachment?: string | null },
   ) => void;
   deleteDiagnostic: (diagId: string, referralId: string) => void;
-  updateDiagnosticAttachment: (diagId: string, referralId: string, attachment: string) => void;
+  updateDiagnosticAttachment: (diagId: string, referralId: string, attachments: string[]) => void;
   addVaccination: (referralId: string, vac: { description: string; date?: string | null }) => void;
   deleteVaccination: (vacId: string, referralId: string) => void;
+  updateVaccinationAttachment: (vacId: string, referralId: string, attachments: string[]) => void;
   addOutgoingDiagnostic: (
     referralId: string,
     diag: { diagnostics: string; date?: string | null; attachment?: string | null },
@@ -48,19 +50,24 @@ export interface ReferralContextType {
   updateOutgoingDiagnosticAttachment: (
     diagId: string,
     referralId: string,
-    attachment: string,
+    attachments: string[],
   ) => void;
   addOutgoingVaccination: (
     referralId: string,
     vac: { description: string; date?: string | null },
   ) => void;
   deleteOutgoingVaccination: (vacId: string, referralId: string) => void;
+  updateOutgoingVaccinationAttachment: (
+    vacId: string,
+    referralId: string,
+    attachments: string[],
+  ) => void;
 }
 
 export const ReferralContext = createContext<ReferralContextType>({} as ReferralContextType);
 
 export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { userAssignmentId } = useAuthStore();
+  const { userAssignmentId, user } = useAuthStore();
   const [referrals, setReferrals] = useState<ReferralType[]>([]);
   const [deactivatedReferrals, setDeactivatedReferrals] = useState<ReferralType[]>([]);
   const [incomingReferrals, setIncomingReferrals] = useState<ReferralType[]>([]);
@@ -75,6 +82,18 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const isRealUuid = (v: string | null | undefined): v is string =>
     !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
+  // Parse the DB `attachment` column (text) to string[] used in local state.
+  // Handles: null → [], JSON array string → array, plain data URL (old records) → [url].
+  const parseAttachments = (val: string | null | undefined): string[] => {
+    if (!val) return [];
+    try {
+      const parsed = JSON.parse(val);
+      return Array.isArray(parsed) ? parsed : [val];
+    } catch {
+      return [val];
+    }
+  };
+
   const persistHistoryEntry = (referralId: string, statusDescription: string, details: string) => {
     if (!isRealUuid(referralId)) return;
     const realStatus = statuses.find((s) => s.description === statusDescription);
@@ -86,7 +105,13 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       .then(() =>
         supabaseM2
           .from('referral_history')
-          .insert({ referral: referralId, status: realStatus.id, is_active: true, details })
+          .insert({
+            referral: referralId,
+            status: realStatus.id,
+            is_active: true,
+            details,
+            user: user?.id ?? null,
+          })
           .then(({ error }) => {
             if (error) console.error('[persistHistoryEntry] INSERT failed:', error);
           }),
@@ -106,6 +131,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         to_assignment: h.to_assignment,
         status: h.status,
         is_active: h.is_active,
+        user: h.user ?? null,
         status_description: allStatuses.find((s) => s.id === h.status)?.description ?? undefined,
       }),
     );
@@ -142,8 +168,18 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       ? {
           ...infoRaw,
           referral: row.id,
-          diagnostics: (infoRaw.referral_info_diagnostic ?? []) as ReferralInfoDiagnostic[],
-          vaccinations: (infoRaw.referral_info_vaccination ?? []) as ReferralInfoVaccination[],
+          diagnostics: (infoRaw.referral_info_diagnostic ?? [])
+            .filter((d: any) => d.status !== false)
+            .map((d: any) => ({
+              ...d,
+              attachments: parseAttachments(d.attachment),
+            })) as ReferralInfoDiagnostic[],
+          vaccinations: (infoRaw.referral_info_vaccination ?? [])
+            .filter((v: any) => v.status !== false)
+            .map((v: any) => ({
+              ...v,
+              attachments: parseAttachments(v.attachment),
+            })) as ReferralInfoVaccination[],
         }
       : undefined;
 
@@ -198,7 +234,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       referral_info_vaccination(id, created_at, referral_info, description, date, status)
     ),
     referral_history(
-      id, created_at, details, referral, to_assignment, status, is_active
+      id, created_at, details, referral, to_assignment, status, is_active, user
     )
   `;
 
@@ -226,7 +262,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .from('referral')
           .select(REFERRAL_SELECT)
           .eq('from_assignment', userAssignmentId)
-          .eq('status', true);
+          .eq('status', true)
+          .order('created_at', { referencedTable: 'referral_history', ascending: true });
         if (outError) throw outError;
 
         // Outgoing deactivated
@@ -234,7 +271,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .from('referral')
           .select(REFERRAL_SELECT)
           .eq('from_assignment', userAssignmentId)
-          .eq('status', false);
+          .eq('status', false)
+          .order('created_at', { referencedTable: 'referral_history', ascending: true });
         if (deactError) throw deactError;
 
         // Incoming — referrals directed to this facility (exclude deactivated by sender)
@@ -242,7 +280,8 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .from('referral')
           .select(REFERRAL_SELECT)
           .eq('to_assignment', userAssignmentId)
-          .eq('status', true);
+          .eq('status', true)
+          .order('created_at', { referencedTable: 'referral_history', ascending: true });
         if (inError) throw inError;
 
         // ── Batch-enrich: patient names + assignment names ───────────────────
@@ -276,12 +315,37 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           /* non-fatal */
         }
 
+        // User display names from auth.users (who triggered each history event)
+        const userNameMap = new Map<string, string>();
+        try {
+          const allHistoryUserIds = [
+            ...new Set(
+              mappedAll
+                .flatMap((r) => r.history ?? [])
+                .map((h) => h.user)
+                .filter((u): u is string => !!u),
+            ),
+          ];
+          if (allHistoryUserIds.length) {
+            const authUsers = await userService.getUsersByIds(allHistoryUserIds);
+            authUsers.forEach((u) => {
+              if (u.id) userNameMap.set(u.id, u.username ?? u.email ?? u.id);
+            });
+          }
+        } catch {
+          /* non-fatal — names may just be undefined */
+        }
+
         const enrich = (r: ReferralType): ReferralType => ({
           ...r,
           patient_name: patientNameMap.get(r.patient_profile ?? '') || r.patient_name,
           from_assignment_name:
             assignmentNameMap.get(r.from_assignment ?? '') || r.from_assignment_name,
           to_assignment_name: assignmentNameMap.get(r.to_assignment ?? '') || r.to_assignment_name,
+          history: (r.history ?? []).map((h) => ({
+            ...h,
+            user_name: h.user ? (userNameMap.get(h.user) ?? null) : null,
+          })),
         });
 
         const outCount = (outData ?? []).length;
@@ -335,6 +399,18 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       )
       // Any history entry change (status updates from either party)
       .on('postgres_changes', { event: '*', schema: 'module2', table: 'referral_history' }, refetch)
+      // Clinical info / diagnostics / vaccinations changes
+      .on('postgres_changes', { event: '*', schema: 'module2', table: 'referral_info' }, refetch)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'module2', table: 'referral_info_diagnostic' },
+        refetch,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'module2', table: 'referral_info_vaccination' },
+        refetch,
+      )
       .subscribe();
 
     return () => {
@@ -396,6 +472,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             status: pendingStatus?.id,
             is_active: true,
             details: 'Referral created — status set to Pending.',
+            user: user?.id ?? null,
           });
         }
 
@@ -768,7 +845,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const updateReferralInfo = (id: string, updated: Partial<ReferralInfo>) => {
-    setReferrals((prev) =>
+    const applyInfo = (prev: ReferralType[]) =>
       prev.map((r) =>
         r.id === id
           ? {
@@ -776,8 +853,9 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               referral_info: r.referral_info ? { ...r.referral_info, ...updated } : r.referral_info,
             }
           : r,
-      ),
-    );
+      );
+    setReferrals(applyInfo);
+    setIncomingReferrals(applyInfo);
     // Persist to Supabase — strip client-only / join fields before sending
     if (isRealUuid(id)) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -789,6 +867,18 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         referral: _ref,
         ...dbFields
       } = updated as any;
+      // PostgreSQL date columns reject empty strings — convert them to null
+      const DATE_COLS = [
+        'rtpcr_date',
+        'antigen_date',
+        'lmp',
+        'edc',
+        'ultrasound_1st_date',
+        'ultrasound_latest_date',
+      ];
+      DATE_COLS.forEach((col) => {
+        if (col in dbFields && dbFields[col] === '') dbFields[col] = null;
+      });
       if (Object.keys(dbFields).length > 0) {
         supabaseM2
           .from('referral_info')
@@ -830,6 +920,49 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     persistHistoryEntry(id, 'Discharged', notes);
   };
 
+  // ── Helpers to keep both state arrays in sync ────────────────────────────
+  // Any change to a diagnostic or vaccination (add/delete/attachment) must be
+  // reflected in BOTH referrals and incomingReferrals so either side sees it immediately.
+  const patchDiagInBoth = (
+    referralId: string,
+    mapper: (diags: ReferralInfoDiagnostic[]) => ReferralInfoDiagnostic[],
+  ) => {
+    const patch = (prev: ReferralType[]) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                diagnostics: mapper(r.referral_info.diagnostics ?? []),
+              },
+            }
+          : r,
+      );
+    setReferrals(patch);
+    setIncomingReferrals(patch);
+  };
+
+  const patchVacInBoth = (
+    referralId: string,
+    mapper: (vacs: ReferralInfoVaccination[]) => ReferralInfoVaccination[],
+  ) => {
+    const patch = (prev: ReferralType[]) =>
+      prev.map((r) =>
+        r.id === referralId && r.referral_info
+          ? {
+              ...r,
+              referral_info: {
+                ...r.referral_info,
+                vaccinations: mapper(r.referral_info.vaccinations ?? []),
+              },
+            }
+          : r,
+      );
+    setReferrals(patch);
+    setIncomingReferrals(patch);
+  };
+
   // ── Diagnostic CRUD ————————————————————————————————————————————————————
   const addDiagnostic = (
     referralId: string,
@@ -841,23 +974,12 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       referral_info: null,
       diagnostics: diag.diagnostics,
       date: diag.date ?? null,
-      attachment: diag.attachment ?? null,
+      attachments: [],
       status: true,
     };
+    const tempDiagId = newDiag.id;
     const riIdForDiag = incomingReferrals.find((r) => r.id === referralId)?.referral_info?.id;
-    setIncomingReferrals((prev) =>
-      prev.map((r) =>
-        r.id === referralId && r.referral_info
-          ? {
-              ...r,
-              referral_info: {
-                ...r.referral_info,
-                diagnostics: [...(r.referral_info.diagnostics ?? []), newDiag],
-              },
-            }
-          : r,
-      ),
-    );
+    patchDiagInBoth(referralId, (diags) => [...diags, newDiag]);
     if (isRealUuid(riIdForDiag)) {
       supabaseM2
         .from('referral_info_diagnostic')
@@ -865,60 +987,50 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           referral_info: riIdForDiag,
           diagnostics: diag.diagnostics,
           date: diag.date ?? null,
-          attachment: diag.attachment ?? null,
+          attachment: null,
           status: true,
         })
-        .then(({ error }) => {
-          if (error) console.error('[addDiagnostic] INSERT failed:', error);
+        .select('id')
+        .single()
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('[addDiagnostic] INSERT failed:', error);
+            return;
+          }
+          if (data?.id) {
+            patchDiagInBoth(referralId, (diags) =>
+              diags.map((d) => (d.id === tempDiagId ? { ...d, id: data.id } : d)),
+            );
+          }
         });
     }
   };
 
   const deleteDiagnostic = (diagId: string, referralId: string) => {
-    setIncomingReferrals((prev) =>
-      prev.map((r) =>
-        r.id === referralId && r.referral_info
-          ? {
-              ...r,
-              referral_info: {
-                ...r.referral_info,
-                diagnostics: (r.referral_info.diagnostics ?? []).filter((d) => d.id !== diagId),
-              },
-            }
-          : r,
-      ),
-    );
+    patchDiagInBoth(referralId, (diags) => diags.filter((d) => d.id !== diagId));
     if (isRealUuid(diagId)) {
       supabaseM2
         .from('referral_info_diagnostic')
-        .delete()
+        .update({ status: false })
         .eq('id', diagId)
         .then(({ error }) => {
-          if (error) console.error('[deleteDiagnostic] DELETE failed:', error);
+          if (error) console.error('[deleteDiagnostic] soft-delete failed:', error);
         });
     }
   };
 
-  const updateDiagnosticAttachment = (diagId: string, referralId: string, attachment: string) => {
-    setIncomingReferrals((prev) =>
-      prev.map((r) =>
-        r.id === referralId && r.referral_info
-          ? {
-              ...r,
-              referral_info: {
-                ...r.referral_info,
-                diagnostics: (r.referral_info.diagnostics ?? []).map((d) =>
-                  d.id === diagId ? { ...d, attachment } : d,
-                ),
-              },
-            }
-          : r,
-      ),
+  const updateDiagnosticAttachment = (
+    diagId: string,
+    referralId: string,
+    attachments: string[],
+  ) => {
+    patchDiagInBoth(referralId, (diags) =>
+      diags.map((d) => (d.id === diagId ? { ...d, attachments } : d)),
     );
     if (isRealUuid(diagId)) {
       supabaseM2
         .from('referral_info_diagnostic')
-        .update({ attachment })
+        .update({ attachment: JSON.stringify(attachments) })
         .eq('id', diagId)
         .then(({ error }) => {
           if (error) console.error('[updateDiagnosticAttachment] UPDATE failed:', error);
@@ -937,22 +1049,12 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       referral_info: null,
       description: vac.description,
       date: vac.date ?? null,
+      attachments: [],
       status: true,
     };
+    const tempVacId = newVac.id;
     const riIdForVac = incomingReferrals.find((r) => r.id === referralId)?.referral_info?.id;
-    setIncomingReferrals((prev) =>
-      prev.map((r) =>
-        r.id === referralId && r.referral_info
-          ? {
-              ...r,
-              referral_info: {
-                ...r.referral_info,
-                vaccinations: [...(r.referral_info.vaccinations ?? []), newVac],
-              },
-            }
-          : r,
-      ),
-    );
+    patchVacInBoth(referralId, (vacs) => [...vacs, newVac]);
     if (isRealUuid(riIdForVac)) {
       supabaseM2
         .from('referral_info_vaccination')
@@ -962,33 +1064,50 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           date: vac.date ?? null,
           status: true,
         })
-        .then(({ error }) => {
-          if (error) console.error('[addVaccination] INSERT failed:', error);
+        .select('id')
+        .single()
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('[addVaccination] INSERT failed:', error);
+            return;
+          }
+          if (data?.id) {
+            patchVacInBoth(referralId, (vacs) =>
+              vacs.map((v) => (v.id === tempVacId ? { ...v, id: data.id } : v)),
+            );
+          }
         });
     }
   };
 
   const deleteVaccination = (vacId: string, referralId: string) => {
-    setIncomingReferrals((prev) =>
-      prev.map((r) =>
-        r.id === referralId && r.referral_info
-          ? {
-              ...r,
-              referral_info: {
-                ...r.referral_info,
-                vaccinations: (r.referral_info.vaccinations ?? []).filter((v) => v.id !== vacId),
-              },
-            }
-          : r,
-      ),
+    patchVacInBoth(referralId, (vacs) => vacs.filter((v) => v.id !== vacId));
+    if (isRealUuid(vacId)) {
+      supabaseM2
+        .from('referral_info_vaccination')
+        .update({ status: false })
+        .eq('id', vacId)
+        .then(({ error }) => {
+          if (error) console.error('[deleteVaccination] soft-delete failed:', error);
+        });
+    }
+  };
+
+  const updateVaccinationAttachment = (
+    vacId: string,
+    referralId: string,
+    attachments: string[],
+  ) => {
+    patchVacInBoth(referralId, (vacs) =>
+      vacs.map((v) => (v.id === vacId ? { ...v, attachments } : v)),
     );
     if (isRealUuid(vacId)) {
       supabaseM2
         .from('referral_info_vaccination')
-        .delete()
+        .update({ attachment: JSON.stringify(attachments) })
         .eq('id', vacId)
         .then(({ error }) => {
-          if (error) console.error('[deleteVaccination] DELETE failed:', error);
+          if (error) console.error('[updateVaccinationAttachment] UPDATE failed:', error);
         });
     }
   };
@@ -1006,23 +1125,12 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       referral_info: null,
       diagnostics: diag.diagnostics,
       date: diag.date ?? null,
-      attachment: diag.attachment ?? null,
+      attachments: [],
       status: true,
     };
+    const tempOutDiagId = newDiag.id;
     const riIdForOutDiag = referrals.find((r) => r.id === referralId)?.referral_info?.id;
-    setReferrals((prev) =>
-      prev.map((r) =>
-        r.id === referralId && r.referral_info
-          ? {
-              ...r,
-              referral_info: {
-                ...r.referral_info,
-                diagnostics: [...(r.referral_info.diagnostics ?? []), newDiag],
-              },
-            }
-          : r,
-      ),
-    );
+    patchDiagInBoth(referralId, (diags) => [...diags, newDiag]);
     if (isRealUuid(riIdForOutDiag)) {
       supabaseM2
         .from('referral_info_diagnostic')
@@ -1030,36 +1138,34 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           referral_info: riIdForOutDiag,
           diagnostics: diag.diagnostics,
           date: diag.date ?? null,
-          attachment: diag.attachment ?? null,
+          attachment: null,
           status: true,
         })
-        .then(({ error }) => {
-          if (error) console.error('[addOutgoingDiagnostic] INSERT failed:', error);
+        .select('id')
+        .single()
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('[addOutgoingDiagnostic] INSERT failed:', error);
+            return;
+          }
+          if (data?.id) {
+            patchDiagInBoth(referralId, (diags) =>
+              diags.map((d) => (d.id === tempOutDiagId ? { ...d, id: data.id } : d)),
+            );
+          }
         });
     }
   };
 
   const deleteOutgoingDiagnostic = (diagId: string, referralId: string) => {
-    setReferrals((prev) =>
-      prev.map((r) =>
-        r.id === referralId && r.referral_info
-          ? {
-              ...r,
-              referral_info: {
-                ...r.referral_info,
-                diagnostics: (r.referral_info.diagnostics ?? []).filter((d) => d.id !== diagId),
-              },
-            }
-          : r,
-      ),
-    );
+    patchDiagInBoth(referralId, (diags) => diags.filter((d) => d.id !== diagId));
     if (isRealUuid(diagId)) {
       supabaseM2
         .from('referral_info_diagnostic')
-        .delete()
+        .update({ status: false })
         .eq('id', diagId)
         .then(({ error }) => {
-          if (error) console.error('[deleteOutgoingDiagnostic] DELETE failed:', error);
+          if (error) console.error('[deleteOutgoingDiagnostic] soft-delete failed:', error);
         });
     }
   };
@@ -1067,27 +1173,15 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const updateOutgoingDiagnosticAttachment = (
     diagId: string,
     referralId: string,
-    attachment: string,
+    attachments: string[],
   ) => {
-    setReferrals((prev) =>
-      prev.map((r) =>
-        r.id === referralId && r.referral_info
-          ? {
-              ...r,
-              referral_info: {
-                ...r.referral_info,
-                diagnostics: (r.referral_info.diagnostics ?? []).map((d) =>
-                  d.id === diagId ? { ...d, attachment } : d,
-                ),
-              },
-            }
-          : r,
-      ),
+    patchDiagInBoth(referralId, (diags) =>
+      diags.map((d) => (d.id === diagId ? { ...d, attachments } : d)),
     );
     if (isRealUuid(diagId)) {
       supabaseM2
         .from('referral_info_diagnostic')
-        .update({ attachment })
+        .update({ attachment: JSON.stringify(attachments) })
         .eq('id', diagId)
         .then(({ error }) => {
           if (error) console.error('[updateOutgoingDiagnosticAttachment] UPDATE failed:', error);
@@ -1106,22 +1200,12 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       referral_info: null,
       description: vac.description,
       date: vac.date ?? null,
+      attachments: [],
       status: true,
     };
+    const tempOutVacId = newVac.id;
     const riIdForOutVac = referrals.find((r) => r.id === referralId)?.referral_info?.id;
-    setReferrals((prev) =>
-      prev.map((r) =>
-        r.id === referralId && r.referral_info
-          ? {
-              ...r,
-              referral_info: {
-                ...r.referral_info,
-                vaccinations: [...(r.referral_info.vaccinations ?? []), newVac],
-              },
-            }
-          : r,
-      ),
-    );
+    patchVacInBoth(referralId, (vacs) => [...vacs, newVac]);
     if (isRealUuid(riIdForOutVac)) {
       supabaseM2
         .from('referral_info_vaccination')
@@ -1131,33 +1215,50 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           date: vac.date ?? null,
           status: true,
         })
-        .then(({ error }) => {
-          if (error) console.error('[addOutgoingVaccination] INSERT failed:', error);
+        .select('id')
+        .single()
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('[addOutgoingVaccination] INSERT failed:', error);
+            return;
+          }
+          if (data?.id) {
+            patchVacInBoth(referralId, (vacs) =>
+              vacs.map((v) => (v.id === tempOutVacId ? { ...v, id: data.id } : v)),
+            );
+          }
         });
     }
   };
 
   const deleteOutgoingVaccination = (vacId: string, referralId: string) => {
-    setReferrals((prev) =>
-      prev.map((r) =>
-        r.id === referralId && r.referral_info
-          ? {
-              ...r,
-              referral_info: {
-                ...r.referral_info,
-                vaccinations: (r.referral_info.vaccinations ?? []).filter((v) => v.id !== vacId),
-              },
-            }
-          : r,
-      ),
+    patchVacInBoth(referralId, (vacs) => vacs.filter((v) => v.id !== vacId));
+    if (isRealUuid(vacId)) {
+      supabaseM2
+        .from('referral_info_vaccination')
+        .update({ status: false })
+        .eq('id', vacId)
+        .then(({ error }) => {
+          if (error) console.error('[deleteOutgoingVaccination] soft-delete failed:', error);
+        });
+    }
+  };
+
+  const updateOutgoingVaccinationAttachment = (
+    vacId: string,
+    referralId: string,
+    attachments: string[],
+  ) => {
+    patchVacInBoth(referralId, (vacs) =>
+      vacs.map((v) => (v.id === vacId ? { ...v, attachments } : v)),
     );
     if (isRealUuid(vacId)) {
       supabaseM2
         .from('referral_info_vaccination')
-        .delete()
+        .update({ attachment: JSON.stringify(attachments) })
         .eq('id', vacId)
         .then(({ error }) => {
-          if (error) console.error('[deleteOutgoingVaccination] DELETE failed:', error);
+          if (error) console.error('[updateOutgoingVaccinationAttachment] UPDATE failed:', error);
         });
     }
   };
@@ -1190,11 +1291,13 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updateDiagnosticAttachment,
         addVaccination,
         deleteVaccination,
+        updateVaccinationAttachment,
         addOutgoingDiagnostic,
         deleteOutgoingDiagnostic,
         updateOutgoingDiagnosticAttachment,
         addOutgoingVaccination,
         deleteOutgoingVaccination,
+        updateOutgoingVaccinationAttachment,
       }}
     >
       {children}

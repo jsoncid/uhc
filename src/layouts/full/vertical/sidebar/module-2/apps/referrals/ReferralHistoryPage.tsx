@@ -38,6 +38,7 @@ import {
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
+  Seen: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Arrived: 'bg-lightprimary text-primary',
@@ -67,18 +68,26 @@ const TimelineEntry = ({ entry, isLast }: { entry: ReferralHistory; isLast: bool
       {!isLast && <div className="w-px flex-1 bg-border mt-1" />}
     </div>
     <div className="pb-4 flex-1 min-w-0">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-wrap">
-        <Badge
-          variant="outline"
-          className={
-            'text-[10px] sm:text-xs font-medium ' + getStatusStyle(entry.status_description)
-          }
-        >
-          {entry.status_description ?? '—'}
-        </Badge>
-        <span className="text-[10px] sm:text-xs text-muted-foreground">
-          {format(new Date(entry.created_at), 'MMM dd, yyyy – h:mm a')}
-        </span>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-wrap">
+          <Badge
+            variant="outline"
+            className={
+              'text-[10px] sm:text-xs font-medium ' + getStatusStyle(entry.status_description)
+            }
+          >
+            {entry.status_description ?? '—'}
+          </Badge>
+          <span className="text-[10px] sm:text-xs text-muted-foreground">
+            {format(new Date(entry.created_at), 'MMM dd, yyyy – h:mm a')}
+          </span>
+        </div>
+        {entry.user_name && (
+          <div className="flex items-center gap-1 bg-lightprimary text-primary rounded-full px-2 py-0.5 flex-shrink-0">
+            <Icon icon="solar:user-bold-duotone" height={12} className="flex-shrink-0" />
+            <span className="text-xs font-medium max-w-[100px] truncate">{entry.user_name}</span>
+          </div>
+        )}
       </div>
       <p className="text-xs sm:text-sm font-semibold mt-1 truncate">
         {entry.to_assignment_name ?? '—'}
@@ -158,9 +167,12 @@ const HistoryPanel = ({
   }, [handleScroll, checkScroll]);
 
   if (!referral) return null;
-  const sorted = [...(referral.history ?? [])].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  );
+  const sorted = [...(referral.history ?? [])].sort((a, b) => {
+    const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    if (diff !== 0) return diff;
+    // Tiebreaker: active entry (most recent) always last
+    return (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
+  });
 
   const scrollToBottom = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });

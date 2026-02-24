@@ -36,19 +36,13 @@ import {
 } from 'src/components/ui/dropdown-menu';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from 'src/components/ui/select';
 import ReferralPrintDocument from './ReferralPrintDocument';
-import { assignmentService } from '@/services/assignmentService';
+import EditClinicalInfoPanel from './EditClinicalInfoPanel';
 
 // ─── Status style map ─────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
+  Seen: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Arrived: 'bg-lightprimary text-primary',
@@ -263,209 +257,6 @@ export const IncomingStatCards = ({ referrals }: { referrals: ReferralType[] }) 
   );
 };
 
-// ─── Accept dialog ────────────────────────────────────────────────────────────
-const AcceptDialog = ({
-  open,
-  referral,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  referral: ReferralType | null;
-  onClose: () => void;
-  onConfirm: (acceptedBy: string) => void;
-}) => {
-  const [acceptedBy, setAcceptedBy] = useState('');
-
-  const handleConfirm = () => {
-    if (!acceptedBy.trim()) return;
-    onConfirm(acceptedBy.trim());
-    setAcceptedBy('');
-    onClose();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-full bg-lightsuccess flex items-center justify-center flex-shrink-0">
-              <Icon icon="solar:check-circle-bold-duotone" height={22} className="text-success" />
-            </div>
-            <DialogTitle className="text-base">Accept Referral</DialogTitle>
-          </div>
-          <DialogDescription className="text-sm text-muted-foreground">
-            Accept the incoming referral for{' '}
-            <span className="font-semibold text-foreground">{referral?.patient_name}</span> from{' '}
-            <span className="font-semibold text-foreground">{referral?.from_assignment_name}</span>.
-            Please assign a receiving doctor.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-4 mt-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="accepted-by" className="text-sm font-medium">
-              Receiving Doctor <span className="text-error">*</span>
-            </Label>
-            <Input
-              id="accepted-by"
-              placeholder="e.g. Dr. Santos"
-              value={acceptedBy}
-              onChange={(e) => setAcceptedBy(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <DialogFooter className="gap-2 mt-4">
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            className="bg-success hover:bg-success/90 text-white"
-            onClick={handleConfirm}
-            disabled={!acceptedBy.trim()}
-          >
-            <Icon icon="solar:check-circle-bold-duotone" height={15} className="mr-1.5" />
-            Confirm Accept
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-// ─── Reject dialog ────────────────────────────────────────────────────────────
-const RejectDialog = ({
-  open,
-  referral,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  referral: ReferralType | null;
-  onClose: () => void;
-  onConfirm: (reason: string, redirectHospital?: string) => void;
-}) => {
-  const [reason, setReason] = useState('');
-  const [redirectHospital, setRedirectHospital] = useState('');
-  const [assignments, setAssignments] = useState<{ id: string; description: string }[]>([]);
-
-  useEffect(() => {
-    if (open) {
-      assignmentService.getAllAssignments().then((data) => {
-        setAssignments(
-          data
-            .filter((a) => a.description)
-            .map((a) => ({ id: a.id, description: a.description! }))
-            .sort((a, b) => a.description.localeCompare(b.description)),
-        );
-      });
-    } else {
-      setReason('');
-      setRedirectHospital('');
-    }
-  }, [open]);
-
-  const handleConfirm = () => {
-    if (!reason.trim()) return;
-    onConfirm(reason.trim(), redirectHospital || undefined);
-    setReason('');
-    setRedirectHospital('');
-    onClose();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-full bg-lighterror flex items-center justify-center flex-shrink-0">
-              <Icon icon="solar:close-circle-bold-duotone" height={22} className="text-error" />
-            </div>
-            <DialogTitle className="text-base">Decline Referral</DialogTitle>
-          </div>
-          <DialogDescription className="text-sm text-muted-foreground">
-            Decline the incoming referral for{' '}
-            <span className="font-semibold text-foreground">{referral?.patient_name}</span>. The
-            referring hospital will be notified and updated immediately.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-4 mt-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="reject-reason" className="text-sm font-medium">
-              Reason for Declining <span className="text-error">*</span>
-            </Label>
-            <Textarea
-              id="reject-reason"
-              placeholder="e.g. No available ICU bed. No available specialist on duty."
-              className="resize-none"
-              rows={3}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm font-medium">
-              Redirect to Facility{' '}
-              <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
-            <Select value={redirectHospital} onValueChange={setRedirectHospital}>
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Select a facility to redirect to..." />
-              </SelectTrigger>
-              <SelectContent>
-                {assignments.map((a) => (
-                  <SelectItem key={a.id} value={a.description}>
-                    <div className="flex items-center gap-2">
-                      <Icon
-                        icon="solar:buildings-2-bold-duotone"
-                        height={14}
-                        className="text-muted-foreground flex-shrink-0"
-                      />
-                      {a.description}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {redirectHospital && (
-              <button
-                type="button"
-                className="self-start text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                onClick={() => setRedirectHospital('')}
-              >
-                <Icon icon="solar:close-circle-linear" height={13} />
-                Clear selection
-              </button>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Suggest a nearby facility so the referring hospital can re-route the patient.
-            </p>
-          </div>
-        </div>
-
-        <DialogFooter className="gap-2 mt-4">
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            className="bg-error hover:bg-error/90 text-white"
-            onClick={handleConfirm}
-            disabled={!reason.trim()}
-          >
-            <Icon icon="solar:close-circle-bold-duotone" height={15} className="mr-1.5" />
-            Confirm Decline
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
 // ─── Discharge dialog ─────────────────────────────────────────────────────────
 const DischargeDialog = ({
   open,
@@ -545,14 +336,10 @@ const DischargeDialog = ({
 const PendingTab = ({
   referrals,
   search,
-  onAccept,
-  onReject,
   onPrint,
 }: {
   referrals: ReferralType[];
   search: string;
-  onAccept: (r: ReferralType) => void;
-  onReject: (r: ReferralType) => void;
   onPrint: (r: ReferralType) => void;
 }) => {
   const navigate = useNavigate();
@@ -560,7 +347,9 @@ const PendingTab = ({
   useEffect(() => {
     setPage(1);
   }, [search]);
-  const pending = referrals.filter((r) => r.latest_status?.description === 'Pending');
+  const pending = referrals.filter((r) =>
+    ['Pending', 'Seen'].includes(r.latest_status?.description ?? ''),
+  );
   const allVisible = pending
     .filter((r) => {
       const q = search.toLowerCase();
@@ -607,11 +396,7 @@ const PendingTab = ({
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     <div className="flex items-center gap-1.5">
-                      <Icon
-                        icon="solar:buildings-bold-duotone"
-                        height={14}
-                        className="text-muted-foreground flex-shrink-0"
-                      />
+               
                       {r.from_assignment_name ?? '—'}
                     </div>
                   </TableCell>
@@ -649,25 +434,6 @@ const PendingTab = ({
                           />
                           Print Referral
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onAccept(r)}>
-                          <Icon
-                            icon="solar:check-circle-linear"
-                            height={15}
-                            className="mr-2 text-success"
-                          />
-                          Accept
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => onReject(r)}
-                          className="text-error focus:text-error"
-                        >
-                          <Icon
-                            icon="solar:close-circle-linear"
-                            height={15}
-                            className="mr-2 text-error"
-                          />
-                          Decline
-                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -700,9 +466,24 @@ const ActiveTab = ({
   onPrint: (r: ReferralType) => void;
 }) => {
   const navigate = useNavigate();
-  const { updateIncomingStatus, statuses, saveDischargeNotes }: ReferralContextType =
-    useContext(ReferralContext);
+  const {
+    updateIncomingStatus,
+    statuses,
+    saveDischargeNotes,
+    updateReferralInfo,
+    addDiagnostic,
+    deleteDiagnostic,
+    updateDiagnosticAttachment,
+    addVaccination,
+    deleteVaccination,
+    updateVaccinationAttachment,
+    incomingReferrals,
+  }: ReferralContextType = useContext(ReferralContext);
   const [dischargeTarget, setDischargeTarget] = useState<ReferralType | null>(null);
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
+  const editTarget = editTargetId
+    ? (incomingReferrals.find((r) => r.id === editTargetId) ?? null)
+    : null;
   const [page, setPage] = useState(1);
   useEffect(() => {
     setPage(1);
@@ -753,7 +534,6 @@ const ActiveTab = ({
               <TableHead className="font-semibold">Referring Hospital</TableHead>
               <TableHead className="font-semibold">Our Dept.</TableHead>
               <TableHead className="font-semibold">Accepted By</TableHead>
-              <TableHead className="font-semibold">Dept. / Service</TableHead>
               <TableHead className="font-semibold">Status</TableHead>
               <TableHead className="font-semibold">Date</TableHead>
               <TableHead className="font-semibold text-right">Actions</TableHead>
@@ -762,7 +542,7 @@ const ActiveTab = ({
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center h-[530px] text-muted-foreground">
+                <TableCell colSpan={7} className="text-center h-[530px] text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Icon icon="solar:hospital-bold-duotone" height={44} className="opacity-25" />
                     <p className="text-sm">No active incoming patients</p>
@@ -794,9 +574,6 @@ const ActiveTab = ({
                     ) : (
                       '—'
                     )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {r.to_assignment_name ?? '—'}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -836,6 +613,16 @@ const ActiveTab = ({
                           <Icon icon="solar:eye-linear" height={15} className="mr-2 text-primary" />
                           View Details
                         </DropdownMenuItem>
+                        {r.latest_status?.description === 'Admitted' && (
+                          <DropdownMenuItem onClick={() => setEditTargetId(r.id)}>
+                            <Icon
+                              icon="solar:pen-linear"
+                              height={15}
+                              className="mr-2 text-muted-foreground"
+                            />
+                            Edit Clinical Info
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => onPrint(r)}>
                           <Icon
                             icon="solar:printer-minimalistic-bold-duotone"
@@ -861,6 +648,24 @@ const ActiveTab = ({
         </Table>
       </div>
       <Paginator total={allVisible.length} page={page} perPage={PAGE_SIZE} onPageChange={setPage} />
+      <EditClinicalInfoPanel
+        open={!!editTarget}
+        referral={editTarget}
+        onClose={() => setEditTargetId(null)}
+        onConfirm={(updated) => {
+          if (editTargetId) updateReferralInfo(editTargetId, updated);
+        }}
+        addDiag={(d) => editTargetId && addDiagnostic(editTargetId, d)}
+        deleteDiag={(diagId) => editTargetId && deleteDiagnostic(diagId, editTargetId)}
+        updateDiagAttachment={(diagId, atts) =>
+          editTargetId && updateDiagnosticAttachment(diagId, editTargetId, atts)
+        }
+        addVac={(v) => editTargetId && addVaccination(editTargetId, v)}
+        deleteVac={(vacId) => editTargetId && deleteVaccination(vacId, editTargetId)}
+        updateVacAttachment={(vacId, atts) =>
+          editTargetId && updateVaccinationAttachment(vacId, editTargetId, atts)
+        }
+      />
       <DischargeDialog
         open={!!dischargeTarget}
         referral={dischargeTarget}
@@ -1141,17 +946,11 @@ const DischargedTab = ({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 const IncomingReferralPage = () => {
-  const {
-    incomingReferrals,
-    acceptIncomingReferral,
-    declineIncomingReferral,
-  }: ReferralContextType = useContext(ReferralContext);
+  const { incomingReferrals }: ReferralContextType = useContext(ReferralContext);
 
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [activeTab, setActiveTab] = useState('pending');
-  const [acceptTarget, setAcceptTarget] = useState<ReferralType | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<ReferralType | null>(null);
   const [printTarget, setPrintTarget] = useState<ReferralType | null>(null);
 
   // Apply date filter before passing referrals to each tab
@@ -1159,8 +958,8 @@ const IncomingReferralPage = () => {
     (r) => !dateFrom || new Date(r.created_at).toISOString().slice(0, 10) === dateFrom,
   );
 
-  const pendingCount = dateFilteredReferrals.filter(
-    (r) => r.latest_status?.description === 'Pending',
+  const pendingCount = dateFilteredReferrals.filter((r) =>
+    ['Pending', 'Seen'].includes(r.latest_status?.description ?? ''),
   ).length;
   const activeCount = dateFilteredReferrals.filter((r) =>
     ['Accepted', 'In Transit', 'Arrived', 'Admitted'].includes(r.latest_status?.description ?? ''),
@@ -1252,13 +1051,7 @@ const IncomingReferralPage = () => {
 
         {/* ── Content ── */}
         {activeTab === 'pending' && (
-          <PendingTab
-            referrals={dateFilteredReferrals}
-            search={search}
-            onAccept={setAcceptTarget}
-            onReject={setRejectTarget}
-            onPrint={setPrintTarget}
-          />
+          <PendingTab referrals={dateFilteredReferrals} search={search} onPrint={setPrintTarget} />
         )}
         {activeTab === 'active' && (
           <ActiveTab referrals={dateFilteredReferrals} search={search} onPrint={setPrintTarget} />
@@ -1274,26 +1067,6 @@ const IncomingReferralPage = () => {
           />
         )}
       </CardBox>
-
-      {/* Accept Dialog */}
-      <AcceptDialog
-        open={!!acceptTarget}
-        referral={acceptTarget}
-        onClose={() => setAcceptTarget(null)}
-        onConfirm={(acceptedBy) => {
-          if (acceptTarget) acceptIncomingReferral(acceptTarget.id, acceptedBy);
-        }}
-      />
-
-      {/* Reject Dialog */}
-      <RejectDialog
-        open={!!rejectTarget}
-        referral={rejectTarget}
-        onClose={() => setRejectTarget(null)}
-        onConfirm={(reason, redirectHospital) => {
-          if (rejectTarget) declineIncomingReferral(rejectTarget.id, reason, redirectHospital);
-        }}
-      />
 
       {/* Print Document */}
       {printTarget && (
