@@ -14,6 +14,60 @@ import {
   KeyRound, ShieldCheck, EyeOff, ShieldAlert, ShieldX, User,
 } from 'lucide-react';
 import { supabase } from 'src/lib/supabase';
+import Threads from 'src/components/ui/Threads';
+import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
+import darkLogo from 'src/assets/images/logos/uhc-logo.png';
+import adnSeal from 'src/assets/images/logos/adn-seal.png';
+
+// ─── Offscreen Threads renderer (single frame capture for print) ──────────────
+const _vtxSrc = `
+attribute vec2 position;
+attribute vec2 uv;
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = vec4(position, 0.0, 1.0); }
+`;
+const _frgSrc = `
+precision highp float;
+uniform float iTime; uniform vec3 iResolution; uniform vec3 uColor;
+uniform float uAmplitude; uniform float uDistance; uniform vec2 uMouse;
+#define PI 3.1415926538
+const int u_line_count = 40;
+const float u_line_width = 7.0;
+const float u_line_blur = 10.0;
+float Perlin2D(vec2 P){vec2 Pi=floor(P);vec4 Pf=P.xyxy-vec4(Pi,Pi+1.0);vec4 Pt=vec4(Pi.xy,Pi.xy+1.0);Pt=Pt-floor(Pt*(1.0/71.0))*71.0;Pt+=vec2(26.0,161.0).xyxy;Pt*=Pt;Pt=Pt.xzxz*Pt.yyww;vec4 hx=fract(Pt*(1.0/951.135664));vec4 hy=fract(Pt*(1.0/642.949883));vec4 gx=hx-0.49999;vec4 gy=hy-0.49999;vec4 gr=inversesqrt(gx*gx+gy*gy)*(gx*Pf.xzxz+gy*Pf.yyww);gr*=1.4142135623730950;vec2 bl=Pf.xy*Pf.xy*Pf.xy*(Pf.xy*(Pf.xy*6.0-15.0)+10.0);vec4 b2=vec4(bl,vec2(1.0-bl));return dot(gr,b2.zxzx*b2.wwyy);}
+float pixel(float c,vec2 r){return(1.0/max(r.x,r.y))*c;}
+float lineFn(vec2 st,float w,float perc,float off,vec2 mo,float t,float amp,float dist){
+float so=perc*0.4;float sp=0.1+so;
+float an=smoothstep(sp,0.7,st.x)*0.5*amp*(1.0+(mo.y-0.5)*0.2);
+float ts=t/10.0+(mo.x-0.5)*1.0;
+float bl=smoothstep(sp,sp+0.05,st.x)*perc;
+float xn=mix(Perlin2D(vec2(ts,st.x+perc)*2.5),Perlin2D(vec2(ts,st.x+ts)*3.5)/1.5,st.x*0.3);
+float y=0.5+(perc-0.5)*dist+xn/2.0*an;
+float ls=smoothstep(y+(w/2.0)+(u_line_blur*pixel(1.0,iResolution.xy)*bl),y,st.y);
+float le=smoothstep(y,y-(w/2.0)-(u_line_blur*pixel(1.0,iResolution.xy)*bl),st.y);
+return clamp((ls-le)*(1.0-smoothstep(0.0,1.0,pow(perc,0.3))),0.0,1.0);}
+void mainImage(out vec4 f,in vec2 fc){
+vec2 uv=fc/iResolution.xy;float s=1.0;
+for(int i=0;i<u_line_count;i++){float p=float(i)/float(u_line_count);s*=(1.0-lineFn(uv,u_line_width*pixel(1.0,iResolution.xy)*(1.0-p),p,(PI*1.0)*p,uMouse,iTime,uAmplitude,uDistance));}
+float c=1.0-s;f=vec4(uColor*c,c);}
+void main(){mainImage(gl_FragColor,gl_FragCoord.xy);}
+`;
+const renderThreadsFrame = (w: number, h: number): HTMLCanvasElement | null => {
+  try {
+    const r = new Renderer({ width: w, height: h, alpha: true });
+    const gl = r.gl; gl.clearColor(0,0,0,0); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    const g = new Triangle(gl);
+    const p = new Program(gl, { vertex: _vtxSrc, fragment: _frgSrc, uniforms: {
+      iTime:{value:2.5}, iResolution:{value:new Color(w,h,w/h)},
+      uColor:{value:new Color(0.18,0.72,0.36)}, uAmplitude:{value:1.4},
+      uDistance:{value:0}, uMouse:{value:new Float32Array([0.5,0.5])},
+    }});
+    const m = new Mesh(gl, { geometry: g, program: p });
+    r.render({ scene: m });
+    return gl.canvas as HTMLCanvasElement;
+  } catch { return null; }
+};
+
 import { useAuthStore } from 'src/stores/useAuthStore';
 
 // ─── QR Code data-url generator ───────────────────────────────────────────────
@@ -223,6 +277,11 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
   const sex = patient.sex?.toUpperCase() || 'N/A';
   const dateIssued = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
 
+   // Watermark Logo Component (uses the actual UHC logo as a subtle watermark)
+  const WatermarkLogo = () => (
+    <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'grayscale(100%) brightness(0.4)' }} />
+  );
+
   // Watermark SVG Component
   const WatermarkSVG = () => (
     <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none" style={{ width: '100%', height: '100%' }}>
@@ -262,34 +321,28 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
   );
 
   // Card Background Component with patterns and blobs
-  const CardBackground = () => (
+ const CardBackground = () => (
     <>
       {/* Base background */}
-      <div style={{ position: 'absolute', inset: 0, background: '#eef6ee' }} />
-      {/* Pattern overlay */}
-      <div style={{ 
-        position: 'absolute', inset: 0, opacity: 0.09,
-        backgroundImage: `
-          repeating-radial-gradient(ellipse at 30% 40%, transparent 0, transparent 8px, rgba(0,120,50,0.5) 9px, transparent 10px),
-          repeating-radial-gradient(ellipse at 70% 60%, transparent 0, transparent 12px, rgba(0,100,40,0.4) 13px, transparent 14px),
-          repeating-linear-gradient(60deg, transparent 0, transparent 18px, rgba(0,120,50,0.15) 19px, transparent 20px)
-        `
-      }} />
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #e8f5e9 0%, #eef6ee 40%, #e0f2e1 100%)' }} />
+      {/* Animated Threads overlay – same green as login page, subtle opacity */}
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.18, zIndex: 0, pointerEvents: 'none' }}>
+        <Threads color={[0.18, 0.72, 0.36]} amplitude={1.4} distance={0} enableMouseInteraction={false} />
+      </div>
       {/* Security grid */}
       <div style={{ 
-        position: 'absolute', inset: 0, opacity: 0.037,
+        position: 'absolute', inset: 0, opacity: 0.03, zIndex: 0,
         backgroundImage: `
           repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px),
           repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px)
         `
       }} />
-      {/* Blobs */}
-      <div style={{ position: 'absolute', width: 300, height: 230, background: '#2d8a50', top: -55, left: 15, opacity: 0.17, borderRadius: '50%', filter: 'blur(46px)' }} />
-      <div style={{ position: 'absolute', width: 260, height: 210, background: '#c8a018', top: 55, right: -15, opacity: 0.07, borderRadius: '50%', filter: 'blur(46px)' }} />
-      <div style={{ position: 'absolute', width: 230, height: 190, background: '#1a6b3a', bottom: -28, right: 80, opacity: 0.13, borderRadius: '50%', filter: 'blur(46px)' }} />
+      {/* Subtle blobs for depth */}
+      <div style={{ position: 'absolute', width: 300, height: 230, background: '#2d8a50', top: -55, left: 15, opacity: 0.10, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 260, height: 210, background: '#c8a018', top: 55, right: -15, opacity: 0.05, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 230, height: 190, background: '#1a6b3a', bottom: -28, right: 80, opacity: 0.08, borderRadius: '50%', filter: 'blur(46px)' }} />
     </>
   );
-
   // Gold border strips
   const GoldBorders = () => (
     <>
@@ -308,34 +361,26 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
       <CardBackground />
       <GoldBorders />
       
-      {/* Watermark */}
-      <div style={{ position: 'absolute', right: '12%', top: '50%', transform: 'translateY(-50%)', width: 220, height: 220, opacity: 0.055, zIndex: 1, pointerEvents: 'none' }}>
-        <WatermarkSVG />
+      {/* Watermark – UHC logo, faint behind info area */}
+      <div style={{ position: 'absolute', right: '8%', top: '50%', transform: 'translateY(-50%)', width: 260, height: 260, opacity: 0.06, zIndex: 1, pointerEvents: 'none' }}>
+        <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
       </div>
 
       {/* Front content */}
       <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '10px 20px 10px' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 8, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
-          {/* Profile Pic or UHC Seal */}
-          {profilePicUrl ? (
-            <img src={profilePicUrl} alt="Profile" style={{ width: 50, height: 50, flexShrink: 0, borderRadius: '50%', border: '2px solid #c8a018', objectFit: 'cover' }} />
-          ) : (
-            <div style={{ width: 50, height: 50, flexShrink: 0, background: 'radial-gradient(circle at 35% 35%, #fef9c3, #fbbf24 60%, #d97706)', borderRadius: '50%', border: '2px solid #c8a018', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 10, fontWeight: 900, color: '#14532d', letterSpacing: '0.05em' }}>UHC</div>
-                <div style={{ width: 28, height: 1, background: '#166534', margin: '1px auto' }} />
-                <div style={{ fontSize: 8, fontWeight: 700, color: '#166534' }}>2026</div>
-              </div>
-            </div>
-          )}
+          {/* ADN Seal */}
+          <img src={adnSeal} alt="ADN Seal" style={{ width: 50, height: 50, flexShrink: 0, borderRadius: '50%', objectFit: 'contain' }} />
           {/* Title */}
           <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontFamily: '"Cinzel", serif', fontSize: 9, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas</div>
-            <div style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, color: '#2d6b40', letterSpacing: 1, fontStyle: 'italic' }}>Republic of the Philippines</div>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 13, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.2 }}>AGUSAN DEL NORTE</div>
             <div style={{ fontFamily: '"Cinzel", serif', fontSize: 17, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.1 }}>UNIVERSAL HEALTH CARE</div>
             <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 9, fontWeight: 600, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
           </div>
+          {/* UHC Logo */}
+          <img src={darkLogo} alt="UHC Logo" style={{ width: 55, height: 55, flexShrink: 0, objectFit: 'contain' }} />
         </div>
 
         {/* ID Row */}
@@ -355,10 +400,14 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'linear-gradient(160deg, #fef9c3 0%, #fde68a 50%, #f59e0b 100%)'
             }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ width: 60, height: 65, background: '#c4c4c4', borderRadius: '50% 50% 8px 8px' }} />
-                <div style={{ width: 80, height: 40, background: '#c4c4c4', borderRadius: '8px 8px 50% 50%', marginTop: -10 }} />
-              </div>
+              {profilePicUrl ? (
+                <img src={profilePicUrl} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ width: 60, height: 65, background: '#c4c4c4', borderRadius: '50% 50% 8px 8px' }} />
+                  <div style={{ width: 80, height: 40, background: '#c4c4c4', borderRadius: '8px 8px 50% 50%', marginTop: -10 }} />
+                </div>
+              )}
             </div>
             <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 600, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase', flexShrink: 0 }}>Card Holder</div>
           </div>
@@ -408,7 +457,9 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid rgba(0,100,40,0.13)', flexShrink: 0, marginTop: 6 }}>
           <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 500, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase' }}>DOH — UHC Act R.A. 11223</div>
           <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 10, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>DATE ISSUED: {dateIssued}</div>
-          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 19, fontWeight: 700, color: '#1a6b3a', letterSpacing: 2, textShadow: '1px 1px 0 rgba(200,160,24,0.3)' }}>PHL</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 19, fontWeight: 700, color: '#1a6b3a', letterSpacing: 2, textShadow: '1px 1px 0 rgba(200,160,24,0.3)' }}>PHL</div>
+          </div>
         </div>
       </div>
     </div>
@@ -429,17 +480,18 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(135deg, #1a1a1a, #2d2d2d, #1a1a1a)', opacity: 0.88, zIndex: 5 }} />
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(180deg, rgba(255,255,255,0.07), transparent)', zIndex: 6 }} />
 
-      {/* Watermark centered */}
-      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 220, height: 220, opacity: 0.045, zIndex: 1, pointerEvents: 'none' }}>
-        <WatermarkSVG />
+        {/* Watermark Logo centered */}
+      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 200, height: 200, opacity: 0.05, zIndex: 1, pointerEvents: 'none' }}>
+        <WatermarkLogo />
       </div>
 
       {/* Back content */}
       <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '42px 24px 10px', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ paddingBottom: 7, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
-          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 8, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas · Republic of the Philippines</div>
-          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 15, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>UNIVERSAL HEALTH CARE</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 8, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 11, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.2 }}>AGUSAN DEL NORTE</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 14, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>UNIVERSAL HEALTH CARE</div>
           <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 8, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
         </div>
 
@@ -457,7 +509,6 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
             </div>
             <div style={{ fontFamily: '"Cinzel", serif', fontSize: 10.5, fontWeight: 700, color: '#0a3318', letterSpacing: 4, textAlign: 'center' }}>Scan to Verify</div>
             <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, color: '#2d6b40', letterSpacing: 1.5, textAlign: 'center' }}>UHC Member Verification Portal</div>
-            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 6.5, color: 'rgba(0,60,20,0.38)', letterSpacing: 0.8, textAlign: 'center' }}>{qrCodeValue}</div>
           </div>
         </div>
 
@@ -1079,6 +1130,7 @@ const UhcMember = () => {
     const ctx = canvas.getContext('2d')!;
     ctx.scale(SCALE, SCALE);
 
+    // Rounded-rectangle path helper
     const rr = (x: number, y: number, w: number, h: number, r: number) => {
       ctx.beginPath();
       ctx.moveTo(x + r, y);
@@ -1093,23 +1145,51 @@ const UhcMember = () => {
       ctx.closePath();
     };
 
-    // Helper: draw card base (background, blobs, gold borders)
+    // Capture a single Threads frame for print background
+    let threadsFrame: HTMLCanvasElement | null = null;
+    try { threadsFrame = renderThreadsFrame(W, H); } catch {}
+
+    // Load logo image for watermarks
+    const logoImg = new Image();
+    logoImg.src = darkLogo;
+    await new Promise<void>((resolve) => { logoImg.onload = () => resolve(); logoImg.onerror = () => resolve(); });
+
+    // Helper: draw card base (gradient, Threads frame, blobs, gold borders)
     const drawCardBase = (offsetY: number) => {
       ctx.save();
       ctx.translate(0, offsetY);
       
-      // Card background
+      // Card background gradient
       rr(0, 0, W, H, 18);
-      ctx.fillStyle = '#eef6ee';
+      const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+      bgGrad.addColorStop(0, '#e8f5e9');
+      bgGrad.addColorStop(0.4, '#eef6ee');
+      bgGrad.addColorStop(1, '#e0f2e1');
+      ctx.fillStyle = bgGrad;
       ctx.fill();
 
-      // Clip for blobs
+      // Clip for overlays
       ctx.save();
       rr(0, 0, W, H, 18);
       ctx.clip();
+
+      // Threads animation frame overlay
+      if (threadsFrame) {
+        ctx.globalAlpha = 0.18;
+        ctx.drawImage(threadsFrame, 0, 0, W, H);
+        ctx.globalAlpha = 1;
+      }
+
+      // Security grid
+      ctx.globalAlpha = 0.03;
+      ctx.strokeStyle = 'rgba(0,80,30,1)';
+      ctx.lineWidth = 0.5;
+      for (let x = 0; x <= W; x += 4) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y <= H; y += 4) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      ctx.globalAlpha = 1;
       
-      // Blob 1 - greenish top left
-      ctx.globalAlpha = 0.12;
+      // Blob 1 - greenish top left (toned down)
+      ctx.globalAlpha = 0.10;
       ctx.fillStyle = '#2d8a50';
       ctx.beginPath();
       ctx.ellipse(165, 60, 150, 115, 0, 0, Math.PI * 2);
@@ -1122,8 +1202,8 @@ const UhcMember = () => {
       ctx.ellipse(W + 15, 160, 130, 105, 0, 0, Math.PI * 2);
       ctx.fill();
       
-      // Blob 3 - dark green bottom right
-      ctx.globalAlpha = 0.1;
+      // Blob 3 - dark green bottom right (toned down)
+      ctx.globalAlpha = 0.08;
       ctx.fillStyle = '#1a6b3a';
       ctx.beginPath();
       ctx.ellipse(W - 195, H + 28, 115, 95, 0, 0, Math.PI * 2);
@@ -1173,69 +1253,54 @@ const UhcMember = () => {
     ctx.lineTo(W - 20, headerH);
     ctx.stroke();
 
-    // Profile pic circle or UHC seal
-    if (picUrl) {
-      await new Promise<void>((resolve) => {
-        const profImg = new Image();
-        profImg.crossOrigin = 'anonymous';
-        profImg.src = picUrl;
-        profImg.onload = () => {
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(40, 38, 25, 0, Math.PI * 2);
-          ctx.closePath();
-          ctx.clip();
-          ctx.drawImage(profImg, 15, 13, 50, 50);
-          ctx.restore();
-          // Gold border
-          ctx.strokeStyle = '#c8a018';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(40, 38, 25, 0, Math.PI * 2);
-          ctx.stroke();
-          resolve();
-        };
-        profImg.onerror = () => resolve();
-      });
-    } else {
-      // Fallback: gold gradient circle with "UHC / 2026" text
-      const cx = 40, cy = 38, r = 25;
-      const sealGrad = ctx.createRadialGradient(cx - 5, cy - 5, 2, cx, cy, r);
-      sealGrad.addColorStop(0, '#fef9c3');
-      sealGrad.addColorStop(0.6, '#fbbf24');
-      sealGrad.addColorStop(1, '#d97706');
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = sealGrad;
-      ctx.fill();
-      ctx.strokeStyle = '#c8a018';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.fillStyle = '#14532d';
-      ctx.fillText('UHC', cx, cy - 1);
-      ctx.fillStyle = '#166534';
-      ctx.fillRect(cx - 14, cy + 2, 28, 1);
-      ctx.font = 'bold 9px sans-serif';
-      ctx.fillText('2026', cx, cy + 12);
-    }
+    // ADN Seal (left) + UHC Logo (right) in header – preserve aspect ratios
+    const sealMaxH = 50;
+    // Load ADN seal
+    const sealImg = new Image();
+    sealImg.src = adnSeal;
+    await new Promise<void>((resolve) => {
+      sealImg.onload = () => {
+        const ratio = sealImg.naturalWidth / sealImg.naturalHeight;
+        const sh = sealMaxH;
+        const sw = sh * ratio;
+        const sy = (headerH - sh) / 2;
+        ctx.drawImage(sealImg, 12, Math.max(4, sy), sw, sh);
+        resolve();
+      };
+      sealImg.onerror = () => resolve();
+    });
+    // Load UHC logo (right side) – larger for visibility, preserve aspect ratio
+    const uhcMaxH = 60;
+    const uhcImg = new Image();
+    uhcImg.src = darkLogo;
+    await new Promise<void>((resolve) => {
+      uhcImg.onload = () => {
+        const ratio = uhcImg.naturalWidth / uhcImg.naturalHeight;
+        const uh = uhcMaxH;
+        const uw = uh * ratio;
+        const ux = W - 8 - uw;
+        const uy = (headerH - uh) / 2;
+        ctx.drawImage(uhcImg, ux, Math.max(4, uy), uw, uh);
+        resolve();
+      };
+      uhcImg.onerror = () => resolve();
+    });
 
-    // Header titles (centered)
+    // Header titles (centered) – no "Republic of the Philippines"
     const titleX = W / 2;
     ctx.textAlign = 'center';
     ctx.font = '600 9px serif';
     ctx.fillStyle = '#0d4422';
-    ctx.fillText('Republika ng Pilipinas', titleX, 20);
-    ctx.font = 'italic 7.5px serif';
-    ctx.fillStyle = '#2d6b40';
-    ctx.fillText('Republic of the Philippines', titleX, 30);
-    ctx.font = 'bold 17px serif';
+    ctx.fillText('Republika ng Pilipinas', titleX, 18);
+    ctx.font = 'bold 12px serif';
     ctx.fillStyle = '#0a3318';
-    ctx.fillText('UNIVERSAL HEALTH CARE', titleX, 48);
+    ctx.fillText('AGUSAN DEL NORTE', titleX, 32);
+    ctx.font = 'bold 15px serif';
+    ctx.fillStyle = '#0a3318';
+    ctx.fillText('UNIVERSAL HEALTH CARE', titleX, 50);
     ctx.font = '600 9px sans-serif';
     ctx.fillStyle = '#1a6b3a';
-    ctx.fillText('Member Identification Card', titleX, 62);
+    ctx.fillText('Member Identification Card', titleX, 64);
 
     // UHC-ID row
     ctx.textAlign = 'left';
@@ -1254,24 +1319,19 @@ const UhcMember = () => {
     ctx.lineTo(W - 20, headerH + 26);
     ctx.stroke();
 
-    // Watermark seal (faint)
-    ctx.save();
-    ctx.globalAlpha = 0.055;
-    ctx.strokeStyle = '#0a3318';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(W - 180, H / 2, 100, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    ctx.arc(W - 180, H / 2, 87, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
+    // Watermark logo (faint)
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.06;
+      ctx.filter = 'grayscale(100%) brightness(0.4)';
+      ctx.drawImage(logoImg, W - 280, H / 2 - 100, 200, 200);
+      ctx.filter = 'none';
+      ctx.restore();
+    }
 
-    // Photo placeholder
+    // Photo placeholder with clean single gold border
     const photoX = 20, photoY = headerH + 36, photoW = 195, photoH = 210;
+    // Background fill
     const photoGrad = ctx.createLinearGradient(photoX, photoY, photoX + photoW, photoY + photoH);
     photoGrad.addColorStop(0, '#fef9c3');
     photoGrad.addColorStop(0.5, '#fde68a');
@@ -1279,17 +1339,49 @@ const UhcMember = () => {
     rr(photoX, photoY, photoW, photoH, 8);
     ctx.fillStyle = photoGrad;
     ctx.fill();
+    // Single gold border
     ctx.strokeStyle = '#c8a018';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
     rr(photoX, photoY, photoW, photoH, 8);
     ctx.stroke();
-    // Person silhouette
-    ctx.fillStyle = '#c4c4c4';
-    ctx.beginPath();
-    ctx.ellipse(photoX + photoW / 2, photoY + 75, 30, 33, 0, 0, Math.PI * 2);
-    ctx.fill();
-    rr(photoX + photoW / 2 - 40, photoY + 115, 80, 45, 8);
-    ctx.fill();
+    // Profile picture or silhouette fallback
+    if (picUrl) {
+      await new Promise<void>((resolve) => {
+        const picImg = new Image();
+        picImg.crossOrigin = 'anonymous';
+        picImg.src = picUrl;
+        picImg.onload = () => {
+          ctx.save();
+          rr(photoX + 3, photoY + 3, photoW - 6, photoH - 6, 6);
+          ctx.clip();
+          // Cover-fit: fill the frame, crop excess
+          const imgRatio = picImg.width / picImg.height;
+          const frameRatio = (photoW - 6) / (photoH - 6);
+          let sx = 0, sy = 0, sw = picImg.width, sh = picImg.height;
+          if (imgRatio > frameRatio) {
+            sw = picImg.height * frameRatio;
+            sx = (picImg.width - sw) / 2;
+          } else {
+            sh = picImg.width / frameRatio;
+            // Bias toward top of image (face area)
+          }
+          ctx.drawImage(picImg, sx, sy, sw, sh, photoX + 3, photoY + 3, photoW - 6, photoH - 6);
+          ctx.restore();
+          resolve();
+        };
+        picImg.onerror = () => resolve();
+      });
+    } else {
+      // Person silhouette
+      ctx.fillStyle = '#c4c4c4';
+      ctx.beginPath();
+      ctx.ellipse(photoX + photoW / 2, photoY + 75, 30, 33, 0, 0, Math.PI * 2);
+      ctx.fill();
+      rr(photoX + photoW / 2 - 40, photoY + 115, 80, 45, 8);
+      ctx.fill();
+    }
+
+
     // CARD HOLDER label
     ctx.fillStyle = '#1a6b3a';
     ctx.font = '600 7.5px sans-serif';
@@ -1399,22 +1491,7 @@ const UhcMember = () => {
     ctx.textAlign = 'right';
     ctx.fillText('PHL', W - 60, footerY + 22);
 
-    // DOH-UHC badge (circular)
-    ctx.beginPath();
-    ctx.arc(W - 30, footerY + 16, 15, 0, Math.PI * 2);
-    const badgeGrad = ctx.createLinearGradient(W - 45, footerY + 1, W - 15, footerY + 31);
-    badgeGrad.addColorStop(0, '#1a6b3a');
-    badgeGrad.addColorStop(1, '#0d4422');
-    ctx.fillStyle = badgeGrad;
-    ctx.fill();
-    ctx.strokeStyle = '#c8a018';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.fillStyle = '#e8c830';
-    ctx.font = 'bold 6px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('DOH', W - 30, footerY + 14);
-    ctx.fillText('UHC', W - 30, footerY + 22);
+   
 
     ctx.restore(); // End front side translation
 
@@ -1454,33 +1531,30 @@ const UhcMember = () => {
     ctx.fillRect(0, 0, W, 34);
     ctx.restore();
 
-    // Watermark seal (faint, centered)
-    ctx.save();
-    ctx.globalAlpha = 0.045;
-    ctx.strokeStyle = '#0a3318';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(W / 2, H / 2, 100, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    ctx.arc(W / 2, H / 2, 87, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
+    // Watermark logo (faint, centered)
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.05;
+      ctx.filter = 'grayscale(100%) brightness(0.4)';
+      ctx.drawImage(logoImg, W / 2 - 100, H / 2 - 100, 200, 200);
+      ctx.filter = 'none';
+      ctx.restore();
+    }
 
-    // Back header
+    // Back header – left-aligned to match UI
+    ctx.textAlign = 'left';
     ctx.fillStyle = '#0d4422';
     ctx.font = '600 8px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Republika ng Pilipinas · Republic of the Philippines', W / 2, 52);
+    ctx.fillText('Republika ng Pilipinas', 24, 50);
+    ctx.font = 'bold 11px serif';
     ctx.fillStyle = '#0a3318';
-    ctx.font = 'bold 15px serif';
-    ctx.fillText('UNIVERSAL HEALTH CARE', W / 2, 70);
+    ctx.fillText('AGUSAN DEL NORTE', 24, 63);
+    ctx.fillStyle = '#0a3318';
+    ctx.font = 'bold 14px serif';
+    ctx.fillText('UNIVERSAL HEALTH CARE', 24, 78);
     ctx.fillStyle = '#1a6b3a';
     ctx.font = '600 8px sans-serif';
-    ctx.fillText('Member Identification Card', W / 2, 84);
+    ctx.fillText('Member Identification Card', 24, 90);
 
     // Header border
     ctx.strokeStyle = 'rgba(0,100,40,0.25)';

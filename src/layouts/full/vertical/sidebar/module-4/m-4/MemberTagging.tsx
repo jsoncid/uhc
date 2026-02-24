@@ -51,6 +51,13 @@ const shortAddress = (brgy: PatientProfile['brgy']): string => {
 const initials = (name: string) =>
   name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
+const generateUniqueQrCode = (patientId: string): string => {
+  const frag = patientId.replace(/-/g, '').substring(0, 12).toUpperCase();
+  const ts   = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `UHC-${frag}-${ts}-${rand}`;
+};
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const StepBadge = ({ n, active, done }: { n: number; active: boolean; done: boolean }) => (
@@ -298,23 +305,27 @@ const MemberTagging = () => {
       // Prefer updating an existing card (by patient or by user) over creating a new one
       const existingCardId = cardByPatient?.id ?? cardByUser?.id;
 
+      // Auto-generate a unique QR code for this health card
+      const qrCode = generateUniqueQrCode(selectedPatient.id);
+
       if (existingCardId) {
         // Update existing card to ensure both fields are set correctly
         const { error: updateError } = await supabase
           .schema('module4')
           .from('health_card')
-          .update({ user: selectedUser.id, patient_profile: selectedPatient.id })
+          .update({ user: selectedUser.id, patient_profile: selectedPatient.id, qr_code: qrCode })
           .eq('id', existingCardId);
 
         if (updateError) throw updateError;
       } else {
-        // Create new health card
+        // Create new health card with auto-generated QR code
         const { error: insertError } = await supabase
           .schema('module4')
           .from('health_card')
           .insert({
             user: selectedUser.id,
             patient_profile: selectedPatient.id,
+            qr_code: qrCode,
           });
 
         if (insertError) throw insertError;
