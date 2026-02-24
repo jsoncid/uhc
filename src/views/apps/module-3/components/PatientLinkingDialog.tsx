@@ -81,7 +81,12 @@ export const PatientLinkingDialog = ({
     try {
       const result = await patientService.getFacilities();
       if (result.success) {
-        setFacilities(result.data);
+        // Combine facilities from both databases
+        const allFacilities = [
+          ...result.database1.data.map(f => ({ ...f, database: result.database1.name })),
+          ...result.database2.data.map(f => ({ ...f, database: result.database2.name })),
+        ];
+        setFacilities(allFacilities);
       }
     } catch (err) {
       console.error('Error loading facilities:', err);
@@ -102,7 +107,7 @@ export const PatientLinkingDialog = ({
         limit: 10,
       });
 
-      if (result.success) {
+      if (result.success && result.data) {
         setMysqlSearchResults(result.data);
         if (result.data.length === 0) {
           setError('No patients found in MySQL database with that search term');
