@@ -11,6 +11,7 @@ export interface ChildItem {
   badge?: boolean;
   badgeType?: string;
   isPro?: boolean;
+  module?: string;
 }
 
 export interface MenuItem {
@@ -30,24 +31,7 @@ export interface MenuItem {
 }
 
 import { uniqueId } from 'lodash';
-
-//RESTRICTION: This is to prevent unauthorized users from even seeing the menu items of modules they don't have access to.
-import { MODULE_IDS, ROLE_IDS } from 'src/constants/moduleAccess';
-
-export const getModule4Items = (userRoleId: string, userModuleId: string) => {
-  const allowedRoles = [ROLE_IDS.module4Operator]; //
-
-  const hasAccess =
-    userModuleId === MODULE_IDS.module4 &&
-    allowedRoles.includes(userRoleId);
-
-  if (!hasAccess) return [];
-
-  return [
-    { id: 'member', title: 'Health Card Holder', href: '/module-4/member' },
-    { id: 'operator', title: 'Health Card Operator', href: '/module-4/operator' },
-  ];
-};
+import { PAGE_MODULES } from 'src/constants/moduleAccess';
 
 const SidebarContent: MenuItem[] = [
   {
@@ -58,15 +42,15 @@ const SidebarContent: MenuItem[] = [
         icon: 'line-md:account-small',
         id: uniqueId(),
         url: '/module-4/member',
-        },
-        
-        {
+        module: PAGE_MODULES.MODULE_4_HEALTH_CARD_HOLDER,
+      },
+      {
         name: 'Health Card Operator',
         icon: 'line-md:person-filled',
         id: uniqueId(),
         url: '/module-4/operator',
+        module: PAGE_MODULES.MODULE_4_HEALTH_CARD_OPERATOR,
       },
-      
     ],
   },
   // {

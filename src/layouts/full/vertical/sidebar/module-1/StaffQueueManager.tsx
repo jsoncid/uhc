@@ -1,10 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, Check, Loader2 } from 'lucide-react';
+import { ChevronRight, Check, Loader2, ArrowRightLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
@@ -14,7 +23,11 @@ const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Staff Queue Manager' }];
 
 const StaffQueueManager = () => {
   const [activeTab, setActiveTab] = useState<string>('');
-  const [selectedWindowByOffice, setSelectedWindowByOffice] = useState<Record<string, number>>({});
+  const [selectedWindowByOffice, setSelectedWindowByOffice] = useState<Record<string, string>>({});
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
+  const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
+  const [transferTargetWindow, setTransferTargetWindow] = useState<string>('none');
 
   const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
@@ -24,6 +37,8 @@ const StaffQueueManager = () => {
     fetchSequences,
     fetchStatuses,
     updateSequenceStatus,
+    transferSequence,
+    isWindowAvailable,
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
@@ -119,12 +134,15 @@ const StaffQueueManager = () => {
     const completedStatus = getStatusByDescription('completed');
     
     if (!servingStatus) {
-      console.error('Serving status not found');
+      console.error('Serving status not found. Available statuses:', statuses);
       return;
     }
 
+    console.log('📞 Calling next - servingStatus:', servingStatus, 'completedStatus:', completedStatus);
+
     const currentServing = getServingSequence(officeId);
     if (currentServing && completedStatus) {
+      console.log('🔄 Marking current serving as completed:', currentServing.id);
       await updateSequenceStatus(currentServing.id, completedStatus.id);
     }
 
@@ -133,15 +151,47 @@ const StaffQueueManager = () => {
 
     if (nextInQueue) {
       const windowId = selectedWindowByOffice[officeId];
+      console.log('➡️ Calling next in queue:', nextInQueue.id, 'to window:', windowId);
       await updateSequenceStatus(nextInQueue.id, servingStatus.id, windowId ?? undefined);
+    } else {
+      console.log('ℹ️ No one waiting in queue');
     }
   };
 
-  const handleComplete = async (sequenceId: number) => {
+  const handleComplete = async (sequenceId: string) => {
     const completedStatus = getStatusByDescription('completed');
     if (completedStatus) {
       await updateSequenceStatus(sequenceId, completedStatus.id);
     }
+  };
+
+  const handleOpenTransferDialog = (sequence: Sequence) => {
+    setTransferringSequence(sequence);
+    setTransferTargetOffice(sequence.office);
+    setTransferTargetWindow('none');
+    setTransferDialogOpen(true);
+  };
+
+  const handleTransfer = async () => {
+    if (!transferringSequence || !transferTargetOffice) return;
+
+    const windowId = transferTargetWindow === 'none' ? null : transferTargetWindow;
+
+    await transferSequence(
+      transferringSequence.id,
+      transferTargetOffice,
+      windowId
+    );
+
+    setTransferDialogOpen(false);
+    setTransferringSequence(null);
+    setTransferTargetOffice('');
+    setTransferTargetWindow('none');
+  };
+
+  const getTargetOfficeWindows = () => {
+    const targetOffice = activeOffices.find((o) => o.id === transferTargetOffice);
+    return (targetOffice?.windows || []).filter((w) => w.status);
   };
 
   const getPriorityColor = (priority: string | null | undefined) => {
@@ -205,7 +255,7 @@ const StaffQueueManager = () => {
                             <Select
                               value={selectedWindowByOffice[office.id]?.toString() ?? ''}
                               onValueChange={(v) =>
-                                setSelectedWindowByOffice((prev) => ({ ...prev, [office.id]: Number(v) }))
+                                setSelectedWindowByOffice((prev) => ({ ...prev, [office.id]: v }))
                               }
                             >
                               <SelectTrigger className="w-[180px]">
@@ -247,20 +297,31 @@ const StaffQueueManager = () => {
                                   serving.priority_data?.description,
                                 )}`}
                               >
-                                {serving.queue}
+                                {serving.queue_data?.code || '---'}
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 {serving.priority_data?.description || 'Regular'}
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleComplete(serving.id)}
-                                disabled={isLoading}
-                              >
-                                <Check className="h-4 w-4 mr-2" />
-                                Mark Complete
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleComplete(serving.id)}
+                                  disabled={isLoading}
+                                >
+                                  <Check className="h-4 w-4 mr-2" />
+                                  Complete
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleOpenTransferDialog(serving)}
+                                  disabled={isLoading}
+                                >
+                                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                                  Transfer
+                                </Button>
+                              </div>
                             </div>
                           ) : (
                             <p className="text-muted-foreground italic">
@@ -281,14 +342,22 @@ const StaffQueueManager = () => {
                               {waiting.map((seq) => (
                                 <div
                                   key={seq.id}
-                                  className={`text-lg font-medium tracking-wider ${getPriorityColor(
-                                    seq.priority_data?.description,
-                                  )}`}
+                                  className="flex items-center justify-between"
                                 >
-                                  {seq.queue}
-                                  <span className="text-xs ml-2 text-muted-foreground">
-                                    ({seq.priority_data?.description || 'Regular'})
-                                  </span>
+                                  <div className={`text-lg font-medium tracking-wider ${getPriorityColor(seq.priority_data?.description)}`}>
+                                    {seq.queue_data?.code || '---'}
+                                    <span className="text-xs ml-2 text-muted-foreground">
+                                      ({seq.priority_data?.description || 'Regular'})
+                                    </span>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleOpenTransferDialog(seq)}
+                                    disabled={isLoading}
+                                  >
+                                    <ArrowRightLeft className="h-3 w-3" />
+                                  </Button>
                                 </div>
                               ))}
                             </div>
@@ -305,6 +374,100 @@ const StaffQueueManager = () => {
           })}
         </Tabs>
       )}
+
+      {/* Transfer Dialog */}
+      <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Transfer Queue</DialogTitle>
+            <DialogDescription>
+              Transfer queue code <span className="font-bold">{transferringSequence?.queue_data?.code}</span> to another office or window.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Target Office</Label>
+              <Select
+                value={transferTargetOffice}
+                onValueChange={(v) => {
+                  setTransferTargetOffice(v);
+                  setTransferTargetWindow('none');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select office" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeOffices.map((office) => (
+                    <SelectItem key={office.id} value={office.id}>
+                      {office.description || office.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Target Window (Optional)</Label>
+              <Select
+                value={transferTargetWindow}
+                onValueChange={setTransferTargetWindow}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select window (or leave empty for pending)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No window (move to pending)</SelectItem>
+                  {getTargetOfficeWindows().map((w) => {
+                    const available = isWindowAvailable(w.id);
+                    return (
+                      <SelectItem key={w.id} value={w.id}>
+                        <div className="flex items-center gap-2">
+                          {w.description || `Window ${w.id}`}
+                          {available ? (
+                            <Badge variant="outline" className="text-green-600 border-green-600 text-xs">
+                              Available
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-orange-600 border-orange-600 text-xs">
+                              Busy
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {transferTargetWindow !== 'none' && !isWindowAvailable(transferTargetWindow) && (
+                <p className="text-xs text-orange-600">
+                  This window is currently busy. The queue will be moved to pending status.
+                </p>
+              )}
+              {transferTargetWindow === 'none' && (
+                <p className="text-xs text-muted-foreground">
+                  No window selected. The queue will be moved to pending status.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleTransfer} disabled={!transferTargetOffice || isLoading}>
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <ArrowRightLeft className="h-4 w-4 mr-2" />
+              )}
+              Transfer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
