@@ -41,7 +41,7 @@ const FACILITY_NAME_BY_CODE: Record<string, string> = {
 
 const PatientTagging = () => {
   // Active tab
-  const [activeTab, setActiveTab] = useState<'view' | 'link' | 'linked'>('view');
+  const [activeTab, setActiveTab] = useState<'view' | 'link' | 'linked'>('link');
 
   // MySQL Search state (existing patients from hospital database)
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,7 +53,7 @@ const PatientTagging = () => {
   const [supabaseSearchTerm, setSupabaseSearchTerm] = useState('');
   const [supabaseSearchResults, setSupabaseSearchResults] = useState<any[]>([]);
   const [isSearchingSupabase, setIsSearchingSupabase] = useState(false);
-  
+
   // Linked patients search state
   const [linkedSearchTerm, setLinkedSearchTerm] = useState('');
   const [linkedPatients, setLinkedPatients] = useState<any[]>([]);
@@ -61,7 +61,7 @@ const PatientTagging = () => {
   const [isLoadingLinked, setIsLoadingLinked] = useState(false);
   const [linkedPage, setLinkedPage] = useState(1);
   const [linkedTotal, setLinkedTotal] = useState(0);
-  
+
   // Linking dialog state
   const [isLinkingDialogOpen, setIsLinkingDialogOpen] = useState(false);
   const [patientToLink, setPatientToLink] = useState<any>(null);
@@ -180,7 +180,7 @@ const PatientTagging = () => {
         }));
         setLinkedPatients(linked);
         setLinkedPage(page);
-        
+
         // Calculate total linked patients
         const totalLinked = linked.length;
         setLinkedTotal(totalLinked);
@@ -207,31 +207,18 @@ const PatientTagging = () => {
       if (allPatientsResult.success) {
         const searchLower = linkedSearchTerm.toLowerCase();
         const linked = allPatientsResult.data.filter((patient: any) => {
-          // Filter only active repositories
-          const activeRepos = patient.patient_repository?.filter(
-            (repo: any) => repo.hpercode != null && (repo.status === true || repo.status === null || repo.status === undefined)
-          );
-          if (!activeRepos || activeRepos.length === 0) return false;
+          const hasHpercode = patient.patient_repository?.[0]?.hpercode != null;
+          if (!hasHpercode) return false;
           
           // Search in name
           const firstName = patient.first_name?.toLowerCase() || '';
           const middleName = patient.middle_name?.toLowerCase() || '';
           const lastName = patient.last_name?.toLowerCase() || '';
           const fullName = `${firstName} ${middleName} ${lastName}`.trim();
+          const hpercode = patient.patient_repository?.[0]?.hpercode?.toLowerCase() || '';
           
-          // Search in any hpercode
-          const hpercodeMatch = activeRepos.some(
-            (repo: any) => repo.hpercode?.toLowerCase().includes(searchLower)
-          );
-          
-          return fullName.includes(searchLower) || hpercodeMatch;
-        }).map((patient: any) => ({
-          ...patient,
-          // Filter patient_repository to only include active ones
-          patient_repository: patient.patient_repository?.filter(
-            (repo: any) => repo.hpercode != null && (repo.status === true || repo.status === null || repo.status === undefined)
-          ) || []
-        }));
+          return fullName.includes(searchLower) || hpercode.includes(searchLower);
+        });
         setLinkedPatients(linked);
         setLinkedTotal(linked.length);
       }
@@ -340,13 +327,13 @@ const PatientTagging = () => {
     const admissions = patientHistory.filter(h => h.admdate && !h.disdate).length;
     const discharges = patientHistory.filter(h => h.disdate).length;
     const activeAdmissions = patientHistory.filter(h => h.admdate && !h.disdate).length;
-    
-    const recentVisit = patientHistory.length > 0 
+
+    const recentVisit = patientHistory.length > 0
       ? patientHistory.sort((a, b) => {
-          const dateA = new Date(a.encounter_date || a.admdate || '');
-          const dateB = new Date(b.encounter_date || b.admdate || '');
-          return dateB.getTime() - dateA.getTime();
-        })[0]
+        const dateA = new Date(a.encounter_date || a.admdate || '');
+        const dateB = new Date(b.encounter_date || b.admdate || '');
+        return dateB.getTime() - dateA.getTime();
+      })[0]
       : null;
 
     return {
@@ -363,7 +350,7 @@ const PatientTagging = () => {
   /* ------------------------------------------------------------------ */
 
   const filteredHistory = patientHistory.filter(item => {
-    const matchesType = typeFilter === 'all' || 
+    const matchesType = typeFilter === 'all' ||
       (typeFilter === 'admission' && item.admdate && !item.disdate) ||
       (typeFilter === 'discharge' && item.disdate);
     return matchesType;
@@ -393,10 +380,6 @@ const PatientTagging = () => {
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'view' | 'link' | 'linked')} className="mt-6">
         <TabsList className="grid w-full max-w-2xl grid-cols-3">
-          <TabsTrigger value="view" className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            View History
-          </TabsTrigger>
           <TabsTrigger value="link" className="flex items-center gap-2">
             <LinkIcon className="h-4 w-4" />
             Link Patient
@@ -405,107 +388,13 @@ const PatientTagging = () => {
             <CheckCircle2 className="h-4 w-4" />
             Linked
           </TabsTrigger>
+          <TabsTrigger value="view" className="flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            View History
+          </TabsTrigger>
         </TabsList>
 
-        {/* TAB 1: View Patient History */}
-        <TabsContent value="view" className="mt-6 space-y-4">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              Search hospital database patients to view their complete medical history, admissions, and encounters.
-            </AlertDescription>
-          </Alert>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Database className="h-5 w-5 text-primary" />
-                Hospital Database Search
-              </CardTitle>
-              <CardDescription>
-                Search by patient name or HPERCODE
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <PatientSearchPanel
-                searchTerm={searchTerm}
-                onSearchTermChange={setSearchTerm}
-                onSearch={handleSearch}
-                isSearching={isSearching}
-                searchResults={searchResults}
-                onSelectPatient={handleSelectPatient}
-                onClearResults={() => setSearchResults([])}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Selected Patient Details */}
-          {selectedPatient && (
-            <div className="grid grid-cols-12 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {/* Patient Information Card */}
-              <div className="col-span-12 lg:col-span-4">
-                <PatientInfoCard
-                  patient={selectedPatient}
-                  recentVisit={patientStats.recentVisit}
-                />
-              </div>
-
-              {/* Patient History */}
-              <div className="col-span-12 lg:col-span-8">
-                <PatientHistoryTabs
-                  history={filteredHistory}
-                  isLoading={isLoadingHistory}
-                  viewMode={viewMode}
-                  onViewModeChange={setViewMode}
-                  typeFilter={typeFilter}
-                  onTypeFilterChange={setTypeFilter}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Empty State for View Tab */}
-          {!selectedPatient && (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-16">
-                <div className="relative mb-4">
-                  <div className="absolute inset-0 bg-primary/10 rounded-full blur-xl"></div>
-                  <div className="relative bg-gradient-to-br from-primary/20 to-primary/5 rounded-full p-6">
-                    <Search className="h-14 w-14 text-primary" />
-                  </div>
-                </div>
-                <h3 className="text-2xl font-bold mb-2">No Patient Selected</h3>
-                <p className="text-muted-foreground text-center max-w-lg mb-6">
-                  Search for a patient to view their medical history and hospital records.
-                </p>
-                <div className="flex items-center gap-6 text-sm">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="p-3 bg-blue-500/10 rounded-lg">
-                      <User className="h-5 w-5 text-blue-500" />
-                    </div>
-                    <span className="text-muted-foreground">Patient Info</span>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="p-3 bg-purple-500/10 rounded-lg">
-                      <HistoryIcon className="h-5 w-5 text-purple-500" />
-                    </div>
-                    <span className="text-muted-foreground">Medical History</span>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="p-3 bg-emerald-500/10 rounded-lg">
-                      <Activity className="h-5 w-5 text-emerald-500" />
-                    </div>
-                    <span className="text-muted-foreground">Timeline View</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* TAB 2: Link Patients */}
+        {/* TAB 1: Link Patients */}
         <TabsContent value="link" className="mt-6 space-y-4">
           <Alert className="border-primary/30 bg-primary/5">
             <Info className="h-4 w-4 text-primary" />
@@ -708,7 +597,7 @@ const PatientTagging = () => {
           </Card>
         </TabsContent>
 
-        {/* TAB 3: Linked Patients */}
+        {/* TAB 2: Linked Patients */}
         <TabsContent value="linked" className="mt-6 space-y-4">
           <Alert className="border-green-500/30 bg-green-50/50 dark:bg-green-900/10">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -946,6 +835,104 @@ const PatientTagging = () => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* TAB 3: View Patient History */}
+        <TabsContent value="view" className="mt-6 space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              Search hospital database patients to view their complete medical history, admissions, and encounters.
+            </AlertDescription>
+          </Alert>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Database className="h-5 w-5 text-primary" />
+                Hospital Database Search
+              </CardTitle>
+              <CardDescription>
+                Search by patient name or HPERCODE
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PatientSearchPanel
+                searchTerm={searchTerm}
+                onSearchTermChange={setSearchTerm}
+                onSearch={handleSearch}
+                isSearching={isSearching}
+                searchResults={searchResults}
+                onSelectPatient={handleSelectPatient}
+                onClearResults={() => setSearchResults([])}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Selected Patient Details */}
+          {selectedPatient && (
+            <div className="grid grid-cols-12 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {/* Patient Information Card */}
+              <div className="col-span-12 lg:col-span-4">
+                <PatientInfoCard
+                  patient={selectedPatient}
+                  recentVisit={patientStats.recentVisit}
+                />
+              </div>
+
+              {/* Patient History */}
+              <div className="col-span-12 lg:col-span-8">
+                <PatientHistoryTabs
+                  history={filteredHistory}
+                  isLoading={isLoadingHistory}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  typeFilter={typeFilter}
+                  onTypeFilterChange={setTypeFilter}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Empty State for View Tab */}
+          {!selectedPatient && (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <div className="relative mb-4">
+                  <div className="absolute inset-0 bg-primary/10 rounded-full blur-xl"></div>
+                  <div className="relative bg-gradient-to-br from-primary/20 to-primary/5 rounded-full p-6">
+                    <Search className="h-14 w-14 text-primary" />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-bold mb-2">No Patient Selected</h3>
+                <p className="text-muted-foreground text-center max-w-lg mb-6">
+                  Search for a patient to view their medical history and hospital records.
+                </p>
+                <div className="flex items-center gap-6 text-sm">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="p-3 bg-blue-500/10 rounded-lg">
+                      <User className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <span className="text-muted-foreground">Patient Info</span>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="p-3 bg-purple-500/10 rounded-lg">
+                      <HistoryIcon className="h-5 w-5 text-purple-500" />
+                    </div>
+                    <span className="text-muted-foreground">Medical History</span>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="p-3 bg-emerald-500/10 rounded-lg">
+                      <Activity className="h-5 w-5 text-emerald-500" />
+                    </div>
+                    <span className="text-muted-foreground">Timeline View</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
