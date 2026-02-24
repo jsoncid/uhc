@@ -1,5 +1,4 @@
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
@@ -48,11 +47,7 @@ import patientService, { PatientProfileWithLocations as APIPatientProfile, Facil
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient Profiling' },
-];
+
 
 interface PatientProfile {
   id: string;
@@ -215,13 +210,13 @@ const PatientProfiling = () => {
   const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('success');
   const [isSaving, setIsSaving] = useState(false);
   const [modalStep, setModalStep] = useState<1 | 2 | 3>(1);
-  
+
   // Search state
   const [searchResults, setSearchResults] = useState<APIPatientProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(null);
-  
+
   // Facilities state - loaded from MySQL database
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
@@ -302,15 +297,15 @@ const PatientProfiling = () => {
 
     setIsSaving(true);
     setStatusMessage(null);
-    
+
     try {
       // Save patient data to Supabase (location fields are used to find/create brgy UUID)
       const result = await patientService.saveToSupabase(patient);
-      
+
       if (result.success) {
         setStatusMessage(result.message || 'Patient profile saved successfully to Supabase');
         setStatusType('success');
-        
+
         // Update the patient state with the saved data while preserving location display fields
         if (result.data) {
           setPatient({
@@ -392,7 +387,7 @@ const PatientProfiling = () => {
         // Backend returns database1 and database2 structure
         // Extract data based on selected database
         let patients: APIPatientProfile[] = [];
-        
+
         if (result.database1 && modalFacilityDatabase === result.database1.name) {
           patients = result.database1.data;
         } else if (result.database2 && modalFacilityDatabase === result.database2.name) {
@@ -403,7 +398,7 @@ const PatientProfiling = () => {
         }
 
         setSearchResults(patients);
-        
+
         if (patients.length === 0) {
           setSearchError('No patients found matching your search criteria');
         } else {
@@ -459,7 +454,19 @@ const PatientProfiling = () => {
 
   return (
     <>
-      <BreadcrumbComp title="Patient Profiling" items={BCrumb} />
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Users className="h-7 w-7 text-primary" />
+            </div>
+            Patient Profiling
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Create and update detailed patient profiles, including personal information, demographics, and contact details.
+          </p>
+        </div>
+      </div>
 
       {/* ── Top Action Bar ── */}
       <CardBox className="p-4 mb-4">
@@ -501,11 +508,10 @@ const PatientProfiling = () => {
             </div>
 
             {statusMessage && (
-              <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
-                statusType === 'success' ? 'bg-lightsuccess text-success' :
+              <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${statusType === 'success' ? 'bg-lightsuccess text-success' :
                 statusType === 'error' ? 'bg-lighterror text-error' :
-                'bg-lightinfo text-info'
-              }`}>
+                  'bg-lightinfo text-info'
+                }`}>
                 {statusType === 'success' ? (
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                 ) : statusType === 'error' ? (
@@ -516,11 +522,10 @@ const PatientProfiling = () => {
                 <span className="text-sm font-medium">{statusMessage}</span>
                 <button
                   onClick={() => setStatusMessage(null)}
-                  className={`ml-1 rounded-full p-0.5 transition-colors ${
-                    statusType === 'success' ? 'hover:bg-success/10' :
+                  className={`ml-1 rounded-full p-0.5 transition-colors ${statusType === 'success' ? 'hover:bg-success/10' :
                     statusType === 'error' ? 'hover:bg-error/10' :
-                    'hover:bg-info/10'
-                  }`}
+                      'hover:bg-info/10'
+                    }`}
                   title="Dismiss"
                   aria-label="Dismiss notification"
                 >
@@ -691,7 +696,7 @@ const PatientProfiling = () => {
             description="Geographic assignment and barangay link."
           />
           <Separator className="my-5" />
-          
+
           {/* Street Address */}
           <div className="mb-6">
             <FormField label="Street Address" htmlFor="street">
@@ -819,33 +824,30 @@ const PatientProfiling = () => {
             {/* Step indicator */}
             <div className="flex items-center gap-1.5 mt-5 overflow-x-auto">
               <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
-                  modalStep >= 1
-                    ? 'bg-primary text-white'
-                    : 'bg-muted text-muted-foreground'
-                }`}
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${modalStep >= 1
+                  ? 'bg-primary text-white'
+                  : 'bg-muted text-muted-foreground'
+                  }`}
               >
                 <Building2 className="h-3.5 w-3.5" />
                 1. Facility
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
-                  modalStep >= 2
-                    ? 'bg-primary text-white'
-                    : 'bg-muted text-muted-foreground'
-                }`}
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${modalStep >= 2
+                  ? 'bg-primary text-white'
+                  : 'bg-muted text-muted-foreground'
+                  }`}
               >
                 <Search className="h-3.5 w-3.5" />
                 2. Search
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
-                  modalStep >= 3
-                    ? 'bg-primary text-white'
-                    : 'bg-muted text-muted-foreground'
-                }`}
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${modalStep >= 3
+                  ? 'bg-primary text-white'
+                  : 'bg-muted text-muted-foreground'
+                  }`}
               >
                 <Users className="h-3.5 w-3.5" />
                 3. Results
@@ -875,8 +877,8 @@ const PatientProfiling = () => {
                     <Database className="h-12 w-12 mx-auto mb-3 opacity-50" />
                     <p className="text-sm">No facilities found</p>
                     <p className="text-xs mt-1">
-                      {isBackendConnected === false 
-                        ? 'Backend server is offline' 
+                      {isBackendConnected === false
+                        ? 'Backend server is offline'
                         : 'Check database connection'}
                     </p>
                   </div>
@@ -892,11 +894,10 @@ const PatientProfiling = () => {
                             setModalFacilityId(facility.facility_code);
                             setModalFacilityDatabase(facility.database || '');
                           }}
-                          className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-left transition-all ${
-                            isSelected
-                              ? 'border-primary bg-primary/5 shadow-sm'
-                              : 'border-border hover:border-primary/30 hover:bg-muted/50'
-                          }`}
+                          className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-left transition-all ${isSelected
+                            ? 'border-primary bg-primary/5 shadow-sm'
+                            : 'border-border hover:border-primary/30 hover:bg-muted/50'
+                            }`}
                         >
                           <span className="text-xl">{getFacilityIcon(facility.facility_name)}</span>
                           <div className="flex-1 min-w-0">
@@ -904,7 +905,7 @@ const PatientProfiling = () => {
                               <p className="text-sm font-medium text-foreground truncate">
                                 {facility.facility_name}
                               </p>
-                              <Badge 
+                              <Badge
                                 variant={facility.database === 'adnph_ihomis_plus' ? 'secondary' : 'warning'}
                                 className="text-[9px] px-1.5 py-0 shrink-0"
                               >
