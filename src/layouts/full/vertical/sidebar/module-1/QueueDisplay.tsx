@@ -21,52 +21,77 @@ interface CallNotification {
   priorityStyle: { text: string; bg: string; dot: string };
 }
 
-/** Pick the best female English voice available, or null to let the browser decide. */
+/** Cached voices — populated once when the browser fires voiceschanged */
+let cachedVoices: SpeechSynthesisVoice[] = [];
+
+function loadVoices() {
+  const v = window.speechSynthesis.getVoices();
+  if (v.length > 0) cachedVoices = v;
+}
+
+// Load immediately (works in Firefox) and on voiceschanged (works in Chrome/Edge)
+loadVoices();
+if (typeof window !== 'undefined') {
+  window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+}
+
+/** Pick the best female English voice from the cached list */
 function getFemaleVoice(): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis.getVoices();
-  // Prefer voices whose name explicitly signals female / Zira / Samantha / Google US English
-  const femaleKeywords = ['female', 'woman', 'zira', 'samantha', 'google us english', 'hazel', 'susan', 'victoria', 'karen'];
-  const enVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
-  for (const kw of femaleKeywords) {
-    const match = enVoices.find((v) => v.name.toLowerCase().includes(kw));
-    if (match) return match;
-  }
-  // Fallback: first English voice that doesn't contain male indicators
-  const notMale = enVoices.find((v) => !['male', 'man', 'david', 'mark', 'james', 'richard'].some((m) => v.name.toLowerCase().includes(m)));
-  return notMale ?? enVoices[0] ?? null;
+  const voices = cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();
+
+  const femaleKeywords = ['zira', 'samantha', 'google us english', 'hazel', 'susan', 'victoria', 'karen', 'female', 'woman'];
+  const maleKeywords   = ['david', 'mark', 'james', 'richard', 'male', 'man'];
+
+  const englishVoices = voices.filter(v => v.lang.toLowerCase().startsWith('en'));
+
+  // Priority 1: explicitly female-named voice
+  const explicit = englishVoices.find(v =>
+    femaleKeywords.some(k => v.name.toLowerCase().includes(k))
+  );
+  if (explicit) return explicit;
+
+  // Priority 2: english voice with no male indicators
+  const likely = englishVoices.find(v =>
+    !maleKeywords.some(k => v.name.toLowerCase().includes(k))
+  );
+  if (likely) return likely;
+
+  // Priority 3: first english voice
+  return englishVoices[0] ?? null;
 }
 
 /** Speak `text` exactly `times` times, with a pause between each. Calls `onDone` when finished. */
 function speakRepeat(text: string, times: number, onDone: () => void): void {
-  if (!window.speechSynthesis) { onDone(); return; }
   window.speechSynthesis.cancel();
 
-  let remaining = times;
+  let count = 0;
 
-  const sayOnce = () => {
+  const speakOnce = () => {
     const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.9;
-    utter.pitch = 1.15;  // slightly higher pitch for a feminine tone
-    utter.lang = 'en-US';
-    const femaleVoice = getFemaleVoice();
-    if (femaleVoice) utter.voice = femaleVoice;
+    const voice = getFemaleVoice();
+    if (voice) utter.voice = voice;
+    utter.pitch = 1.15;
+    utter.rate  = 0.95;
+
     utter.onend = () => {
-      remaining -= 1;
-      if (remaining > 0) {
-        setTimeout(sayOnce, PAUSE_BETWEEN_MS);
+      count++;
+      if (count < times) {
+        setTimeout(speakOnce, PAUSE_BETWEEN_MS);
       } else {
         onDone();
       }
     };
+
     utter.onerror = () => {
-      remaining -= 1;
-      if (remaining > 0) setTimeout(sayOnce, PAUSE_BETWEEN_MS);
+      count++;
+      if (count < times) setTimeout(speakOnce, PAUSE_BETWEEN_MS);
       else onDone();
     };
+
     window.speechSynthesis.speak(utter);
   };
 
-  sayOnce();
+  speakOnce();
 }
 
 // ── Pure helpers at module scope so effects can reference them without stale-closure issues ──
