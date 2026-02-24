@@ -516,14 +516,13 @@ const PatientProfiling = () => {
 
     console.log('Searching with:', {
       name: modalSearchName.trim(),
-      facility: modalFacilityId,
       database: modalFacilityDatabase,
     });
 
     try {
       // Use the database from the selected facility
+      // Note: Don't filter by facility_code as it may not match across databases
       const result = await patientService.searchPatients(modalSearchName.trim(), {
-        facility: modalFacilityId || undefined,
         database: modalFacilityDatabase,
         limit: 50,
       });
