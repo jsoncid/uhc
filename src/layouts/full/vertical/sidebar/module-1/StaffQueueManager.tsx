@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, Check, Loader2, ArrowRightLeft } from 'lucide-react';
+import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -139,62 +139,57 @@ const StaffQueueManager = () => {
 
   const getWaitingSequences = (officeId: string, windowId?: string): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
-    let pending = getSequencesForOffice(officeId).filter((seq) => seq.status === pendingStatus?.id);
+    let pending = getSequencesForOffice(officeId).filter(
+      (seq) => seq.status === pendingStatus?.id,
+    );
 
-    // Filter by window if provided - show sequences assigned to this window OR unassigned (newly added)
+    // Filter by window if provided - show sequences assigned to this window OR unassigned
     if (windowId) {
       pending = pending.filter((seq) => seq.window === windowId || !seq.window);
     }
 
-    // Sort by priority weight (lower = higher priority), then by created_at (FIFO within same priority)
+    // Sort by priority weight (lower = higher priority), then by created_at (FIFO)
     return pending.sort((a, b) => {
       const priorityA = getPriorityWeight(a.priority_data?.description);
       const priorityB = getPriorityWeight(b.priority_data?.description);
-
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
-
+      if (priorityA !== priorityB) return priorityA - priorityB;
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   };
 
   const getServingSequence = (officeId: string, windowId?: string): Sequence | undefined => {
     const servingStatus = getStatusByDescription('serving');
+    const arrivedStatus = getStatusByDescription('arrived');
+    const activeStatusIds = [servingStatus?.id, arrivedStatus?.id].filter(Boolean) as string[];
     const officeSequences = getSequencesForOffice(officeId);
     if (windowId) {
       return officeSequences.find(
-        (seq) => seq.status === servingStatus?.id && seq.window === windowId,
+        (seq) => activeStatusIds.includes(seq.status) && seq.window === windowId,
       );
     }
-    return officeSequences.find((seq) => seq.status === servingStatus?.id);
+    return officeSequences.find((seq) => activeStatusIds.includes(seq.status));
   };
 
   const handleCallNext = async (officeId: string) => {
     const servingStatus = getStatusByDescription('serving');
-    const completedStatus = getStatusByDescription('completed');
 
     if (!servingStatus) {
       console.error('Serving status not found. Available statuses:', statuses);
       return;
     }
 
-    console.log(
-      '📞 Calling next - servingStatus:',
-      servingStatus,
-      'completedStatus:',
-      completedStatus,
-    );
+    console.log('📞 Calling next - servingStatus:', servingStatus);
 
     const windowId = selectedWindowByOffice[officeId];
-    // Only mark as completed if there's already a sequence serving at THIS specific window
+    // Do NOT auto-complete current serving — staff must click Complete manually
     const currentServing = getServingSequence(officeId, windowId);
-    if (currentServing && completedStatus) {
-      console.log('🔄 Marking current serving as completed:', currentServing.id);
-      await updateSequenceStatus(currentServing.id, completedStatus.id);
+    if (currentServing) {
+      console.log('ℹ️ Someone is already being served, Call Next is blocked');
+      return;
     }
 
-    let waiting = getWaitingSequences(officeId, windowId);
+    // Prioritize arrived patients, then fall back to pending
+    const waiting = getWaitingSequences(officeId, windowId);
     const nextInQueue = waiting[0]; // Already sorted by priority
 
     if (nextInQueue) {
@@ -209,6 +204,13 @@ const StaffQueueManager = () => {
     const completedStatus = getStatusByDescription('completed');
     if (completedStatus) {
       await updateSequenceStatus(sequenceId, completedStatus.id);
+    }
+  };
+
+  const handleArrived = async (sequenceId: string, windowId: string) => {
+    const arrivedStatus = getStatusByDescription('arrived');
+    if (arrivedStatus) {
+      await updateSequenceStatus(sequenceId, arrivedStatus.id, windowId);
     }
   };
 
@@ -370,7 +372,7 @@ const StaffQueueManager = () => {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handleComplete(serving.id)}
-                                  disabled={isLoading}
+                                  disabled={isLoading || !serving.status_data?.description?.toLowerCase().includes('arrived')}
                                 >
                                   <Check className="h-4 w-4 mr-2" />
                                   Complete
@@ -383,6 +385,24 @@ const StaffQueueManager = () => {
                                 >
                                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                                   Transfer
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleArrived(serving.id, selectedWindowByOffice[office.id])}
+                                  disabled={isLoading || serving.status_data?.description?.toLowerCase().includes('arrived')}
+                                >
+                                  <UserCheck className="h-4 w-4 mr-2" />
+                                  Arrived
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled
+                                  title="Coming soon"
+                                >
+                                  <Bell className="h-4 w-4 mr-2" />
+                                  Ping
                                 </Button>
                               </div>
                             </div>

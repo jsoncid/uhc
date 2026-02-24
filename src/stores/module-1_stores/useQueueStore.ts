@@ -427,17 +427,17 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       console.log('✅ Current sequence deactivated');
 
       // Step 2: Insert new sequence record with updated status/window
+      // If windowId is explicitly provided (even null), use it. Otherwise preserve the existing window.
+      const resolvedWindow = windowId !== undefined ? windowId : (currentSequence.window ?? null);
+
       const newSequencePayload: Record<string, unknown> = {
         office: currentSequence.office,
         queue: currentSequence.queue,
         priority: currentSequence.priority,
         status: statusId,
         is_active: !isCompleted,
+        window: resolvedWindow,
       };
-
-      if (windowId !== undefined && windowId !== null) {
-        newSequencePayload.window = windowId;
-      }
 
       const { data: newSequence, error: insertError } = await module1
         .from('sequence')
