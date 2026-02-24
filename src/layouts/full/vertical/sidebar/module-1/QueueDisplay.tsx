@@ -150,6 +150,7 @@ const QueueDisplay = () => {
                 .filter(
                   (seq) =>
                     seq.office === office.id &&
+                    seq.is_active !== false &&
                     seq.status_data?.description?.toLowerCase().includes('serving'),
                 )
                 .map((seq) => ({
@@ -162,6 +163,7 @@ const QueueDisplay = () => {
                 .filter(
                   (seq) =>
                     seq.office === office.id &&
+                    seq.is_active !== false &&
                     seq.status_data?.description?.toLowerCase().includes('pending'),
                 )
                 .map((seq) => ({

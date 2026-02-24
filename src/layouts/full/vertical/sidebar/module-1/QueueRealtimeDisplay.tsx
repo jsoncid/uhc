@@ -34,6 +34,7 @@ interface Sequence {
   queue: string;
   priority: string;
   status: string;
+  is_active?: boolean;
   // Enriched data
   office_data?: Office;
   priority_data?: Priority;
@@ -48,6 +49,7 @@ interface SequenceRow {
   queue: string;
   priority: string;
   status: string;
+  is_active?: boolean;
 }
 
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; badge: string }> = {
@@ -257,7 +259,9 @@ const QueueRealtimeDisplay = () => {
   // Get pending sequences sorted by priority
   const getPendingSequences = (): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
-    const pending = sequences.filter((seq) => seq.status === pendingStatus?.id);
+    const pending = sequences.filter(
+      (seq) => seq.status === pendingStatus?.id && seq.is_active !== false,
+    );
 
     return pending.sort((a, b) => {
       const priorityA = getPriorityWeight(a.priority_data?.description);
@@ -268,10 +272,12 @@ const QueueRealtimeDisplay = () => {
     });
   };
 
-  // Get currently serving sequence for an office
+  // Get currently serving sequence for an office (serving only)
   const getServingSequenceForOffice = (officeId: string): Sequence | undefined => {
     const servingStatus = getStatusByDescription('serving');
-    return sequences.find((seq) => seq.office === officeId && seq.status === servingStatus?.id);
+    return sequences.find(
+      (seq) => seq.office === officeId && seq.status === servingStatus?.id && seq.is_active !== false,
+    );
   };
 
   const formatTime = (date: Date) => {
