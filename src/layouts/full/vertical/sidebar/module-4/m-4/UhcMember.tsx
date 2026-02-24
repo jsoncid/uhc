@@ -14,6 +14,7 @@ import {
   KeyRound, ShieldCheck, EyeOff, ShieldAlert, ShieldX, User,
 } from 'lucide-react';
 import { supabase } from 'src/lib/supabase';
+import { useAuthStore } from 'src/stores/useAuthStore';
 
 // ─── QR Code data-url generator ───────────────────────────────────────────────
 const generateQrDataUrl = (text: string): Promise<string> =>
@@ -1018,12 +1019,15 @@ const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════════════
 const UhcMember = () => {
-  // ── Search / patient selection ─────────────────────────────────────────────
-  const [searchQuery,     setSearchQuery]     = useState('');
-  const [searchResults,   setSearchResults]   = useState<PatientProfile[]>([]);
+  // ── Patient selection ─────────────────────────────────────────────────
   const [selectedPatient, setSelectedPatient] = useState<PatientProfile | null>(null);
-  const [isSearching,     setIsSearching]     = useState(false);
   const [errorMessage,    setErrorMessage]    = useState('');
+
+  // ── Tagged-member guard ────────────────────────────────────────────────────
+  // When a member is tagged to a patient (via MemberTagging), only their own
+  // profile is accessible. Manual search for other patients is blocked.
+  const [taggedPatientId, setTaggedPatientId] = useState<string | null>(null);
+  const [isAutoLoading,   setIsAutoLoading]   = useState(true);
 
   // ── Profile picture ─────────────────────────────────────────────────────────
   const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
@@ -1051,10 +1055,9 @@ const UhcMember = () => {
 
   // ── PIN gate (on patient select) ──────────────────────────────────────────
   const [pendingPatient,  setPendingPatient]  = useState<PatientProfile | null>(null);
-  const [pendingCardId,   setPendingCardId]   = useState<string | null>(null);
+  const [pendingCardId,                 ]   = useState<string | null>(null);
   const [pendingHasPin,   setPendingHasPin]   = useState(false);
   const [showPinGate,     setShowPinGate]     = useState(false);
-  const [isCheckingPin,   setIsCheckingPin]   = useState(false);
 
   // ── Card download / print ──────────────────────────────────────────────────
   const [isCapturing,   setIsCapturing]   = useState(false);
@@ -1559,98 +1562,6 @@ const UhcMember = () => {
     return canvas;
   }, []);
 
-  // ─── Search: module3 — flat sequential fetches ────────────────────────────
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true); setErrorMessage(''); setSearchResults([]);
-    try {
-      // 1. Patient profiles from module3
-      const { data: profiles, error: profileError } = await supabase
-        .schema('module3').from('patient_profile')
-        .select('id, first_name, middle_name, last_name, ext_name, sex, birth_date, brgy')
-        .or(`first_name.ilike.%${searchQuery.trim()}%,last_name.ilike.%${searchQuery.trim()}%`)
-        .limit(10);
-      if (profileError) throw profileError;
-      if (!profiles || profiles.length === 0) { setErrorMessage('No patients found. Please check the name and try again.'); return; }
-
-      // 2. Brgy (module3)
-      const brgyIds = [...new Set(profiles.map((p: any) => p.brgy).filter(Boolean))];
-      let brgyMap: Record<string, any> = {};
-      if (brgyIds.length > 0) {
-        const { data: brgys } = await supabase.schema('module3').from('brgy')
-          .select('id, description, city_municipality').in('id', brgyIds);
-        const cityIds = [...new Set((brgys ?? []).map((b: any) => b.city_municipality).filter(Boolean))];
-        let cityMap: Record<string, any> = {};
-        if (cityIds.length > 0) {
-          const { data: cities } = await supabase.schema('module3').from('city_municipality')
-            .select('id, description, province').in('id', cityIds);
-          const provIds = [...new Set((cities ?? []).map((c: any) => c.province).filter(Boolean))];
-          let provMap: Record<string, any> = {};
-          if (provIds.length > 0) {
-            const { data: provinces } = await supabase.schema('module3').from('province')
-              .select('id, description, region').in('id', provIds);
-            const regionIds = [...new Set((provinces ?? []).map((p: any) => p.region).filter(Boolean))];
-            let regionMap: Record<string, any> = {};
-            if (regionIds.length > 0) {
-              const { data: regions } = await supabase.schema('module3').from('region')
-                .select('id, description').in('id', regionIds);
-              (regions ?? []).forEach((r: any) => { regionMap[r.id] = r; });
-            }
-            (provinces ?? []).forEach((p: any) => { provMap[p.id] = { ...p, region: regionMap[p.region] ?? null }; });
-          }
-          (cities ?? []).forEach((c: any) => { cityMap[c.id] = { ...c, province: provMap[c.province] ?? null }; });
-        }
-        (brgys ?? []).forEach((b: any) => { brgyMap[b.id] = { ...b, city_municipality: cityMap[b.city_municipality] ?? null }; });
-      }
-      const assembled: PatientProfile[] = profiles.map((p: any) => ({ ...p, brgy: brgyMap[p.brgy] ?? null }));
-      setSearchResults(assembled);
-    } catch (err) {
-      console.error('Search error:', err);
-      setErrorMessage('Failed to search patients. Please try again.');
-    } finally { setIsSearching(false); }
-  };
-
-  // ── Select patient: check PIN first before proceeding ──────────────────────
-  const selectPatient = async (p: PatientProfile) => {
-    setSearchResults([]);
-    setSearchQuery(`${p.first_name} ${p.last_name}`);
-    setErrorMessage('');
-    setIsCheckingPin(true);
-
-    try {
-      // Check if patient has a health_card and PIN in module4
-      let { data: card } = await supabase
-        .schema('module4').from('health_card')
-        .select('id, pin')
-        .eq('patient_profile', p.id)
-        .maybeSingle();
-
-      // Auto-create health_card if it doesn't exist
-      if (!card) {
-        const { data: newCard } = await supabase
-          .schema('module4').from('health_card')
-          .insert({ patient_profile: p.id })
-          .select('id, pin')
-          .single();
-        card = newCard;
-      }
-
-      const cardId = card?.id ?? null;
-      const cardHasPin = Boolean(card?.pin);
-
-      // Show PIN gate modal
-      setPendingPatient(p);
-      setPendingCardId(cardId);
-      setPendingHasPin(cardHasPin);
-      setShowPinGate(true);
-    } catch (err) {
-      console.error('PIN check error:', err);
-      setErrorMessage('Failed to check PIN status. Please try again.');
-    } finally {
-      setIsCheckingPin(false);
-    }
-  };
-
   // Called after PIN verified or set successfully
   const commitPatientSelect = useCallback(async (p: PatientProfile) => {
     setShowPinGate(false);
@@ -1670,7 +1581,6 @@ const UhcMember = () => {
   const closePinGate = useCallback(() => {
     setShowPinGate(false);
     setPendingPatient(null);
-    setSearchQuery('');
   }, []);
 
   // ─── Load patient data ─────────────────────────────────────────────────────
@@ -1682,14 +1592,16 @@ const UhcMember = () => {
     setErrorMessage('');
     try {
       // Step 1: find existing health_card in module4
-      let { data: card, error: cardErr } = await supabase
+      //    Use .limit(1) instead of .maybeSingle() — multiple cards may exist.
+      const { data: cards, error: cardErr } = await supabase
         .schema('module4')               // ← always module4 for health_card
         .from('health_card')
         .select('id, qr_code, pin')
         .eq('patient_profile', patient.id) // patient.id = UUID from module3
-        .maybeSingle();                  // no error if row doesn't exist
+        .limit(1);
 
       if (cardErr) { console.error('health_card fetch error:', cardErr); throw cardErr; }
+      let card: { id: any; qr_code: any; pin: any } | null = cards?.[0] ?? null;
 
       // Step 2: auto-create health_card row so member can set PIN immediately,
       // even before the operator has generated a QR code.
@@ -1704,12 +1616,12 @@ const UhcMember = () => {
         if (insertErr) {
           // Race condition — try fetching again before giving up
           console.warn('health_card auto-create failed, retrying:', insertErr.message);
-          const { data: retry } = await supabase
+          const { data: retryCards } = await supabase
             .schema('module4').from('health_card')
             .select('id, qr_code, pin')
             .eq('patient_profile', patient.id)
-            .maybeSingle();
-          card = retry;
+            .limit(1);
+          card = retryCards?.[0] ?? null;
         } else {
           card = newCard;
         }
@@ -1765,6 +1677,102 @@ const UhcMember = () => {
       setIsLoadingQr(false);
     } finally { setIsLoadingDocs(false); }
   };
+
+  // ─── Auto-load tagged patient on mount ────────────────────────────────────
+  // If the logged-in user has been tagged to a patient profile (via MemberTagging),
+  // automatically load that patient so the member doesn't need to search.
+  const authUser = useAuthStore((s) => s.user);
+
+  useEffect(() => {
+    if (!authUser?.id) {
+      setIsAutoLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsAutoLoading(true);
+    (async () => {
+      try {
+        // 1. Find health_card linked to the logged-in user
+        //    Use .select() + limit(1) instead of .maybeSingle() because
+        //    multiple cards may exist (from old auto-create logic), which
+        //    causes .maybeSingle() to silently return null.
+        const { data: cards } = await supabase
+          .schema('module4')
+          .from('health_card')
+          .select('id, patient_profile')
+          .eq('user', authUser.id)
+          .not('patient_profile', 'is', null)
+          .limit(1);
+
+        const card = cards?.[0] ?? null;
+
+        if (cancelled) return;
+
+        if (!card?.patient_profile) {
+          // No tagged patient — member is not linked yet
+          setIsAutoLoading(false);
+          return;
+        }
+
+        // Mark this member as tagged (locks out search for other patients)
+        setTaggedPatientId(card.patient_profile);
+
+        // 2. Fetch the linked patient profile from module3 (with brgy/city joins)
+        const { data: profile } = await supabase
+          .schema('module3')
+          .from('patient_profile')
+          .select('id, first_name, middle_name, last_name, ext_name, sex, birth_date, brgy')
+          .eq('id', card.patient_profile)
+          .maybeSingle();
+
+        if (!profile || cancelled) return;
+
+        // 3. Resolve brgy → city → province → region (same logic as handleSearch)
+        let brgyData: any = null;
+        if (profile.brgy) {
+          const { data: brgy } = await supabase.schema('module3').from('brgy')
+            .select('id, description, city_municipality').eq('id', profile.brgy).maybeSingle();
+          if (brgy) {
+            brgyData = { ...brgy };
+            if (brgy.city_municipality) {
+              const { data: city } = await supabase.schema('module3').from('city_municipality')
+                .select('id, description, province').eq('id', brgy.city_municipality).maybeSingle();
+              if (city) {
+                brgyData.city_municipality = { ...city };
+                if (city.province) {
+                  const { data: prov } = await supabase.schema('module3').from('province')
+                    .select('id, description, region').eq('id', city.province).maybeSingle();
+                  if (prov) {
+                    brgyData.city_municipality.province = { ...prov };
+                    if (prov.region) {
+                      const { data: region } = await supabase.schema('module3').from('region')
+                        .select('id, description').eq('id', prov.region).maybeSingle();
+                      brgyData.city_municipality.province.region = region ?? null;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        const assembled: PatientProfile = { ...profile, brgy: brgyData };
+
+        if (!cancelled) {
+          // Skip PIN gate for the member's own profile — they already authenticated
+          setSelectedPatient(assembled);
+          await loadPatientData(assembled);
+        }
+      } catch (err) {
+        console.error('Auto-load tagged patient error:', err);
+      } finally {
+        if (!cancelled) setIsAutoLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [authUser?.id]);
 
   // ─── Save PIN ──────────────────────────────────────────────────────────────
   // Writes to module4.health_card.pin (varchar column).
@@ -1920,78 +1928,68 @@ const UhcMember = () => {
 
       <div className="flex flex-col gap-6">
 
-        {/* ── Search ── */}
+        {/* ── Search / Profile ── */}
         <Card className="p-6">
-          <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
-            <Search className="w-5 h-5 text-green-600" /> Find My Records
-          </h3>
-          <p className="text-xs text-gray-400 mb-2">Search by your first or last name to view your profile and documents.</p>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter your name…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="flex-1"
-            />
-            <Button onClick={handleSearch} disabled={isSearching} className="flex gap-2 bg-green-700 hover:bg-green-800">
-              {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Search
-            </Button>
-          </div>
-
-          {/* Search results */}
-          {searchResults.length > 0 && (
-            <div className="mt-3 border rounded-lg overflow-hidden divide-y shadow-sm">
-              {searchResults.map((p) => (
-                <button key={p.id} onClick={() => selectPatient(p)}
-                  disabled={isCheckingPin}
-                  className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors flex items-center gap-3 disabled:opacity-60">
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-xs flex-shrink-0">
-                    {p.first_name[0]}{p.last_name[0]}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{fullName(p)}</p>
-                    <p className="text-xs text-gray-500">{p.sex} · DOB: {formatDate(p.birth_date)} · {getFullAddress(p.brgy)}</p>
-                  </div>
-                  {isCheckingPin
-                    ? <Loader2 className="w-4 h-4 text-green-600 animate-spin flex-shrink-0" />
-                    : <Lock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                  }
-                </button>
-              ))}
+          {isAutoLoading ? (
+            /* Loading state while checking for tagged patient */
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+              <p className="text-sm text-gray-500">Loading your profile…</p>
             </div>
-          )}
+          ) : taggedPatientId ? (
+            /* ── Tagged member: no manual search allowed ── */
+            <>
+              <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
+                <User className="w-5 h-5 text-green-600" /> My Profile
+              </h3>
+              <p className="text-xs text-gray-400 mb-2">Your account is linked to the patient profile below.</p>
 
-          {/* Error */}
-          {errorMessage && !selectedPatient && (
-            <div className="mt-3 flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>{errorMessage}</p>
-            </div>
-          )}
-
-          {/* Selected patient banner */}
-          {selectedPatient && (
-            <div className="mt-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-3">
-                {profilePicUrl ? (
-                  <img src={profilePicUrl} alt="Profile" className="w-10 h-10 rounded-full object-cover border-2 border-green-300" />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
-                    {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
+              {/* Selected patient banner */}
+              {selectedPatient && (
+                <div className="mt-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    {profilePicUrl ? (
+                      <img src={profilePicUrl} alt="Profile" className="w-10 h-10 rounded-full object-cover border-2 border-green-300" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
+                        {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold text-green-900">{fullName(selectedPatient)}</p>
+                      <p className="text-xs text-green-600">
+                        {selectedPatient.sex} · {formatDate(selectedPatient.birth_date)} · {computeAge(selectedPatient.birth_date)} · {getFullAddress(selectedPatient.brgy)}
+                      </p>
+                    </div>
                   </div>
-                )}
+                  <div className="flex items-center gap-3 text-xs font-medium">
+                    <span className="flex items-center gap-1 text-green-700"><CheckCircle2 className="w-3.5 h-3.5" />{totalActive} active documents</span>
+                    {totalArchived > 0 && <span className="flex items-center gap-1 text-amber-600"><Archive className="w-3.5 h-3.5" />{totalArchived} archived</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Error */}
+              {errorMessage && !selectedPatient && (
+                <div className="mt-3 flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>{errorMessage}</p>
+                </div>
+              )}
+            </>
+          ) : (
+            /* ── Not tagged: show message instead of open search ── */
+            <>
+              <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
+                <Search className="w-5 h-5 text-green-600" /> Find My Records
+              </h3>
+              <div className="mt-3 flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" />
                 <div>
-                  <p className="font-semibold text-green-900">{fullName(selectedPatient)}</p>
-                  <p className="text-xs text-green-600">
-                    {selectedPatient.sex} · {formatDate(selectedPatient.birth_date)} · {computeAge(selectedPatient.birth_date)} · {getFullAddress(selectedPatient.brgy)}
-                  </p>
+                  <p className="font-semibold">Account Not Linked</p>
+                  <p className="mt-1">Your account has not been linked to a patient profile yet. Please contact a Health Card Operator to tag your account to your patient record.</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 text-xs font-medium">
-                <span className="flex items-center gap-1 text-green-700"><CheckCircle2 className="w-3.5 h-3.5" />{totalActive} active documents</span>
-                {totalArchived > 0 && <span className="flex items-center gap-1 text-amber-600"><Archive className="w-3.5 h-3.5" />{totalArchived} archived</span>}
-              </div>
-            </div>
+            </>
           )}
         </Card>
 
