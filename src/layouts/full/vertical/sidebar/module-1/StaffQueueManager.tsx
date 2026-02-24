@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
+import { supabase } from '@/lib/supabase';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
 import { useOfficeUserAssignmentStore } from '@/stores/module-1_stores/useOfficeUserAssignmentStore';
@@ -34,6 +35,9 @@ const StaffQueueManager = () => {
   const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
   const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
   const [transferSuccess, setTransferSuccess] = useState<string>('');
+
+  // Persistent broadcast channel for pings — stays subscribed for the component lifetime
+  const pingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
@@ -54,6 +58,16 @@ const StaffQueueManager = () => {
   const userAssignmentIds = useMemo(() => {
     return profile?.assignments?.map((a) => a.id) || [];
   }, [profile?.assignments]);
+
+  useEffect(() => {
+    const ch = supabase.channel('queue-ping-broadcast', { config: { broadcast: { self: true } } });
+    ch.subscribe();
+    pingChannelRef.current = ch;
+    return () => {
+      supabase.removeChannel(ch);
+      pingChannelRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     fetchStatuses();
@@ -213,6 +227,20 @@ const StaffQueueManager = () => {
     if (arrivedStatus) {
       await updateSequenceStatus(sequenceId, arrivedStatus.id, windowId);
     }
+  };
+
+  const handlePing = async (serving: Sequence) => {
+    if (!pingChannelRef.current) return;
+    await pingChannelRef.current.send({
+      type: 'broadcast',
+      event: 'ping',
+      payload: {
+        sequenceId: serving.id,
+        queueCode: serving.queue_data?.code || '---',
+        windowLabel: serving.window_data?.description || 'the window',
+        priorityDesc: serving.priority_data?.description || null,
+      },
+    });
   };
 
   const handleOpenTransferDialog = (sequence: Sequence) => {
@@ -399,8 +427,9 @@ const StaffQueueManager = () => {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  disabled
-                                  title="Coming soon"
+                                  onClick={() => handlePing(serving)}
+                                  disabled={isLoading}
+                                  title="Re-announce this queue on the display"
                                 >
                                   <Bell className="h-4 w-4 mr-2" />
                                   Ping
