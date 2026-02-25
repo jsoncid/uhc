@@ -6,6 +6,9 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 // Create Supabase client without default schema to access both public and module3
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// When the frontend needs to query Supabase directly, reuse the backend's URL/keys and
+// keep the Accept-Profile header pointed at module3 so the schema stays aligned.
+
 export type Database = {
   public: {
     Tables: {

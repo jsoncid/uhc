@@ -61,6 +61,12 @@ This means:
 - **Frontend** provides forms for users to enter and manage credentials
 - **Backend** receives credentials via API, tests them, stores in Supabase, creates pools
 
+### 📍 Repository metadata source of truth
+
+- Always call `/api/health` or `/api/patients/facilities/list` (and downstream `/api/patients`) for database metadata. These endpoints are built from the `module3.db_informations` table, so the frontend can trust the response payload instead of maintaining its own hard-coded list.
+- Remove any hardcoded database information from the frontend and rely on the backend snapshot of `db_informations`; that table is the single source of truth for MySQL pools.
+- If the frontend ever has to query Supabase directly for other table data, reuse the same `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` values configured on the backend and keep the `Accept-Profile` header set to `module3` so the schema remains aligned with the backend services.
+
 ---
 
 ## 🔴 CRITICAL: Supabase Table Updates Required

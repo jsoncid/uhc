@@ -5,6 +5,7 @@ import { Label } from 'src/components/ui/label';
 import { Badge } from 'src/components/ui/badge';
 import { Search, Loader2, UserCircle, Calendar, User, Building2, ChevronRight, X } from 'lucide-react';
 import { PatientProfileWithLocations as PatientProfile } from 'src/services/patientService';
+import { PatientDatabaseSummary } from '../utils/patientSearchResultHelpers';
 import { cn } from 'src/lib/utils';
 import { formatDate, calculateAge } from '../utils/dateFormatters';
 
@@ -21,6 +22,9 @@ interface PatientSearchPanelProps {
   searchResults: PatientSearchResultProfile[];
   onSelectPatient: (patient: PatientSearchResultProfile) => void;
   onClearResults: () => void;
+  totalMatches?: number;
+  displayedCount?: number;
+  databaseSummaries?: PatientDatabaseSummary[];
 }
 
 const PatientSearchPanel = ({
@@ -31,6 +35,9 @@ const PatientSearchPanel = ({
   searchResults,
   onSelectPatient,
   onClearResults,
+  totalMatches,
+  displayedCount,
+  databaseSummaries,
 }: PatientSearchPanelProps) => {
   return (
     <Card className="border shadow-md">
@@ -81,6 +88,23 @@ const PatientSearchPanel = ({
             )}
           </Button>
         </div>
+
+          {databaseSummaries && databaseSummaries.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-4">
+              {databaseSummaries.map((summary) => (
+                <Badge key={summary.dbName} variant="outline" className="text-[11px] font-medium">
+                  <span className="font-semibold">{summary.description || summary.dbName}</span>
+                  {`: ${summary.count.toLocaleString()} records`}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {typeof totalMatches === 'number' && (
+            <p className="text-xs text-muted-foreground mt-3">
+              Showing {(displayedCount ?? searchResults.length).toLocaleString()} of {totalMatches.toLocaleString()} total record{totalMatches === 1 ? '' : 's'}
+            </p>
+          )}
 
         {/* Search Results */}
         {searchResults.length > 0 && (
