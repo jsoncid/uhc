@@ -26,6 +26,7 @@ interface OfficeState {
   error: string | null;
 
   fetchOffices: (assignmentIds?: string[] | string) => Promise<void>;
+  fetchOfficeById: (officeId: string) => Promise<void>;
   addOffice: (
     assignmentId: string,
     description: string,
@@ -87,6 +88,36 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to fetch offices',
         isLoading: false,
       });
+    }
+  },
+
+  fetchOfficeById: async (officeId: string) => {
+    try {
+      const { data: officeData, error: officeError } = await module1
+        .from('office')
+        .select('*')
+        .eq('id', officeId)
+        .maybeSingle();
+
+      if (officeError || !officeData) return;
+
+      const { data: windowsData } = await module1
+        .from('window')
+        .select('*')
+        .eq('office', officeId);
+
+      const officeWithWindows: Office = {
+        ...officeData,
+        windows: windowsData || [],
+      };
+
+      // Merge into existing offices list (replace if already present, else append)
+      set((state) => {
+        const others = state.offices.filter((o) => o.id !== officeId);
+        return { offices: [...others, officeWithWindows] };
+      });
+    } catch {
+      // silently ignore — existing offices list is unaffected
     }
   },
 

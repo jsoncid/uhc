@@ -178,6 +178,8 @@ export const useOfficeUserAssignmentStore = create<OfficeUserAssignmentState>((s
         .eq('user', userId)
         .limit(1);
 
+      console.log('[fetchMyAssignment] userId:', userId, '| data:', data, '| error:', error);
+
       if (error) {
         console.warn('Failed to fetch my assignment:', error);
         set({ myAssignment: null, myAssignmentLoaded: true });
