@@ -8,7 +8,6 @@ import { usePermissions } from 'src/context/PermissionsContext';
 import { AMLogo, AMMenu, AMMenuItem, AMSidebar, AMSubmenu } from 'tailwind-sidebar';
 import 'tailwind-sidebar/styles.css';
 
-
 interface SidebarItemType {
   heading?: string;
   id?: number | string;
@@ -94,7 +93,15 @@ const renderSidebarItems = (
   });
 };
 
-const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
+const SidebarLayout = ({
+  onClose,
+  isOpen = true,
+  onToggle,
+}: {
+  onClose?: () => void;
+  isOpen?: boolean;
+  onToggle?: () => void;
+}) => {
   const location = useLocation();
   const pathname = location.pathname;
   const { theme } = useTheme();
@@ -105,21 +112,19 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
 
   // Filter children within each section by their page-level module tag.
   // A section heading is hidden entirely if none of its children are accessible.
-  const visibleSections = SidebarContent
-    .map((section) => {
-      if (!section.children || section.children.length === 0) return section;
+  const visibleSections = SidebarContent.map((section) => {
+    if (!section.children || section.children.length === 0) return section;
 
-      const visibleChildren = section.children.filter((child) => {
-        if (!child.module) return true; // no tag → always visible
-        return checkAccess(child.module, 'select');
-      });
+    const visibleChildren = section.children.filter((child) => {
+      if (!child.module) return true; // no tag → always visible
+      return checkAccess(child.module, 'select');
+    });
 
-      // Hide entire section if no children pass the filter
-      if (visibleChildren.length === 0) return null;
+    // Hide entire section if no children pass the filter
+    if (visibleChildren.length === 0) return null;
 
-      return { ...section, children: visibleChildren };
-    })
-    .filter(Boolean) as typeof SidebarContent;
+    return { ...section, children: visibleChildren };
+  }).filter(Boolean) as typeof SidebarContent;
 
   return (
     <AMSidebar
@@ -131,7 +136,9 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
       mode={sidebarMode}
       themeColor="#2eb85c"
       themeSecondaryColor="#ffd34a"
-      className="fixed left-0 top-0 border border-border dark:border-border bg-sidebar dark:bg-sidebar z-10 h-screen"
+      className={`fixed left-0 top-0 border border-border dark:border-border bg-sidebar dark:bg-sidebar z-10 h-screen transition-transform duration-300 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
     >
       {/* Logo */}
       <div className="px-6 flex items-center brand-logo overflow-hidden">
