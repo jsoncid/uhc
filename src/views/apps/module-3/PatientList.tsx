@@ -32,10 +32,21 @@ import {
   Info,
   LinkIcon,
 } from 'lucide-react';
+import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import patientService, { PatientProfile, PatientHistory } from 'src/services/patientService';
 import { getFacilityName } from 'src/utils/facilityMapping';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientInfoCard from './components/PatientInfoCard';
+
+/* ------------------------------------------------------------------ */
+/*  Constants                                                          */
+/* ------------------------------------------------------------------ */
+
+const BCrumb = [
+  { to: '/', title: 'Home' },
+  { title: 'Module 3 - Patient Repository' },
+  { title: 'Patient List' },
+];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -43,13 +54,13 @@ import PatientInfoCard from './components/PatientInfoCard';
 
 const PatientList = () => {
   const navigate = useNavigate();
-  
+
   // State
   const [patients, setPatients] = useState<PatientProfile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -126,10 +137,10 @@ const PatientList = () => {
 
   const handleSelectPatient = async (patient: any) => {
     setSelectedPatient(patient);
-    
+
     // Check if patient is linked (has hpercode from patient_repository)
     const hpercode = patient.patient_repository?.[0]?.hpercode;
-    
+
     if (hpercode) {
       await loadPatientHistory(hpercode);
     } else {
@@ -179,10 +190,10 @@ const PatientList = () => {
     const sexUpper = sex.toUpperCase();
     const isMale = sexUpper === 'M' || sexUpper === 'MALE';
     const isFemale = sexUpper === 'F' || sexUpper === 'FEMALE';
-    
+
     return (
-      <Badge 
-        variant={isMale ? 'default' : isFemale ? 'secondary' : 'outline'} 
+      <Badge
+        variant={isMale ? 'default' : isFemale ? 'secondary' : 'outline'}
         className="text-xs font-medium"
       >
         {isMale ? 'male' : isFemale ? 'female' : sex}
@@ -197,12 +208,12 @@ const PatientList = () => {
       const city = patient.brgy.city_municipality.description || '';
       const province = patient.brgy.city_municipality.province?.description || '';
       const region = patient.brgy.city_municipality.province?.region?.description || '';
-      
+
       // Build location string from most specific to general
       const parts = [brgy, city, province, region].filter(Boolean);
       return parts.length > 0 ? parts.join(', ') : 'N/A';
     }
-    
+
     // Fallback to manual text fields
     const parts = [
       patient.brgy_name,
@@ -210,7 +221,7 @@ const PatientList = () => {
       patient.province_name,
       patient.region_name
     ].filter(Boolean);
-    
+
     return parts.length > 0 ? parts.join(', ') : 'N/A';
   };
 
@@ -222,7 +233,7 @@ const PatientList = () => {
 
   // Filtered history based on type filter
   const filteredHistory = patientHistory.filter(item => {
-    const matchesType = typeFilter === 'all' || 
+    const matchesType = typeFilter === 'all' ||
       (typeFilter === 'admission' && item.admdate && !item.disdate) ||
       (typeFilter === 'discharge' && item.disdate);
     return matchesType;
@@ -233,13 +244,13 @@ const PatientList = () => {
     const totalVisits = patientHistory.length;
     const admissions = patientHistory.filter(h => h.admdate && !h.disdate).length;
     const discharges = patientHistory.filter(h => h.disdate).length;
-    
-    const recentVisit = patientHistory.length > 0 
+
+    const recentVisit = patientHistory.length > 0
       ? patientHistory.sort((a, b) => {
-          const dateA = new Date(a.encounter_date || a.admdate || '');
-          const dateB = new Date(b.encounter_date || b.admdate || '');
-          return dateB.getTime() - dateA.getTime();
-        })[0]
+        const dateA = new Date(a.encounter_date || a.admdate || '');
+        const dateB = new Date(b.encounter_date || b.admdate || '');
+        return dateB.getTime() - dateA.getTime();
+      })[0]
       : null;
 
     return {
@@ -279,6 +290,7 @@ const PatientList = () => {
 
   return (
     <div className="space-y-6">
+      <BreadcrumbComp items={BCrumb} title="Patient List" />
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
@@ -312,8 +324,8 @@ const PatientList = () => {
                 className="pl-11 h-11 text-base"
               />
             </div>
-            <Button 
-              onClick={handleSearch} 
+            <Button
+              onClick={handleSearch}
               disabled={isSearching}
               size="lg"
               className="px-6"
@@ -331,8 +343,8 @@ const PatientList = () => {
               )}
             </Button>
             {searchTerm && (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={handleReset}
                 size="lg"
                 className="px-6"
@@ -414,11 +426,10 @@ const PatientList = () => {
                   </TableHeader>
                   <TableBody>
                     {patients.map((patient, index) => (
-                      <TableRow 
+                      <TableRow
                         key={patient.id}
-                        className={`cursor-pointer hover:bg-muted/50 transition-all duration-200 group border-b ${
-                          selectedPatient?.id === patient.id ? 'bg-primary/10 hover:bg-primary/15' : ''
-                        }`}
+                        className={`cursor-pointer hover:bg-muted/50 transition-all duration-200 group border-b ${selectedPatient?.id === patient.id ? 'bg-primary/10 hover:bg-primary/15' : ''
+                          }`}
                         onClick={() => handleSelectPatient(patient)}
                       >
                         <TableCell className="py-4">

@@ -23,6 +23,7 @@ import {
   Trash2,
   Plus,
 } from 'lucide-react';
+import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
 import PatientSearchPanel, { PatientSearchResultProfile } from './components/PatientSearchPanel';
 import PatientInfoCard from './components/PatientInfoCard';
@@ -44,6 +45,12 @@ const FACILITY_NAME_BY_CODE: Record<string, string> = {
   '0005027': 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL',
   '0005028': 'NASIPIT DISTRICT HOSPITAL',
 };
+
+const BCrumb = [
+  { to: '/', title: 'Home' },
+  { title: 'Module 3 - Patient Repository' },
+  { title: 'Patient Tagging' },
+];
 
 const PatientTagging = () => {
   // Active tab
@@ -212,18 +219,18 @@ const PatientTagging = () => {
             (repo: any) => repo.hpercode != null && (repo.status === true || repo.status === null || repo.status === undefined)
           );
           if (!activeRepos || activeRepos.length === 0) return false;
-          
+
           // Search in name
           const firstName = patient.first_name?.toLowerCase() || '';
           const middleName = patient.middle_name?.toLowerCase() || '';
           const lastName = patient.last_name?.toLowerCase() || '';
           const fullName = `${firstName} ${middleName} ${lastName}`.trim();
-          
+
           // Search in any hpercode
           const hpercodeMatch = activeRepos.some(
             (repo: any) => repo.hpercode?.toLowerCase().includes(searchLower)
           );
-          
+
           return fullName.includes(searchLower) || hpercodeMatch;
         }).map((patient: any) => ({
           ...patient,
@@ -376,6 +383,7 @@ const PatientTagging = () => {
 
   return (
     <div className="space-y-6">
+      <BreadcrumbComp items={BCrumb} title="Patient Tagging" />
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
@@ -418,7 +426,7 @@ const PatientTagging = () => {
           </Alert>
 
           {/* How it Works */}
-          <Card className="border-muted">
+          <Card className="border-2">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Info className="h-4 w-4" />
@@ -531,7 +539,7 @@ const PatientTagging = () => {
                     {supabaseSearchResults.map((patient) => (
                       <Card
                         key={patient.id}
-                        className="border-amber-200 bg-amber-50/50 border transition-all hover:shadow-md"
+                        className="border-2 bg-card transition-all hover:shadow-md"
                       >
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-3">
@@ -698,7 +706,7 @@ const PatientTagging = () => {
                     {linkedPatients.map((patient) => (
                       <Card
                         key={patient.id}
-                        className="border-green-200 bg-green-50/50 border-2 transition-all hover:shadow-md"
+                        className="border-2 bg-card transition-all hover:shadow-md"
                       >
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-3">

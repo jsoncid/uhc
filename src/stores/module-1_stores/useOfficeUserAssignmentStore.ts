@@ -33,8 +33,10 @@ export interface OfficeUserAssignment {
   created_at: string;
   user: string;
   office: string;
+  window?: string | null;
   user_email?: string;
   office_description?: string;
+  window_description?: string;
 }
 
 export interface UserForAssignment {
@@ -45,13 +47,16 @@ export interface UserForAssignment {
 interface OfficeUserAssignmentState {
   assignments: OfficeUserAssignment[];
   usersInAssignment: UserForAssignment[];
+  myAssignment: OfficeUserAssignment | null;
+  myAssignmentLoaded: boolean;
   isLoading: boolean;
   error: string | null;
 
   fetchOfficeUserAssignments: (assignmentId: string) => Promise<void>;
   fetchUsersInAssignment: (assignmentId: string) => Promise<void>;
-  assignUserToOffice: (userId: string, officeId: string) => Promise<void>;
-  updateUserOfficeAssignment: (assignmentId: string, newOfficeId: string) => Promise<void>;
+  fetchMyAssignment: (userId: string) => Promise<void>;
+  assignUserToOffice: (userId: string, officeId: string, windowId?: string | null) => Promise<void>;
+  updateUserOfficeAssignment: (assignmentId: string, newOfficeId: string, newWindowId?: string | null) => Promise<void>;
   removeUserFromOffice: (assignmentId: string) => Promise<void>;
   clearError: () => void;
 }
@@ -59,6 +64,8 @@ interface OfficeUserAssignmentState {
 export const useOfficeUserAssignmentStore = create<OfficeUserAssignmentState>((set, get) => ({
   assignments: [],
   usersInAssignment: [],
+  myAssignment: null,
+  myAssignmentLoaded: false,
   isLoading: false,
   error: null,
 
@@ -98,11 +105,25 @@ export const useOfficeUserAssignmentStore = create<OfficeUserAssignmentState>((s
       const userIds = [...new Set(assignmentsData.map((a) => a.user))];
       const emailMap = await getUserEmailsByIds(userIds);
 
-      // Enrich assignments with user emails and office descriptions
+      // Collect unique window IDs and fetch their descriptions
+      const windowIds = [...new Set(assignmentsData.map((a) => a.window).filter(Boolean))] as string[];
+      let windowDescMap = new Map<string, string>();
+      if (windowIds.length > 0) {
+        const { data: windowsData } = await module1
+          .from('window')
+          .select('id, description')
+          .in('id', windowIds);
+        (windowsData || []).forEach((w) => {
+          windowDescMap.set(w.id, w.description || 'Unnamed Window');
+        });
+      }
+
+      // Enrich assignments with user emails, office descriptions, and window descriptions
       const enrichedAssignments: OfficeUserAssignment[] = assignmentsData.map((assignment) => ({
         ...assignment,
         user_email: emailMap.get(assignment.user) || 'Unknown',
         office_description: offices.find((o) => o.id === assignment.office)?.description || 'Unnamed Office',
+        window_description: assignment.window ? (windowDescMap.get(assignment.window) || 'Unnamed Window') : undefined,
       }));
 
       set({ assignments: enrichedAssignments, isLoading: false });
@@ -149,7 +170,42 @@ export const useOfficeUserAssignmentStore = create<OfficeUserAssignmentState>((s
     }
   },
 
-  assignUserToOffice: async (userId: string, officeId: string) => {
+  fetchMyAssignment: async (userId: string) => {
+    try {
+      const { data, error } = await module1
+        .from('office_user_assignment')
+        .select('*')
+        .eq('user', userId)
+        .limit(1);
+
+      if (error) {
+        console.warn('Failed to fetch my assignment:', error);
+        set({ myAssignment: null, myAssignmentLoaded: true });
+        return;
+      }
+
+      const row = data?.[0] ?? null;
+
+      if (row?.window) {
+        const { data: winData } = await module1
+          .from('window')
+          .select('description')
+          .eq('id', row.window)
+          .maybeSingle();
+
+        if (winData) {
+          row.window_description = winData.description || 'Unnamed Window';
+        }
+      }
+
+      set({ myAssignment: row, myAssignmentLoaded: true });
+    } catch (err) {
+      console.warn('Error fetching my assignment:', err);
+      set({ myAssignment: null, myAssignmentLoaded: true });
+    }
+  },
+
+  assignUserToOffice: async (userId: string, officeId: string, windowId?: string | null) => {
     set({ isLoading: true, error: null });
     try {
       // Check if assignment already exists
@@ -171,6 +227,7 @@ export const useOfficeUserAssignmentStore = create<OfficeUserAssignmentState>((s
         .insert({
           user: userId,
           office: officeId,
+          window: windowId || null,
         });
 
       if (insertError) throw insertError;
@@ -185,7 +242,7 @@ export const useOfficeUserAssignmentStore = create<OfficeUserAssignmentState>((s
     }
   },
 
-  updateUserOfficeAssignment: async (assignmentId: string, newOfficeId: string) => {
+  updateUserOfficeAssignment: async (assignmentId: string, newOfficeId: string, newWindowId?: string | null) => {
     set({ isLoading: true, error: null });
     try {
       // Get the current assignment to check the user
@@ -194,24 +251,31 @@ export const useOfficeUserAssignmentStore = create<OfficeUserAssignmentState>((s
         throw new Error('Assignment not found');
       }
 
-      // Check if user is already assigned to the new office
-      const { data: existing, error: checkError } = await module1
-        .from('office_user_assignment')
-        .select('id')
-        .eq('user', currentAssignment.user)
-        .eq('office', newOfficeId)
-        .neq('id', assignmentId)
-        .maybeSingle();
+      // Check if user is already assigned to the new office (only when office changes)
+      if (newOfficeId !== currentAssignment.office) {
+        const { data: existing, error: checkError } = await module1
+          .from('office_user_assignment')
+          .select('id')
+          .eq('user', currentAssignment.user)
+          .eq('office', newOfficeId)
+          .neq('id', assignmentId)
+          .maybeSingle();
 
-      if (checkError) throw checkError;
+        if (checkError) throw checkError;
 
-      if (existing) {
-        throw new Error('User is already assigned to this office');
+        if (existing) {
+          throw new Error('User is already assigned to this office');
+        }
+      }
+
+      const updatePayload: Record<string, unknown> = { office: newOfficeId };
+      if (newWindowId !== undefined) {
+        updatePayload.window = newWindowId || null;
       }
 
       const { error: updateError } = await module1
         .from('office_user_assignment')
-        .update({ office: newOfficeId })
+        .update(updatePayload)
         .eq('id', assignmentId);
 
       if (updateError) throw updateError;

@@ -42,12 +42,7 @@ import {
   Users,
   Server,
 } from 'lucide-react';
-import patientService, {
-  PatientProfileWithLocations as APIPatientProfile,
-  Facility,
-  HealthResponse,
-} from 'src/services/patientService';
-import { mapFacilityList } from './utils/facilityHelpers';
+import patientService, { PatientProfileWithLocations as APIPatientProfile, Facility } from 'src/services/patientService';
 import psgcService, { PSGCRegion, PSGCEntity } from 'src/services/psgcService';
 import {
   getPatientSearchBuckets,
@@ -57,10 +52,11 @@ import {
 } from './utils/patientSearchResultHelpers';
 
 /* ------------------------------------------------------------------ */
-/*  Constants                                                          */
-/* ------------------------------------------------------------------ */
-
-
+const BCrumb = [
+  { to: '/', title: 'Home' },
+  { title: 'Module 3 - Patient Repository' },
+  { title: 'Patient Profiling' },
+];
 
 interface PatientProfile {
   id: string;
@@ -649,6 +645,7 @@ const PatientProfiling = () => {
 
   return (
     <>
+      <BreadcrumbComp items={BCrumb} title="Patient Profiling" />
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
