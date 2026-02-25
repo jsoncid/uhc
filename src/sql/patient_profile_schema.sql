@@ -109,6 +109,12 @@ CREATE TABLE IF NOT EXISTS module3.patient_profile (
     sex VARCHAR(20) NOT NULL,
     birth_date DATE NOT NULL,
     brgy UUID REFERENCES module3.brgy(id),
+    street VARCHAR(500),
+    brgy_name VARCHAR(255),
+    city_name VARCHAR(255),
+    province_name VARCHAR(255),
+    region_name VARCHAR(255),
+    zip_code VARCHAR(20),
     CONSTRAINT patient_profile_sex_check CHECK (sex IN ('male', 'female', 'other', 'unknown'))
 );
 
@@ -167,13 +173,15 @@ CREATE TABLE IF NOT EXISTS module3.patient_repository (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     patient_profile UUID REFERENCES module3.patient_profile(id) ON DELETE CASCADE,
     facility_code VARCHAR(255),
-    hpercode VARCHAR(255)
+    hpercode VARCHAR(255),
+    status BOOLEAN DEFAULT TRUE
 );
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_patient_repository_patient_profile ON module3.patient_repository(patient_profile);
 CREATE INDEX IF NOT EXISTS idx_patient_repository_hpercode ON module3.patient_repository(hpercode);
 CREATE INDEX IF NOT EXISTS idx_patient_repository_facility ON module3.patient_repository(facility_code);
+CREATE INDEX IF NOT EXISTS idx_patient_repository_status ON module3.patient_repository(status);
 
 -- Enable RLS
 ALTER TABLE module3.patient_repository ENABLE ROW LEVEL SECURITY;

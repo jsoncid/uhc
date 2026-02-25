@@ -1,5 +1,4 @@
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
@@ -42,17 +41,14 @@ import {
   Loader2,
   Users,
 } from 'lucide-react';
-import patientService, { PatientProfile as APIPatientProfile, Facility } from 'src/services/patientService';
+import patientService, { PatientProfileWithLocations as APIPatientProfile, Facility } from 'src/services/patientService';
+import psgcService, { PSGCRegion, PSGCEntity } from 'src/services/psgcService';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient Profiling' },
-];
+
 
 interface PatientProfile {
   id: string;
@@ -63,15 +59,17 @@ interface PatientProfile {
   ext_name: string;
   sex: string;
   birth_date: string;
-  brgy: string;
-  brgy_name?: string;
+  // Fully relational location structure - uses only foreign keys
+  brgy: string; // UUID foreign key
+  city_municipality?: string; // UUID foreign key
+  province?: string; // UUID foreign key
+  region?: string; // UUID foreign key
   street?: string;
-  city_code?: string;
+  // Display fields for location names (used in form, sent to service for lookup)
+  brgy_name?: string;
   city_name?: string;
-  province_code?: string;
   province_name?: string;
   region_name?: string;
-  zip_code?: string;
   // Repository fields (from MySQL)
   hpercode?: string;
   facility_code?: string;
@@ -87,14 +85,14 @@ const INITIAL_PROFILE: PatientProfile = {
   sex: '',
   birth_date: '',
   brgy: '',
-  brgy_name: '',
+  city_municipality: '',
+  province: '',
+  region: '',
   street: '',
-  city_code: '',
+  brgy_name: '',
   city_name: '',
-  province_code: '',
   province_name: '',
   region_name: '',
-  zip_code: '',
   hpercode: '',
   facility_code: '',
 };
@@ -207,23 +205,72 @@ const PatientProfiling = () => {
   const [patient, setPatient] = useState<PatientProfile>({ ...INITIAL_PROFILE });
   const [isRepositoryModalOpen, setIsRepositoryModalOpen] = useState(false);
   const [modalFacilityId, setModalFacilityId] = useState('');
+  const [modalFacilityDatabase, setModalFacilityDatabase] = useState(''); // Track selected facility's database
   const [modalSearchName, setModalSearchName] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('success');
   const [isSaving, setIsSaving] = useState(false);
   const [modalStep, setModalStep] = useState<1 | 2 | 3>(1);
-  
+
   // Search state
   const [searchResults, setSearchResults] = useState<APIPatientProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(null);
-  
+
   // Facilities state - loaded from MySQL database
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
+  const [facilityLoadError, setFacilityLoadError] = useState<string | null>(null);
+
+  // PSGC State
+  const [regions, setRegions] = useState<PSGCRegion[]>([]);
+  const [provinces, setProvinces] = useState<PSGCEntity[]>([]);
+  const [cities, setCities] = useState<PSGCEntity[]>([]);
+  const [barangays, setBarangays] = useState<PSGCEntity[]>([]);
+
+  const [selectedRegionCode, setSelectedRegionCode] = useState('');
+  const [selectedProvinceCode, setSelectedProvinceCode] = useState('');
+  const [selectedCityCode, setSelectedCityCode] = useState('');
+  const [selectedBrgyCode, setSelectedBrgyCode] = useState('');
+
+  const [isLoadingRegions, setIsLoadingRegions] = useState(false);
+  const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
+  const [isLoadingCities, setIsLoadingCities] = useState(false);
+  const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
 
   const completion = useProfileCompletion(patient);
+
+  // The only 2 supported facilities for patient linking/history
+  const SUPPORTED_FACILITIES: Facility[] = [
+    {
+      facility_code: '0005027',
+      facility_name: 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL',
+      patient_count: 17468,
+      database: 'adnph_ihomis_plus',
+    },
+    {
+      facility_code: '0005028',
+      facility_name: 'NASIPIT DISTRICT HOSPITAL',
+      patient_count: 17468,
+      database: 'ndh_ihomis_plus',
+    },
+  ];
+
+  const loadFacilities = async () => {
+    setIsLoadingFacilities(true);
+    setFacilityLoadError(null);
+    try {
+      // Use only the 2 supported facilities instead of loading all
+      setFacilities(SUPPORTED_FACILITIES);
+    } catch (error) {
+      console.warn(`Failed to load facilities:`, error);
+      setFacilities([]);
+      setFacilityLoadError('Failed to load facilities');
+    } finally {
+      setIsLoadingFacilities(false);
+    }
+  };
 
   // Check backend connection and load facilities on mount
   useEffect(() => {
@@ -233,22 +280,6 @@ const PatientProfiling = () => {
         const health = await patientService.checkHealth();
         const connected = health.status === 'ok' && health.databases?.mysql === 'connected';
         setIsBackendConnected(connected);
-        
-        // Try to load facilities if connected (non-blocking)
-        if (connected) {
-          setIsLoadingFacilities(true);
-          try {
-            const result = await patientService.getFacilities();
-            if (result.success && result.data) {
-              setFacilities(result.data);
-            }
-          } catch (error) {
-            console.warn('Failed to load facilities, but continuing:', error);
-            // Don't block the UI if facilities fail to load
-          } finally {
-            setIsLoadingFacilities(false);
-          }
-        }
       } catch (error) {
         console.error('Initialization error:', error);
         setIsBackendConnected(false);
@@ -256,6 +287,147 @@ const PatientProfiling = () => {
     };
     initialize();
   }, []);
+
+  // Use effect to load regions
+  useEffect(() => {
+    const loadRegions = async () => {
+      setIsLoadingRegions(true);
+      try {
+        const data = await psgcService.getRegions();
+        // Sort regions by name or as they come
+        setRegions(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (error) {
+        console.error('Failed to load regions:', error);
+      } finally {
+        setIsLoadingRegions(false);
+      }
+    };
+    loadRegions();
+  }, []);
+
+  // Use effect to load provinces when region changes
+  useEffect(() => {
+    if (!selectedRegionCode) {
+      setProvinces([]);
+      return;
+    }
+
+    const loadProvinces = async () => {
+      setIsLoadingProvinces(true);
+      try {
+        // First, check for provinces
+        const provData = await psgcService.getProvinces(selectedRegionCode);
+
+        // Some areas (like NCR) don't have provinces but have cities directly
+        if (provData.length === 0) {
+          setProvinces([]);
+          // If no provinces, try loading cities directly for this region
+          const cityData = await psgcService.getCitiesByRegion(selectedRegionCode);
+          setCities(cityData.sort((a, b) => a.name.localeCompare(b.name)));
+          setSelectedProvinceCode(''); // Signal no province
+        } else {
+          setProvinces(provData.sort((a, b) => a.name.localeCompare(b.name)));
+        }
+      } catch (error) {
+        console.error('Failed to load provinces:', error);
+      } finally {
+        setIsLoadingProvinces(false);
+      }
+    };
+    loadProvinces();
+  }, [selectedRegionCode]);
+
+  // Use effect to load cities when province changes
+  useEffect(() => {
+    if (!selectedProvinceCode) {
+      // If region is selected but no province, cities might have been loaded by region effect
+      // But if province was selected and then cleared, we might want to clear cities
+      // However, NCR case handles it differently.
+      return;
+    }
+
+    const loadCities = async () => {
+      setIsLoadingCities(true);
+      try {
+        const data = await psgcService.getCities(selectedProvinceCode);
+        setCities(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (error) {
+        console.error('Failed to load cities:', error);
+      } finally {
+        setIsLoadingCities(false);
+      }
+    };
+    loadCities();
+  }, [selectedProvinceCode]);
+
+  // Use effect to load barangays when city changes
+  useEffect(() => {
+    if (!selectedCityCode) {
+      setBarangays([]);
+      return;
+    }
+
+    const loadBarangays = async () => {
+      setIsLoadingBarangays(true);
+      try {
+        const data = await psgcService.getBarangays(selectedCityCode);
+        setBarangays(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (error) {
+        console.error('Failed to load barangays:', error);
+      } finally {
+        setIsLoadingBarangays(false);
+      }
+    };
+    loadBarangays();
+  }, [selectedCityCode]);
+
+  const handleRegionChange = (value: string) => {
+    setSelectedRegionCode(value);
+    setSelectedProvinceCode('');
+    setSelectedCityCode('');
+
+    const regionName = regions.find(r => r.code === value)?.name || '';
+    setPatient(prev => ({
+      ...prev,
+      region_name: regionName,
+      province_name: '',
+      city_name: '',
+      brgy_name: ''
+    }));
+  };
+
+  const handleProvinceChange = (value: string) => {
+    setSelectedProvinceCode(value);
+    setSelectedCityCode('');
+
+    const provinceName = provinces.find(p => p.code === value)?.name || '';
+    setPatient(prev => ({
+      ...prev,
+      province_name: provinceName,
+      city_name: '',
+      brgy_name: ''
+    }));
+  };
+
+  const handleCityChange = (value: string) => {
+    setSelectedCityCode(value);
+
+    const cityName = cities.find(c => c.code === value)?.name || '';
+    setPatient(prev => ({
+      ...prev,
+      city_name: cityName,
+      brgy_name: ''
+    }));
+  };
+
+  const handleBrgyChange = (value: string) => {
+    setSelectedBrgyCode(value);
+    const brgyName = barangays.find(b => b.code === value)?.name || '';
+    setPatient(prev => ({
+      ...prev,
+      brgy_name: brgyName
+    }));
+  };
 
   const handleInputChange =
     (key: keyof PatientProfile) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -271,6 +443,10 @@ const PatientProfiling = () => {
   const handleReset = () => {
     setPatient({ ...INITIAL_PROFILE });
     setStatusMessage(null);
+    setSelectedRegionCode('');
+    setSelectedProvinceCode('');
+    setSelectedCityCode('');
+    setSelectedBrgyCode('');
   };
 
   const handleSave = async () => {
@@ -283,30 +459,16 @@ const PatientProfiling = () => {
 
     setIsSaving(true);
     setStatusMessage(null);
-    
+
     try {
       // Save patient data to Supabase (location fields are used to find/create brgy UUID)
       const result = await patientService.saveToSupabase(patient);
-      
+
       if (result.success) {
-        setStatusMessage(result.message || 'Patient profile saved successfully to Supabase');
+        // Clear inputs first, then show success message (handleReset clears statusMessage)
+        handleReset();
+        setStatusMessage(result.message || 'Patient profile saved successfully!');
         setStatusType('success');
-        
-        // Update the patient state with the saved data while preserving location display fields
-        if (result.data) {
-          setPatient({
-            ...patient, // Keep all existing fields including location data
-            id: result.data.id,
-            created_at: result.data.created_at,
-            first_name: result.data.first_name,
-            middle_name: result.data.middle_name || '',
-            last_name: result.data.last_name,
-            ext_name: result.data.ext_name || '',
-            sex: result.data.sex,
-            birth_date: result.data.birth_date,
-            brgy: result.data.brgy || patient.brgy,
-          });
-        }
       } else {
         setStatusMessage(result.message || 'Failed to save patient profile');
         setStatusType('error');
@@ -325,9 +487,13 @@ const PatientProfiling = () => {
   const openModal = () => {
     setModalStep(1);
     setModalFacilityId('');
+    setModalFacilityDatabase('');
     setModalSearchName('');
     setSearchResults([]);
     setSearchError(null);
+    setFacilities([]);
+    setFacilityLoadError(null);
+    void loadFacilities();
     setIsRepositoryModalOpen(true);
   };
 
@@ -338,26 +504,60 @@ const PatientProfiling = () => {
       return;
     }
 
+    if (!modalFacilityDatabase) {
+      setSearchError('Please select a facility first');
+      return;
+    }
+
     setIsSearching(true);
     setSearchError(null);
     setSearchResults([]);
 
-    const result = await patientService.searchPatients(modalSearchName.trim(), {
-      facility: modalFacilityId || undefined,
-      limit: 50,
+    console.log('Searching with:', {
+      name: modalSearchName.trim(),
+      database: modalFacilityDatabase,
     });
 
-    setIsSearching(false);
+    try {
+      // Use the database from the selected facility
+      // Note: Don't filter by facility_code as it may not match across databases
+      const result = await patientService.searchPatients(modalSearchName.trim(), {
+        database: modalFacilityDatabase,
+        limit: 50,
+      });
 
-    if (result.success) {
-      setSearchResults(result.data);
-      if (result.data.length === 0) {
-        setSearchError('No patients found matching your search criteria');
+      console.log('Search result:', result);
+
+      setIsSearching(false);
+
+      if (result.success) {
+        // Backend returns database1 and database2 structure
+        // Extract data based on selected database
+        let patients: APIPatientProfile[] = [];
+
+        if (result.database1 && modalFacilityDatabase === result.database1.name) {
+          patients = result.database1.data;
+        } else if (result.database2 && modalFacilityDatabase === result.database2.name) {
+          patients = result.database2.data;
+        } else if (result.data) {
+          // Fallback: if backend returns old structure with flat data array
+          patients = result.data;
+        }
+
+        setSearchResults(patients);
+
+        if (patients.length === 0) {
+          setSearchError('No patients found matching your search criteria');
+        } else {
+          setModalStep(3); // Move to results step
+        }
       } else {
-        setModalStep(3); // Move to results step
+        setSearchError(result.message || 'Failed to search patients');
       }
-    } else {
-      setSearchError(result.message || 'Failed to search patients');
+    } catch (error) {
+      console.error('Search error:', error);
+      setIsSearching(false);
+      setSearchError(error instanceof Error ? error.message : 'Failed to search patients');
     }
   };
 
@@ -373,14 +573,14 @@ const PatientProfiling = () => {
       sex: selectedPatient.sex || '',
       birth_date: selectedPatient.birth_date || '',
       brgy: selectedPatient.brgy || '',
-      brgy_name: selectedPatient.brgy_name || '',
+      city_municipality: selectedPatient.city_municipality || '',
+      province: selectedPatient.province || '',
+      region: selectedPatient.region || '',
       street: selectedPatient.street || '',
-      city_code: selectedPatient.city_code || '',
+      brgy_name: selectedPatient.brgy_name || '',
       city_name: selectedPatient.city_name || '',
-      province_code: selectedPatient.province_code || '',
       province_name: selectedPatient.province_name || '',
       region_name: selectedPatient.region_name || '',
-      zip_code: selectedPatient.zip_code || '',
       // Store repository data from MySQL
       hpercode: selectedPatient.hpercode || '',
       facility_code: selectedPatient.facility_code || modalFacilityId,
@@ -392,14 +592,34 @@ const PatientProfiling = () => {
     setModalStep(1);
     setSearchResults([]);
     setModalSearchName('');
+
+    // Reset PSGC codes as we don't have codes for repository patients yet
+    setSelectedRegionCode('');
+    setSelectedProvinceCode('');
+    setSelectedCityCode('');
+    setSelectedBrgyCode('');
   };
 
   // Find selected facility from loaded facilities
-  const selectedFacility = facilities.find((f) => f.facility_code === modalFacilityId);
+  const selectedFacility = facilities.find(
+    (f) => f.facility_code === modalFacilityId && f.database === modalFacilityDatabase
+  );
 
   return (
     <>
-      <BreadcrumbComp title="Patient Profiling" items={BCrumb} />
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Users className="h-7 w-7 text-primary" />
+            </div>
+            Patient Profiling
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Create and update detailed patient profiles, including personal information, demographics, and contact details.
+          </p>
+        </div>
+      </div>
 
       {/* ── Top Action Bar ── */}
       <CardBox className="p-4 mb-4">
@@ -441,11 +661,10 @@ const PatientProfiling = () => {
             </div>
 
             {statusMessage && (
-              <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
-                statusType === 'success' ? 'bg-lightsuccess text-success' :
+              <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${statusType === 'success' ? 'bg-lightsuccess text-success' :
                 statusType === 'error' ? 'bg-lighterror text-error' :
-                'bg-lightinfo text-info'
-              }`}>
+                  'bg-lightinfo text-info'
+                }`}>
                 {statusType === 'success' ? (
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                 ) : statusType === 'error' ? (
@@ -456,11 +675,10 @@ const PatientProfiling = () => {
                 <span className="text-sm font-medium">{statusMessage}</span>
                 <button
                   onClick={() => setStatusMessage(null)}
-                  className={`ml-1 rounded-full p-0.5 transition-colors ${
-                    statusType === 'success' ? 'hover:bg-success/10' :
+                  className={`ml-1 rounded-full p-0.5 transition-colors ${statusType === 'success' ? 'hover:bg-success/10' :
                     statusType === 'error' ? 'hover:bg-error/10' :
-                    'hover:bg-info/10'
-                  }`}
+                      'hover:bg-info/10'
+                    }`}
                   title="Dismiss"
                   aria-label="Dismiss notification"
                 >
@@ -628,114 +846,99 @@ const PatientProfiling = () => {
           <SectionHeader
             icon={MapPin}
             title="Location"
-            description="Geographic assignment and barangay link."
+            description="Geographic assignment and barangay link using PSGC."
           />
           <Separator className="my-5" />
-          
+
+          {/* Region and Province */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <FormField label="Region" htmlFor="region" required>
+              <Select value={selectedRegionCode} onValueChange={handleRegionChange}>
+                <SelectTrigger id="region" className="w-full">
+                  <SelectValue placeholder={isLoadingRegions ? "Loading regions..." : "Select Region"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {regions.map((region) => (
+                    <SelectItem key={region.code} value={region.code}>
+                      {region.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Province" htmlFor="province">
+              <Select
+                value={selectedProvinceCode}
+                onValueChange={handleProvinceChange}
+                disabled={provinces.length === 0 && !isLoadingProvinces}
+              >
+                <SelectTrigger id="province" className="w-full">
+                  <SelectValue placeholder={isLoadingProvinces ? "Loading provinces..." : "Select Province"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {provinces.map((province) => (
+                    <SelectItem key={province.code} value={province.code}>
+                      {province.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          </div>
+
+          {/* City and Barangay */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <FormField label="City / Municipality" htmlFor="city" required>
+              <Select
+                value={selectedCityCode}
+                onValueChange={handleCityChange}
+                disabled={cities.length === 0 && !isLoadingCities}
+              >
+                <SelectTrigger id="city" className="w-full">
+                  <SelectValue placeholder={isLoadingCities ? "Loading cities..." : "Select City"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities.map((city) => (
+                    <SelectItem key={city.code} value={city.code}>
+                      {city.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Barangay" htmlFor="barangay" required>
+              <Select
+                value={selectedBrgyCode}
+                onValueChange={handleBrgyChange}
+                disabled={barangays.length === 0 && !isLoadingBarangays}
+              >
+                <SelectTrigger id="barangay" className="w-full">
+                  <SelectValue placeholder={isLoadingBarangays ? "Loading barangays..." : "Select Barangay"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {barangays.map((brgy) => (
+                    <SelectItem key={brgy.code} value={brgy.code}>
+                      {brgy.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          </div>
+
           {/* Street Address */}
-          {patient.street && (
-            <div className="mb-6">
-              <FormField label="Street Address" htmlFor="street">
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                  <Input
-                    id="street"
-                    value={patient.street || ''}
-                    readOnly
-                    className="pl-10 bg-muted/30"
-                  />
-                </div>
-              </FormField>
-            </div>
-          )}
-
-          {/* Barangay and City */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField
-              label="Barangay"
-              htmlFor="brgy_name"
-              hint="Barangay name from the database."
-            >
+          <div>
+            <FormField label="Street Address" htmlFor="street">
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                 <Input
-                  id="brgy_name"
-                  value={patient.brgy_name || ''}
-                  readOnly
-                  placeholder="Barangay name"
-                  className="pl-10 bg-muted/30"
-                />
-              </div>
-            </FormField>
-            <FormField
-              label="City / Municipality"
-              htmlFor="city_name"
-              hint="City or municipality name."
-            >
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="city_name"
-                  value={patient.city_name || ''}
-                  readOnly
-                  placeholder="City / Municipality"
-                  className="pl-10 bg-muted/30"
-                />
-              </div>
-            </FormField>
-          </div>
-
-          {/* Province and Region */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-            <FormField
-              label="Province"
-              htmlFor="province_name"
-              hint="Province name from the database."
-            >
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="province_name"
-                  value={patient.province_name || ''}
-                  readOnly
-                  placeholder="Province name"
-                  className="pl-10 bg-muted/30"
-                />
-              </div>
-            </FormField>
-            <FormField
-              label="Region"
-              htmlFor="region_name"
-              hint="Region name from the database."
-            >
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="region_name"
-                  value={patient.region_name || ''}
-                  readOnly
-                  placeholder="Region name"
-                  className="pl-10 bg-muted/30"
-                />
-              </div>
-            </FormField>
-          </div>
-
-          {/* ZIP Code */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-            <FormField
-              label="ZIP Code"
-              htmlFor="zip_code"
-              hint="Postal ZIP code."
-            >
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="zip_code"
-                  value={patient.zip_code || ''}
-                  readOnly
-                  placeholder="ZIP Code"
-                  className="pl-10 font-mono text-sm bg-muted/30"
+                  id="street"
+                  value={patient.street || ''}
+                  onChange={handleInputChange('street')}
+                  placeholder="e.g. 123 Main St., Building A"
+                  className="pl-10"
                 />
               </div>
             </FormField>
@@ -751,9 +954,12 @@ const PatientProfiling = () => {
           if (!open) {
             setModalStep(1);
             setModalFacilityId('');
+            setModalFacilityDatabase('');
             setModalSearchName('');
             setSearchResults([]);
             setSearchError(null);
+            setFacilities([]);
+            setFacilityLoadError(null);
           }
         }}
       >
@@ -775,35 +981,32 @@ const PatientProfiling = () => {
             </DialogHeader>
 
             {/* Step indicator */}
-            <div className="flex items-center gap-2 mt-5">
+            <div className="flex items-center gap-1.5 mt-5 overflow-x-auto">
               <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  modalStep >= 1
-                    ? 'bg-primary text-white'
-                    : 'bg-muted text-muted-foreground'
-                }`}
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${modalStep >= 1
+                  ? 'bg-primary text-white'
+                  : 'bg-muted text-muted-foreground'
+                  }`}
               >
                 <Building2 className="h-3.5 w-3.5" />
                 1. Facility
               </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  modalStep >= 2
-                    ? 'bg-primary text-white'
-                    : 'bg-muted text-muted-foreground'
-                }`}
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${modalStep >= 2
+                  ? 'bg-primary text-white'
+                  : 'bg-muted text-muted-foreground'
+                  }`}
               >
                 <Search className="h-3.5 w-3.5" />
                 2. Search
               </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  modalStep >= 3
-                    ? 'bg-primary text-white'
-                    : 'bg-muted text-muted-foreground'
-                }`}
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${modalStep >= 3
+                  ? 'bg-primary text-white'
+                  : 'bg-muted text-muted-foreground'
+                  }`}
               >
                 <Users className="h-3.5 w-3.5" />
                 3. Results
@@ -816,9 +1019,13 @@ const PatientProfiling = () => {
             {modalStep === 1 && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Choose the healthcare facility (database) to search from.
+                  Choose a healthcare facility to search patient records from.
                 </p>
-                
+
+                {facilityLoadError && (
+                  <p className="text-xs text-error">{facilityLoadError}</p>
+                )}
+
                 {isLoadingFacilities ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -829,33 +1036,43 @@ const PatientProfiling = () => {
                     <Database className="h-12 w-12 mx-auto mb-3 opacity-50" />
                     <p className="text-sm">No facilities found</p>
                     <p className="text-xs mt-1">
-                      {isBackendConnected === false 
-                        ? 'Backend server is offline' 
+                      {isBackendConnected === false
+                        ? 'Backend server is offline'
                         : 'Check database connection'}
                     </p>
                   </div>
                 ) : (
                   <div className="grid gap-2 max-h-[300px] overflow-y-auto pr-1">
                     {facilities.map((facility) => {
-                      const isSelected = modalFacilityId === facility.facility_code;
+                      const isSelected = modalFacilityId === facility.facility_code && modalFacilityDatabase === facility.database;
                       return (
                         <button
-                          key={facility.facility_code}
+                          key={`${facility.facility_code}-${facility.database}`}
                           type="button"
-                          onClick={() => setModalFacilityId(facility.facility_code)}
-                          className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-left transition-all ${
-                            isSelected
-                              ? 'border-primary bg-primary/5 shadow-sm'
-                              : 'border-border hover:border-primary/30 hover:bg-muted/50'
-                          }`}
+                          onClick={() => {
+                            setModalFacilityId(facility.facility_code);
+                            setModalFacilityDatabase(facility.database || '');
+                          }}
+                          className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-left transition-all ${isSelected
+                            ? 'border-primary bg-primary/5 shadow-sm'
+                            : 'border-border hover:border-primary/30 hover:bg-muted/50'
+                            }`}
                         >
-                          <span className="text-xl">{getFacilityIcon(facility.facility_type)}</span>
+                          <span className="text-xl">{getFacilityIcon(facility.facility_name)}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">
-                              {facility.facility_name}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {facility.facility_name}
+                              </p>
+                              <Badge
+                                variant={facility.database === 'adnph_ihomis_plus' ? 'secondary' : 'warning'}
+                                className="text-[9px] px-1.5 py-0 shrink-0"
+                              >
+                                {facility.database === 'adnph_ihomis_plus' ? 'Primary' : 'NDH'}
+                              </Badge>
+                            </div>
                             <p className="text-xs text-muted-foreground">
-                              {facility.facility_type} • {facility.patient_count.toLocaleString()} patients
+                              {facility.patient_count.toLocaleString()} patients
                             </p>
                           </div>
                           {isSelected && (
@@ -866,11 +1083,11 @@ const PatientProfiling = () => {
                     })}
                   </div>
                 )}
-                
+
                 <div className="flex justify-end pt-2">
                   <Button
                     onClick={() => setModalStep(2)}
-                    disabled={!modalFacilityId}
+                    disabled={!modalFacilityId || !modalFacilityDatabase}
                     className="gap-2"
                   >
                     Continue
@@ -884,22 +1101,24 @@ const PatientProfiling = () => {
             {modalStep === 2 && (
               <div className="space-y-4">
                 {/* Selected facility chip */}
-                {selectedFacility && (
-                  <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2">
-                    <span className="text-base">{getFacilityIcon(selectedFacility.facility_type)}</span>
-                    <span className="text-sm font-medium">{selectedFacility.facility_name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ({selectedFacility.patient_count.toLocaleString()} patients)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setModalStep(1)}
-                      className="ml-auto text-xs text-primary hover:underline"
-                    >
-                      Change
-                    </button>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  {selectedFacility && (
+                    <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2">
+                      <span className="text-base">{getFacilityIcon(selectedFacility.facility_name)}</span>
+                      <span className="text-sm font-medium">{selectedFacility.facility_name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({selectedFacility.patient_count.toLocaleString()} patients)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setModalStep(1)}
+                        className="ml-auto text-xs text-primary hover:underline"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <FormField
                   label="Search Patient Name"
@@ -940,8 +1159,9 @@ const PatientProfiling = () => {
                 <div className="flex items-start gap-2 rounded-lg bg-lightinfo px-3 py-2.5">
                   <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
                   <p className="text-xs text-info">
-                    Search the MySQL database (iHOMIS Plus) for existing patient records. 
-                    Matching records will be shown for selection.
+                    {selectedFacility
+                      ? `Search the ${selectedFacility.facility_name} repository for existing patient records.`
+                      : 'Search the selected facility repository for existing patient records.'}
                   </p>
                 </div>
 

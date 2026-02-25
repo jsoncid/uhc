@@ -1,9 +1,17 @@
 import { Badge } from 'src/components/ui/badge';
-import { Clock, FileText, Activity, ArrowRight, Stethoscope, Pill, UserCircle, Loader2, History as HistoryIcon } from 'lucide-react';
+import { Clock, FileText, Activity, ArrowRight, Stethoscope, Pill, UserCircle, Loader2, History as HistoryIcon, Building2 } from 'lucide-react';
 import { PatientHistory } from 'src/services/patientService';
 import { cn } from 'src/lib/utils';
 import { formatDateTime } from '../utils/dateFormatters';
 import { getAdmissionType, getRecordTypeIcon, getRecordTypeColor, getStatusBadge } from '../utils/patientHelpers';
+
+// Helper to get short facility name
+const getShortFacilityName = (facilityName?: string): string => {
+  if (!facilityName) return '';
+  if (facilityName.toLowerCase().includes('agusan') || facilityName === 'adnph_ihomis_plus') return 'ADNPH';
+  if (facilityName.toLowerCase().includes('nasipit') || facilityName === 'ndh_ihomis_plus') return 'NDH';
+  return facilityName.substring(0, 10);
+};
 
 interface PatientHistoryTimelineProps {
   history: PatientHistory[];
@@ -58,9 +66,18 @@ const PatientHistoryTimeline = ({ history, isLoading }: PatientHistoryTimelinePr
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1.5">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       <h4 className="font-bold text-base">{getAdmissionType(record)}</h4>
                       {getStatusBadge(record.admstat)}
+                      {record.source_facility_name && (
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs font-medium border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950 dark:text-blue-300"
+                        >
+                          <Building2 className="h-3 w-3 mr-1" />
+                          {getShortFacilityName(record.source_facility_name)}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Clock className="h-4 w-4" />

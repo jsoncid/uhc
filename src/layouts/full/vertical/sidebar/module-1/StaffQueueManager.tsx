@@ -1,11 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, Check, Loader2, ArrowRightLeft } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -15,8 +20,10 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
+import { supabase } from '@/lib/supabase';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
+import { useOfficeUserAssignmentStore } from '@/stores/module-1_stores/useOfficeUserAssignmentStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Staff Queue Manager' }];
@@ -27,7 +34,11 @@ const StaffQueueManager = () => {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
   const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
-  const [transferTargetWindow, setTransferTargetWindow] = useState<string>('none');
+  const [transferSuccess, setTransferSuccess] = useState<string>('');
+  // Tracks which sequenceId is currently being announced; Ping is disabled until it finishes
+  const [pingingId, setPingingId] = useState<string | null>(null);
+  // Channel ref for receiving ping-done callbacks from QueueDisplay
+  const pingDoneChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
@@ -38,10 +49,11 @@ const StaffQueueManager = () => {
     fetchStatuses,
     updateSequenceStatus,
     transferSequence,
-    isWindowAvailable,
+    callNextSequence,
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
+  const { myAssignment, myAssignmentLoaded, fetchMyAssignment } = useOfficeUserAssignmentStore();
 
   // Get assignment IDs from user profile
   const userAssignmentIds = useMemo(() => {
@@ -52,6 +64,23 @@ const StaffQueueManager = () => {
     fetchStatuses();
     fetchSequences();
   }, [fetchStatuses, fetchSequences]);
+
+  useEffect(() => {
+    // Subscribe to ping-done so we know when to re-enable the Ping button
+    const ch = supabase
+      .channel('queue-ping-done-listener')
+      .on('broadcast', { event: 'ping-done' }, ({ payload }) => {
+        setPingingId((curr) =>
+          curr === (payload.sequenceId as string) ? null : curr,
+        );
+      })
+      .subscribe();
+    pingDoneChannelRef.current = ch;
+    return () => {
+      supabase.removeChannel(ch);
+      pingDoneChannelRef.current = null;
+    };
+  }, []);
 
   // Fetch offices filtered by user's assignments
   useEffect(() => {
@@ -65,17 +94,23 @@ const StaffQueueManager = () => {
     return () => unsubscribe();
   }, [subscribeToSequences]);
 
+  // Fetch current user's office+window assignment
   useEffect(() => {
-    if (offices.length > 0 && !activeTab) {
-      setActiveTab(offices[0].id);
+    if (profile?.id) {
+      fetchMyAssignment(profile.id);
     }
-  }, [offices, activeTab]);
+  }, [profile?.id, fetchMyAssignment]);
 
-  // Default selected window to first active window per office
+  // Default selected window to first active window per office,
+  // but lock to assigned window when the user has one.
   useEffect(() => {
     setSelectedWindowByOffice((prev) => {
       const next = { ...prev };
       offices.forEach((office) => {
+        if (myAssignment?.office === office.id && myAssignment?.window) {
+          next[office.id] = myAssignment.window;
+          return;
+        }
         const activeWindows = (office.windows || []).filter((w) => w.status);
         if (activeWindows.length > 0 && next[office.id] === undefined) {
           next[office.id] = activeWindows[0].id;
@@ -83,14 +118,36 @@ const StaffQueueManager = () => {
       });
       return next;
     });
-  }, [offices]);
+  }, [offices, myAssignment]);
+
+  // Scope visible offices:
+  //  • Window-assigned user → only their assigned office
+  //  • Unassigned user      → all active offices (global access)
+  const activeOffices = useMemo(() => {
+    if (!myAssignmentLoaded) return [];
+    const all = offices.filter((o) => o.status);
+    if (myAssignment?.window) {
+      return all.filter((o) => o.id === myAssignment.office);
+    }
+    return all;
+  }, [offices, myAssignment, myAssignmentLoaded]);
+
+  // Keep activeTab in sync with visible offices
+  useEffect(() => {
+    if (activeOffices.length > 0) {
+      setActiveTab((prev) => {
+        const stillValid = activeOffices.some((o) => o.id === prev);
+        return stillValid ? prev : activeOffices[0].id;
+      });
+    }
+  }, [activeOffices]);
 
   const getStatusByDescription = (description: string) => {
     return statuses.find((s) => s.description?.toLowerCase().includes(description.toLowerCase()));
   };
 
   const getSequencesForOffice = (officeId: string) => {
-    return sequences.filter((seq) => seq.office === officeId);
+    return sequences.filter((seq) => seq.office === officeId && seq.is_active !== false);
   };
 
   const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
@@ -103,57 +160,65 @@ const StaffQueueManager = () => {
     return 10; // Regular/default - lowest priority
   };
 
-  const getWaitingSequences = (officeId: string): Sequence[] => {
+  const getWaitingSequences = (officeId: string, windowId?: string): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
-    const pending = getSequencesForOffice(officeId).filter(
+    let pending = getSequencesForOffice(officeId).filter(
       (seq) => seq.status === pendingStatus?.id,
     );
-    
-    // Sort by priority weight (lower = higher priority), then by created_at (FIFO within same priority)
+
+    // Filter by window if provided - show sequences assigned to this window OR unassigned
+    if (windowId) {
+      pending = pending.filter((seq) => seq.window === windowId || !seq.window);
+    }
+
+    // Sort by priority weight (lower = higher priority), then by created_at (FIFO)
     return pending.sort((a, b) => {
       const priorityA = getPriorityWeight(a.priority_data?.description);
       const priorityB = getPriorityWeight(b.priority_data?.description);
-      
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
-      
+      if (priorityA !== priorityB) return priorityA - priorityB;
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   };
 
-  const getServingSequence = (officeId: string): Sequence | undefined => {
+  const getServingSequence = (officeId: string, windowId?: string): Sequence | undefined => {
     const servingStatus = getStatusByDescription('serving');
-    return getSequencesForOffice(officeId).find(
-      (seq) => seq.status === servingStatus?.id,
-    );
+    const arrivedStatus = getStatusByDescription('arrived');
+    const activeStatusIds = [servingStatus?.id, arrivedStatus?.id].filter(Boolean) as string[];
+    const officeSequences = getSequencesForOffice(officeId); // already filters is_active
+    if (windowId) {
+      return officeSequences.find(
+        (seq) => activeStatusIds.includes(seq.status) && seq.window === windowId,
+      );
+    }
+    return officeSequences.find((seq) => activeStatusIds.includes(seq.status));
   };
 
   const handleCallNext = async (officeId: string) => {
     const servingStatus = getStatusByDescription('serving');
-    const completedStatus = getStatusByDescription('completed');
-    
+
     if (!servingStatus) {
       console.error('Serving status not found. Available statuses:', statuses);
       return;
     }
 
-    console.log('📞 Calling next - servingStatus:', servingStatus, 'completedStatus:', completedStatus);
+    const windowId = selectedWindowByOffice[officeId];
 
-    const currentServing = getServingSequence(officeId);
-    if (currentServing && completedStatus) {
-      console.log('🔄 Marking current serving as completed:', currentServing.id);
-      await updateSequenceStatus(currentServing.id, completedStatus.id);
+    // Guard: block if this window already has someone serving/arrived
+    const currentServing = getServingSequence(officeId, windowId);
+    if (currentServing) {
+      console.log('ℹ️ Someone is already being served, Call Next is blocked');
+      return;
     }
 
-    const waiting = getWaitingSequences(officeId);
-    const nextInQueue = waiting[0]; // Already sorted by priority
+    if (!windowId) {
+      console.error('No window selected');
+      return;
+    }
 
-    if (nextInQueue) {
-      const windowId = selectedWindowByOffice[officeId];
-      console.log('➡️ Calling next in queue:', nextInQueue.id, 'to window:', windowId);
-      await updateSequenceStatus(nextInQueue.id, servingStatus.id, windowId ?? undefined);
-    } else {
+    // Atomically claim the next pending sequence via DB function —
+    // prevents two windows from grabbing the same queue number simultaneously.
+    const claimed = await callNextSequence(officeId, servingStatus.id, windowId);
+    if (!claimed) {
       console.log('ℹ️ No one waiting in queue');
     }
   };
@@ -165,33 +230,68 @@ const StaffQueueManager = () => {
     }
   };
 
+  const handleArrived = async (sequenceId: string, windowId: string) => {
+    const arrivedStatus = getStatusByDescription('arrived');
+    if (arrivedStatus) {
+      await updateSequenceStatus(sequenceId, arrivedStatus.id, windowId);
+    }
+  };
+
+  const handlePing = async (serving: Sequence, officeName: string) => {
+    // Use the Supabase REST broadcast API — no WebSocket subscription needed,
+    // fires instantly on the very first click with no channel-ready race condition.
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+    await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            topic: 'queue-ping-broadcast',
+            event: 'ping',
+            payload: {
+              sequenceId: serving.id,
+              queueCode: serving.queue_data?.code || '---',
+              windowLabel: serving.window_data?.description || 'the window',
+              officeName,
+              priorityDesc: serving.priority_data?.description || null,
+            },
+          },
+        ],
+      }),
+    });
+    // Disable the button immediately — re-enabled when QueueDisplay broadcasts ping-done
+    setPingingId(serving.id);
+  };
+
   const handleOpenTransferDialog = (sequence: Sequence) => {
     setTransferringSequence(sequence);
     setTransferTargetOffice(sequence.office);
-    setTransferTargetWindow('none');
     setTransferDialogOpen(true);
   };
 
   const handleTransfer = async () => {
     if (!transferringSequence || !transferTargetOffice) return;
 
-    const windowId = transferTargetWindow === 'none' ? null : transferTargetWindow;
+    const targetOffice = activeOffices.find((o) => o.id === transferTargetOffice);
 
-    await transferSequence(
-      transferringSequence.id,
-      transferTargetOffice,
-      windowId
-    );
+    await transferSequence(transferringSequence.id, transferTargetOffice, null);
+
+    // Show success message
+    const message = `✓ Queue ${transferringSequence?.queue_data?.code} transferred to ${targetOffice?.description}. It will be queued based on priority.`;
+    setTransferSuccess(message);
 
     setTransferDialogOpen(false);
     setTransferringSequence(null);
     setTransferTargetOffice('');
-    setTransferTargetWindow('none');
-  };
 
-  const getTargetOfficeWindows = () => {
-    const targetOffice = activeOffices.find((o) => o.id === transferTargetOffice);
-    return (targetOffice?.windows || []).filter((w) => w.status);
+    // Clear success message after 3 seconds
+    setTimeout(() => setTransferSuccess(''), 3000);
   };
 
   const getPriorityColor = (priority: string | null | undefined) => {
@@ -205,9 +305,8 @@ const StaffQueueManager = () => {
   };
 
   const isLoading = profileLoading || officesLoading || queueLoading;
-  const activeOffices = offices.filter((o) => o.status);
 
-  if (isLoading && activeOffices.length === 0) {
+  if (isLoading || !myAssignmentLoaded) {
     return (
       <>
         <BreadcrumbComp title="Staff Queue Manager" items={BCrumb} />
@@ -221,6 +320,12 @@ const StaffQueueManager = () => {
   return (
     <>
       <BreadcrumbComp title="Staff Queue Manager" items={BCrumb} />
+
+      {transferSuccess && (
+        <div className="mx-6 mt-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          {transferSuccess}
+        </div>
+      )}
 
       {activeOffices.length === 0 ? (
         <Card>
@@ -239,8 +344,8 @@ const StaffQueueManager = () => {
           </TabsList>
 
           {activeOffices.map((office) => {
-            const serving = getServingSequence(office.id);
-            const waiting = getWaitingSequences(office.id);
+            const serving = getServingSequence(office.id, selectedWindowByOffice[office.id]);
+            const waiting = getWaitingSequences(office.id, selectedWindowByOffice[office.id]);
 
             return (
               <TabsContent key={office.id} value={office.id}>
@@ -251,29 +356,44 @@ const StaffQueueManager = () => {
                       <div className="flex items-center gap-3">
                         {(office.windows || []).filter((w) => w.status).length > 0 && (
                           <div className="flex items-center gap-2">
-                            <Label className="text-sm text-muted-foreground whitespace-nowrap">Call to window</Label>
-                            <Select
-                              value={selectedWindowByOffice[office.id]?.toString() ?? ''}
-                              onValueChange={(v) =>
-                                setSelectedWindowByOffice((prev) => ({ ...prev, [office.id]: v }))
-                              }
-                            >
-                              <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Select window" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(office.windows || [])
-                                  .filter((w) => w.status)
-                                  .map((w) => (
-                                    <SelectItem key={w.id} value={w.id.toString()}>
-                                      {w.description || `Window ${w.id}`}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
+                            <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                              Call to window
+                            </Label>
+                            {/* Assigned user: locked window | Unassigned: free dropdown */}
+                            {myAssignment?.office === office.id && myAssignment?.window ? (
+                              <div className="px-3 py-2 border rounded-md text-sm bg-muted w-45">
+                                {(office.windows || []).find((w) => w.id === myAssignment.window)
+                                  ?.description ||
+                                  myAssignment.window_description ||
+                                  'Assigned Window'}
+                              </div>
+                            ) : (
+                              <Select
+                                value={selectedWindowByOffice[office.id]?.toString() ?? ''}
+                                onValueChange={(v) =>
+                                  setSelectedWindowByOffice((prev) => ({ ...prev, [office.id]: v }))
+                                }
+                              >
+                                <SelectTrigger className="w-45">
+                                  <SelectValue placeholder="Select window" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(office.windows || [])
+                                    .filter((w) => w.status)
+                                    .map((w) => (
+                                      <SelectItem key={w.id} value={w.id.toString()}>
+                                        {w.description || `Window ${w.id}`}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                           </div>
                         )}
-                        <Button onClick={() => handleCallNext(office.id)} disabled={isLoading}>
+                        <Button
+                          onClick={() => handleCallNext(office.id)}
+                          disabled={isLoading || !!serving}
+                        >
                           {isLoading ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : (
@@ -307,7 +427,7 @@ const StaffQueueManager = () => {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handleComplete(serving.id)}
-                                  disabled={isLoading}
+                                  disabled={isLoading || !serving.status_data?.description?.toLowerCase().includes('arrived')}
                                 >
                                   <Check className="h-4 w-4 mr-2" />
                                   Complete
@@ -320,6 +440,25 @@ const StaffQueueManager = () => {
                                 >
                                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                                   Transfer
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleArrived(serving.id, selectedWindowByOffice[office.id])}
+                                  disabled={isLoading || serving.status_data?.description?.toLowerCase().includes('arrived')}
+                                >
+                                  <UserCheck className="h-4 w-4 mr-2" />
+                                  Arrived
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handlePing(serving, office.description || '')}
+                                  disabled={isLoading || pingingId === serving.id}
+                                  title="Re-announce this queue on the display"
+                                >
+                                  <Bell className="h-4 w-4 mr-2" />
+                                  Ping
                                 </Button>
                               </div>
                             </div>
@@ -334,17 +473,14 @@ const StaffQueueManager = () => {
                       {/* Waiting Section */}
                       <Card className="bg-muted/50">
                         <CardContent className="pt-6">
-                          <h3 className="font-semibold text-lg mb-4">
-                            Waiting ({waiting.length})
-                          </h3>
+                          <h3 className="font-semibold text-lg mb-4">Waiting ({waiting.length})</h3>
                           {waiting.length > 0 ? (
                             <div className="space-y-2 max-h-64 overflow-y-auto">
                               {waiting.map((seq) => (
-                                <div
-                                  key={seq.id}
-                                  className="flex items-center justify-between"
-                                >
-                                  <div className={`text-lg font-medium tracking-wider ${getPriorityColor(seq.priority_data?.description)}`}>
+                                <div key={seq.id} className="flex items-center justify-between">
+                                  <div
+                                    className={`text-lg font-medium tracking-wider ${getPriorityColor(seq.priority_data?.description)}`}
+                                  >
                                     {seq.queue_data?.code || '---'}
                                     <span className="text-xs ml-2 text-muted-foreground">
                                       ({seq.priority_data?.description || 'Regular'})
@@ -362,7 +498,9 @@ const StaffQueueManager = () => {
                               ))}
                             </div>
                           ) : (
-                            <p className="text-muted-foreground italic">The waiting queue is empty.</p>
+                            <p className="text-muted-foreground italic">
+                              The waiting queue is empty.
+                            </p>
                           )}
                         </CardContent>
                       </Card>
@@ -377,11 +515,13 @@ const StaffQueueManager = () => {
 
       {/* Transfer Dialog */}
       <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-106.25">
           <DialogHeader>
             <DialogTitle>Transfer Queue</DialogTitle>
             <DialogDescription>
-              Transfer queue code <span className="font-bold">{transferringSequence?.queue_data?.code}</span> to another office or window.
+              Transfer queue code{' '}
+              <span className="font-bold">{transferringSequence?.queue_data?.code}</span> to another
+              office.
             </DialogDescription>
           </DialogHeader>
 
@@ -392,7 +532,6 @@ const StaffQueueManager = () => {
                 value={transferTargetOffice}
                 onValueChange={(v) => {
                   setTransferTargetOffice(v);
-                  setTransferTargetWindow('none');
                 }}
               >
                 <SelectTrigger>
@@ -406,50 +545,6 @@ const StaffQueueManager = () => {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Target Window (Optional)</Label>
-              <Select
-                value={transferTargetWindow}
-                onValueChange={setTransferTargetWindow}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select window (or leave empty for pending)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No window (move to pending)</SelectItem>
-                  {getTargetOfficeWindows().map((w) => {
-                    const available = isWindowAvailable(w.id);
-                    return (
-                      <SelectItem key={w.id} value={w.id}>
-                        <div className="flex items-center gap-2">
-                          {w.description || `Window ${w.id}`}
-                          {available ? (
-                            <Badge variant="outline" className="text-green-600 border-green-600 text-xs">
-                              Available
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-orange-600 border-orange-600 text-xs">
-                              Busy
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              {transferTargetWindow !== 'none' && !isWindowAvailable(transferTargetWindow) && (
-                <p className="text-xs text-orange-600">
-                  This window is currently busy. The queue will be moved to pending status.
-                </p>
-              )}
-              {transferTargetWindow === 'none' && (
-                <p className="text-xs text-muted-foreground">
-                  No window selected. The queue will be moved to pending status.
-                </p>
-              )}
             </div>
           </div>
 

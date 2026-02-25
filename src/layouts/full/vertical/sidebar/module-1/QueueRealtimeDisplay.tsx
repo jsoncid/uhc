@@ -34,6 +34,7 @@ interface Sequence {
   queue: string;
   priority: string;
   status: string;
+  is_active?: boolean;
   // Enriched data
   office_data?: Office;
   priority_data?: Priority;
@@ -48,6 +49,7 @@ interface SequenceRow {
   queue: string;
   priority: string;
   status: string;
+  is_active?: boolean;
 }
 
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; badge: string }> = {
@@ -181,7 +183,7 @@ const QueueRealtimeDisplay = () => {
             if (prev.some((seq) => seq.id === newRow.id)) return prev;
             return [...prev, enriched];
           });
-        }
+        },
       )
       .on(
         'postgres_changes',
@@ -197,10 +199,8 @@ const QueueRealtimeDisplay = () => {
           // Fetch enriched data on-demand
           const enriched = await fetchEnrichedSequence(updatedRow);
 
-          setSequences((prev) =>
-            prev.map((seq) => (seq.id === updatedRow.id ? enriched : seq))
-          );
-        }
+          setSequences((prev) => prev.map((seq) => (seq.id === updatedRow.id ? enriched : seq)));
+        },
       )
       .on(
         'postgres_changes',
@@ -214,7 +214,7 @@ const QueueRealtimeDisplay = () => {
           console.log('🔴 DELETE:', deletedRow);
 
           setSequences((prev) => prev.filter((seq) => seq.id !== deletedRow.id));
-        }
+        },
       )
       .subscribe((status) => {
         console.log('📡 Subscription status:', status);
@@ -259,7 +259,9 @@ const QueueRealtimeDisplay = () => {
   // Get pending sequences sorted by priority
   const getPendingSequences = (): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
-    const pending = sequences.filter((seq) => seq.status === pendingStatus?.id);
+    const pending = sequences.filter(
+      (seq) => seq.status === pendingStatus?.id && seq.is_active !== false,
+    );
 
     return pending.sort((a, b) => {
       const priorityA = getPriorityWeight(a.priority_data?.description);
@@ -270,10 +272,12 @@ const QueueRealtimeDisplay = () => {
     });
   };
 
-  // Get currently serving sequence for an office
+  // Get currently serving sequence for an office (serving only)
   const getServingSequenceForOffice = (officeId: string): Sequence | undefined => {
     const servingStatus = getStatusByDescription('serving');
-    return sequences.find((seq) => seq.office === officeId && seq.status === servingStatus?.id);
+    return sequences.find(
+      (seq) => seq.office === officeId && seq.status === servingStatus?.id && seq.is_active !== false,
+    );
   };
 
   const formatTime = (date: Date) => {
@@ -354,7 +358,7 @@ const QueueRealtimeDisplay = () => {
                         className="py-4 px-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
                       >
                         <span className={`text-2xl font-bold tracking-widest ${colors.text}`}>
-                          {seq.queue_data?.code || '---'}
+                          {seq.queue || '---'}
                         </span>
                         <Badge className={colors.badge}>
                           {seq.priority_data?.description || 'Regular'}
@@ -389,7 +393,9 @@ const QueueRealtimeDisplay = () => {
         <div className="flex-1">
           <div className="flex items-center justify-center gap-4 mb-6">
             <h2 className="text-3xl font-bold">Now Serving</h2>
-            <span className="text-2xl font-mono text-muted-foreground">{formatTime(currentTime)}</span>
+            <span className="text-2xl font-mono text-muted-foreground">
+              {formatTime(currentTime)}
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
