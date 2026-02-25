@@ -38,6 +38,12 @@ const SidebarContent: MenuItem[] = [
     heading: 'Module 3 - PATIENT REPOSITORY',
     children: [
       {
+        name: 'Patient List',
+        icon: 'solar:users-group-rounded-linear',
+        id: uniqueId(),
+        url: '/module-3/patient-list',
+      },
+      {
         name: 'Patient Profiling',
         icon: 'solar:user-circle-linear',
         id: uniqueId(),
@@ -48,7 +54,7 @@ const SidebarContent: MenuItem[] = [
         name: 'Patient Tagging',
         id: uniqueId(),
         icon: 'solar:tag-linear',
-        url: '/module-3/tagging/overview',
+        url: '/module-3/patient-tagging',
         module: PAGE_MODULES.MODULE_3_PATIENT_TAGGING,
       },
     ],
