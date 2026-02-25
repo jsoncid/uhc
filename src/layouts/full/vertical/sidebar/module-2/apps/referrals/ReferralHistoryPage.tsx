@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
 import { useNavigate } from 'react-router';
@@ -413,10 +413,10 @@ const Paginator = ({
   );
   return (
     <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
-      <span>
+      <p className="text-xs text-muted-foreground">
         Showing {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} of{' '}
         {total}
-      </span>
+      </p>
       <div className="flex items-center gap-1">
         <Button
           variant="outline"
@@ -524,61 +524,68 @@ const AllHistoryTab = ({
                   </TableCell>
                 </TableRow>
               ) : (
-                visible.map((r) => (
-                  <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div>
-                          <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
-                          {r.status === false && (
-                            <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
-                              Deactivated
-                            </p>
-                          )}
+                <>
+                  {visible.map((r) => (
+                    <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
+                            {r.status === false && (
+                              <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
+                                Deactivated
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {r.from_assignment_name ?? '—'}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {r.to_assignment_name ?? '—'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          'text-xs font-medium ' + getStatusStyle(r.latest_status?.description)
-                        }
-                      >
-                        {r.latest_status?.description ?? '—'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {fmt(r.created_at)}
-                    </TableCell>
-                    <TableCell>
-                      <StopBadges history={r.history ?? []} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-primary hover:bg-primary/10"
-                              onClick={() => onView(r)}
-                            >
-                              <Icon icon="solar:history-bold-duotone" height={16} />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>View History</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {r.from_assignment_name ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {r.to_assignment_name ?? '—'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            'text-xs font-medium ' + getStatusStyle(r.latest_status?.description)
+                          }
+                        >
+                          {r.latest_status?.description ?? '—'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {fmt(r.created_at)}
+                      </TableCell>
+                      <TableCell>
+                        <StopBadges history={r.history ?? []} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-primary hover:bg-primary/10"
+                                onClick={() => onView(r)}
+                              >
+                                <Icon icon="solar:history-bold-duotone" height={16} />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View History</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {Array.from({ length: PAGE_SIZE - visible.length }).map((_, i) => (
+                    <TableRow key={`empty-${i}`} className="pointer-events-none select-none">
+                      <TableCell colSpan={7} className="h-[53px]" />
+                    </TableRow>
+                  ))}
+                </>
               )}
             </TableBody>
           </Table>
@@ -650,76 +657,83 @@ const DeactivatedTab = ({
                   </TableCell>
                 </TableRow>
               ) : (
-                visible.map((r) => (
-                  <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {r.from_assignment_name ?? '—'}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {r.to_assignment_name ?? '—'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          'text-xs font-medium ' + getStatusStyle(r.latest_status?.description)
-                        }
-                      >
-                        {r.latest_status?.description ?? '—'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      <div className="flex items-center gap-1.5">
-                        <Icon
-                          icon="solar:user-cross-bold-duotone"
-                          height={14}
-                          className="text-muted-foreground flex-shrink-0"
-                        />
-                        {r.deactivated_by ?? '—'}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {fmt(r.deactivated_at)}
-                    </TableCell>
-                    <TableCell>
-                      <StopBadges history={r.history ?? []} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Icon icon="solar:menu-dots-bold" height={16} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[160px]">
-                          <DropdownMenuItem
-                            onClick={() => navigate('/module-2/referrals/detail/' + r.id)}
-                          >
-                            <Icon
-                              icon="solar:eye-linear"
-                              height={15}
-                              className="mr-2 text-primary"
-                            />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onView(r)}>
-                            <Icon
-                              icon="solar:history-bold-duotone"
-                              height={15}
-                              className="mr-2 text-muted-foreground"
-                            />
-                            View History
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                <>
+                  {visible.map((r) => (
+                    <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {r.from_assignment_name ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {r.to_assignment_name ?? '—'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            'text-xs font-medium ' + getStatusStyle(r.latest_status?.description)
+                          }
+                        >
+                          {r.latest_status?.description ?? '—'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <Icon
+                            icon="solar:user-cross-bold-duotone"
+                            height={14}
+                            className="text-muted-foreground flex-shrink-0"
+                          />
+                          {r.deactivated_by ?? '—'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {fmt(r.deactivated_at)}
+                      </TableCell>
+                      <TableCell>
+                        <StopBadges history={r.history ?? []} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Icon icon="solar:menu-dots-bold" height={16} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-[160px]">
+                            <DropdownMenuItem
+                              onClick={() => navigate('/module-2/referrals/detail/' + r.id)}
+                            >
+                              <Icon
+                                icon="solar:eye-linear"
+                                height={15}
+                                className="mr-2 text-primary"
+                              />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onView(r)}>
+                              <Icon
+                                icon="solar:history-bold-duotone"
+                                height={15}
+                                className="mr-2 text-muted-foreground"
+                              />
+                              View History
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {Array.from({ length: PAGE_SIZE - visible.length }).map((_, i) => (
+                    <TableRow key={`empty-${i}`} className="pointer-events-none select-none">
+                      <TableCell colSpan={8} className="h-[53px]" />
+                    </TableRow>
+                  ))}
+                </>
               )}
             </TableBody>
           </Table>

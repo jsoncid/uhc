@@ -84,7 +84,7 @@ const Paginator = ({
   return (
     <div className="flex items-center justify-between mt-3 px-1">
       <p className="text-xs text-muted-foreground">
-        {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} of {total}
+      Showing {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} of {total}
       </p>
       <div className="flex items-center gap-1">
         <Button
