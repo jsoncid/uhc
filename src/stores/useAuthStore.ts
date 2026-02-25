@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { userService } from '@/services/userService';
 
 interface AuthState {
   user: User | null;
@@ -13,7 +14,7 @@ interface AuthState {
   signUp: (
     email: string,
     password: string,
-    options?: { data?: { [key: string]: any }; assignmentId?: string },
+    options?: { data?: { [key: string]: any }; assignmentId?: string; roleId?: string },
   ) => Promise<boolean>;
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
@@ -187,13 +188,41 @@ export const useAuthStore = create<AuthState>((set, get) => {
         if (error) throw error;
 
         if (data?.user) {
-          const { error: insertError } = await supabase
+          const { error: insertStatusError } = await supabase
             .from('user_status')
             .insert([{ id: data.user.id, email: data.user.email, is_active: false }]);
 
-          if (insertError) {
-            console.error('Error creating user_status:', insertError);
-            throw insertError;
+          if (insertStatusError) {
+            console.error('Error creating user_status:', insertStatusError);
+            throw insertStatusError;
+          }
+
+          // Assign Member role to the user
+          if (options?.roleId) {
+            try {
+              await userService.createUserRole({
+                user: data.user.id,
+                role: options.roleId,
+              });
+            } catch (roleError) {
+              console.error('Error assigning role:', roleError);
+              throw roleError;
+            }
+          }
+
+          // Persist selected assignment from registration
+          if (options?.assignmentId) {
+            const { error: insertAssignmentError } = await supabase
+              .from('user_assignment')
+              .insert({
+                user: data.user.id,
+                assignment: options.assignmentId,
+              });
+
+            if (insertAssignmentError) {
+              console.error('Error creating user_assignment:', insertAssignmentError);
+              throw insertAssignmentError;
+            }
           }
 
           // Sign out — user must wait for admin approval

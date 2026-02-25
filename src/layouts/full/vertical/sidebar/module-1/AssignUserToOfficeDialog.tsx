@@ -37,7 +37,11 @@ export const AssignUserToOfficeDialog = ({
 
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [selectedOffice, setSelectedOffice] = useState<string>('');
+  const [selectedWindow, setSelectedWindow] = useState<string>('');
   const [localError, setLocalError] = useState<string | null>(null);
+
+  // Windows available for the currently selected office
+  const availableWindows = offices.find((o) => o.id === selectedOffice)?.windows ?? [];
 
   useEffect(() => {
     if (isOpen && assignmentId) {
@@ -46,6 +50,7 @@ export const AssignUserToOfficeDialog = ({
       setLocalError(null);
       setSelectedUser('');
       setSelectedOffice('');
+      setSelectedWindow('');
     }
   }, [isOpen, assignmentId, fetchUsersInAssignment, clearError]);
 
@@ -64,7 +69,7 @@ export const AssignUserToOfficeDialog = ({
     }
 
     try {
-      await assignUserToOffice(selectedUser, selectedOffice);
+      await assignUserToOffice(selectedUser, selectedOffice, selectedWindow || null);
       onSuccess();
       onClose();
     } catch (err) {
@@ -75,9 +80,16 @@ export const AssignUserToOfficeDialog = ({
   const handleClose = () => {
     setSelectedUser('');
     setSelectedOffice('');
+    setSelectedWindow('');
     setLocalError(null);
     clearError();
     onClose();
+  };
+
+  // Reset window when office changes
+  const handleOfficeChange = (value: string) => {
+    setSelectedOffice(value);
+    setSelectedWindow('');
   };
 
   return (
@@ -122,7 +134,7 @@ export const AssignUserToOfficeDialog = ({
 
             <div className="grid gap-2">
               <Label htmlFor="office">Office</Label>
-              <Select value={selectedOffice} onValueChange={setSelectedOffice}>
+              <Select value={selectedOffice} onValueChange={handleOfficeChange}>
                 <SelectTrigger id="office">
                   <SelectValue placeholder="Select an office" />
                 </SelectTrigger>
@@ -138,6 +150,26 @@ export const AssignUserToOfficeDialog = ({
                       </SelectItem>
                     ))
                   )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="window">Window <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Select
+                value={selectedWindow}
+                onValueChange={setSelectedWindow}
+                disabled={!selectedOffice || availableWindows.length === 0}
+              >
+                <SelectTrigger id="window">
+                  <SelectValue placeholder={!selectedOffice ? 'Select an office first' : availableWindows.length === 0 ? 'No windows available' : 'Select a window'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableWindows.map((window) => (
+                    <SelectItem key={window.id} value={window.id}>
+                      {window.description || 'Unnamed Window'}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
