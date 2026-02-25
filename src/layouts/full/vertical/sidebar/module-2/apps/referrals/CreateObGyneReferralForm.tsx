@@ -5,8 +5,9 @@ import { ReferralContext, ReferralContextType } from '../../context/ReferralCont
 import { ReferralType, ReferralInfo } from '../../types/referral';
 import { supabaseM3 } from 'src/lib/supabase';
 import { useAuthStore } from 'src/stores/useAuthStore';
-import { assignmentService } from 'src/services/assignmentService';
 import { patientService } from 'src/services/patientService';
+import { assignmentService } from 'src/services/assignmentService';
+
 import { Database } from 'src/lib/supabase';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
@@ -242,19 +243,20 @@ const CreateObGyneReferralForm = () => {
     setBirthDate(p.birth_date ?? '');
     setPatientPickerOpen(false);
 
-    // Fetch resolved address via patientService (module3.patient_profile_with_locations)
-    const addr = await patientService.getPatientAddressById(p.id);
-    if (addr) {
-      const shortParts = [addr.street, addr.brgy_name].filter(Boolean);
-      const fullParts = [
-        addr.street,
-        addr.brgy_name,
-        addr.city_name,
-        addr.province_name,
-        addr.region_name,
+    // Fetch resolved address via patientService
+    const addrResult = await patientService.getPatientAddressById(p.id);
+    if (addrResult) {
+      const parts = [
+        addrResult.street,
+        addrResult.brgy_name,
+        addrResult.city_name,
+        addrResult.province_name,
+        addrResult.region_name,
       ].filter(Boolean);
-      setFacilityAddress(shortParts.join(', '));
-      setCompleteAddress(fullParts.join(', '));
+      const addr = parts.join(', ');
+      const brgyPart = [addrResult.street, addrResult.brgy_name].filter(Boolean).join(', ');
+      setFacilityAddress(brgyPart);
+      setCompleteAddress(addr);
     } else {
       setFacilityAddress('');
       setCompleteAddress('');

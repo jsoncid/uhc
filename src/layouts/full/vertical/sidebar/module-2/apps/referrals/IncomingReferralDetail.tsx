@@ -299,16 +299,19 @@ const IncomingReferralDetail = () => {
   // ── Patient address
   const [patientAddress, setPatientAddress] = useState<string | null>(null);
   useEffect(() => {
-    if (!referral?.patient_profile) return;
-    patientService.getPatientAddressById(referral.patient_profile).then((a) => {
-      if (a) {
-        const parts = [a.street, a.brgy_name, a.city_name, a.province_name, a.region_name].filter(
-          Boolean,
-        );
-        setPatientAddress(parts.join(', ') || null);
-      } else {
+    patientService.getPatientAddressById(referral?.patient_profile ?? null).then((result) => {
+      if (!result) {
         setPatientAddress(null);
+        return;
       }
+      const parts = [
+        result.street,
+        result.brgy_name,
+        result.city_name,
+        result.province_name,
+        result.region_name,
+      ].filter(Boolean);
+      setPatientAddress(parts.join(', ') || null);
     });
   }, [referral?.patient_profile]);
 

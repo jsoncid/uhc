@@ -230,7 +230,7 @@ export const ReferralProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       gravida, parity, menarche, comorbidity, previous_surgeries, previous_cs,
       lab_result, xray, other_diagnostics,
       referral_info_diagnostic(id, created_at, referral_info, diagnostics, date, attachment, status),
-      referral_info_vaccination(id, created_at, referral_info, description, date, status)
+      referral_info_vaccination(id, created_at, referral_info, description, date, attachment, status)
     ),
     referral_history(
       id, created_at, details, referral, to_assignment, status, is_active, user
