@@ -7,6 +7,12 @@ import { ModuleRoute } from '../components/ModuleRoute';
 import { PAGE_MODULES } from '../constants/moduleAccess';
 
 // Module 3 - Patient Repository Components
+const PatientList = Loadable(
+  lazy(() => import('../views/apps/module-3/PatientList')),
+);
+const PatientDetails = Loadable(
+  lazy(() => import('../views/apps/module-3/PatientDetails')),
+);
 const PatientProfiling = Loadable(
   lazy(() => import('../views/apps/module-3/PatientProfiling')),
 );
@@ -15,6 +21,22 @@ const PatientTagging = Loadable(
 );
 
 export const module3Routes = [
+  {
+    path: '/module-3/patient-list',
+    element: (
+      <ProtectedRoute>
+        <PatientList />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/module-3/patient-details',
+    element: (
+      <ProtectedRoute>
+        <PatientDetails />
+      </ProtectedRoute>
+    ),
+  },
   {
     path: '/module-3/patient-profiling',
     element: (
