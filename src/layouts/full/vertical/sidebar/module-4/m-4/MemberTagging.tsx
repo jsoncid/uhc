@@ -10,40 +10,15 @@ import {
   Tag, Search, User, CheckCircle2, AlertCircle, Loader2,
   Link2, X, ChevronRight, UserCheck, ShieldCheck,
   Mail, Calendar, MapPin, ArrowRight, RefreshCw, Info,
-  Building, Landmark,
 } from 'lucide-react';
 
-// Role Type Options
-type RoleType = 'Member' | 'Barangay Officer' | 'Hospital Operator';
-
-const ROLE_OPTIONS: { value: RoleType; label: string; description: string; icon: React.ReactNode; color: string; border: string; bg: string; text: string }[] = [
-  {
-    value: 'Member',
-    label: 'Member',
-    description: 'Standard health card member',
-    icon: <UserCheck className="w-5 h-5" />,
-    color: 'amber', border: 'border-amber-300 dark:border-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400',
-  },
-  {
-    value: 'Barangay Officer',
-    label: 'Barangay Officer',
-    description: 'Local barangay health officer',
-    icon: <Landmark className="w-5 h-5" />,
-    color: 'indigo', border: 'border-indigo-300 dark:border-indigo-700', bg: 'bg-indigo-50 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-400',
-  },
-  {
-    value: 'Hospital Operator',
-    label: 'Hospital Operator',
-    description: 'Hospital operations staff',
-    icon: <Building className="w-5 h-5" />,
-    color: 'teal', border: 'border-teal-300 dark:border-teal-700', bg: 'bg-teal-50 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-400',
-  },
-];
+// Only Member role is used for tagging
+const MEMBER_ROLE = 'Member' as const;
 
 // Types
 interface AuthUserRecord {
-  id: string;           // auth.users.id  (= user_status.id)
-  email: string;        // user_status.email
+  id: string;           
+  email: string;        
   is_active: boolean;
   created_at: string;
 }
@@ -113,8 +88,8 @@ const MemberTagging = () => {
   const [isSearchingPatient, setIsSearchingPatient] = useState(false);
   const [patientError,       setPatientError]       = useState('');
 
-  // Step 3: role selection
-  const [selectedRole,  setSelectedRole]  = useState<RoleType>('Member');
+  // Role is always Member
+  const selectedRole = MEMBER_ROLE;
 
   // Step 4: confirm & tag
   const [tagging,       setTagging]       = useState<TaggingState>({ status: 'idle', message: '' });
@@ -387,14 +362,12 @@ const MemberTagging = () => {
     setPatientResults([]);
     setUserError('');
     setPatientError('');
-    setSelectedRole('Member');
     setTagging({ status: 'idle', message: '' });
   };
 
   const step1Done = !!selectedUser;
   const step2Done = !!selectedPatient;
-  const step3Done = step1Done && step2Done && !!selectedRole;
-  const step4Active = step3Done;
+  const step3Active = step1Done && step2Done;
 
   // Render
   return (
@@ -409,7 +382,7 @@ const MemberTagging = () => {
           <div className="flex-1">
             <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100">Health Card Tagging</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Link a registered system user to their patient profile and assign a role (Member, Barangay Officer, or Hospital Operator).
+              Link a registered system user to their patient profile and assign the Member role.
             </p>
           </div>
           {(step1Done || step2Done) && (
@@ -617,60 +590,17 @@ const MemberTagging = () => {
         )}
       </Card>
 
-      {/* ── STEP 3: Select Role ────────────────────────────────────────── */}
-      <Card className={`p-6 transition-all ${!step2Done ? 'opacity-50 pointer-events-none' : ''}`}>
+      {/* ── STEP 3: Confirm & Tag ─────────────────────────────────────────── */}
+      <Card className={`p-6 transition-all ${!step3Active ? 'opacity-50 pointer-events-none' : ''}`}>
         <div className="flex items-center gap-3 mb-4">
-          <StepBadge n={3} active={step1Done && step2Done} done={step3Done} />
+          <StepBadge n={3} active={step3Active && tagging.status === 'idle'} done={tagging.status === 'success'} />
           <div>
-            <p className="font-semibold text-gray-800 dark:text-gray-200">Select Role</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">Choose the role to assign to this user</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {ROLE_OPTIONS.map((role) => {
-            const isSelected = selectedRole === role.value;
-            return (
-              <button
-                key={role.value}
-                onClick={() => setSelectedRole(role.value)}
-                className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-                  isSelected
-                    ? `${role.border} ${role.bg} ring-2 ring-offset-1 ring-${role.color}-200 dark:ring-offset-gray-900`
-                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
-                }`}
-              >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${
-                  isSelected ? `${role.bg} ${role.text}` : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
-                }`}>
-                  {role.icon}
-                </div>
-                <p className={`font-semibold text-sm ${isSelected ? role.text : 'text-gray-700 dark:text-gray-300'}`}>
-                  {role.label}
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{role.description}</p>
-                {isSelected && (
-                  <div className="absolute top-2 right-2">
-                    <CheckCircle2 className={`w-5 h-5 ${role.text}`} />
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </Card>
-
-      {/* ── STEP 4: Confirm & Tag ─────────────────────────────────────────── */}
-      <Card className={`p-6 transition-all ${!step4Active ? 'opacity-50 pointer-events-none' : ''}`}>
-        <div className="flex items-center gap-3 mb-4">
-          <StepBadge n={4} active={step4Active && tagging.status === 'idle'} done={tagging.status === 'success'} />
-          <div>
-            <p className="font-semibold text-gray-800 dark:text-gray-200">Confirm & Tag as {selectedRole}</p>
+            <p className="font-semibold text-gray-800 dark:text-gray-200">Confirm & Tag as Member</p>
             <p className="text-xs text-gray-400 dark:text-gray-500">Review the link and assign role</p>
           </div>
         </div>
 
-        {step4Active && tagging.status === 'idle' && (
+        {step3Active && tagging.status === 'idle' && (
           <>
             {/* Summary linking card */}
             <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-5">
@@ -704,7 +634,7 @@ const MemberTagging = () => {
               <div className="mt-4 space-y-2">
                 <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-semibold">Actions that will be performed:</p>
                 {[
-                  { icon: <ShieldCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />, text: `Assign "${selectedRole}" role in public.user_role`, color: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800' },
+                  { icon: <ShieldCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />, text: 'Assign "Member" role in public.user_role', color: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800' },
                   { icon: <UserCheck  className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400"  />, text: 'Link auth user to patient_profile in module4.health_card', color: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' },
                   { icon: <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />, text: 'Create health card if one doesn\'t exist yet', color: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' },
                 ].map((item, i) => (
@@ -762,8 +692,8 @@ const MemberTagging = () => {
             <div className="w-full mt-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex gap-2">
               <Info className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-green-700 dark:text-green-400">
-                The user can now log in and access the system as <strong>{selectedRole}</strong>.
-                {selectedRole === 'Member' && ' Remind them to set a PIN for security.'}
+                The user can now log in and access the system as <strong>Member</strong>.
+                {' Remind them to set a PIN for security.'}
               </p>
             </div>
 
