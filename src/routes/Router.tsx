@@ -80,6 +80,9 @@ const IncomingReferralDetails = Loadable(
 // Module 3 - Patient Profiling
 const PatientProfiling = Loadable(lazy(() => import('../views/apps/module-3/PatientProfiling')));
 
+// Module 5 - Live Documents & Image-to-PDF
+const LiveDocuments = Loadable(lazy(() => import('../layouts/full/vertical/sidebar/module-5/LiveDocuments')));
+
 // About Page
 const About = Loadable(lazy(() => import('../views/about/About')));
 
@@ -261,6 +264,15 @@ const Router = [
         element: (
           <ProtectedRoute>
             <PatientProfiling />
+          </ProtectedRoute>
+        ),
+      },
+      // Module 5 - Live Documents & Image-to-PDF
+      {
+        path: '/module-5/live-documents',
+        element: (
+          <ProtectedRoute>
+            <LiveDocuments />
           </ProtectedRoute>
         ),
       },

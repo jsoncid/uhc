@@ -49,32 +49,14 @@ import { uniqueId } from 'lodash';
 
 const SidebarContent: MenuItem[] = [
   {
-    heading: 'Module 5 - OCR',
+    heading: 'Module 5 - Note Taking App',
     children: [
       {
-        name: 'Tables',
-        icon: 'solar:server-linear',
+        name: 'Documents',
+        icon: 'solar:document-text-linear',
         id: uniqueId(),
-        url: '/module-5/table',
-      },  
-      {
-        name: 'Blogs',
-        id: uniqueId(),
-        icon: 'solar:sort-by-alphabet-linear',
-        children: [
-          {
-            id: uniqueId(),
-            name: 'Blog Post',
-            url: '/module-5/apps/blog/post',
-            isPro: false,
-          },
-          {
-            id: uniqueId(),
-            name: 'Blog Detail',
-            url: '/module-5/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
-            isPro: false,
-          },
-        ],
+        url: '/module-5/live-documents',
+        isPro: false,
       },
     ],
   },
