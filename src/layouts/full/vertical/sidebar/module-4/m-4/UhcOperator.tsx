@@ -23,7 +23,7 @@ import darkLogo from 'src/assets/images/logos/uhc-logo.png';
 import adnSeal from 'src/assets/images/logos/adn-seal.png';
 import defaultProfile from 'src/assets/images/profile/default_profile.jpg';
 
-// ─── Document Type Options per Folder ────────────────────────────────────────
+// Document Type Options per Folder
 const FOLDER_DOC_TYPES: Record<string, string[]> = {
   basic_identification: [
     'Birth Certificate', 'Barangay Certification', 'Barangay Clearance',
@@ -37,7 +37,7 @@ const FOLDER_DOC_TYPES: Record<string, string[]> = {
   admission_requirements: ['Admission Form', 'Surgery Consent', 'Promissory Note', 'Others'],
 };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types
 interface RegionRecord           { id?: string; description?: string; }
 interface ProvinceRecord         { id?: string; description?: string; region?: RegionRecord; }
 interface CityMunicipalityRecord { id?: string; description?: string; province?: ProvinceRecord; }
@@ -111,7 +111,7 @@ interface ScanResult {
   fromHistory?: boolean;
 }
 
-// ─── PIN Types ────────────────────────────────────────────────────────────────
+// PIN Types
 type PinVerifyStatus = 'idle' | 'checking' | 'verified' | 'failed' | 'no_pin';
 
 interface PinVerifyState {
@@ -128,39 +128,39 @@ interface PendingPatientPin {
 
 
 
-// ─── Folder Definitions ───────────────────────────────────────────────────────
+// Folder Definitions
 const FOLDER_DEFS = [
-  { key: 'basic_identification',   label: 'Basic Identification',   description: 'Government-issued IDs, birth certificate, and personal identification documents.', color: 'blue',   supabaseCategory: 'Basic Identification',   bucketFolder: 'Basic Identification',   icon: <IdCard        className="w-5 h-5" /> },
-  { key: 'philhealth',             label: 'PhilHealth',             description: 'PhilHealth membership documents, MDR, and contribution records.',                   color: 'red',    supabaseCategory: 'PhilHealth',             bucketFolder: 'PhilHealth',             icon: <Heart         className="w-5 h-5" /> },
-  { key: 'senior_pwd',             label: 'Senior / PWD',           description: 'Senior citizen ID, PWD ID, and OSCA booklet.',                                      color: 'purple', supabaseCategory: 'Senior/PWD',             bucketFolder: 'Senior or PWD',          icon: <Accessibility className="w-5 h-5" /> },
-  { key: 'company_documents',      label: 'Company Employee',       description: 'Company ID, Certificate of Employment, and Incident Report.',                       color: 'amber',  supabaseCategory: 'Company Documents',      bucketFolder: 'Company Documents',      icon: <Building2     className="w-5 h-5" /> },
-  { key: 'medical_documents',      label: 'Medical Documents',      description: "Doctor's referral, laboratory results, X-ray, and medical certificates.",           color: 'green',  supabaseCategory: 'Medical Documents',      bucketFolder: 'Medical Documents',      icon: <Stethoscope   className="w-5 h-5" /> },
-  { key: 'admission_requirements', label: 'Admission Requirements', description: 'Admission form, surgery consent, and promissory note.',                             color: 'teal',   supabaseCategory: 'Admission Requirements', bucketFolder: 'Admission Requirements', icon: <ClipboardList className="w-5 h-5" /> },
+  { key: 'basic_identification',   label: 'Basic Identification',   description: 'Government-issued IDs, birth certificate, and personal identification documents.', color: 'light',   supabaseCategory: 'Basic Identification',   bucketFolder: 'Basic Identification',   icon: <IdCard        className="w-5 h-5" /> },
+  { key: 'philhealth',             label: 'PhilHealth',             description: 'PhilHealth membership documents, MDR, and contribution records.',                   color: 'green',   supabaseCategory: 'PhilHealth',             bucketFolder: 'PhilHealth',             icon: <Heart         className="w-5 h-5" /> },
+  { key: 'senior_pwd',             label: 'Senior / PWD',           description: 'Senior citizen ID, PWD ID, and OSCA booklet.',                                      color: 'emerald', supabaseCategory: 'Senior/PWD',             bucketFolder: 'Senior or PWD',          icon: <Accessibility className="w-5 h-5" /> },
+  { key: 'company_documents',      label: 'Company Employee',       description: 'Company ID, Certificate of Employment, and Incident Report.',                       color: 'teal',    supabaseCategory: 'Company Documents',      bucketFolder: 'Company Documents',      icon: <Building2     className="w-5 h-5" /> },
+  { key: 'medical_documents',      label: 'Medical Documents',      description: "Doctor's referral, laboratory results, X-ray, and medical certificates.",           color: 'sage',    supabaseCategory: 'Medical Documents',      bucketFolder: 'Medical Documents',      icon: <Stethoscope   className="w-5 h-5" /> },
+  { key: 'admission_requirements', label: 'Admission Requirements', description: 'Admission form, surgery consent, and promissory note.',                             color: 'forest',  supabaseCategory: 'Admission Requirements', bucketFolder: 'Admission Requirements', icon: <ClipboardList className="w-5 h-5" /> },
 ];
 
-type ColorKey = 'blue' | 'red' | 'purple' | 'amber' | 'green' | 'teal' | 'gray';
+type ColorKey = 'light' | 'green' | 'emerald' | 'teal' | 'sage' | 'forest' | 'gray';
 const COLOR_MAP: Record<ColorKey, { bg: string; border: string; text: string; badge: string }> = {
-  blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   badge: 'bg-blue-100 text-blue-700'    },
-  red:    { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    badge: 'bg-red-100 text-red-700'      },
-  purple: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700' },
-  amber:  { bg: 'bg-amber-50',  border: 'border-amber-200',  text: 'text-amber-700',  badge: 'bg-amber-100 text-amber-700'  },
-  green:  { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  badge: 'bg-green-100 text-green-700'  },
-  teal:   { bg: 'bg-teal-50',   border: 'border-teal-200',   text: 'text-teal-700',   badge: 'bg-teal-100 text-teal-700'   },
-  gray:   { bg: 'bg-gray-50',   border: 'border-gray-200',   text: 'text-gray-700',   badge: 'bg-gray-100 text-gray-700'   },
+  light:   { bg: 'bg-green-50',   border: 'border-green-200',   text: 'text-green-600',   badge: 'bg-green-100 text-green-600'     },
+  green:   { bg: 'bg-green-50',   border: 'border-green-200',   text: 'text-green-700',   badge: 'bg-green-100 text-green-700'     },
+  emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+  teal:    { bg: 'bg-teal-50',    border: 'border-teal-200',    text: 'text-teal-700',    badge: 'bg-teal-100 text-teal-700'       },
+  sage:    { bg: 'bg-green-100',  border: 'border-green-300',   text: 'text-green-800',   badge: 'bg-green-200 text-green-800'     },
+  forest:  { bg: 'bg-emerald-100',border: 'border-emerald-300', text: 'text-emerald-800', badge: 'bg-emerald-200 text-emerald-800' },
+  gray:    { bg: 'bg-gray-50',    border: 'border-gray-200',    text: 'text-gray-700',    badge: 'bg-gray-100 text-gray-700'       },
 };
 
 const CATEGORY_COLORS: Record<string, ColorKey> = {
-  'Basic Identification':   'blue',
-  'PhilHealth':             'red',
-  'Senior/PWD':             'purple',
-  'Company Documents':      'amber',
-  'Medical Documents':      'green',
-  'Admission Requirements': 'teal',
+  'Basic Identification':   'light',
+  'PhilHealth':             'green',
+  'Senior/PWD':             'emerald',
+  'Company Documents':      'teal',
+  'Medical Documents':      'sage',
+  'Admission Requirements': 'forest',
 };
 
 const BCrumb = [{ to: '/', title: 'Home' }];
 
-// ─── Health ID Card visual (Flip Card) — same as UhcMember ──────────────────
+// Health ID Card visual (Flip Card)
 const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl }: {
   patient: PatientProfile; qrDataUrl: string; qrCodeValue: string;
   cardRef?: React.RefObject<HTMLDivElement | null>;
@@ -381,7 +381,7 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
   );
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Helpers
 const fullName = (p: PatientProfile) =>
   [p.first_name, p.middle_name, p.last_name, p.ext_name].filter(Boolean).join(' ');
 
@@ -420,7 +420,7 @@ const computeAge = (dateStr?: string | null): string => {
   return `${age} yrs old`;
 };
 
-// ─── Image → PDF ──────────────────────────────────────────────────────────────
+// Image → PDF
 const imageToPdfBlobUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -449,7 +449,7 @@ const imageToPdfBlobUrl = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
-// ─── PDF Preview Modal ────────────────────────────────────────────────────────
+// PDF Preview Modal
 const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; onClose: () => void }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden">
@@ -485,7 +485,7 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
   </div>
 );
 
-// ─── Display filename: strip UUID + timestamp, use patient name ──────────────
+// Display filename: strip UUID + timestamp, use patient name
 const displayFileName = (rawUrl: string, patientName?: string): string => {
   const base = rawUrl.split('/').pop() ?? 'Document';
   // Pattern: uuid_timestamp_DocType.ext  →  lastname_firstname_DocType.ext
@@ -498,7 +498,7 @@ const displayFileName = (rawUrl: string, patientName?: string): string => {
   return base;
 };
 
-// ─── Document List ────────────────────────────────────────────────────────────
+// Document List
 const DocumentList = ({ documents, patientName }: { documents: DocumentAttachment[]; patientName?: string }) => {
   const [expandedCat, setExpandedCat] = useState<string | null>(null);
   const [previewDoc,  setPreviewDoc]  = useState<DocumentAttachment | null>(null);
@@ -526,7 +526,7 @@ const DocumentList = ({ documents, patientName }: { documents: DocumentAttachmen
       )}
       <div className="flex flex-col gap-2 mt-4">
         {Object.entries(grouped).map(([cat, docs]) => {
-          const colorKey = CATEGORY_COLORS[cat] ?? 'gray';
+          const colorKey = CATEGORY_COLORS[cat] ?? 'light';
           const colors   = COLOR_MAP[colorKey];
           const isOpen   = expandedCat === cat;
           return (
@@ -568,18 +568,13 @@ const DocumentList = ({ documents, patientName }: { documents: DocumentAttachmen
   );
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // PIN VERIFY MODAL
-// Logic:
-//  - hasPin=false  → operator CANNOT proceed; member must set PIN first
-//  - hasPin=true   → operator must enter correct PIN (hard block, max 3 attempts)
-// ══════════════════════════════════════════════════════════════════════════════
 interface PinVerifyModalProps {
   patientName: string;
   hasPin: boolean;
   pinState: PinVerifyState;
   onDigitEntry: (pin: string) => void;
-  onProceedNoPin?: () => void;   // no longer used — kept for compatibility
+  onProceedNoPin?: () => void;
   onClose: () => void;
 }
 
@@ -611,9 +606,9 @@ const PinVerifyModal = ({
     setEntered((p) => p.slice(0, -1));
   };
 
-  // ── Keyboard support ──
+  // Keyboard support
   useEffect(() => {
-    if (!hasPin) return; // no-pin screen has no entry
+    if (!hasPin) return;
     const onKey = (e: KeyboardEvent) => {
       if (/^[0-9]$/.test(e.key)) { handleDigit(e.key); e.preventDefault(); }
       else if (e.key === 'Backspace') { handleBack(); e.preventDefault(); }
@@ -630,7 +625,7 @@ const PinVerifyModal = ({
     prevStatus.current = pinState.status;
   }, [pinState.status]);
 
-  // ── No PIN case: operator CANNOT proceed — member must set PIN first ──────
+  // No PIN case: operator CANNOT proceed — member must set PIN first
   if (!hasPin) {
     return (
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 backdrop-blur-sm p-4">
@@ -676,7 +671,7 @@ const PinVerifyModal = ({
     );
   }
 
-  // ── Has PIN: hard gate ────────────────────────────────────────────────────
+  // Has PIN: hard gate
   const headerGradient =
     status === 'verified' ? 'from-green-600 to-green-800' :
     isLocked             ? 'from-red-700 to-red-900'      :
@@ -854,7 +849,7 @@ const UhcOperator = () => {
       roleId: userRole?.role ?? null,
     };
   }, []);
-  // ── Document Manager ──────────────────────────────────────────────────────
+  // Document Manager
   const [searchQuery,      setSearchQuery]      = useState('');
   const [searchResults,    setSearchResults]    = useState<PatientProfile[]>([]);
   const [searchResultPics, setSearchResultPics] = useState<Record<string, string>>({});
@@ -875,7 +870,7 @@ const UhcOperator = () => {
   const [isProcessing,    setIsProcessing]    = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  // ── Reset Document Manager to initial state ───────────────────────────────
+  // Reset Document Manager to initial state
   const resetDocumentManager = useCallback(() => {
     setSearchQuery('');
     setSearchResults([]);
@@ -896,32 +891,32 @@ const UhcOperator = () => {
     setProfilePicError('');
   }, []);
 
-  // ── Profile picture ────────────────────────────────────────────────────────
+  // Profile picture
   const [profilePicUrl,       setProfilePicUrl]       = useState<string | null>(null);
   const [isUploadingPic,      setIsUploadingPic]      = useState(false);
   const [profilePicError,     setProfilePicError]     = useState('');
   const profilePicInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ── Scanner ───────────────────────────────────────────────────────────────
+  // Scanner
   const [activeTab,    setActiveTab]    = useState('documents');
   const [cameraActive, setCameraActive] = useState(false);
 
-  // ── Current user role ──────────────────────────────────────────────────────
+  // Current user role
   const [currentRoleName, setCurrentRoleName] = useState<string | null>(null);
   const isBarangayOfficer = currentRoleName?.toLowerCase().includes('barangay') ?? false;
 
-  // ── Operator mode selection ────────────────────────────────────────────────
+  // Operator mode selection
   const [operatorMode, setOperatorMode] = useState<'documents' | 'scanner' | 'tagging' | null>(null);
   const [scanLookup,   setScanLookup]   = useState(false);
   const [scanResult,   setScanResult]   = useState<ScanResult | null>(null);
   const [cameraError,  setCameraError]  = useState('');
   const [scanError,    setScanError]    = useState('');
 
-  // ── Scan result card display (HealthIdCard) ──────────────────────────────
+  // Scan result card display (HealthIdCard)
   const [scanQrDataUrl,      setScanQrDataUrl]      = useState<string | null>(null);
   const [scanProfilePicUrl,  setScanProfilePicUrl]  = useState<string | null>(null);
 
-  // ── PIN: QR scanner gate ──────────────────────────────────────────────────
+  // PIN: QR scanner gate
   const [pendingScanResult, setPendingScanResult] = useState<ScanResult | null>(null);
   const [showScanPinModal,  setShowScanPinModal]  = useState(false);
   const [scanPinHasPin,     setScanPinHasPin]     = useState(false);
@@ -929,7 +924,7 @@ const UhcOperator = () => {
     status: 'idle', attemptsLeft: 3, isLocked: false,
   });
 
-  // ── PIN: patient-select gate ──────────────────────────────────────────────
+  // PIN: patient-select gate
   const [pendingPatientPin,   setPendingPatientPin]   = useState<PendingPatientPin | null>(null);
   const [showPatientPinModal, setShowPatientPinModal] = useState(false);
   const [patientPinState,     setPatientPinState]     = useState<PinVerifyState>({
@@ -937,7 +932,7 @@ const UhcOperator = () => {
   });
   const [isLoadingPatientPin, setIsLoadingPatientPin] = useState(false);
 
-  // ── Scan History (from DB) ───────────────────────────────────────────────
+  // Scan History (from DB)
   const [dbScanHistory, setDbScanHistory] = useState<{
     id: string;
     created_at: string;
@@ -952,7 +947,7 @@ const UhcOperator = () => {
   }[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // ── Scanner instance ──────────────────────────────────────────────────────
+  // Scanner instance
   const SCANNER_DIV_ID = 'uhc-qr-camera-root';
   const scannerRef     = useRef<Html5Qrcode | null>(null);
   const qrSuccessRef   = useRef<((text: string) => Promise<void>) | null>(null);
@@ -967,7 +962,7 @@ const UhcOperator = () => {
     return () => clearTimeout(t);
   }, []);
 
-  // ── Fetch current user role name on mount ─────────────────────────────────
+  // Fetch current user role name on mount
   useEffect(() => {
     const fetchCurrentRole = async () => {
       try {
@@ -1004,7 +999,7 @@ const UhcOperator = () => {
   useEffect(() => { if (activeTab !== 'scanner') stopCamera(); }, [activeTab, stopCamera]);
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
 
-  // ── Generate QR data URL + load profile pic when scan result changes ─────
+  // Generate QR data URL + load profile pic when scan result changes
   useEffect(() => {
     if (!scanResult) { setScanQrDataUrl(null); setScanProfilePicUrl(null); return; }
     // Generate QR image
@@ -1027,7 +1022,7 @@ const UhcOperator = () => {
     }
   }, [scanResult]);
 
-  // ── Fetch scan history from DB when tab changes ──────────────────────────
+  // Fetch scan history from DB when tab changes
   useEffect(() => {
     if (activeTab !== 'history') return;
     const fetchHistory = async () => {
@@ -1139,7 +1134,7 @@ const UhcOperator = () => {
   }, [activeTab]);
 
 
-  // ── QR PIN verify ─────────────────────────────────────────────────────────
+  // QR PIN verify
   const handleScanPinDigitEntry = useCallback(async (enteredPin: string) => {
     if (!pendingScanResult?.healthCardId) return;
 
@@ -1197,12 +1192,11 @@ const UhcOperator = () => {
   }, []);
 
   const scanningRef = useRef(false);
-  // ── QR success handler ────────────────────────────────────────────────────
+  // QR success handler
   qrSuccessRef.current = async (decodedText: string) => {
-    // ── GUARD: prevent duplicate fires ──────────────────────
+    // GUARD: prevent duplicate fires
     if (scanningRef.current) return;
     scanningRef.current = true;
-    // ────────────────────────────────────────────────────────
 
     await stopCamera();
     setScanLookup(true);
@@ -1306,7 +1300,7 @@ const UhcOperator = () => {
   };
 
   const startCamera = useCallback(async () => {
-    scanningRef.current = false;          // allow a fresh scan
+    scanningRef.current = false;       
     setScanError(''); setCameraError('');
     if (!scannerRef.current) {
       try { scannerRef.current = new Html5Qrcode(SCANNER_DIV_ID); }
@@ -1332,7 +1326,7 @@ const UhcOperator = () => {
 
   const resetScan = () => { scanningRef.current = false; setScanResult(null); setScanError(''); setCameraError(''); };
 
-  // ── Search (module3) — flat sequential fetches ────────────────────────────
+  // Search (module3) — flat sequential fetches
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setIsSearching(true); setErrorMessage(''); setSearchResults([]);
@@ -1399,7 +1393,7 @@ const UhcOperator = () => {
     }
   };
 
-  // ── Patient select: check module4.health_card for PIN ────────────────────
+  // Patient select: check module4.health_card for PIN
   // KEY LOGIC:
   //   - If no health_card row exists yet → hasPin=false → operator proceeds freely
   //   - If health_card exists but pin is null/empty → hasPin=false → operator proceeds freely
@@ -1435,7 +1429,7 @@ const UhcOperator = () => {
     }
   };
 
-  // ── Commit patient after PIN cleared ──────────────────────────────────────
+  // Commit patient after PIN cleared
   // Load profile pic when patient is selected
   const loadProfilePic = useCallback(async (patientId: string) => {
     setProfilePicUrl(null);
@@ -1460,7 +1454,7 @@ const UhcOperator = () => {
     loadProfilePic(p.id);
   }, [loadProfilePic]);
 
-  // ── Patient PIN digit handler ─────────────────────────────────────────────
+  // Patient PIN digit handler
   const handlePatientPinDigitEntry = useCallback(async (enteredPin: string) => {
     if (!pendingPatientPin?.healthCardId) return;
 
@@ -1496,7 +1490,7 @@ const UhcOperator = () => {
     }
   }, [pendingPatientPin, commitPatientSelect]);
 
-  // ── Patient PIN: no-PIN proceed ───────────────────────────────────────────
+  // Patient PIN: no-PIN proceed
   const handlePatientPinProceedNoPin = useCallback(() => {
     if (!pendingPatientPin) return;
     commitPatientSelect(pendingPatientPin.patient);
@@ -1509,7 +1503,7 @@ const UhcOperator = () => {
     setSearchQuery('');
   }, []);
 
-  // ── File handling ─────────────────────────────────────────────────────────
+  // File handling
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>, folderKey: string) => {
     const file = e.target.files?.[0];
     if (!file || !selectedPatient) return;
@@ -1542,7 +1536,7 @@ const UhcOperator = () => {
 
   const handleDocTypeCancel = () => { setPendingUpload(null); setSelectedDocType(''); setCustomDocType(''); };
 
-  // ── Save file to Supabase (module4) ───────────────────────────────────────
+  // Save file to Supabase (module4)
   const handleSaveFile = async (folderKey: string, fileIdx: number) => {
     if (!selectedPatient) return;
     setFolders((prev) => prev.map((f) => f.key === folderKey
@@ -1629,7 +1623,7 @@ const UhcOperator = () => {
     }
   };
 
-  // ── Generate QR code (module4) ────────────────────────────────────────────
+  // Generate QR code (module4)
   const handleGenerateQr = async () => {
     if (!selectedPatient) return;
     setIsGenerating(true); setErrorMessage('');
@@ -1654,7 +1648,7 @@ const UhcOperator = () => {
     finally { setIsGenerating(false); }
   };
 
-  // ── Upload profile picture to card-attachments/Profile Picture ──────────────
+  // Upload profile picture to card-attachments/Profile Picture
   const handleProfilePicUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedPatient) return;
@@ -1684,15 +1678,13 @@ const UhcOperator = () => {
 
   const totalFiles    = folders.reduce((s, f) => s + f.files.length, 0);
   const pendingFolder = pendingUpload ? FOLDER_DEFS.find((f) => f.key === pendingUpload.folderKey) : null;
-  const pendingColors = pendingFolder ? COLOR_MAP[pendingFolder.color as ColorKey] : COLOR_MAP.blue;
+  const pendingColors = pendingFolder ? COLOR_MAP[pendingFolder.color as ColorKey] : COLOR_MAP.light;
   const pendingOptions = pendingUpload ? (FOLDER_DOC_TYPES[pendingUpload.folderKey] ?? []) : [];
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  // Render
   return (
     <>
       <BreadcrumbComp title="Health Card Operator" items={BCrumb} />
-
-      {/* Floating camera div (never unmounted) */}
       <div
         style={{
           position: 'fixed',
@@ -1995,44 +1987,52 @@ const UhcOperator = () => {
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        {/* Hover overlay */}
-                        <button
-                          onClick={() => profilePicInputRef.current?.click()}
-                          className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col items-center justify-center cursor-pointer gap-1"
-                          title="Upload profile picture"
-                        >
-                          <Camera className="w-6 h-6 text-white drop-shadow" />
-                          <span className="text-[10px] font-semibold text-white drop-shadow">
-                            {profilePicUrl ? 'Change' : 'Upload'}
-                          </span>
-                        </button>
+                        {/* Hover overlay — hidden for Barangay Officers */}
+                        {!isBarangayOfficer && (
+                          <button
+                            onClick={() => profilePicInputRef.current?.click()}
+                            className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col items-center justify-center cursor-pointer gap-1"
+                            title="Upload profile picture"
+                          >
+                            <Camera className="w-6 h-6 text-white drop-shadow" />
+                            <span className="text-[10px] font-semibold text-white drop-shadow">
+                              {profilePicUrl ? 'Change' : 'Upload'}
+                            </span>
+                          </button>
+                        )}
                         {/* Uploading spinner */}
                         {isUploadingPic && (
                           <div className="absolute inset-0 rounded-2xl bg-black/50 flex items-center justify-center">
                             <Loader2 className="w-6 h-6 text-white animate-spin" />
                           </div>
                         )}
-                        {/* Hidden file input */}
-                        <input
-                          ref={profilePicInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleProfilePicUpload}
-                        />
-                        {/* Small camera badge */}
-                        <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-green-600 dark:bg-green-500 flex items-center justify-center shadow-md border-2 border-white dark:border-gray-800">
-                          <Camera className="w-3.5 h-3.5 text-white" />
-                        </div>
+                        {/* Hidden file input — only for non-Barangay Officers */}
+                        {!isBarangayOfficer && (
+                          <input
+                            ref={profilePicInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleProfilePicUpload}
+                          />
+                        )}
+                        {/* Small camera badge — hidden for Barangay Officers */}
+                        {!isBarangayOfficer && (
+                          <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-green-600 dark:bg-green-500 flex items-center justify-center shadow-md border-2 border-white dark:border-gray-800">
+                            <Camera className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        )}
                       </div>
-                      {/* Upload button */}
-                      <button
-                        onClick={() => profilePicInputRef.current?.click()}
-                        className="text-xs font-medium text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 flex items-center gap-1.5 transition-colors px-3 py-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30"
-                      >
-                        <Upload className="w-3.5 h-3.5" />
-                        Upload Photo
-                      </button>
+                      {/* Upload button — hidden for Barangay Officers */}
+                      {!isBarangayOfficer && (
+                        <button
+                          onClick={() => profilePicInputRef.current?.click()}
+                          className="text-xs font-medium text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 flex items-center gap-1.5 transition-colors px-3 py-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          Upload Photo
+                        </button>
+                      )}
                     </div>
 
                     {/* ── Profile Details Section ── */}

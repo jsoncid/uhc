@@ -112,12 +112,12 @@ interface DocumentAttachment {
 
 // Folder Definitions
 const FOLDER_DEFS = [
-  { key: 'basic_identification',   label: 'Basic Identification',   supabaseCategory: 'Basic Identification',   color: 'blue',   icon: <IdCard        className="w-5 h-5" /> },
-  { key: 'philhealth',             label: 'PhilHealth',             supabaseCategory: 'PhilHealth',             color: 'red',    icon: <Heart         className="w-5 h-5" /> },
-  { key: 'senior_pwd',             label: 'Senior / PWD',           supabaseCategory: 'Senior/PWD',             color: 'purple', icon: <Accessibility className="w-5 h-5" /> },
-  { key: 'company_documents',      label: 'Company Employee',       supabaseCategory: 'Company Documents',      color: 'amber',  icon: <Building2     className="w-5 h-5" /> },
-  { key: 'medical_documents',      label: 'Medical Documents',      supabaseCategory: 'Medical Documents',      color: 'green',  icon: <Stethoscope   className="w-5 h-5" /> },
-  { key: 'admission_requirements', label: 'Admission Requirements', supabaseCategory: 'Admission Requirements', color: 'teal',   icon: <ClipboardList className="w-5 h-5" /> },
+  { key: 'basic_identification',   label: 'Basic Identification',   supabaseCategory: 'Basic Identification',   color: 'light',   icon: <IdCard        className="w-5 h-5" /> },
+  { key: 'philhealth',             label: 'PhilHealth',             supabaseCategory: 'PhilHealth',             color: 'green',   icon: <Heart         className="w-5 h-5" /> },
+  { key: 'senior_pwd',             label: 'Senior / PWD',           supabaseCategory: 'Senior/PWD',             color: 'emerald', icon: <Accessibility className="w-5 h-5" /> },
+  { key: 'company_documents',      label: 'Company Employee',       supabaseCategory: 'Company Documents',      color: 'teal',    icon: <Building2     className="w-5 h-5" /> },
+  { key: 'medical_documents',      label: 'Medical Documents',      supabaseCategory: 'Medical Documents',      color: 'sage',    icon: <Stethoscope   className="w-5 h-5" /> },
+  { key: 'admission_requirements', label: 'Admission Requirements', supabaseCategory: 'Admission Requirements', color: 'forest',  icon: <ClipboardList className="w-5 h-5" /> },
 ];
 
 // Maps each folder key to the specific doc-type labels the operator can choose.
@@ -143,15 +143,15 @@ const docMatchesFolder = (docCategory: string, folderKey: string): boolean => {
   return types.some((t) => t.toLowerCase() === docCategory.toLowerCase());
 };
 
-type ColorKey = 'blue' | 'red' | 'purple' | 'amber' | 'green' | 'teal' | 'gray';
+type ColorKey = 'light' | 'green' | 'emerald' | 'teal' | 'sage' | 'forest' | 'gray';
 const COLOR_MAP: Record<ColorKey, { bg: string; border: string; text: string; badge: string }> = {
-  blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   badge: 'bg-blue-100 text-blue-700'    },
-  red:    { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    badge: 'bg-red-100 text-red-700'      },
-  purple: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700' },
-  amber:  { bg: 'bg-amber-50',  border: 'border-amber-200',  text: 'text-amber-700',  badge: 'bg-amber-100 text-amber-700'  },
-  green:  { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  badge: 'bg-green-100 text-green-700'  },
-  teal:   { bg: 'bg-teal-50',   border: 'border-teal-200',   text: 'text-teal-700',   badge: 'bg-teal-100 text-teal-700'   },
-  gray:   { bg: 'bg-gray-50',   border: 'border-gray-200',   text: 'text-gray-700',   badge: 'bg-gray-100 text-gray-700'   },
+  light:   { bg: 'bg-green-50',   border: 'border-green-200',   text: 'text-green-600',   badge: 'bg-green-100 text-green-600'     },
+  green:   { bg: 'bg-green-50',   border: 'border-green-200',   text: 'text-green-700',   badge: 'bg-green-100 text-green-700'     },
+  emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+  teal:    { bg: 'bg-teal-50',    border: 'border-teal-200',    text: 'text-teal-700',    badge: 'bg-teal-100 text-teal-700'       },
+  sage:    { bg: 'bg-green-100',  border: 'border-green-300',   text: 'text-green-800',   badge: 'bg-green-200 text-green-800'     },
+  forest:  { bg: 'bg-emerald-100',border: 'border-emerald-300', text: 'text-emerald-800', badge: 'bg-emerald-200 text-emerald-800' },
+  gray:    { bg: 'bg-gray-50',    border: 'border-gray-200',    text: 'text-gray-700',    badge: 'bg-gray-100 text-gray-700'       },
 };
 
 // Helpers
@@ -2617,14 +2617,14 @@ const UhcMember = () => {
                         <p className="text-xs text-gray-400 mt-1 max-w-sm">Download or print your card and bring it to a print shop for a physical ID.</p>
                       </div>
                       <div className="flex gap-2 flex-wrap">
-                        <Button variant="outline" onClick={handlePrintCard} disabled={isCapturing} className="flex gap-2 border-gray-300 text-gray-700 hover:bg-gray-50">
-                          {isCapturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />} Print Card
-                        </Button>
+                      <Button variant="outline" onClick={handlePrintCard} disabled={isCapturing} className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50 hover:text-green-800">
+                        {isCapturing ? (<Loader2 className="w-4 h-4 animate-spin text-green-700" />) : (<Printer className="w-4 h-4 text-green-700" />)}Print Card
+                      </Button>
                         <Button onClick={handleDownloadCard} disabled={isCapturing} className="flex gap-2 bg-green-700 hover:bg-green-800 text-white">
                           {isCapturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download Card
                         </Button>
                         <a href={qrDataUrl} download={`QR_${selectedPatient?.last_name}_${selectedPatient?.first_name}.png`}
-                          className="inline-flex items-center gap-2 text-sm border border-blue-300 text-blue-700 hover:bg-blue-50 rounded-md px-3 py-2 transition-colors font-medium">
+                          className="inline-flex items-center gap-2 text-sm border border-green-300 text-green-700 hover:bg-green-50 rounded-md px-3 py-2 transition-colors font-medium">
                           <QrCode className="w-4 h-4" /> QR Only
                         </a>
                       </div>
