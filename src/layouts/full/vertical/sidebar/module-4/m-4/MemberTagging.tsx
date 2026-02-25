@@ -11,6 +11,7 @@ import {
   Link2, X, ChevronRight, UserCheck, ShieldCheck,
   Mail, Calendar, MapPin, ArrowRight, RefreshCw, Info,
 } from 'lucide-react';
+import defaultProfile from 'src/assets/images/profile/default_profile.jpg';
 
 // Only Member role is used for tagging
 const MEMBER_ROLE = 'Member' as const;
@@ -417,7 +418,7 @@ const MemberTagging = () => {
               <Button
                 onClick={searchUsers}
                 disabled={isSearchingUser || !userQuery.trim()}
-                className="flex gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                className="flex gap-2 bg-green-700 hover:bg-green-800 text-white"
               >
                 {isSearchingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                 Search
@@ -441,9 +442,9 @@ const MemberTagging = () => {
                   <button
                     key={u.id}
                     onClick={() => { setSelectedUser(u); setUserResults([]); setUserQuery(''); }}
-                    className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-3"
+                    className="w-full text-left px-4 py-3 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors flex items-center gap-3"
                   >
-                    <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-xs flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center text-green-700 dark:text-green-400 font-bold text-xs flex-shrink-0">
                       <User className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -462,13 +463,13 @@ const MemberTagging = () => {
             )}
           </>
         ) : (
-          <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
-            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+          <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+            <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
               <Mail className="w-5 h-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-blue-900 dark:text-blue-300 truncate">{selectedUser.email}</p>
-              <p className="text-xs text-blue-500 dark:text-blue-400">
+              <p className="font-semibold text-green-900 dark:text-green-300 truncate">{selectedUser.email}</p>
+              <p className="text-xs text-green-600 dark:text-green-400">
                 Registered {new Date(selectedUser.created_at).toLocaleDateString()} · Active account
               </p>
             </div>
@@ -478,9 +479,9 @@ const MemberTagging = () => {
               </span>
               <button
                 onClick={() => { setSelectedUser(null); setUserQuery(''); }}
-                className="p-1.5 rounded-lg hover:bg-blue-200 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-green-200 transition-colors"
               >
-                <X className="w-4 h-4 text-blue-600" />
+                <X className="w-4 h-4 text-green-600" />
               </button>
             </div>
           </div>
@@ -550,8 +551,8 @@ const MemberTagging = () => {
           </>
         ) : (
           <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
-            <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-              {initials(fullName(selectedPatient))}
+            <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+              <img src={defaultProfile} alt="Profile" className="w-full h-full object-cover" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-green-900 dark:text-green-300">{fullName(selectedPatient)}</p>
@@ -607,9 +608,9 @@ const MemberTagging = () => {
               <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-semibold mb-3">Linking Summary</p>
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 {/* Auth user side */}
-                <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-blue-200 dark:border-blue-800 p-3 text-center">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center mx-auto mb-2">
-                    <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-green-200 dark:border-green-800 p-3 text-center">
+                  <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center mx-auto mb-2">
+                    <Mail className="w-5 h-5 text-green-600 dark:text-green-400" />
                   </div>
                   <p className="text-xs text-gray-400 dark:text-gray-500">Registered User</p>
                   <p className="font-semibold text-gray-800 dark:text-gray-200 text-sm truncate mt-0.5">{selectedUser?.email}</p>
@@ -622,8 +623,8 @@ const MemberTagging = () => {
 
                 {/* Patient side */}
                 <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-green-200 dark:border-green-800 p-3 text-center">
-                  <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center mx-auto mb-2 font-bold text-green-700 dark:text-green-400 text-sm">
-                    {selectedPatient ? initials(fullName(selectedPatient)) : '?'}
+                  <div className="w-10 h-10 rounded-full overflow-hidden mx-auto mb-2">
+                    <img src={defaultProfile} alt="Profile" className="w-full h-full object-cover" />
                   </div>
                   <p className="text-xs text-gray-400 dark:text-gray-500">Patient Profile</p>
                   <p className="font-semibold text-gray-800 dark:text-gray-200 text-sm truncate mt-0.5">{selectedPatient ? fullName(selectedPatient) : ''}</p>

@@ -109,6 +109,7 @@ interface ScanResult {
   qrCodeDataUrl?: string;
   healthCardId?: string;
   fromHistory?: boolean;
+  dateIssued?: string;
 }
 
 // PIN Types
@@ -161,16 +162,17 @@ const CATEGORY_COLORS: Record<string, ColorKey> = {
 const BCrumb = [{ to: '/', title: 'Home' }];
 
 // Health ID Card visual (Flip Card)
-const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl }: {
+const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl, dateIssued: dateIssuedProp }: {
   patient: PatientProfile; qrDataUrl: string; qrCodeValue: string;
   cardRef?: React.RefObject<HTMLDivElement | null>;
   profilePicUrl?: string | null;
+  dateIssued?: string | null;
 }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const lastName = patient.last_name?.toUpperCase() || 'N/A';
   const givenNames = [patient.first_name, patient.middle_name].filter(Boolean).join(' ').toUpperCase();
   const sex = patient.sex?.toUpperCase() || 'N/A';
-  const dateIssued = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+  const dateIssued = (dateIssuedProp ? new Date(dateIssuedProp) : new Date()).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
 
   const WatermarkLogo = () => (
     <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'grayscale(100%) brightness(0.4)' }} />
@@ -361,12 +363,24 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
   );
 
   return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <div ref={cardRef} style={{ width: 700, height: 420, perspective: '1000px' }}>
-        <div style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d', transition: 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1)',
-          transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
-          <FrontSide />
-          <BackSide />
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+      {/* Card container with 3D perspective — scales down on mobile */}
+      <div style={{ width: '100%', maxWidth: 700, aspectRatio: '700 / 420', perspective: '1000px' }}>
+        <div ref={cardRef} style={{ width: 700, height: 420, transformOrigin: 'top left', transform: 'scale(var(--card-scale, 1))' }}>
+          <style>{`
+            @media (max-width: 740px) {
+              [data-op-card-inner] { --card-scale: calc(min(100vw - 48px, 700px) / 700) !important; }
+            }
+          `}</style>
+          <div data-op-card-inner style={{
+            width: '100%', height: '100%', position: 'relative',
+            transformStyle: 'preserve-3d', transition: 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1)',
+            transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+            ['--card-scale' as any]: typeof window !== 'undefined' && window.innerWidth < 740 ? Math.min((window.innerWidth - 48) / 700, 1) : 1,
+          }}>
+            <FrontSide />
+            <BackSide />
+          </div>
         </div>
       </div>
       <button onClick={() => setIsFlipped(!isFlipped)}
@@ -547,13 +561,15 @@ const DocumentList = ({ documents, patientName }: { documents: DocumentAttachmen
               {isOpen && (
                 <div className="bg-white dark:bg-gray-800 p-3 border-t dark:border-gray-700 flex flex-col gap-2">
                   {docs.map((doc) => (
-                    <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                      <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{displayFileName(doc.attachment, patientName)}</p>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">{cat}</p>
+                   <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{displayFileName(doc.attachment, patientName)}</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500">{cat}</p>
+                        </div>
                       </div>
-                      <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 text-green-700 hover:bg-green-50" onClick={() => setPreviewDoc(doc)}>
+                      <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 text-green-700 hover:bg-green-50 ml-7 sm:ml-0 self-start sm:self-auto flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
                         <Eye className="w-3.5 h-3.5" /> View
                       </Button>
                     </div>
@@ -1216,7 +1232,7 @@ const UhcOperator = () => {
       const { data: cardData, error: cardErr } = await supabase
         .schema('module4')
         .from('health_card')
-        .select('id, qr_code, pin, patient_profile')
+        .select('id, qr_code, pin, patient_profile, created_at')
         .eq('qr_code', qrValue)
         .single();
 
@@ -1282,7 +1298,7 @@ const UhcOperator = () => {
           });
       } catch (histErr) { console.warn('Failed to save scan history:', histErr); }
 
-      const pending: ScanResult = { qrValue, scanTime, patient, documents, healthCardId };
+      const pending: ScanResult = { qrValue, scanTime, patient, documents, healthCardId, dateIssued: (cardData as any).created_at };
       setPendingScanResult(pending);
       setScanPinHasPin(cardHasPin);
       setScanPinState({ status: 'idle', attemptsLeft: 3, isLocked: false });
@@ -1687,10 +1703,9 @@ const UhcOperator = () => {
       <BreadcrumbComp title="Health Card Operator" items={BCrumb} />
       <div
         style={{
-          position: 'fixed',
-          bottom: cameraActive ? 24 : -9999,
-          right: cameraActive ? 24 : -9999,
-          width: 320, zIndex: 9998, borderRadius: 16, overflow: 'hidden',
+          bottom: cameraActive ? 16 : -9999,
+          right: cameraActive ? 16 : -9999,
+          width: 'min(320px, calc(100vw - 32px))', zIndex: 9998, borderRadius: 16, overflow: 'hidden',
           boxShadow: cameraActive ? '0 8px 40px rgba(0,0,0,0.4)' : 'none',
           border: '3px solid #16a34a', background: '#000',
           transition: 'bottom 0.35s ease, right 0.35s ease',
@@ -1926,17 +1941,17 @@ const UhcOperator = () => {
           {/* ═══ DOCUMENT MANAGER ═══ */}
           <TabsContent value="documents">
             <div className="flex flex-col gap-5">
-              <Card className="p-6">
-                <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
+           <Card className="p-4 sm:p-6">
+                <h3 className="font-semibold text-base sm:text-lg mb-1 flex items-center gap-2">
                   <Search className="w-5 h-5 text-green-600" /> Search Member
                 </h3>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Input
                     placeholder="Search by first or last name"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    className="flex-1"
+                    className="flex-1 min-w-0"
                   />
                   <Button onClick={handleSearch} disabled={isSearching} className="flex gap-2 bg-green-700 hover:bg-green-800">
                     {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Search
@@ -1976,7 +1991,7 @@ const UhcOperator = () => {
                 )}
 
                 {selectedPatient && (
-                  <div className="mt-4 flex flex-col sm:flex-row gap-6 items-start bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-5">
+                 <div className="mt-4 flex flex-col items-center sm:items-start sm:flex-row gap-6 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 sm:p-5">
                     {/* ── Profile Picture Section ── */}
                     <div className="flex flex-col items-center gap-3 sm:min-w-[180px]">
                       <div className="relative group">
@@ -2036,9 +2051,9 @@ const UhcOperator = () => {
                     </div>
 
                     {/* ── Profile Details Section ── */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold text-xl text-gray-900 dark:text-gray-100 truncate">
+                    <div className="flex-1 min-w-0 text-center sm:text-left">
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
+                        <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-gray-100 truncate">
                           {fullName(selectedPatient)}
                         </h3>
                         <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-[10px] font-semibold uppercase tracking-wide">
@@ -2048,7 +2063,7 @@ const UhcOperator = () => {
                       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Health Profile</p>
 
                       {/* Info grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
                         <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
                           <User className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                           <div className="min-w-0">
@@ -2065,9 +2080,9 @@ const UhcOperator = () => {
                         </div>
                         <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 sm:col-span-2">
                           <Building2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                          <div className="min-w-0">
+                          <div className="min-w-0 overflow-hidden">
                             <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Address</p>
-                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{getFullAddress(selectedPatient.brgy)}</p>
+                            <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200 break-words">{getFullAddress(selectedPatient.brgy)}</p>
                           </div>
                         </div>
                       </div>
@@ -2089,8 +2104,8 @@ const UhcOperator = () => {
                 )}
               </Card>
 
-              <Card className="p-6">
-                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+            <Card className="p-4 sm:p-6">
+                <h3 className="font-semibold text-base sm:text-lg mb-4 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-green-600" /> Document Folders
                 </h3>
                 {!selectedPatient ? (
@@ -2106,13 +2121,13 @@ const UhcOperator = () => {
                       return (
                         <div key={folder.key} className={`border rounded-xl overflow-hidden ${colors.border}`}>
                           <button
-                            className={`w-full flex items-center gap-4 px-5 py-4 ${colors.bg} transition-colors hover:opacity-90`}
+                            className={`w-full flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-3 sm:py-4 ${colors.bg} transition-colors hover:opacity-90`}
                             onClick={() => setExpandedFolder(isExp ? null : folder.key)}
                           >
                             <span className={colors.text}>{folder.icon}</span>
-                            <div className="flex-1 text-left">
-                              <p className={`font-semibold ${colors.text}`}>{folder.label}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{folder.description}</p>
+                            <div className="flex-1 text-left min-w-0">
+                              <p className={`font-semibold text-sm sm:text-base ${colors.text}`}>{folder.label}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 hidden sm:block">{folder.description}</p>
                             </div>
                             <div className="flex items-center gap-3">
                               {folder.files.length > 0 && (
@@ -2148,28 +2163,32 @@ const UhcOperator = () => {
                               {folder.files.length > 0 && (
                                 <div className="mt-4 flex flex-col gap-2">
                                   {folder.files.map((file, idx) => (
-                                    <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg border ${file.saved ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-600'}`}>
-                                      <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{file.docType}</p>
-                                        <p className="text-xs text-gray-400 dark:text-gray-500">{file.uploadedAt}</p>
+                                    <div key={idx} className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border ${file.saved ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-600'}`}>
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{file.docType}</p>
+                                          <p className="text-xs text-gray-400 dark:text-gray-500">{file.uploadedAt}</p>
+                                        </div>
                                       </div>
-                                      {file.saved && (
-                                        <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">
-                                          <CheckCircle2 className="w-3 h-3" /> Saved
-                                        </span>
-                                      )}
-                                      <button onClick={() => setPreviewFile(file)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0">
-                                        <Eye className="w-4 h-4 text-gray-400 hover:text-green-600 dark:text-gray-500 dark:hover:text-green-400" />
-                                      </button>
-                                      {!file.saved && (
-                                        <Button size="sm" disabled={file.saving}
-                                          className="bg-green-700 hover:bg-green-800 text-white text-xs flex gap-1.5 px-3 min-w-[72px] flex-shrink-0"
-                                          onClick={() => handleSaveFile(folder.key, idx)}>
-                                          {file.saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                          {file.saving ? 'Saving…' : 'Save'}
-                                        </Button>
-                                      )}
+                                      <div className="flex items-center gap-2 ml-7 sm:ml-0 flex-shrink-0">
+                                        {file.saved && (
+                                          <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                                            <CheckCircle2 className="w-3 h-3" /> Saved
+                                          </span>
+                                        )}
+                                        <button onClick={() => setPreviewFile(file)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0">
+                                          <Eye className="w-4 h-4 text-gray-400 hover:text-green-600 dark:text-gray-500 dark:hover:text-green-400" />
+                                        </button>
+                                        {!file.saved && (
+                                          <Button size="sm" disabled={file.saving}
+                                            className="bg-green-700 hover:bg-green-800 text-white text-xs flex gap-1.5 px-3 min-w-[72px] flex-shrink-0"
+                                            onClick={() => handleSaveFile(folder.key, idx)}>
+                                            {file.saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                            {file.saving ? 'Saving…' : 'Save'}
+                                          </Button>
+                                        )}
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -2194,8 +2213,8 @@ const UhcOperator = () => {
           <TabsContent value="scanner">
             <div className="flex flex-col gap-5">
               {!scanResult ? (
-                <Card className="p-6">
-                  <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
+                <Card className="p-4 sm:p-6">
+                  <h3 className="font-semibold text-base sm:text-lg mb-1 flex items-center gap-2">
                     <Camera className="w-5 h-5 text-green-600" /> QR Code Scanner
                   </h3>
                   <div className="mb-5 flex items-start gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
@@ -2256,31 +2275,33 @@ const UhcOperator = () => {
                 </Card>
               ) : (
                 <div className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex items-center gap-1.5"><Clock className="w-4 h-4" />Scanned: {scanResult.scanTime}</div>
                       <span className="flex items-center gap-1 bg-green-100 text-green-700 border border-green-200 text-xs font-semibold px-2.5 py-1 rounded-full">
                         <ShieldCheck className="w-3.5 h-3.5" /> Access Granted
                       </span>
                     </div>
-                    <Button variant="outline" onClick={resetScan} className="flex gap-2">
+                    <Button variant="outline" onClick={resetScan} className="flex gap-2 self-start sm:self-auto">
                       <RefreshCw className="w-4 h-4" /> Scan Another
                     </Button>
                   </div>
 
                   {/* Health ID Card */}
                   {scanQrDataUrl && (
-                    <HealthIdCard
-                      patient={scanResult.patient}
-                      qrDataUrl={scanQrDataUrl}
-                      qrCodeValue={scanResult.qrValue}
-                      profilePicUrl={scanProfilePicUrl}
-                    />
+                    <div className="overflow-x-auto flex justify-center">
+                      <HealthIdCard
+                        patient={scanResult.patient}
+                        qrDataUrl={scanQrDataUrl}
+                        qrCodeValue={scanResult.qrValue}
+                        profilePicUrl={scanProfilePicUrl}
+                      />
+                    </div>
                   )}
 
-                  <Card className="p-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <Card className="p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                      <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                         <FileText className="w-5 h-5 text-green-600" /> Uploaded Documents
                       </h3>
                       <span className="text-xs text-gray-400 dark:text-gray-500">
@@ -2294,7 +2315,7 @@ const UhcOperator = () => {
               )}
 
               {!scanResult && scanHistory.length > 0 && (
-                <Card className="p-6">
+                <Card className="p-4 sm:p-6">
                   <h3 className="font-semibold text-base mb-3 flex items-center gap-2 text-gray-700 dark:text-gray-300">
                     <Clock className="w-4 h-4 text-green-600" /> Recent Scans
                   </h3>
@@ -2319,14 +2340,14 @@ const UhcOperator = () => {
 
           {/* ═══ HISTORY TAB ═══ */}
           <TabsContent value="history">
-            <Card className="p-6">
+            <Card className="p-4 sm:p-6">
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
                     <History className="w-5 h-5 text-green-600 dark:text-green-400" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100">Scan History</h3>
+                    <h3 className="font-bold text-base sm:text-lg text-gray-800 dark:text-gray-100">Scan History</h3>
                     <p className="text-xs text-gray-400 dark:text-gray-500">Recently scanned health cards</p>
                   </div>
                 </div>

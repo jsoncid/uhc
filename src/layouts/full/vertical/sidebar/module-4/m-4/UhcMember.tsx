@@ -20,6 +20,7 @@ import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
 import darkLogo from 'src/assets/images/logos/uhc-logo.png';
 import adnSeal from 'src/assets/images/logos/adn-seal.png';
 import defaultProfile from 'src/assets/images/profile/default_profile.jpg';
+import filePdfIcon from 'src/assets/images/file_pdf.png';
 
 // Offscreen Threads renderer (single frame capture for print)
 const _vtxSrc = `
@@ -234,8 +235,8 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
 );
 
 // Archive Confirm Modal
-const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
-  doc: DocumentAttachment; onConfirm: () => void; onCancel: () => void;
+const ArchiveConfirmModal = ({ doc, patient, onConfirm, onCancel }: {
+  doc: DocumentAttachment; patient?: PatientProfile | null; onConfirm: () => void; onCancel: () => void;
 }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
@@ -253,7 +254,10 @@ const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
       <div className="px-6 py-5">
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-2">
           <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
-          <p className="text-sm text-gray-700 truncate font-medium">{displayFileName(doc.attachment)}</p>
+          <div className="min-w-0">
+            <p className="text-sm text-gray-700 truncate font-medium">{displayFileName(doc.attachment, patient)}</p>
+            <p className="text-xs text-gray-400">{doc.category}</p>
+          </div>
         </div>
         <p className="text-xs text-gray-400 mt-3">Documents cannot be permanently deleted. Contact your health center if removal is needed.</p>
       </div>
@@ -268,16 +272,17 @@ const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
 );
 
 // Health ID Card visual (Flip Card)
-const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl }: {
+const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl, dateIssued: dateIssuedProp }: {
   patient: PatientProfile; qrDataUrl: string; qrCodeValue: string;
   cardRef?: React.RefObject<HTMLDivElement | null>;
   profilePicUrl?: string | null;
+  dateIssued?: string | null;
 }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const lastName = patient.last_name?.toUpperCase() || 'N/A';
   const givenNames = [patient.first_name, patient.middle_name].filter(Boolean).join(' ').toUpperCase();
   const sex = patient.sex?.toUpperCase() || 'N/A';
-  const dateIssued = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+  const dateIssued = (dateIssuedProp ? new Date(dateIssuedProp) : new Date()).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
 
    // Watermark Logo Component
   const WatermarkLogo = () => (
@@ -511,34 +516,42 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
   );
 
   return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {/* Card container with 3D perspective */}
-      <div ref={cardRef} style={{ width: 700, height: 420, perspective: '1000px' }}>
-        <div style={{
-          width: '100%', height: '100%', position: 'relative',
-          transformStyle: 'preserve-3d', transition: 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1)',
-          transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-        }}>
-          <FrontSide />
-          <BackSide />
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+          {/* Card container with 3D perspective — scales down on mobile */}
+          <div style={{ width: '100%', maxWidth: 700, aspectRatio: '700 / 420', perspective: '1000px' }}>
+            <div ref={cardRef} style={{ width: 700, height: 420, transformOrigin: 'top left', transform: 'scale(var(--card-scale, 1))' }}>
+              <style>{`
+                @media (max-width: 740px) {
+                  [data-health-card-inner] { --card-scale: calc(min(100vw - 48px, 700px) / 700) !important; }
+                }
+              `}</style>
+              <div data-health-card-inner style={{
+                width: '100%', height: '100%', position: 'relative',
+                transformStyle: 'preserve-3d', transition: 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1)',
+                transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                ['--card-scale' as any]: typeof window !== 'undefined' && window.innerWidth < 740 ? Math.min((window.innerWidth - 48) / 700, 1) : '1',
+              }}>
+                <FrontSide />
+                <BackSide />
+              </div>
+            </div>
+          </div>
+          {/* Flip text link */}
+          <button
+            onClick={() => setIsFlipped(!isFlipped)}
+            style={{
+              marginTop: 16, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
+              fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 14, fontWeight: 500,
+              color: '#16a34a', letterSpacing: 0.3, transition: 'all 0.2s ease',
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.color = '#15803d'; e.currentTarget.style.textDecoration = 'underline'; }}
+            onMouseOut={(e) => { e.currentTarget.style.color = '#16a34a'; e.currentTarget.style.textDecoration = 'none'; }}
+          >
+            {isFlipped ? '← Show Front' : 'Show Backside →'}
+          </button>
         </div>
-      </div>
-      {/* Flip text link */}
-      <button
-        onClick={() => setIsFlipped(!isFlipped)}
-        style={{
-          marginTop: 16, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
-          fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 14, fontWeight: 500,
-          color: '#16a34a', letterSpacing: 0.3, transition: 'all 0.2s ease',
-        }}
-        onMouseOver={(e) => { e.currentTarget.style.color = '#15803d'; e.currentTarget.style.textDecoration = 'underline'; }}
-        onMouseOut={(e) => { e.currentTarget.style.color = '#16a34a'; e.currentTarget.style.textDecoration = 'none'; }}
-      >
-        {isFlipped ? '← Show Front' : 'Show Backside →'}
-      </button>
-    </div>
-  );
-};
+      );
+    };
 
 
 // Member PIN Gate Modal
@@ -1092,10 +1105,11 @@ const UhcMember = () => {
   const canvasRef  = useRef<HTMLCanvasElement>(null);
 
   // module4 health card data 
-  const [healthCardId, setHealthCardId] = useState<string | null>(null);
-  const [qrCodeValue,  setQrCodeValue]  = useState<string | null>(null);
-  const [qrDataUrl,    setQrDataUrl]    = useState<string | null>(null);
-  const [isLoadingQr,  setIsLoadingQr]  = useState(false);
+  const [healthCardId,   setHealthCardId]   = useState<string | null>(null);
+  const [cardDateIssued, setCardDateIssued] = useState<string | null>(null);
+  const [qrCodeValue,    setQrCodeValue]    = useState<string | null>(null);
+  const [qrDataUrl,      setQrDataUrl]      = useState<string | null>(null);
+  const [isLoadingQr,    setIsLoadingQr]    = useState(false);
 
   // Documents (module4.card_attachment)
   const [documents,      setDocuments]      = useState<DocumentAttachment[]>([]);
@@ -1128,7 +1142,7 @@ const UhcMember = () => {
 
   // Canvas card builder (dual format - front & back)
   const buildCardCanvas = useCallback(async (
-    patient: PatientProfile, qrUrl: string, qrValue: string, picUrl?: string | null,
+    patient: PatientProfile, qrUrl: string, qrValue: string, picUrl?: string | null, issuedDate?: string | null,
   ): Promise<HTMLCanvasElement> => {
     const SCALE = 3, W = 700, H = 420;
     const LABEL_H = 30, GAP = 20;
@@ -1494,7 +1508,7 @@ const UhcMember = () => {
     ctx.fillText('DOH — UHC Act R.A. 11223', 20, footerY + 22);
 
     // Date issued
-    const dateIssued = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+    const dateIssued = (issuedDate ? new Date(issuedDate) : new Date()).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
     ctx.fillStyle = '#0a3318';
     ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center';
@@ -1658,6 +1672,7 @@ const UhcMember = () => {
     setQrDataUrl(null);
     setExpandedFolder(null);
     setHealthCardId(null);
+    setCardDateIssued(null);
     setHasPin(false);
     setPinSuccess('');
     setProfilePicUrl(null);
@@ -1682,12 +1697,12 @@ const UhcMember = () => {
       const { data: cards, error: cardErr } = await supabase
         .schema('module4')               // ← always module4 for health_card
         .from('health_card')
-        .select('id, qr_code, pin')
+        .select('id, qr_code, pin, created_at')
         .eq('patient_profile', patient.id) // patient.id = UUID from module3
         .limit(1);
 
       if (cardErr) { console.error('health_card fetch error:', cardErr); throw cardErr; }
-      let card: { id: any; qr_code: any; pin: any } | null = cards?.[0] ?? null;
+      let card: { id: any; qr_code: any; pin: any; created_at?: string } | null = cards?.[0] ?? null;
 
       // Step 2: auto-create health_card row so member can set PIN immediately,
       // even before the operator has generated a QR code.
@@ -1696,7 +1711,7 @@ const UhcMember = () => {
           .schema('module4')
           .from('health_card')
           .insert({ patient_profile: patient.id }) // link to module3 patient UUID
-          .select('id, qr_code, pin')
+          .select('id, qr_code, pin, created_at')
           .single();
 
         if (insertErr) {
@@ -1704,7 +1719,7 @@ const UhcMember = () => {
           console.warn('health_card auto-create failed, retrying:', insertErr.message);
           const { data: retryCards } = await supabase
             .schema('module4').from('health_card')
-            .select('id, qr_code, pin')
+            .select('id, qr_code, pin, created_at')
             .eq('patient_profile', patient.id)
             .limit(1);
           card = retryCards?.[0] ?? null;
@@ -1722,6 +1737,7 @@ const UhcMember = () => {
 
       // Step 3: populate state from health_card row
       setHealthCardId(card.id);
+      setCardDateIssued(card.created_at ?? null);
       // hasPin = true only if pin column is a non-empty string (not null, not '')
       setHasPin(typeof card.pin === 'string' && card.pin.trim().length > 0);
 
@@ -1742,9 +1758,17 @@ const UhcMember = () => {
 
       if (attachErr) { console.error('card_attachment fetch error:', attachErr); throw attachErr; }
 
+      // Read persisted archived IDs from localStorage
+      const archivedKey = `uhc_archived_docs_${patient.id}`;
+      let archivedIds: string[] = [];
+      try {
+        const stored = localStorage.getItem(archivedKey);
+        if (stored) archivedIds = JSON.parse(stored);
+      } catch { /* ignore parse errors */ }
+
       const docs: DocumentAttachment[] = (attachments ?? []).map((a: any) => {
         const cat = Array.isArray(a.card_category) ? a.card_category[0] : a.card_category;
-        return { id: a.id, attachment: a.attachment, status: a.status, category: cat?.description ?? 'Uncategorized', archived: false };
+        return { id: a.id, attachment: a.attachment, status: a.status, category: cat?.description ?? 'Uncategorized', archived: archivedIds.includes(a.id) };
       });
       setDocuments(docs);
 
@@ -2106,34 +2130,50 @@ const UhcMember = () => {
     if (!selectedPatient || !qrDataUrl || !qrCodeValue) return;
     setIsCapturing(true);
     try {
-      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl);
+      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, cardDateIssued);
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
       a.download = `UHC_HealthCard_FrontBack_${selectedPatient.last_name}_${selectedPatient.first_name}.png`;
       a.click();
     } catch (e) { console.error('Download error:', e); }
     finally { setIsCapturing(false); }
-  }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, buildCardCanvas]);
+  }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, cardDateIssued, buildCardCanvas]);
 
   // Print card
   const handlePrintCard = useCallback(async () => {
     if (!selectedPatient || !qrDataUrl || !qrCodeValue) return;
     setIsCapturing(true);
     try {
-      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl);
+      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, cardDateIssued);
       setPrintModalImg(canvas.toDataURL('image/png'));
     } catch (e) { console.error('Print error:', e); }
     finally { setIsCapturing(false); }
-  }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, buildCardCanvas]);
+  }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, cardDateIssued, buildCardCanvas]);
 
-  // Archive helpers
+  // Archive helpers — persist to localStorage so archived state survives reloads
   const handleArchive  = () => {
-    if (!archiveTarget) return;
-    setDocuments((prev) => prev.map((d) => d.id === archiveTarget.id ? { ...d, archived: true } : d));
+    if (!archiveTarget || !selectedPatient) return;
+    const archivedKey = `uhc_archived_docs_${selectedPatient.id}`;
+    setDocuments((prev) => {
+      const updated = prev.map((d) => d.id === archiveTarget.id ? { ...d, archived: true } : d);
+      // Persist archived IDs
+      const archivedIds = updated.filter((d) => d.archived).map((d) => d.id);
+      try { localStorage.setItem(archivedKey, JSON.stringify(archivedIds)); } catch { /* ignore */ }
+      return updated;
+    });
     setArchiveTarget(null);
   };
-  const handleRestore = (id: string) =>
-    setDocuments((prev) => prev.map((d) => d.id === id ? { ...d, archived: false } : d));
+  const handleRestore = (id: string) => {
+    if (!selectedPatient) return;
+    const archivedKey = `uhc_archived_docs_${selectedPatient.id}`;
+    setDocuments((prev) => {
+      const updated = prev.map((d) => d.id === id ? { ...d, archived: false } : d);
+      // Update persisted archived IDs
+      const archivedIds = updated.filter((d) => d.archived).map((d) => d.id);
+      try { localStorage.setItem(archivedKey, JSON.stringify(archivedIds)); } catch { /* ignore */ }
+      return updated;
+    });
+  };
 
   const getDocsForFolder = (folderKey: string, archived = false) =>
     documents.filter((d) =>
@@ -2166,7 +2206,7 @@ const UhcMember = () => {
         />
       )}
       {archiveTarget && (
-        <ArchiveConfirmModal doc={archiveTarget} onConfirm={handleArchive} onCancel={() => setArchiveTarget(null)} />
+        <ArchiveConfirmModal doc={archiveTarget} patient={selectedPatient} onConfirm={handleArchive} onCancel={() => setArchiveTarget(null)} />
       )}
       {pinModalMode && (
         <PinModal
@@ -2318,10 +2358,9 @@ const UhcMember = () => {
         </div>
       )}
 
-      <div className="flex flex-col gap-6">
-
+      <div className="flex flex-col gap-4 sm:gap-6">
         {/* ── Search / Profile ── */}
-        <Card className="p-6 dark:bg-gray-900 dark:border-gray-700">
+        <Card className="p-4 sm:p-6 dark:bg-gray-900 dark:border-gray-700">
           {isAutoLoading ? (
             /* Loading state while checking for tagged patient */
             <div className="flex flex-col items-center justify-center py-8 gap-3">
@@ -2332,7 +2371,7 @@ const UhcMember = () => {
             /* ── Tagged member: elegant profile with picture upload ── */
             <>
               {selectedPatient ? (
-                <div className="flex flex-col sm:flex-row gap-6 items-start">
+                <div className="flex flex-col items-center sm:items-start sm:flex-row gap-6">
                   {/* ── Profile Picture Section ── */}
                   <div className="flex flex-col items-center gap-3 sm:min-w-[180px]">
                     {/* Large profile picture with camera overlay */}
@@ -2397,10 +2436,9 @@ const UhcMember = () => {
                     )}
                   </div>
 
-                  {/* ── Profile Details Section ── */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-bold text-xl text-gray-900 dark:text-gray-100 truncate">
+                    <div className="flex-1 min-w-0 text-center sm:text-left">
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
+                      <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-gray-100 truncate">
                         {fullName(selectedPatient)}
                       </h3>
                       <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-[10px] font-semibold uppercase tracking-wide">
@@ -2410,7 +2448,7 @@ const UhcMember = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">My Health Profile</p>
 
                     {/* Info grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
                       <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
                         <User className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                         <div className="min-w-0">
@@ -2427,9 +2465,9 @@ const UhcMember = () => {
                       </div>
                       <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 sm:col-span-2">
                         <Building2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                        <div className="min-w-0">
+                        <div className="min-w-0 overflow-hidden">
                           <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Address</p>
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{getFullAddress(selectedPatient.brgy)}</p>
+                          <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200 break-words">{getFullAddress(selectedPatient.brgy)}</p>
                         </div>
                       </div>
                     </div>
@@ -2479,35 +2517,35 @@ const UhcMember = () => {
         </Card>
 
         {/* ── Tabs (patient selected) ── */}
-        {selectedPatient && (
+          {selectedPatient && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="documents">Documents</TabsTrigger>
-              <TabsTrigger value="qrcode">Health Card</TabsTrigger>
-              <TabsTrigger value="archive">
+            <TabsList className="grid w-full grid-cols-4 h-auto">
+              <TabsTrigger value="documents" className="text-xs sm:text-sm px-1 sm:px-3 py-2">Documents</TabsTrigger>
+              <TabsTrigger value="qrcode" className="text-xs sm:text-sm px-1 sm:px-3 py-2"><span className="hidden sm:inline">Health Card</span><span className="sm:hidden">Card</span></TabsTrigger>
+              <TabsTrigger value="archive" className="text-xs sm:text-sm px-1 sm:px-3 py-2">
                 Archive
                 {totalArchived > 0 && (
-                  <span className="ml-1.5 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{totalArchived}</span>
+                  <span className="ml-1 sm:ml-1.5 bg-amber-500 text-white text-[8px] sm:text-[9px] font-bold px-1 sm:px-1.5 py-0.5 rounded-full">{totalArchived}</span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="pin" className="flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5" /> My PIN
+              <TabsTrigger value="pin" className="flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm px-1 sm:px-3 py-2">
+                <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> <span className="hidden sm:inline">My</span> PIN
                 {hasPin && <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />}
               </TabsTrigger>
             </TabsList>
 
             {/* ════ DOCUMENTS ════ */}
             <TabsContent value="documents">
-              <Card className="p-6">
-                <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-                  <h3 className="font-semibold text-lg flex items-center gap-2">
+              <Card className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                  <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                     <FileText className="w-5 h-5 text-green-600" /> My Documents
                   </h3>
-                  <div className="flex gap-2 items-center">
+                  <div className="flex gap-2 items-center w-full sm:w-auto">
                     <Input placeholder="Search documents…" value={filterQuery}
-                      onChange={(e) => setFilterQuery(e.target.value)} className="w-48 text-sm" />
+                      onChange={(e) => setFilterQuery(e.target.value)} className="flex-1 sm:w-48 text-sm" />
                     {filterQuery && (
-                      <Button size="sm" variant="outline" onClick={() => setFilterQuery('')} className="flex gap-1 text-xs">
+                      <Button size="sm" variant="outline" onClick={() => setFilterQuery('')} className="flex gap-1 text-xs flex-shrink-0">
                         <RefreshCw className="w-3.5 h-3.5" /> Clear
                       </Button>
                     )}
@@ -2559,21 +2597,25 @@ const UhcMember = () => {
                               ) : (
                                 <div className="flex flex-col gap-2">
                                   {docs.map((doc) => (
-                                    <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                                      <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
-                                        <p className="text-xs text-gray-400">{doc.category}</p>
+                                    <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
+                                          <p className="text-xs text-gray-400">{doc.category}</p>
+                                        </div>
                                       </div>
-                                      <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 text-green-700 hover:bg-green-50 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
-                                        <Eye className="w-3.5 h-3.5" /> View
-                                      </Button>
-                                      <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 flex-shrink-0" onClick={() => setArchiveTarget(doc)}>
-                                        <Archive className="w-3.5 h-3.5" /> Archive
-                                      </Button>
+                                      <div className="flex gap-2 ml-7 sm:ml-0 flex-shrink-0">
+                                        <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700 hover:border-green-300 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
+                                          <Eye className="w-3.5 h-3.5" /> View
+                                        </Button>
+                                        <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 flex-shrink-0" onClick={() => setArchiveTarget(doc)}>
+                                          <Archive className="w-3.5 h-3.5" /> Archive
+                                        </Button>
+                                      </div>
                                     </div>
                                   ))}
-                                </div>
+                                </div> 
                               )}
                             </div>
                           )}
@@ -2598,9 +2640,9 @@ const UhcMember = () => {
             </TabsContent>
 
             {/* ════ HEALTH CARD ════ */}
-            <TabsContent value="qrcode">
+         <TabsContent value="qrcode">
               {isLoadingQr ? (
-                <Card className="p-6">
+                <Card className="p-4 sm:p-6">
                   <div className="flex flex-col items-center py-12 gap-3 text-gray-400">
                     <Loader2 className="w-8 h-8 animate-spin text-green-600" />
                     <p className="text-sm">Loading your health card…</p>
@@ -2608,29 +2650,29 @@ const UhcMember = () => {
                 </Card>
               ) : qrDataUrl && qrCodeValue ? (
                 <div className="flex flex-col gap-4">
-                  <Card className="p-5">
-                    <div className="flex items-start justify-between flex-wrap gap-4">
+                  <Card className="p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                       <div>
-                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                        <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                           <CreditCard className="w-5 h-5 text-green-600" /> My Health ID Card
                         </h3>
                         <p className="text-xs text-gray-400 mt-1 max-w-sm">Download or print your card and bring it to a print shop for a physical ID.</p>
                       </div>
                       <div className="flex gap-2 flex-wrap">
-                      <Button variant="outline" onClick={handlePrintCard} disabled={isCapturing} className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50 hover:text-green-800">
-                        {isCapturing ? (<Loader2 className="w-4 h-4 animate-spin text-green-700" />) : (<Printer className="w-4 h-4 text-green-700" />)}Print Card
-                      </Button>
-                        <Button onClick={handleDownloadCard} disabled={isCapturing} className="flex gap-2 bg-green-700 hover:bg-green-800 text-white">
-                          {isCapturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download Card
+                        <Button variant="outline" onClick={handlePrintCard} disabled={isCapturing} className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50 hover:text-green-800 text-xs sm:text-sm">
+                          {isCapturing ? (<Loader2 className="w-4 h-4 animate-spin text-green-700" />) : (<Printer className="w-4 h-4 text-green-700" />)}<span className="hidden sm:inline">Print</span> Card
+                        </Button>
+                        <Button onClick={handleDownloadCard} disabled={isCapturing} className="flex gap-2 bg-green-700 hover:bg-green-800 text-white text-xs sm:text-sm">
+                          {isCapturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download<span className="hidden sm:inline"> Card</span>
                         </Button>
                         <a href={qrDataUrl} download={`QR_${selectedPatient?.last_name}_${selectedPatient?.first_name}.png`}
-                          className="inline-flex items-center gap-2 text-sm border border-green-300 text-green-700 hover:bg-green-50 rounded-md px-3 py-2 transition-colors font-medium">
+                          className="inline-flex items-center gap-2 text-xs sm:text-sm border border-green-300 text-green-700 hover:bg-green-50 rounded-md px-3 py-2 transition-colors font-medium">
                           <QrCode className="w-4 h-4" /> QR Only
                         </a>
                       </div>
                     </div>
                   </Card>
-                  <Card className="p-6">
+                  <Card className="p-3 sm:p-6">
                     <div className="overflow-x-auto flex justify-center">
                       <HealthIdCard patient={selectedPatient!} qrDataUrl={qrDataUrl} qrCodeValue={qrCodeValue} cardRef={cardRef} profilePicUrl={profilePicUrl} />
                     </div>
@@ -2648,10 +2690,10 @@ const UhcMember = () => {
             </TabsContent>
 
             {/* ════ ARCHIVE ════ */}
-            <TabsContent value="archive">
-              <Card className="p-6">
+           <TabsContent value="archive">
+              <Card className="p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                     <Archive className="w-5 h-5 text-amber-600" /> Archived Documents
                   </h3>
                   <span className="text-xs text-gray-400">{totalArchived} archived</span>
@@ -2679,21 +2721,26 @@ const UhcMember = () => {
                             <p className={`font-semibold text-sm ${colors.text}`}>{folder.label}</p>
                             <span className={`ml-auto text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge}`}>{archivedDocs.length}</span>
                           </div>
-                          <div className="p-4 bg-white border-t flex flex-col gap-2">
+                          <div className="p-3 sm:p-4 bg-white border-t flex flex-col gap-2">
                             {archivedDocs.map((doc) => (
-                              <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg border border-amber-100 bg-amber-50">
-                                <FileText className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-700 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
-                                  <p className="text-xs text-gray-400">{doc.category}</p>
+                              <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
+                                    <p className="text-xs text-gray-400">{doc.category}</p>
+                                  </div>
+                                  <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0 sm:hidden">Archived</span>
                                 </div>
-                                <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0">Archived</span>
-                                <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 text-green-700 hover:bg-green-50 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
-                                  <Eye className="w-3.5 h-3.5" /> View
-                                </Button>
-                                <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-blue-300 text-blue-700 hover:bg-blue-50 flex-shrink-0" onClick={() => handleRestore(doc.id)}>
-                                  <ArchiveRestore className="w-3.5 h-3.5" /> Restore
-                                </Button>
+                                <div className="flex items-center gap-2 ml-7 sm:ml-0 flex-shrink-0">
+                                  <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:inline">Archived</span>
+                                  <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700 hover:border-green-300 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
+                                    <Eye className="w-3.5 h-3.5" /> View
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 flex-shrink-0" onClick={() => handleRestore(doc.id)}>
+                                    <ArchiveRestore className="w-3.5 h-3.5" /> Restore
+                                  </Button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -2707,13 +2754,13 @@ const UhcMember = () => {
 
             {/* ════ PIN TAB ════ */}
             <TabsContent value="pin">
-              <Card className="p-6">
+              <Card className="p-4 sm:p-6">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
                     <Lock className="w-5 h-5 text-green-700" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg text-gray-900">My Security PIN</h3>
+                    <h3 className="font-semibold text-base sm:text-lg text-gray-900">My Security PIN</h3>
                     <p className="text-xs text-gray-400">Your 4-digit PIN protects your health records from unauthorized access.</p>
                   </div>
                 </div>
@@ -2737,18 +2784,18 @@ const UhcMember = () => {
                 )}
 
                 {/* PIN status block */}
-                <div className={`rounded-2xl border-2 p-6 mb-5 ${
+                <div className={`rounded-2xl border-2 p-4 sm:p-6 mb-5 ${
                   hasPin ? 'border-green-200 bg-green-50' : 'border-dashed border-gray-200 bg-gray-50'
                 }`}>
-                  <div className="flex items-center justify-between flex-wrap gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${hasPin ? 'bg-green-100' : 'bg-gray-100'}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${hasPin ? 'bg-green-100' : 'bg-gray-100'}`}>
                         {hasPin
-                          ? <ShieldCheck className="w-7 h-7 text-green-600" />
-                          : <ShieldAlert className="w-7 h-7 text-gray-400" />}
+                          ? <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-green-600" />
+                          : <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7 text-gray-400" />}
                       </div>
                       <div>
-                        <p className={`font-bold text-base ${hasPin ? 'text-green-800' : 'text-gray-600'}`}>
+                        <p className={`font-bold text-sm sm:text-base ${hasPin ? 'text-green-800' : 'text-gray-600'}`}>
                           {hasPin ? 'PIN is Active' : 'No PIN Set'}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5 max-w-xs leading-relaxed">
