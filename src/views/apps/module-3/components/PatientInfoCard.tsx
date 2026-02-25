@@ -3,7 +3,7 @@ import { Label } from 'src/components/ui/label';
 import { Badge } from 'src/components/ui/badge';
 import { Separator } from 'src/components/ui/separator';
 import { UserCircle, Calendar, User, Building2, MapPin, Clock } from 'lucide-react';
-import { PatientProfile, PatientHistory } from 'src/services/patientService';
+import { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
 import { formatDate, calculateAge, formatDateTime } from '../utils/dateFormatters';
 
 interface PatientInfoCardProps {
@@ -129,12 +129,6 @@ const PatientInfoCard = ({ patient, recentVisit }: PatientInfoCardProps) => {
                     <div className="flex items-start gap-2">
                       <span className="text-muted-foreground font-medium min-w-[70px]">Region:</span>
                       <span className="font-semibold flex-1">{patient.region_name}</span>
-                    </div>
-                  )}
-                  {patient.zip_code && (
-                    <div className="flex items-start gap-2">
-                      <span className="text-muted-foreground font-medium min-w-[70px]">Zip Code:</span>
-                      <Badge variant="outline" className="font-mono font-semibold">{patient.zip_code}</Badge>
                     </div>
                   )}
                 </div>

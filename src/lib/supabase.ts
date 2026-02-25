@@ -180,39 +180,52 @@ export type Database = {
       // Patient and Location Tables (in module3 schema)
       patient_profile: {
         Row: {
-          id: string;
-          created_at: string;
-          first_name: string | null;
-          middle_name: string | null;
-          last_name: string | null;
-          ext_name: string | null;
-          sex: string | null;
-          birth_date: string | null;
-          brgy: string | null;
-        };
+          id: string
+          created_at: string
+          first_name: string
+          middle_name: string | null
+          last_name: string
+          ext_name: string | null
+          sex: string
+          birth_date: string
+          // Fully relational location structure - uses only foreign keys
+          brgy: string | null
+          city_municipality: string | null
+          province: string | null
+          region: string | null
+          street: string | null
+        }
         Insert: {
-          id?: string;
-          created_at?: string;
-          first_name?: string | null;
-          middle_name?: string | null;
-          last_name?: string | null;
-          ext_name?: string | null;
-          sex?: string | null;
-          birth_date?: string | null;
-          brgy?: string | null;
-        };
+          id?: string
+          created_at?: string
+          first_name: string
+          middle_name?: string | null
+          last_name: string
+          ext_name?: string | null
+          sex: string
+          birth_date: string
+          brgy?: string | null
+          city_municipality?: string | null
+          province?: string | null
+          region?: string | null
+          street?: string | null
+        }
         Update: {
-          id?: string;
-          created_at?: string;
-          first_name?: string | null;
-          middle_name?: string | null;
-          last_name?: string | null;
-          ext_name?: string | null;
-          sex?: string | null;
-          birth_date?: string | null;
-          brgy?: string | null;
-        };
-      };
+          id?: string
+          created_at?: string
+          first_name?: string
+          middle_name?: string | null
+          last_name?: string
+          ext_name?: string | null
+          sex?: string
+          birth_date?: string
+          brgy?: string | null
+          city_municipality?: string | null
+          province?: string | null
+          region?: string | null
+          street?: string | null
+        }
+      }
       brgy: {
         Row: {
           id: string;
