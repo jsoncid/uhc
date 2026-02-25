@@ -118,7 +118,6 @@ const SidebarLayout = ({
   const sidebarMode = theme === 'light' || theme === 'dark' ? theme : undefined;
 
   // Filter children within each section by their page-level module tag.
-  // A section heading is hidden entirely if none of its children are accessible.
   // Additionally, hide admin-only sections from member users.
   const visibleSections = SidebarContent
     .map((section) => {
