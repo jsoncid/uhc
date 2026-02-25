@@ -1,23 +1,138 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
-import { useOfficeStore, Office, Window } from '@/stores/module-1_stores/useOfficeStore';
-import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
+import { useOfficeStore, Office } from '@/stores/module-1_stores/useOfficeStore';
+import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { supabase } from '@/lib/supabase';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 
-const PRIORITY_LEGEND = [
-  { label: 'Regular', color: 'bg-emerald-500', textColor: 'text-emerald-700' },
-  { label: 'Senior', color: 'bg-blue-500', textColor: 'text-blue-700' },
-  { label: 'PWD', color: 'bg-violet-500', textColor: 'text-violet-700' },
-  { label: 'Priority', color: 'bg-rose-500', textColor: 'text-rose-700' },
-  { label: 'Urgent', color: 'bg-amber-500', textColor: 'text-amber-700' },
-  { label: 'VIP', color: 'bg-amber-400', textColor: 'text-amber-800' },
-];
+const REPEAT_COUNT = 3; // how many times to announce
+const PAUSE_BETWEEN_MS = 800; // pause between each announcement
+const POPUP_GAP_MS = 600; // gap after speech before picking up the next item
+
+interface CallNotification {
+  id: string;
+  queueCode: string;
+  windowLabel: string;
+  officeName: string;
+  priorityText: string;
+  priorityStyle: { text: string; bg: string; dot: string };
+}
+
+/** Cached voices — populated once when the browser fires voiceschanged */
+let cachedVoices: SpeechSynthesisVoice[] = [];
+
+function loadVoices() {
+  const v = window.speechSynthesis.getVoices();
+  if (v.length > 0) cachedVoices = v;
+}
+
+// Load immediately (works in Firefox) and on voiceschanged (works in Chrome/Edge)
+loadVoices();
+if (typeof window !== 'undefined') {
+  window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+}
+
+/** Pick the best female English voice from the cached list */
+function getFemaleVoice(): SpeechSynthesisVoice | null {
+  const voices = cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();
+
+  const femaleKeywords = ['zira', 'samantha', 'google us english', 'hazel', 'susan', 'victoria', 'karen', 'female', 'woman'];
+  const maleKeywords   = ['david', 'mark', 'james', 'richard', 'male', 'man'];
+
+  const englishVoices = voices.filter(v => v.lang.toLowerCase().startsWith('en'));
+
+  // Priority 1: explicitly female-named voice
+  const explicit = englishVoices.find(v =>
+    femaleKeywords.some(k => v.name.toLowerCase().includes(k))
+  );
+  if (explicit) return explicit;
+
+  // Priority 2: english voice with no male indicators
+  const likely = englishVoices.find(v =>
+    !maleKeywords.some(k => v.name.toLowerCase().includes(k))
+  );
+  if (likely) return likely;
+
+  // Priority 3: first english voice
+  return englishVoices[0] ?? null;
+}
+
+/** Speak `text` exactly `times` times, with a pause between each. Calls `onDone` when finished. */
+function speakRepeat(text: string, times: number, onDone: () => void): void {
+  window.speechSynthesis.cancel();
+
+  let count = 0;
+
+  const speakOnce = () => {
+    const utter = new SpeechSynthesisUtterance(text);
+    const voice = getFemaleVoice();
+    if (voice) utter.voice = voice;
+    utter.pitch = 1.15;
+    utter.rate  = 0.95;
+
+    utter.onend = () => {
+      count++;
+      if (count < times) {
+        setTimeout(speakOnce, PAUSE_BETWEEN_MS);
+      } else {
+        onDone();
+      }
+    };
+
+    utter.onerror = () => {
+      count++;
+      if (count < times) setTimeout(speakOnce, PAUSE_BETWEEN_MS);
+      else onDone();
+    };
+
+    window.speechSynthesis.speak(utter);
+  };
+
+  speakOnce();
+}
+
+// ── Pure helpers at module scope so effects can reference them without stale-closure issues ──
+
+const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
+  const desc = (priorityDescription ?? '').toLowerCase();
+  if (desc.includes('urgent')) return 1;
+  if (desc.includes('vip')) return 2;
+  if (desc.includes('priority')) return 3;
+  if (desc.includes('pwd')) return 4;
+  if (desc.includes('senior')) return 5;
+  return 10;
+};
+
+const getPriorityStyle = (priority: string | null | undefined) => {
+  const desc = (priority ?? '').toLowerCase();
+  // Anything that is not explicitly "regular" is treated as priority (red)
+  const isRegular = desc === '' || desc.includes('regular');
+  if (isRegular)
+    return {
+      text: 'text-emerald-700 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-900/30',
+      dot: 'bg-emerald-500',
+    };
+  return {
+    text: 'text-rose-600 dark:text-rose-400',
+    bg: 'bg-rose-100 dark:bg-rose-900/30',
+    dot: 'bg-rose-500',
+  };
+};
 
 const QueueDisplay = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [notifQueue, setNotifQueue] = useState<CallNotification[]>([]);
+  const [activeNotif, setActiveNotif] = useState<CallNotification | null>(null);
+  // Tracks sequence IDs already enqueued so we never repeat
+  const seenIds = useRef<Set<string>>(new Set());
+  // Prevents announcements on the initial page load snapshot
+  const initializedRef = useRef(false);
+  // Reference to the ping broadcast channel so the processor can send ping-done
+  const pingChRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isDisplayMode = useMemo(() => {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('display') === '1';
@@ -27,7 +142,6 @@ const QueueDisplay = () => {
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
   const {
     sequences,
-    statuses,
     fetchSequences,
     fetchStatuses,
     subscribeToSequences,
@@ -60,69 +174,127 @@ const QueueDisplay = () => {
     return () => clearInterval(t);
   }, []);
 
+  // Detect newly-serving sequences and push onto the notification queue.
+  // On the very first snapshot we silently seed seenIds (no announcement on page load);
+  // every subsequent change is treated as a realtime event and will be announced.
+  useEffect(() => {
+    if (sequences.length === 0) return;
+
+    if (!initializedRef.current) {
+      // Seed all currently-serving IDs so they are never announced on refresh
+      sequences.forEach((seq) => {
+        if (seq.status_data?.description?.toLowerCase().includes('serving')) {
+          seenIds.current.add(seq.id);
+        }
+      });
+      initializedRef.current = true;
+      return; // do not announce anything from the initial load
+    }
+
+    // Realtime path — only runs after initialisation
+    const fresh: CallNotification[] = [];
+    sequences.forEach((seq) => {
+      if (
+        seq.is_active !== false &&
+        seq.status_data?.description?.toLowerCase().includes('serving') &&
+        !seenIds.current.has(seq.id)
+      ) {
+        seenIds.current.add(seq.id);
+        // Spell out the queue code so TTS reads each letter: "C T B" not "CTB"
+        const spokenCode = (seq.queue_data?.code || '').split('').join(' ');
+        // Use enriched office_data first (always present on the sequence), fallback to offices store
+        const officeName =
+          seq.office_data?.description ||
+          offices.find((o) => o.id === seq.office)?.description ||
+          '';
+        fresh.push({
+          id: seq.id,
+          queueCode: seq.queue_data?.code || '---',
+          windowLabel: seq.window_data?.description || 'the window',
+          officeName,
+          priorityText: seq.priority_data?.description || 'Regular',
+          priorityStyle: getPriorityStyle(seq.priority_data?.description),
+          // store spokenCode on the object — cast through unknown to extend the type inline
+          ...({ spokenCode } as { spokenCode: string }),
+        });
+      }
+    });
+    if (fresh.length > 0) setNotifQueue((prev) => [...prev, ...fresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sequences]);
+
+  // Sequential processor: one announcement at a time.
+  // Uses activeNotif (state) as the sole lock — clearing it triggers a re-run
+  // so the next queued item is always picked up correctly.
+  useEffect(() => {
+    if (activeNotif !== null || notifQueue.length === 0) return;
+
+    const next = notifQueue[0] as CallNotification & { spokenCode?: string };
+    setNotifQueue((prev) => prev.slice(1));
+    setActiveNotif(next);
+
+    const announcement =
+      `Now calling, ${next.spokenCode ?? next.queueCode} at ${next.officeName || 'the office'}. ` +
+      `Please proceed to ${next.windowLabel}.`;
+
+    speakRepeat(announcement, REPEAT_COUNT, () => {
+      setTimeout(() => {
+        // Notify StaffQueueManager the announcement is done so Ping button re-enables
+        pingChRef.current?.send({
+          type: 'broadcast',
+          event: 'ping-done',
+          payload: { sequenceId: next.id },
+        });
+        setActiveNotif(null); // state change → effect re-runs → picks up next item
+      }, POPUP_GAP_MS);
+    });
+  }, [notifQueue, activeNotif]);
+
+  // Subscribe to ping broadcasts sent by staff — bypasses seenIds so it always re-announces
+  useEffect(() => {
+    const ch = supabase
+      .channel('queue-ping-broadcast', { config: { broadcast: { self: true } } })
+      .on('broadcast', { event: 'ping' }, ({ payload }) => {
+        const code = (payload.queueCode as string) || '---';
+        const spokenCode = code.split('').join(' ');
+        // Use the real sequenceId as the notification id so the blink matches seq.id in the display
+        const notifId = (payload.sequenceId as string) || `ping-${Date.now()}`;
+        setNotifQueue((prev) => [
+          ...prev,
+          {
+            id: notifId,
+            queueCode: code,
+            windowLabel: (payload.windowLabel as string) || 'the window',
+            officeName: (payload.officeName as string) || '',
+            priorityText: (payload.priorityDesc as string) || 'Regular',
+            priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
+            ...({ spokenCode } as { spokenCode: string }),
+          } as CallNotification,
+        ]);
+      })
+      .subscribe();
+    pingChRef.current = ch;
+    return () => {
+      supabase.removeChannel(ch);
+      pingChRef.current = null;
+    };
+  }, []);
+
   const formatTime = (d: Date) =>
     d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const formatDate = (d: Date) =>
     d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
-  const getStatusByDescription = (description: string) =>
-    statuses.find((s) => s.description?.toLowerCase().includes(description.toLowerCase()));
+  const staticPriorityLegend = [
+    {
+      label: 'Regular',
+      style: { text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500' },
+    },
+    { label: 'Priority', style: { text: 'text-rose-600 dark:text-rose-400', dot: 'bg-rose-500' } },
+  ];
 
-  const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
-    const desc = (priorityDescription ?? '').toLowerCase();
-    if (desc.includes('urgent')) return 1;
-    if (desc.includes('vip')) return 2;
-    if (desc.includes('priority')) return 3;
-    if (desc.includes('pwd')) return 4;
-    if (desc.includes('senior')) return 5;
-    return 10;
-  };
+  const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
-  const getPendingSequences = (): Sequence[] => {
-    const pendingStatus = getStatusByDescription('pending');
-    const officeIds = new Set(activeOffices.map((o) => o.id));
-    const pending = sequences.filter(
-      (seq) => seq.status === pendingStatus?.id && officeIds.has(seq.office),
-    );
-    return pending.sort((a, b) => {
-      const pa = getPriorityWeight(a.priority_data?.description);
-      const pb = getPriorityWeight(b.priority_data?.description);
-      if (pa !== pb) return pa - pb;
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    });
-  };
-
-  const getServingSequenceForOffice = (officeId: string): Sequence | undefined => {
-    const serving = getStatusByDescription('serving');
-    return sequences.find((seq) => seq.office === officeId && seq.status === serving?.id);
-  };
-
-  const getServingSequenceForWindow = (
-    officeId: string,
-    windowId: string,
-    firstWindowId: string,
-  ): Sequence | undefined => {
-    const serving = getStatusByDescription('serving');
-    return sequences.find(
-      (seq) =>
-        seq.office === officeId &&
-        seq.status === serving?.id &&
-        (seq.window === windowId || (seq.window == null && windowId === firstWindowId)),
-    );
-  };
-
-  const getPriorityStyle = (priority: string | null | undefined) => {
-    const desc = (priority ?? '').toLowerCase();
-    if (desc.includes('senior')) return { text: 'text-blue-700', bg: 'bg-blue-100', dot: 'bg-blue-500' };
-    if (desc.includes('pwd')) return { text: 'text-violet-700', bg: 'bg-violet-100', dot: 'bg-violet-500' };
-    if (desc.includes('priority')) return { text: 'text-rose-700', bg: 'bg-rose-100', dot: 'bg-rose-500' };
-    if (desc.includes('urgent')) return { text: 'text-amber-700', bg: 'bg-amber-100', dot: 'bg-amber-500' };
-    if (desc.includes('vip')) return { text: 'text-amber-800', bg: 'bg-amber-100', dot: 'bg-amber-400' };
-    return { text: 'text-emerald-700', bg: 'bg-emerald-50', dot: 'bg-emerald-500' };
-  };
-
-  const activeOffices = offices.filter((o) => o.status);
-  const pendingList = getPendingSequences();
   const isLoading = profileLoading || officesLoading || queueLoading;
 
   if (isLoading && activeOffices.length === 0) {
@@ -138,176 +310,175 @@ const QueueDisplay = () => {
 
   return (
     <>
-      {!isDisplayMode && <BreadcrumbComp title="Queue Display" items={BCrumb} />}
       <div
-        className={`flex h-screen flex-col overflow-hidden bg-white text-slate-900 ${
+        className={`flex h-screen flex-col overflow-hidden text-foreground ${
           isDisplayMode ? 'p-4 md:p-6' : 'p-4'
-        }`}
+        } gap-4`}
       >
-        {/* Top: title + time only */}
-        <header className="flex shrink-0 items-center justify-between border-b border-slate-200 pb-3">
-          <h1 className="text-lg font-semibold text-slate-800 md:text-xl">Queue Display</h1>
-          <div className="flex items-baseline gap-3">
-            <span className="text-xl font-bold tabular-nums text-slate-900 md:text-2xl" aria-live="polite">
+        {/* Header: title + clock */}
+        <header className="flex shrink-0 items-center justify-between border-b border-border pb-3">
+          <h1 className="text-lg font-bold tracking-wide text-foreground md:text-xl">
+            Queue Display
+          </h1>
+          <div className="flex items-baseline gap-4">
+            <div className="flex items-center gap-2">
+              {staticPriorityLegend.map((item) => (
+                <div key={item.label} className="flex items-center gap-1">
+                  <span className={`h-4 w-4 shrink-0 rounded-full ${item.style.dot}`} aria-hidden />
+                  <span className={`text-xl font-semibold ${item.style.text}`}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="h-6 w-px bg-border" />
+            <span
+              className="text-xl font-bold tabular-nums text-foreground md:text-2xl"
+              aria-live="polite"
+            >
               {formatTime(currentTime)}
             </span>
-            <span className="text-sm text-slate-500">{formatDate(currentTime)}</span>
+            <span className="text-sm text-muted-foreground">{formatDate(currentTime)}</span>
           </div>
         </header>
 
-        {/* Two clear sections */}
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden pt-4">
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden" aria-label="Now serving">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
-              Now Serving
-            </p>
-            <div className="grid min-h-0 flex-1 gap-4 overflow-hidden sm:grid-cols-2 lg:grid-cols-3">
-            {activeOffices.map((office: Office) => {
-              const officeWindows = (office.windows || []).filter((w: Window) => w.status);
-              const firstWindowId = officeWindows[0]?.id ?? '';
+        {/* Bottom section: per-office columns */}
+        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden">
+          {activeOffices.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-muted-foreground">
+              No active offices
+            </div>
+          ) : (
+            activeOffices.map((office: Office) => {
               const officeName = office.description || office.id;
 
-              // Only windows that are currently serving a queue code
-              const servingWindows =
-                officeWindows.length > 0
-                  ? officeWindows
-                      .map((w: Window) => ({
-                        window: w,
-                        serving: getServingSequenceForWindow(office.id, w.id, firstWindowId),
-                      }))
-                      .filter((x): x is { window: Window; serving: Sequence } => !!x.serving)
-                  : [];
+              // Use enriched status_data & window_data — no fragile ID lookup needed
+              const servingEntries = sequences
+                .filter(
+                  (seq) =>
+                    seq.office === office.id &&
+                    seq.is_active !== false &&
+                    seq.status_data?.description?.toLowerCase().includes('serving'),
+                )
+                .map((seq) => ({
+                  seq,
+                  windowLabel: seq.window_data?.description || null,
+                  style: getPriorityStyle(seq.priority_data?.description),
+                }));
+
+              const waitingEntries = sequences
+                .filter(
+                  (seq) =>
+                    seq.office === office.id &&
+                    seq.is_active !== false &&
+                    seq.status_data?.description?.toLowerCase().includes('pending'),
+                )
+                .map((seq) => ({
+                  seq,
+                  windowLabel: seq.window_data?.description || null,
+                  style: getPriorityStyle(seq.priority_data?.description),
+                }))
+                .sort((a, b) => {
+                  const pa = getPriorityWeight(a.seq.priority_data?.description);
+                  const pb = getPriorityWeight(b.seq.priority_data?.description);
+                  if (pa !== pb) return pa - pb;
+                  return (
+                    new Date(a.seq.created_at).getTime() - new Date(b.seq.created_at).getTime()
+                  );
+                });
 
               return (
                 <div
                   key={office.id}
-                  className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-50/50"
+                  className="flex min-w-40 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card"
                 >
-                  <p className="shrink-0 border-b border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800">
-                    {officeName}
-                  </p>
-                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
-                    {officeWindows.length > 0 ? (
-                      servingWindows.length > 0 ? (
-                        <div className="flex min-h-0 flex-wrap content-start gap-3 overflow-hidden">
-                          {servingWindows.map(({ window: w, serving }) => {
-                            const style = getPriorityStyle(serving.priority_data?.description);
-                            const windowLabel = w.description || `Window ${w.id}`;
-                            return (
-                              <div
-                                key={w.id}
-                                className={`flex flex-shrink-0 flex-col items-center justify-center rounded-md border border-slate-200 p-3 ${style!.bg}`}
-                              >
-                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                                  {windowLabel}
-                                </p>
-                                <span
-                                  className={`text-center font-black tracking-[0.15em] text-slate-900 sm:text-[clamp(1.5rem,3.5vw,2.75rem)] ${style!.text}`}
-                                  style={{ lineHeight: 1.1 }}
-                                  aria-live="polite"
-                                >
-                                  {serving.queue_data?.code || '---'}
-                                </span>
-                                <p className={`mt-1 text-[10px] font-medium ${style!.text}`}>
-                                  {serving.priority_data?.description || 'Regular'}
-                                </p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="flex flex-1 items-center justify-center">
-                          <span className="text-2xl font-medium text-slate-300">—</span>
-                        </div>
-                      )
-                    ) : (
-                      <div className="flex flex-1 flex-col items-center justify-center">
-                        {(() => {
-                          const serving = getServingSequenceForOffice(office.id);
-                          const style = serving
-                            ? getPriorityStyle(serving.priority_data?.description)
-                            : null;
-                          return serving ? (
-                            <>
+                  {/* Office header */}
+                  <div className="shrink-0 border-b border-border px-3 py-2">
+                    <p className="break-words text-sm font-bold text-foreground">{officeName}</p>
+                  </div>
+
+                  {/* Now serving — stacked per active window */}
+                  <div className="flex flex-1 flex-col items-center justify-start gap-0 overflow-y-auto pt-0 px-4 pb-4">
+                    {/* Serving section */}
+                    {servingEntries.length > 0 ? (
+                      <>
+                        <div className="w-full flex flex-col items-center gap-2 pb-4">
+                          {servingEntries.map(({ seq, windowLabel, style }) => (
+                            <div key={seq.id} className="flex w-full flex-col items-center gap-1">
                               <span
-                                className={`font-black tracking-[0.12em] text-slate-900 sm:text-[clamp(2rem,4.5vw,3.5rem)] ${style!.text}`}
+                                className={`text-center font-black tracking-[0.12em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
+                                style={{
+                                  fontSize: 'clamp(2rem, 6vw, 3rem)',
+                                  lineHeight: 1.1,
+                                }}
                                 aria-live="polite"
                               >
-                                {serving.queue_data?.code || '---'}
+                                {seq.queue_data?.code || '---'}
                               </span>
-                              <p className={`mt-1 text-xs font-medium ${style!.text}`}>
-                                {serving.priority_data?.description || 'Regular'}
-                              </p>
-                            </>
-                          ) : (
-                            <span className="text-2xl font-medium text-slate-300">—</span>
-                          );
-                        })()}
-                      </div>
+                              {windowLabel && (
+                                <span className="text-xs font-semibold text-muted-foreground">
+                                  {windowLabel}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="w-full border-t-3 border-dashed border-border mb-4" />
+                      </>
+                    ) : (
+                      <>
+                        <span
+                          className="font-bold text-muted-foreground mb-4"
+                          style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)' }}
+                        >
+                          —
+                        </span>
+                        <div className="w-full border-t-3 border-dashed border-border mb-4" />
+                      </>
                     )}
+
+                    {/* Waiting section with small font */}
+                    <div className="w-full flex flex-col items-center gap-1 overflow-y-auto">
+                      {waitingEntries.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No waiting</p>
+                      ) : (
+                        <ul className="flex flex-col items-center gap-2 w-full" role="list">
+                          {waitingEntries.map(({ seq, windowLabel, style }) => (
+                            <li
+                              key={seq.id}
+                              className="flex flex-col items-center justify-center w-full"
+                              style={{ opacity: windowLabel ? 1 : 0.5 }}
+                            >
+                              <span
+                                className={`font-black tracking-wide ${style.text}`}
+                                style={{
+                                  fontSize: 'clamp(2rem, 6vw, 2.3rem)',
+                                }}
+                              >
+                                {seq.queue_data?.code || '---'}
+                              </span>
+                              <span className="text-xs font-semibold text-muted-foreground">
+                                {windowLabel || 'Unassigned'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
-            })}
-            </div>
-          </section>
-
-          {/* Waiting + Legend – fixed height so no scroll */}
-          <div className="grid h-[18vh] min-h-[88px] max-h-[160px] shrink-0 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-12">
-            <section
-              className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-50/50 lg:col-span-8"
-              aria-label="Waiting queue"
-            >
-              <p className="shrink-0 border-b border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                Waiting
-              </p>
-              <div className="min-h-0 flex-1 overflow-hidden p-3">
-                {pendingList.length === 0 ? (
-                  <p className="flex h-full items-center justify-center text-sm text-slate-400">
-                    No one waiting
-                  </p>
-                ) : (
-                  <ul className="grid h-full grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10" role="list">
-                    {pendingList.map((seq) => {
-                      const office = activeOffices.find((o) => o.id === seq.office);
-                      const style = getPriorityStyle(seq.priority_data?.description);
-                      return (
-                        <li
-                          key={seq.id}
-                          className={`flex flex-col items-center justify-center rounded-md border border-slate-200 bg-white px-2 py-2 ${style.bg}`}
-                        >
-                          <span className={`text-base font-black tracking-wider sm:text-lg ${style.text}`}>
-                            {seq.queue_data?.code || '---'}
-                          </span>
-                          <span className="mt-0.5 w-full truncate text-center text-[10px] text-slate-600">
-                            {office?.description || office?.id || '—'}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            </section>
-            <section
-              className="flex flex-col rounded-lg border border-slate-200 bg-slate-50/50 lg:col-span-4"
-              aria-label="Priority legend"
-            >
-              <p className="shrink-0 border-b border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                Priority
-              </p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 p-3">
-                {PRIORITY_LEGEND.map((item) => (
-                  <div key={item.label} className="flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${item.color}`} aria-hidden />
-                    <span className={`text-xs font-medium ${item.textColor}`}>{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
+            })
+          )}
         </div>
       </div>
+
+      {/* Blink keyframe for the currently-called queue code */}
+      <style>{`
+        @keyframes blink-queue {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0; }
+        }
+        .queue-blink { animation: blink-queue 0.55s step-end infinite; }
+      `}</style>
     </>
   );
 };
