@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, AlertCircle, Loader2, Download, X,
   Printer, CheckCircle2, RefreshCw, ArchiveX, CreditCard, Lock,
   KeyRound, ShieldCheck, EyeOff, ShieldAlert, ShieldX, User,
-  Camera, Upload,
+  Camera, Upload, ImagePlus, SwitchCamera, CircleDot,
 } from 'lucide-react';
 import { supabase } from 'src/lib/supabase';
 import Threads from 'src/components/ui/Threads';
@@ -196,7 +196,7 @@ const displayFileName = (url: string, patient?: PatientProfile | null): string =
   return raw.replace(prefixRe, `${patient.first_name}_${patient.last_name}_`);
 };
 
-const BCrumb = [{ to: '/', title: 'Home' }, { title: 'My Health Card' }];
+const BCrumb = [{ to: '/', title: 'Home' }];
 
 // ─── PDF Preview Modal ────────────────────────────────────────────────────────
 const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; onClose: () => void }) => (
@@ -536,10 +536,10 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
         style={{
           marginTop: 16, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
           fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 14, fontWeight: 500,
-          color: '#2563eb', letterSpacing: 0.3, transition: 'all 0.2s ease',
+          color: '#16a34a', letterSpacing: 0.3, transition: 'all 0.2s ease',
         }}
-        onMouseOver={(e) => { e.currentTarget.style.color = '#1d4ed8'; e.currentTarget.style.textDecoration = 'underline'; }}
-        onMouseOut={(e) => { e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.textDecoration = 'none'; }}
+        onMouseOver={(e) => { e.currentTarget.style.color = '#15803d'; e.currentTarget.style.textDecoration = 'underline'; }}
+        onMouseOut={(e) => { e.currentTarget.style.color = '#16a34a'; e.currentTarget.style.textDecoration = 'none'; }}
       >
         {isFlipped ? '← Show Front' : 'Show Backside →'}
       </button>
@@ -1006,55 +1006,69 @@ const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
   imgUrl: string; patientName: string; onClose: () => void;
   onDownload: () => void; isCapturing: boolean;
 }) => (
-  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-7 py-5 border-b bg-gradient-to-r from-gray-800 to-gray-900">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
-            <Printer className="w-5 h-5 text-white" />
+  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4">
+    <div className="bg-white dark:bg-gray-900 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-green-700 bg-gradient-to-r from-green-800 to-green-900 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
+            <Printer className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h2 className="font-bold text-white text-lg leading-none">Print Health ID Card</h2>
-            <p className="text-gray-400 text-xs mt-1">{patientName}</p>
+            <h2 className="font-bold text-white text-sm sm:text-base leading-none">Print Health ID Card</h2>
+            <p className="text-green-200 text-[11px] mt-0.5">{patientName}</p>
           </div>
         </div>
-        <button onClick={onClose} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-          <X className="w-5 h-5 text-white" />
+        <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
+          <X className="w-4 h-4 text-white" />
         </button>
       </div>
-      <div className="flex justify-center items-center bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 px-10 py-10 relative overflow-auto">
-        <div className="absolute inset-0 opacity-30" style={{ backgroundImage:'radial-gradient(circle,#d1d5db 1px,transparent 1px)',backgroundSize:'24px 24px' }} />
-        <div className="relative z-10" style={{ filter:'drop-shadow(0 20px 40px rgba(0,0,0,0.3))',minWidth:'fit-content' }}>
-          <img src={imgUrl} alt="Health Card Print Preview" style={{ width:'100%',maxWidth:780,height:'auto',borderRadius:12,display:'block' }} />
+
+      {/* Card preview - scrollable */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 dark:from-gray-800 dark:via-gray-850 dark:to-gray-800 relative">
+        <div className="absolute inset-0 opacity-20" style={{ backgroundImage:'radial-gradient(circle,#d1d5db 1px,transparent 1px)',backgroundSize:'20px 20px' }} />
+        <div className="relative z-10 flex justify-center px-4 sm:px-8 py-6 sm:py-8">
+          <div style={{ filter:'drop-shadow(0 12px 32px rgba(0,0,0,0.25))' }} className="w-full max-w-md sm:max-w-lg">
+            <img
+              src={imgUrl}
+              alt="Health Card Print Preview"
+              className="w-full h-auto rounded-lg sm:rounded-xl block"
+            />
+          </div>
         </div>
       </div>
-      <div className="px-7 py-5 border-t bg-gray-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-            <p className="text-xs font-semibold text-gray-600">Print Tips</p>
+
+      {/* Footer */}
+      <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex-shrink-0">
+        <div className="flex flex-col gap-3">
+          {/* Print tips */}
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+              Select <strong>Landscape</strong> orientation, margins to <strong>None</strong>. Ask for <strong>CR80 laminated ID</strong> printing.
+            </p>
           </div>
-          <p className="text-xs text-gray-500 leading-relaxed max-w-sm ml-6">
-            Select <strong>Landscape</strong> orientation, margins to <strong>None</strong>. Ask for <strong>CR80 laminated ID</strong> printing.
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap flex-shrink-0">
-          <Button variant="outline" onClick={onClose} className="flex gap-2 text-sm"><X className="w-4 h-4" /> Close</Button>
-          <Button
-            onClick={() => {
-              const w = window.open('', '_blank');
-              if (!w) return;
-              w.document.write(`<!DOCTYPE html><html><head><style>*{margin:0;padding:0;box-sizing:border-box;}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fff;}img{max-width:100%;height:auto;display:block;}@page{size:landscape;margin:0;}@media print{body{background:transparent;}}</style></head><body><img src="${imgUrl}" /></body></html>`);
-              w.document.close();
-              w.onload = () => { w.focus(); w.print(); w.close(); };
-            }}
-            className="flex gap-2 text-sm bg-gray-800 hover:bg-gray-900 text-white"
-          >
-            <Printer className="w-4 h-4" /> Send to Printer
-          </Button>
-          <Button onClick={onDownload} disabled={isCapturing} className="flex gap-2 text-sm bg-green-700 hover:bg-green-800 text-white">
-            {isCapturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download Instead
-          </Button>
+          {/* Action buttons */}
+          <div className="flex gap-2 flex-wrap justify-end">
+            <Button variant="outline" onClick={onClose} className="flex gap-1.5 text-xs sm:text-sm h-8 sm:h-9 px-3">
+              <X className="w-3.5 h-3.5" /> Close
+            </Button>
+            <Button
+              onClick={() => {
+                const w = window.open('', '_blank');
+                if (!w) return;
+                w.document.write(`<!DOCTYPE html><html><head><style>*{margin:0;padding:0;box-sizing:border-box;}body{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#fff;padding:10px;}img{max-width:100%;max-height:95vh;height:auto;display:block;object-fit:contain;}@page{size:portrait;margin:5mm;}@media print{body{background:transparent;padding:0;}}</style></head><body><img src="${imgUrl}" /></body></html>`);
+                w.document.close();
+                w.onload = () => { w.focus(); w.print(); w.close(); };
+              }}
+              className="flex gap-1.5 text-xs sm:text-sm h-8 sm:h-9 px-3 bg-gray-800 hover:bg-gray-900 text-white"
+            >
+              <Printer className="w-3.5 h-3.5" /> Send to Printer
+            </Button>
+            <Button onClick={onDownload} disabled={isCapturing} className="flex gap-1.5 text-xs sm:text-sm h-8 sm:h-9 px-3 bg-green-700 hover:bg-green-800 text-white">
+              {isCapturing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Download
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -1080,6 +1094,15 @@ const UhcMember = () => {
   const [isUploadingPic,  setIsUploadingPic]  = useState(false);
   const [profilePicError, setProfilePicError] = useState('');
   const profilePicInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Camera capture ──────────────────────────────────────────────────────────
+  const [showCamera,      setShowCamera]      = useState(false);
+  const [cameraStream,    setCameraStream]    = useState<MediaStream | null>(null);
+  const [cameraError,     setCameraError]     = useState('');
+  const [facingMode,      setFacingMode]      = useState<'user' | 'environment'>('user');
+  const [capturedImage,   setCapturedImage]   = useState<string | null>(null);
+  const videoRef   = useRef<HTMLVideoElement>(null);
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
 
   // ── module4 health card data ───────────────────────────────────────────────
   const [healthCardId, setHealthCardId] = useState<string | null>(null);
@@ -1763,6 +1786,162 @@ const UhcMember = () => {
     } finally { setIsLoadingDocs(false); }
   };
 
+  // ── Camera functions ──────────────────────────────────────────────────────
+  const openCamera = async () => {
+    setProfilePicError('');
+    setCameraError('');
+    setCapturedImage(null);
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode, width: { ideal: 640 }, height: { ideal: 640 } },
+        audio: false,
+      });
+      setCameraStream(stream);
+      // Attach stream to video element once it mounts
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      }, 100);
+    } catch (err: any) {
+      console.error('Camera access error:', err);
+      setCameraError(
+        err.name === 'NotAllowedError'
+          ? 'Camera access denied. Please allow camera permissions in your browser settings.'
+          : err.name === 'NotFoundError'
+          ? 'No camera found on this device.'
+          : 'Could not access camera. Please try uploading a photo instead.'
+      );
+    }
+  };
+
+  const stopCamera = useCallback(() => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((t) => t.stop());
+      setCameraStream(null);
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, [cameraStream]);
+
+  const closeCamera = useCallback(() => {
+    stopCamera();
+    setShowCamera(false);
+    setCameraError('');
+    setCapturedImage(null);
+  }, [stopCamera]);
+
+  const switchCamera = async () => {
+    stopCamera();
+    const next = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(next);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: next, width: { ideal: 640 }, height: { ideal: 640 } },
+        audio: false,
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+    } catch (err: any) {
+      setCameraError('Could not switch camera.');
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    // Ensure the video has actual dimensions (stream is live)
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setCameraError('Camera not ready yet. Please wait a moment and try again.');
+      return;
+    }
+    // Square crop from center
+    const size = Math.min(video.videoWidth, video.videoHeight);
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const sx = (video.videoWidth - size) / 2;
+    const sy = (video.videoHeight - size) / 2;
+    ctx.drawImage(video, sx, sy, size, size, 0, 0, size, size);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    if (!dataUrl || dataUrl === 'data:,') {
+      setCameraError('Failed to capture photo. Please try again.');
+      return;
+    }
+    setCapturedImage(dataUrl);
+    stopCamera();
+  };
+
+  const retakePhoto = async () => {
+    setCapturedImage(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode, width: { ideal: 640 }, height: { ideal: 640 } },
+        audio: false,
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+    } catch (err: any) {
+      setCameraError('Could not restart camera.');
+    }
+  };
+
+  const useCapturedPhoto = async () => {
+    if (!capturedImage || !selectedPatient) return;
+    setIsUploadingPic(true);
+    setProfilePicError('');
+    try {
+      // Convert data URL to Blob reliably (fetch-based approach can fail on some browsers)
+      const parts = capturedImage.split(',');
+      const mime = parts[0].match(/:(.*?);/)?.[1] ?? 'image/jpeg';
+      const bstr = atob(parts[1]);
+      const u8arr = new Uint8Array(bstr.length);
+      for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+      const blob = new Blob([u8arr], { type: mime });
+
+      const pid = selectedPatient.id;
+      const path = `Profile Picture/${pid}_${Date.now()}.jpg`;
+
+      // Remove ALL existing profile pictures for this patient (any extension)
+      const { data: existing } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: pid });
+      const toRemove = (existing ?? []).filter((f) => f.name.startsWith(pid)).map((f) => `Profile Picture/${f.name}`);
+      if (toRemove.length > 0) await supabase.storage.from('card-attachments').remove(toRemove);
+
+      // Upload new photo with unique name to bypass CDN cache
+      const { error: upErr } = await supabase.storage
+        .from('card-attachments')
+        .upload(path, blob, { contentType: 'image/jpeg' });
+      if (upErr) throw upErr;
+
+      const { data: pub } = supabase.storage
+        .from('card-attachments')
+        .getPublicUrl(path);
+      setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
+      closeCamera();
+    } catch (err: any) {
+      console.error('Camera upload error:', err);
+      setProfilePicError(err.message ?? 'Upload failed. Please try again.');
+    } finally {
+      setIsUploadingPic(false);
+    }
+  };
+
+  // Clean up camera stream on unmount
+  useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      cameraStream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [cameraStream]);
+
   // ── Upload profile picture to card-attachments bucket (Profile Picture folder) ──
   const handleProfilePicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1773,10 +1952,16 @@ const UhcMember = () => {
     setProfilePicError('');
     try {
       const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `Profile Picture/${selectedPatient.id}.${ext}`;
-      // Remove old picture first (ignore errors — might not exist)
-      await supabase.storage.from('card-attachments').remove([path]);
-      const { error: upErr } = await supabase.storage.from('card-attachments').upload(path, file, { upsert: true });
+      const pid = selectedPatient.id;
+      const path = `Profile Picture/${pid}_${Date.now()}.${ext}`;
+
+      // Remove ALL existing profile pictures for this patient (any extension)
+      const { data: existing } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: pid });
+      const toRemove = (existing ?? []).filter((f) => f.name.startsWith(pid)).map((f) => `Profile Picture/${f.name}`);
+      if (toRemove.length > 0) await supabase.storage.from('card-attachments').remove(toRemove);
+
+      // Upload new file with unique name to bypass CDN cache
+      const { error: upErr } = await supabase.storage.from('card-attachments').upload(path, file);
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(path);
       setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
@@ -2038,49 +2223,165 @@ const UhcMember = () => {
         />
       )}
 
+      {/* ══ Camera Capture Modal ══ */}
+      {showCamera && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                  <Camera className="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Take Profile Photo</h3>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">Position your face in the frame</p>
+                </div>
+              </div>
+              <button onClick={closeCamera} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <X className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+              </button>
+            </div>
+
+            {/* Camera view */}
+            <div className="relative bg-black aspect-square">
+              {cameraError ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+                  <div className="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <AlertCircle className="w-7 h-7 text-red-500 dark:text-red-400" />
+                  </div>
+                  <p className="text-sm text-white/80 leading-relaxed">{cameraError}</p>
+                  <button
+                    onClick={() => { closeCamera(); profilePicInputRef.current?.click(); }}
+                    className="mt-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" /> Upload Photo Instead
+                  </button>
+                </div>
+              ) : capturedImage ? (
+                <img src={capturedImage} alt="Captured" className="w-full h-full object-cover" />
+              ) : (
+                <>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                    style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+                  />
+                  {/* Circular guide overlay */}
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div className="w-[70%] h-[70%] rounded-full border-2 border-white/30 shadow-[0_0_0_9999px_rgba(0,0,0,0.3)]" />
+                  </div>
+                  {/* Loading indicator when stream not yet ready */}
+                  {!cameraStream && !cameraError && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 text-white animate-spin" />
+                    </div>
+                  )}
+                </>
+              )}
+              {/* Hidden canvas for capture */}
+              <canvas ref={canvasRef} className="hidden" />
+            </div>
+
+            {/* Controls */}
+            <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700">
+              {cameraError ? null : capturedImage ? (
+                /* Captured — Use / Retake */
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={retakePhoto}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" /> Retake
+                  </button>
+                  <button
+                    onClick={useCapturedPhoto}
+                    disabled={isUploadingPic}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-60 transition-colors"
+                  >
+                    {isUploadingPic ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+                    ) : (
+                      <><CheckCircle2 className="w-4 h-4" /> Use Photo</>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                /* Live — Capture / Switch */
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    onClick={switchCamera}
+                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    title="Switch camera"
+                  >
+                    <SwitchCamera className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  </button>
+                  <button
+                    onClick={capturePhoto}
+                    disabled={!cameraStream}
+                    className="w-16 h-16 rounded-full bg-white border-4 border-green-500 flex items-center justify-center hover:border-green-600 disabled:opacity-40 transition-all active:scale-95 shadow-lg"
+                    title="Capture photo"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-green-500 hover:bg-green-600 transition-colors" />
+                  </button>
+                  <button
+                    onClick={closeCamera}
+                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    title="Cancel"
+                  >
+                    <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-6">
 
         {/* ── Search / Profile ── */}
-        <Card className="p-6">
+        <Card className="p-6 dark:bg-gray-900 dark:border-gray-700">
           {isAutoLoading ? (
             /* Loading state while checking for tagged patient */
             <div className="flex flex-col items-center justify-center py-8 gap-3">
-              <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
-              <p className="text-sm text-gray-500">Loading your profile…</p>
+              <Loader2 className="w-8 h-8 text-green-600 dark:text-green-400 animate-spin" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading your profile…</p>
             </div>
           ) : taggedPatientId ? (
-            /* ── Tagged member: no manual search allowed ── */
+            /* ── Tagged member: elegant profile with picture upload ── */
             <>
-              <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
-                <User className="w-5 h-5 text-green-600" /> My Profile
-              </h3>
-              <p className="text-xs text-gray-400 mb-2">Your account is linked to the patient profile below.</p>
-
-              {/* Selected patient banner with profile picture upload */}
-              {selectedPatient && (
-                <div className="mt-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-3">
-                    {/* Profile picture with upload overlay */}
-                    <div className="relative group flex-shrink-0">
-                      {profilePicUrl ? (
-                        <img src={profilePicUrl} alt="Profile" className="w-14 h-14 rounded-full object-cover border-2 border-green-300" />
-                      ) : (
-                        <div className="w-14 h-14 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-lg">
-                          {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
-                        </div>
-                      )}
-                      {/* Hover overlay to trigger upload */}
+              {selectedPatient ? (
+                <div className="flex flex-col sm:flex-row gap-6 items-start">
+                  {/* ── Profile Picture Section ── */}
+                  <div className="flex flex-col items-center gap-3 sm:min-w-[180px]">
+                    {/* Large profile picture with camera overlay */}
+                    <div className="relative group">
+                      <div className="w-28 h-28 rounded-2xl overflow-hidden ring-4 ring-green-100 dark:ring-green-900/40 shadow-lg">
+                        <img
+                          src={profilePicUrl || defaultProfile}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      {/* Hover overlay */}
                       <button
                         onClick={() => profilePicInputRef.current?.click()}
-                        className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                        className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col items-center justify-center cursor-pointer gap-1"
                         title="Upload profile picture"
                       >
-                        <Camera className="w-5 h-5 text-white" />
+                        <Camera className="w-6 h-6 text-white drop-shadow" />
+                        <span className="text-[10px] font-semibold text-white drop-shadow">
+                          {profilePicUrl ? 'Change' : 'Upload'}
+                        </span>
                       </button>
                       {/* Uploading spinner */}
                       {isUploadingPic && (
-                        <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
-                          <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        <div className="absolute inset-0 rounded-2xl bg-black/50 flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 text-white animate-spin" />
                         </div>
                       )}
                       {/* Hidden file input */}
@@ -2091,46 +2392,105 @@ const UhcMember = () => {
                         className="hidden"
                         onChange={handleProfilePicUpload}
                       />
+                      {/* Small camera badge */}
+                      <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-green-600 dark:bg-green-500 flex items-center justify-center shadow-md border-2 border-white dark:border-gray-800">
+                        <Camera className="w-3.5 h-3.5 text-white" />
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-green-900">{fullName(selectedPatient)}</p>
-                      <p className="text-xs text-green-600">
-                        {selectedPatient.sex} · {formatDate(selectedPatient.birth_date)} · {computeAge(selectedPatient.birth_date)} · {getFullAddress(selectedPatient.brgy)}
-                      </p>
-                      {/* Upload text link */}
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={openCamera}
+                        className="text-xs font-medium text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 flex items-center gap-1.5 transition-colors px-3 py-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        Take Photo
+                      </button>
+                      <span className="text-gray-300 dark:text-gray-600 text-xs">|</span>
                       <button
                         onClick={() => profilePicInputRef.current?.click()}
-                        className="text-[11px] text-green-700 hover:text-green-900 font-medium flex items-center gap-1 mt-1 transition-colors"
+                        className="text-xs font-medium text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 flex items-center gap-1.5 transition-colors px-3 py-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30"
                       >
-                        <Upload className="w-3 h-3" />
-                        {profilePicUrl ? 'Change Photo' : 'Upload Photo'}
+                        <Upload className="w-3.5 h-3.5" />
+                        Upload
                       </button>
-                      {profilePicError && (
-                        <p className="text-[10px] text-red-500 mt-0.5">{profilePicError}</p>
+                    </div>
+                    {profilePicError && (
+                      <p className="text-[11px] text-red-500 dark:text-red-400 text-center max-w-[180px]">{profilePicError}</p>
+                    )}
+                  </div>
+
+                  {/* ── Profile Details Section ── */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-bold text-xl text-gray-900 dark:text-gray-100 truncate">
+                        {fullName(selectedPatient)}
+                      </h3>
+                      <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-[10px] font-semibold uppercase tracking-wide">
+                        Member
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">My Health Profile</p>
+
+                    {/* Info grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                        <User className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Sex</p>
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{selectedPatient.sex}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                        <IdCard className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Date of Birth</p>
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{formatDate(selectedPatient.birth_date)} ({computeAge(selectedPatient.birth_date)})</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 sm:col-span-2">
+                        <Building2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Address</p>
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{getFullAddress(selectedPatient.brgy)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Document stats */}
+                    <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                      <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" />{totalActive} active documents
+                      </span>
+                      {totalArchived > 0 && (
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                          <Archive className="w-3.5 h-3.5" />{totalArchived} archived
+                        </span>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 text-xs font-medium">
-                    <span className="flex items-center gap-1 text-green-700"><CheckCircle2 className="w-3.5 h-3.5" />{totalActive} active documents</span>
-                    {totalArchived > 0 && <span className="flex items-center gap-1 text-amber-600"><Archive className="w-3.5 h-3.5" />{totalArchived} archived</span>}
-                  </div>
                 </div>
-              )}
-
-              {/* Error */}
-              {errorMessage && !selectedPatient && (
-                <div className="mt-3 flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>{errorMessage}</p>
-                </div>
+              ) : (
+                /* Loading / error when patient not yet loaded */
+                <>
+                  <h3 className="font-semibold text-lg mb-1 flex items-center gap-2 dark:text-gray-100">
+                    <User className="w-5 h-5 text-green-600 dark:text-green-400" /> My Profile
+                  </h3>
+                  {errorMessage && (
+                    <div className="mt-3 flex gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>{errorMessage}</p>
+                    </div>
+                  )}
+                </>
               )}
             </>
           ) : (
             /* ── Not tagged: show message instead of open search ── */
             <>
-              <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
-                <Search className="w-5 h-5 text-green-600" /> Find My Records
+              <h3 className="font-semibold text-lg mb-1 flex items-center gap-2 dark:text-gray-100">
+                <Search className="w-5 h-5 text-green-600 dark:text-green-400" /> Find My Records
               </h3>
-              <div className="mt-3 flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+              <div className="mt-3 flex gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-300 text-sm">
                 <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" />
                 <div>
                   <p className="font-semibold">Account Not Linked</p>
@@ -2145,8 +2505,8 @@ const UhcMember = () => {
         {selectedPatient && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="documents">My Documents</TabsTrigger>
-              <TabsTrigger value="qrcode">My Health Card</TabsTrigger>
+              <TabsTrigger value="documents">Documents</TabsTrigger>
+              <TabsTrigger value="qrcode">Health Card</TabsTrigger>
               <TabsTrigger value="archive">
                 Archive
                 {totalArchived > 0 && (
@@ -2470,7 +2830,6 @@ const UhcMember = () => {
         {!selectedPatient && (
           <div className="flex flex-col items-center py-16 text-gray-400 gap-3">
             <IdCard className="w-16 h-16 opacity-20" />
-            <p className="font-medium text-gray-500">Search your name to view your health card</p>
             <p className="text-sm">Your documents, QR code, and printable health ID card will appear here.</p>
           </div>
         )}

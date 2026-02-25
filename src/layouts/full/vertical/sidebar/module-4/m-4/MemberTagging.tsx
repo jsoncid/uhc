@@ -22,21 +22,21 @@ const ROLE_OPTIONS: { value: RoleType; label: string; description: string; icon:
     label: 'Member',
     description: 'Standard health card member',
     icon: <UserCheck className="w-5 h-5" />,
-    color: 'amber', border: 'border-amber-300', bg: 'bg-amber-50', text: 'text-amber-700',
+    color: 'amber', border: 'border-amber-300 dark:border-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400',
   },
   {
     value: 'Barangay Officer',
     label: 'Barangay Officer',
     description: 'Local barangay health officer',
     icon: <Landmark className="w-5 h-5" />,
-    color: 'indigo', border: 'border-indigo-300', bg: 'bg-indigo-50', text: 'text-indigo-700',
+    color: 'indigo', border: 'border-indigo-300 dark:border-indigo-700', bg: 'bg-indigo-50 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-400',
   },
   {
     value: 'Hospital Operator',
     label: 'Hospital Operator',
     description: 'Hospital operations staff',
     icon: <Building className="w-5 h-5" />,
-    color: 'teal', border: 'border-teal-300', bg: 'bg-teal-50', text: 'text-teal-700',
+    color: 'teal', border: 'border-teal-300 dark:border-teal-700', bg: 'bg-teal-50 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-400',
   },
 ];
 
@@ -90,9 +90,9 @@ const generateUniqueQrCode = (patientId: string): string => {
 
 const StepBadge = ({ n, active, done }: { n: number; active: boolean; done: boolean }) => (
   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 transition-all ${
-    done    ? 'bg-green-600 text-white shadow-md shadow-green-200'
-    : active ? 'bg-amber-500 text-white shadow-md shadow-amber-200 ring-4 ring-amber-100'
-    :          'bg-gray-100 text-gray-400'
+    done    ? 'bg-green-600 text-white shadow-md shadow-green-200 dark:shadow-green-900'
+    : active ? 'bg-amber-500 text-white shadow-md shadow-amber-200 dark:shadow-amber-900 ring-4 ring-amber-100 dark:ring-amber-900/50'
+    :          'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
   }`}>
     {done ? <CheckCircle2 className="w-4 h-4" /> : n}
   </div>
@@ -405,12 +405,12 @@ const MemberTagging = () => {
       {/* Header Card */}
       <Card className="p-6">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-            <Tag className="w-6 h-6 text-amber-700" />
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+            <Tag className="w-6 h-6 text-amber-700 dark:text-amber-400" />
           </div>
           <div className="flex-1">
-            <h3 className="font-bold text-lg text-gray-900">Health Card Tagging</h3>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100">Health Card Tagging</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               Link a registered system user to their patient profile and assign a role (Member, Barangay Officer, or Hospital Operator).
             </p>
           </div>
@@ -420,24 +420,6 @@ const MemberTagging = () => {
             </Button>
           )}
         </div>
-
-        {/* Flow diagram */}
-        <div className="mt-5 flex items-center gap-2 overflow-x-auto pb-1">
-          {[
-            { label: 'auth.users', sublabel: 'Registered account', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-            { label: 'public.user_role', sublabel: 'Assign selected role', color: 'bg-purple-100 text-purple-700 border-purple-200' },
-            { label: 'module3.patient_profile', sublabel: 'Patient record', color: 'bg-green-100 text-green-700 border-green-200' },
-            { label: 'module4.health_card', sublabel: 'Issue health card', color: 'bg-amber-100 text-amber-700 border-amber-200' },
-          ].map((node, i, arr) => (
-            <div key={node.label} className="flex items-center gap-2 flex-shrink-0">
-              <div className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${node.color}`}>
-                <p className="font-bold">{node.label}</p>
-                <p className="font-normal opacity-70">{node.sublabel}</p>
-              </div>
-              {i < arr.length - 1 && <ArrowRight className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />}
-            </div>
-          ))}
-        </div>
       </Card>
 
       {/* ── STEP 1: Find Registered User ─────────────────────────────────── */}
@@ -445,8 +427,8 @@ const MemberTagging = () => {
         <div className="flex items-center gap-3 mb-4">
           <StepBadge n={1} active={!step1Done} done={step1Done} />
           <div>
-            <p className="font-semibold text-gray-800">Find Registered User</p>
-            <p className="text-xs text-gray-400">Search by email address — user must already have an account</p>
+            <p className="font-semibold text-gray-800 dark:text-gray-200">Find Registered User</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Search by email address — user must already have an account</p>
           </div>
         </div>
 
@@ -471,51 +453,51 @@ const MemberTagging = () => {
               </Button>
             </div>
 
-            <div className="mt-2 flex items-start gap-2 text-xs text-gray-400">
+            <div className="mt-2 flex items-start gap-2 text-xs text-gray-400 dark:text-gray-500">
               <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <p>Only active, verified accounts will appear. The user must have registered and confirmed their email first.</p>
             </div>
 
             {userError && (
-              <div className="mt-3 flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <div className="mt-3 flex gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>{userError}</p>
               </div>
             )}
 
             {userResults.length > 0 && (
-              <div className="mt-3 border rounded-xl overflow-hidden divide-y">
+              <div className="mt-3 border dark:border-gray-700 rounded-xl overflow-hidden divide-y dark:divide-gray-700">
                 {userResults.map((u) => (
                   <button
                     key={u.id}
                     onClick={() => { setSelectedUser(u); setUserResults([]); setUserQuery(''); }}
-                    className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center gap-3"
+                    className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-3"
                   >
-                    <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-xs flex-shrink-0">
                       <User className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">{u.email}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{u.email}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
                         Registered {new Date(u.created_at).toLocaleDateString()} ·{' '}
                         <span className={u.is_active ? 'text-green-600' : 'text-red-500'}>
                           {u.is_active ? 'Active' : 'Inactive'}
                         </span>
                       </p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0" />
                   </button>
                 ))}
               </div>
             )}
           </>
         ) : (
-          <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
             <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
               <Mail className="w-5 h-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-blue-900 truncate">{selectedUser.email}</p>
-              <p className="text-xs text-blue-500">
+              <p className="font-semibold text-blue-900 dark:text-blue-300 truncate">{selectedUser.email}</p>
+              <p className="text-xs text-blue-500 dark:text-blue-400">
                 Registered {new Date(selectedUser.created_at).toLocaleDateString()} · Active account
               </p>
             </div>
@@ -539,8 +521,8 @@ const MemberTagging = () => {
         <div className="flex items-center gap-3 mb-4">
           <StepBadge n={2} active={step1Done && !step2Done} done={step2Done} />
           <div>
-            <p className="font-semibold text-gray-800">Find Patient Profile</p>
-            <p className="text-xs text-gray-400">Search the patient record in module 3</p>
+            <p className="font-semibold text-gray-800 dark:text-gray-200">Find Patient Profile</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Search the patient record in module 3</p>
           </div>
         </div>
 
@@ -567,54 +549,54 @@ const MemberTagging = () => {
             </div>
 
             {patientError && (
-              <div className="mt-3 flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <div className="mt-3 flex gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>{patientError}</p>
               </div>
             )}
 
             {patientResults.length > 0 && (
-              <div className="mt-3 border rounded-xl overflow-hidden divide-y">
+              <div className="mt-3 border dark:border-gray-700 rounded-xl overflow-hidden divide-y dark:divide-gray-700">
                 {patientResults.map((p) => (
                   <button
                     key={p.id}
                     onClick={() => { setSelectedPatient(p); setPatientResults([]); setPatientQuery(''); }}
-                    className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors flex items-center gap-3"
+                    className="w-full text-left px-4 py-3 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors flex items-center gap-3"
                   >
-                    <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-xs flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center text-green-700 dark:text-green-400 font-bold text-xs flex-shrink-0">
                       {initials(fullName(p))}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900">{fullName(p)}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{fullName(p)}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
                         {p.sex} · DOB: {p.birth_date} · {shortAddress(p.brgy)}
                       </p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0" />
                   </button>
                 ))}
               </div>
             )}
           </>
         ) : (
-          <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+          <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
             <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
               {initials(fullName(selectedPatient))}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-green-900">{fullName(selectedPatient)}</p>
+              <p className="font-semibold text-green-900 dark:text-green-300">{fullName(selectedPatient)}</p>
               <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                 {selectedPatient.sex && (
-                  <span className="flex items-center gap-1 text-xs text-green-600">
+                  <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                     <User className="w-3 h-3" />{selectedPatient.sex}
                   </span>
                 )}
                 {selectedPatient.birth_date && (
-                  <span className="flex items-center gap-1 text-xs text-green-600">
+                  <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                     <Calendar className="w-3 h-3" />{selectedPatient.birth_date}
                   </span>
                 )}
                 {shortAddress(selectedPatient.brgy) && (
-                  <span className="flex items-center gap-1 text-xs text-green-600">
+                  <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                     <MapPin className="w-3 h-3" />{shortAddress(selectedPatient.brgy)}
                   </span>
                 )}
@@ -642,8 +624,8 @@ const MemberTagging = () => {
         <div className="flex items-center gap-3 mb-4">
           <StepBadge n={3} active={step1Done && step2Done} done={step3Done} />
           <div>
-            <p className="font-semibold text-gray-800">Select Role</p>
-            <p className="text-xs text-gray-400">Choose the role to assign to this user</p>
+            <p className="font-semibold text-gray-800 dark:text-gray-200">Select Role</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Choose the role to assign to this user</p>
           </div>
         </div>
 
@@ -656,19 +638,19 @@ const MemberTagging = () => {
                 onClick={() => setSelectedRole(role.value)}
                 className={`relative p-4 rounded-xl border-2 text-left transition-all ${
                   isSelected
-                    ? `${role.border} ${role.bg} ring-2 ring-offset-1 ring-${role.color}-200`
-                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    ? `${role.border} ${role.bg} ring-2 ring-offset-1 ring-${role.color}-200 dark:ring-offset-gray-900`
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${
-                  isSelected ? `${role.bg} ${role.text}` : 'bg-gray-100 text-gray-400'
+                  isSelected ? `${role.bg} ${role.text}` : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
                 }`}>
                   {role.icon}
                 </div>
-                <p className={`font-semibold text-sm ${isSelected ? role.text : 'text-gray-700'}`}>
+                <p className={`font-semibold text-sm ${isSelected ? role.text : 'text-gray-700 dark:text-gray-300'}`}>
                   {role.label}
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">{role.description}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{role.description}</p>
                 {isSelected && (
                   <div className="absolute top-2 right-2">
                     <CheckCircle2 className={`w-5 h-5 ${role.text}`} />
@@ -685,24 +667,24 @@ const MemberTagging = () => {
         <div className="flex items-center gap-3 mb-4">
           <StepBadge n={4} active={step4Active && tagging.status === 'idle'} done={tagging.status === 'success'} />
           <div>
-            <p className="font-semibold text-gray-800">Confirm & Tag as {selectedRole}</p>
-            <p className="text-xs text-gray-400">Review the link and assign role</p>
+            <p className="font-semibold text-gray-800 dark:text-gray-200">Confirm & Tag as {selectedRole}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Review the link and assign role</p>
           </div>
         </div>
 
         {step4Active && tagging.status === 'idle' && (
           <>
             {/* Summary linking card */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-5">
-              <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-3">Linking Summary</p>
+            <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-5">
+              <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-semibold mb-3">Linking Summary</p>
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 {/* Auth user side */}
-                <div className="flex-1 bg-white rounded-lg border border-blue-200 p-3 text-center">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-2">
-                    <Mail className="w-5 h-5 text-blue-600" />
+                <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-blue-200 dark:border-blue-800 p-3 text-center">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center mx-auto mb-2">
+                    <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <p className="text-xs text-gray-400">Registered User</p>
-                  <p className="font-semibold text-gray-800 text-sm truncate mt-0.5">{selectedUser?.email}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Registered User</p>
+                  <p className="font-semibold text-gray-800 dark:text-gray-200 text-sm truncate mt-0.5">{selectedUser?.email}</p>
                 </div>
 
                 <div className="flex items-center gap-1 text-amber-500">
@@ -711,24 +693,24 @@ const MemberTagging = () => {
                 </div>
 
                 {/* Patient side */}
-                <div className="flex-1 bg-white rounded-lg border border-green-200 p-3 text-center">
-                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-2 font-bold text-green-700 text-sm">
+                <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-green-200 dark:border-green-800 p-3 text-center">
+                  <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center mx-auto mb-2 font-bold text-green-700 dark:text-green-400 text-sm">
                     {selectedPatient ? initials(fullName(selectedPatient)) : '?'}
                   </div>
-                  <p className="text-xs text-gray-400">Patient Profile</p>
-                  <p className="font-semibold text-gray-800 text-sm truncate mt-0.5">{selectedPatient ? fullName(selectedPatient) : ''}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Patient Profile</p>
+                  <p className="font-semibold text-gray-800 dark:text-gray-200 text-sm truncate mt-0.5">{selectedPatient ? fullName(selectedPatient) : ''}</p>
                 </div>
               </div>
 
               {/* What will happen */}
               <div className="mt-4 space-y-2">
-                <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Actions that will be performed:</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-semibold">Actions that will be performed:</p>
                 {[
-                  { icon: <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />, text: `Assign "${selectedRole}" role in public.user_role`, color: 'bg-purple-50 border-purple-200' },
-                  { icon: <UserCheck  className="w-3.5 h-3.5 text-amber-600"  />, text: 'Link auth user to patient_profile in module4.health_card', color: 'bg-amber-50 border-amber-200' },
-                  { icon: <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />, text: 'Create health card if one doesn\'t exist yet', color: 'bg-green-50 border-green-200' },
+                  { icon: <ShieldCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />, text: `Assign "${selectedRole}" role in public.user_role`, color: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800' },
+                  { icon: <UserCheck  className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400"  />, text: 'Link auth user to patient_profile in module4.health_card', color: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' },
+                  { icon: <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />, text: 'Create health card if one doesn\'t exist yet', color: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' },
                 ].map((item, i) => (
-                  <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs text-gray-700 ${item.color}`}>
+                  <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs text-gray-700 dark:text-gray-300 ${item.color}`}>
                     {item.icon}
                     {item.text}
                   </div>
@@ -749,45 +731,45 @@ const MemberTagging = () => {
         {/* Linking in progress */}
         {tagging.status === 'linking' && (
           <div className="flex flex-col items-center py-10 gap-4">
-            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
-              <Loader2 className="w-7 h-7 text-amber-600 animate-spin" />
+            <div className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <Loader2 className="w-7 h-7 text-amber-600 dark:text-amber-400 animate-spin" />
             </div>
-            <p className="font-semibold text-gray-700">Linking Records…</p>
-            <p className="text-sm text-gray-400">Assigning role and creating health card</p>
+            <p className="font-semibold text-gray-700 dark:text-gray-300">Linking Records…</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">Assigning role and creating health card</p>
           </div>
         )}
 
         {/* Success */}
         {tagging.status === 'success' && (
           <div className="flex flex-col items-center py-8 gap-4">
-            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-              <CheckCircle2 className="w-9 h-9 text-green-600" />
+            <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <CheckCircle2 className="w-9 h-9 text-green-600 dark:text-green-400" />
             </div>
             <div className="text-center">
-              <p className="font-bold text-green-800 text-lg">Tagging Successful!</p>
-              <p className="text-sm text-gray-500 mt-1 max-w-sm">{tagging.message}</p>
+              <p className="font-bold text-green-800 dark:text-green-400 text-lg">Tagging Successful!</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-sm">{tagging.message}</p>
             </div>
 
             {/* Summary chips */}
             <div className="flex flex-wrap gap-2 justify-center mt-1">
-              <span className="flex items-center gap-1.5 text-xs font-semibold bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full">
+              <span className="flex items-center gap-1.5 text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-3 py-1.5 rounded-full">
                 <Mail className="w-3.5 h-3.5" />{selectedUser?.email}
               </span>
-              <ArrowRight className="w-4 h-4 text-gray-400 self-center" />
-              <span className="flex items-center gap-1.5 text-xs font-semibold bg-green-100 text-green-700 px-3 py-1.5 rounded-full">
+              <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-500 self-center" />
+              <span className="flex items-center gap-1.5 text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1.5 rounded-full">
                 <UserCheck className="w-3.5 h-3.5" />{selectedPatient ? fullName(selectedPatient) : ''}
               </span>
             </div>
 
-            <div className="w-full mt-2 p-3 bg-green-50 border border-green-200 rounded-xl flex gap-2">
-              <Info className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-green-700">
+            <div className="w-full mt-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex gap-2">
+              <Info className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-green-700 dark:text-green-400">
                 The user can now log in and access the system as <strong>{selectedRole}</strong>.
                 {selectedRole === 'Member' && ' Remind them to set a PIN for security.'}
               </p>
             </div>
 
-            <Button onClick={resetAll} className="flex gap-2 bg-gray-800 hover:bg-gray-900 text-white mt-2">
+            <Button onClick={resetAll} className="flex gap-2 bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white mt-2">
               <Tag className="w-4 h-4" /> Tag Another Member
             </Button>
           </div>
@@ -796,12 +778,12 @@ const MemberTagging = () => {
         {/* Error */}
         {tagging.status === 'error' && (
           <div className="flex flex-col items-center py-8 gap-4">
-            <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <AlertCircle className="w-8 h-8 text-red-500" />
             </div>
             <div className="text-center">
-              <p className="font-bold text-red-800">Tagging Failed</p>
-              <p className="text-sm text-gray-500 mt-1 max-w-sm">{tagging.message}</p>
+              <p className="font-bold text-red-800 dark:text-red-400">Tagging Failed</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-sm">{tagging.message}</p>
             </div>
             <Button
               onClick={() => setTagging({ status: 'idle', message: '' })}
