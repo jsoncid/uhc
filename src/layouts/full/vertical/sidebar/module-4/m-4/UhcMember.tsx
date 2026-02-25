@@ -21,7 +21,7 @@ import darkLogo from 'src/assets/images/logos/uhc-logo.png';
 import adnSeal from 'src/assets/images/logos/adn-seal.png';
 import defaultProfile from 'src/assets/images/profile/default_profile.jpg';
 
-// ─── Offscreen Threads renderer (single frame capture for print) ──────────────
+// Offscreen Threads renderer (single frame capture for print)
 const _vtxSrc = `
 attribute vec2 position;
 attribute vec2 uv;
@@ -72,7 +72,7 @@ const renderThreadsFrame = (w: number, h: number): HTMLCanvasElement | null => {
 
 import { useAuthStore } from 'src/stores/useAuthStore';
 
-// ─── QR Code data-url generator ───────────────────────────────────────────────
+// QR Code data-url generator
 const generateQrDataUrl = (text: string): Promise<string> =>
   new Promise((resolve, reject) => {
     import('qrcode').then((mod) => {
@@ -85,7 +85,7 @@ const generateQrDataUrl = (text: string): Promise<string> =>
     }).catch(reject);
   });
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types
 interface RegionRecord           { id?: string; description?: string | null; }
 interface ProvinceRecord         { id?: string; description?: string | null; region?: RegionRecord | null; }
 interface CityMunicipalityRecord { id?: string; description?: string | null; province?: ProvinceRecord | null; }
@@ -110,7 +110,7 @@ interface DocumentAttachment {
   archived?: boolean;
 }
 
-// ─── Folder Definitions ───────────────────────────────────────────────────────
+// Folder Definitions
 const FOLDER_DEFS = [
   { key: 'basic_identification',   label: 'Basic Identification',   supabaseCategory: 'Basic Identification',   color: 'blue',   icon: <IdCard        className="w-5 h-5" /> },
   { key: 'philhealth',             label: 'PhilHealth',             supabaseCategory: 'PhilHealth',             color: 'red',    icon: <Heart         className="w-5 h-5" /> },
@@ -122,7 +122,7 @@ const FOLDER_DEFS = [
 
 // Maps each folder key to the specific doc-type labels the operator can choose.
 // A document's card_category may be stored as the specific type (e.g. "Valid ID")
-// OR as the broad folder category (e.g. "Basic Identification"). We match both.
+// OR as the broad folder category (e.g. "Basic Identification").
 const FOLDER_DOC_TYPES: Record<string, string[]> = {
   basic_identification: [
     'Basic Identification', 'Birth Certificate', 'Barangay Certification', 'Barangay Clearance',
@@ -154,7 +154,7 @@ const COLOR_MAP: Record<ColorKey, { bg: string; border: string; text: string; ba
   gray:   { bg: 'bg-gray-50',   border: 'border-gray-200',   text: 'text-gray-700',   badge: 'bg-gray-100 text-gray-700'   },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Helpers
 const fullName = (p: PatientProfile) =>
   [p.first_name, p.middle_name, p.last_name, p.ext_name].filter(Boolean).join(' ');
 
@@ -198,7 +198,7 @@ const displayFileName = (url: string, patient?: PatientProfile | null): string =
 
 const BCrumb = [{ to: '/', title: 'Home' }];
 
-// ─── PDF Preview Modal ────────────────────────────────────────────────────────
+// PDF Preview Modal
 const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; onClose: () => void }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] overflow-hidden flex flex-col">
@@ -233,7 +233,7 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
   </div>
 );
 
-// ─── Archive Confirm Modal ────────────────────────────────────────────────────
+// Archive Confirm Modal
 const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
   doc: DocumentAttachment; onConfirm: () => void; onCancel: () => void;
 }) => (
@@ -267,7 +267,7 @@ const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
   </div>
 );
 
-// ─── Health ID Card visual (Flip Card) ────────────────────────────────────────
+// Health ID Card visual (Flip Card)
 const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl }: {
   patient: PatientProfile; qrDataUrl: string; qrCodeValue: string;
   cardRef?: React.RefObject<HTMLDivElement | null>;
@@ -279,7 +279,7 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
   const sex = patient.sex?.toUpperCase() || 'N/A';
   const dateIssued = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
 
-   // Watermark Logo Component (uses the actual UHC logo as a subtle watermark)
+   // Watermark Logo Component
   const WatermarkLogo = () => (
     <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'grayscale(100%) brightness(0.4)' }} />
   );
@@ -322,16 +322,12 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
     </svg>
   );
 
-  // Card Background Component with patterns and blobs
  const CardBackground = () => (
     <>
-      {/* Base background */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #e8f5e9 0%, #eef6ee 40%, #e0f2e1 100%)' }} />
-      {/* Animated Threads overlay – same green as login page, subtle opacity */}
       <div style={{ position: 'absolute', inset: 0, opacity: 0.18, zIndex: 0, pointerEvents: 'none' }}>
         <Threads color={[0.18, 0.72, 0.36]} amplitude={1.4} distance={0} enableMouseInteraction={false} />
       </div>
-      {/* Security grid */}
       <div style={{ 
         position: 'absolute', inset: 0, opacity: 0.03, zIndex: 0,
         backgroundImage: `
@@ -339,13 +335,11 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
           repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px)
         `
       }} />
-      {/* Subtle blobs for depth */}
       <div style={{ position: 'absolute', width: 300, height: 230, background: '#2d8a50', top: -55, left: 15, opacity: 0.10, borderRadius: '50%', filter: 'blur(46px)' }} />
       <div style={{ position: 'absolute', width: 260, height: 210, background: '#c8a018', top: 55, right: -15, opacity: 0.05, borderRadius: '50%', filter: 'blur(46px)' }} />
       <div style={{ position: 'absolute', width: 230, height: 190, background: '#1a6b3a', bottom: -28, right: 80, opacity: 0.08, borderRadius: '50%', filter: 'blur(46px)' }} />
     </>
   );
-  // Gold border strips
   const GoldBorders = () => (
     <>
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 5, background: 'linear-gradient(90deg, #7a5c10, #c8a018, #f0d44a, #c8a018, #7a5c10)', zIndex: 2 }} />
@@ -363,7 +357,6 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
       <CardBackground />
       <GoldBorders />
       
-      {/* Watermark – UHC logo, faint behind info area */}
       <div style={{ position: 'absolute', right: '8%', top: '50%', transform: 'translateY(-50%)', width: 260, height: 260, opacity: 0.06, zIndex: 1, pointerEvents: 'none' }}>
         <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
       </div>
@@ -548,7 +541,7 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
 };
 
 
-// ─── Member PIN Gate Modal ────────────────────────────────────────────────────
+// Member PIN Gate Modal
 // Shown after patient search selection:
 //   hasPin=true  → user must enter their PIN to access records
 //   hasPin=false → user must set a PIN before proceeding
@@ -570,7 +563,7 @@ const MemberPinGateModal = ({
   const [isLocked,     setIsLocked]     = useState(false);
   const [shakeKey,     setShakeKey]     = useState(0);
 
-  // --- Set PIN states ---
+  // Set PIN states
   const [setPinStep,    setSetPinStep]    = useState<'new' | 'confirm'>('new');
   const [newPin,        setNewPin]        = useState('');
   const [confirmPin,    setConfirmPin]    = useState('');
@@ -584,7 +577,7 @@ const MemberPinGateModal = ({
     prevStatus.current = status;
   }, [status]);
 
-  // ── Keyboard support ──
+  // Keyboard support
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!hasPin) {
@@ -602,7 +595,7 @@ const MemberPinGateModal = ({
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  // ── Verify PIN handler ──
+  // Verify PIN handler
   const handleDigit = (d: string) => {
     if (entered.length >= 4 || status === 'checking' || isLocked || status === 'verified') return;
     const next = entered + d;
@@ -633,7 +626,7 @@ const MemberPinGateModal = ({
   };
   const handleBack = () => { if (status !== 'checking' && !isLocked) setEntered((p) => p.slice(0, -1)); };
 
-  // ── Set PIN handler ──
+  // Set PIN handler
   const setPinActiveVal = setPinStep === 'new' ? newPin : confirmPin;
   const setPinSetActive = setPinStep === 'new' ? setNewPin : setConfirmPin;
   const handleSetDigit = (d: string) => { if (setPinActiveVal.length < 4 && !isSavingPin) setPinSetActive(setPinActiveVal + d); };
@@ -657,7 +650,7 @@ const MemberPinGateModal = ({
     }
   };
 
-  // ══ No PIN → Force set PIN ══
+  // No PIN → Force set PIN
   if (!hasPin) {
     const stepLabel = setPinStep === 'new' ? 'Choose Your PIN' : 'Confirm PIN';
     const stepHint  = setPinStep === 'new'
@@ -738,7 +731,7 @@ const MemberPinGateModal = ({
     );
   }
 
-  // ══ Has PIN → Verify PIN ══
+  // Has PIN → Verify PIN
   const headerGradient = status === 'verified' ? 'from-green-600 to-green-800'
     : isLocked ? 'from-red-700 to-red-900' : 'from-green-700 to-green-900';
   const headerTitle = status === 'verified' ? 'Access Granted'
@@ -838,9 +831,7 @@ const MemberPinGateModal = ({
   );
 };
 
-// ─── PIN Modal ────────────────────────────────────────────────────────────────
-// mode='set'    → 2 steps: new → confirm
-// mode='change' → 3 steps: old → new → confirm
+// PIN Modal
 const PinModal = ({ mode, onConfirm, onCancel, isLoading, error }: {
   mode: 'set' | 'change';
   onConfirm: (newPin: string, oldPin?: string) => void;
@@ -861,7 +852,7 @@ const PinModal = ({ mode, onConfirm, onCancel, isLoading, error }: {
   const handleDigit = (d: string) => { if (activeVal.length < 4) setActive(activeVal + d); };
   const handleBack  = () => setActive(activeVal.slice(0, -1));
 
-  // ── Keyboard support ──
+  // Keyboard support for PIN entry
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (/^[0-9]$/.test(e.key)) { handleDigit(e.key); e.preventDefault(); }
@@ -902,7 +893,6 @@ const PinModal = ({ mode, onConfirm, onCancel, isLoading, error }: {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
-        {/* Header */}
         <div className="bg-gradient-to-br from-green-700 to-green-900 px-7 py-6 flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
             <Lock className="w-6 h-6 text-white" />
@@ -1001,14 +991,13 @@ const PinModal = ({ mode, onConfirm, onCancel, isLoading, error }: {
   );
 };
 
-// ─── Print Modal ──────────────────────────────────────────────────────────────
+// Print Modal
 const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
   imgUrl: string; patientName: string; onClose: () => void;
   onDownload: () => void; isCapturing: boolean;
 }) => (
   <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4">
     <div className="bg-white dark:bg-gray-900 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-green-700 bg-gradient-to-r from-green-800 to-green-900 flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
@@ -1075,27 +1064,25 @@ const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
   </div>
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
-// ══════════════════════════════════════════════════════════════════════════════
 const UhcMember = () => {
-  // ── Patient selection ─────────────────────────────────────────────────
+  // Patient selection
   const [selectedPatient, setSelectedPatient] = useState<PatientProfile | null>(null);
   const [errorMessage,    setErrorMessage]    = useState('');
 
-  // ── Tagged-member guard ────────────────────────────────────────────────────
+  // Tagged-member guard
   // When a member is tagged to a patient (via MemberTagging), only their own
   // profile is accessible. Manual search for other patients is blocked.
   const [taggedPatientId, setTaggedPatientId] = useState<string | null>(null);
   const [isAutoLoading,   setIsAutoLoading]   = useState(true);
 
-  // ── Profile picture ─────────────────────────────────────────────────────────
+  // Profile picture
   const [profilePicUrl,   setProfilePicUrl]   = useState<string | null>(null);
   const [isUploadingPic,  setIsUploadingPic]  = useState(false);
   const [profilePicError, setProfilePicError] = useState('');
   const profilePicInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Camera capture ──────────────────────────────────────────────────────────
+  // Camera capture
   const [showCamera,      setShowCamera]      = useState(false);
   const [cameraStream,    setCameraStream]    = useState<MediaStream | null>(null);
   const [cameraError,     setCameraError]     = useState('');
@@ -1104,13 +1091,13 @@ const UhcMember = () => {
   const videoRef   = useRef<HTMLVideoElement>(null);
   const canvasRef  = useRef<HTMLCanvasElement>(null);
 
-  // ── module4 health card data ───────────────────────────────────────────────
+  // module4 health card data 
   const [healthCardId, setHealthCardId] = useState<string | null>(null);
   const [qrCodeValue,  setQrCodeValue]  = useState<string | null>(null);
   const [qrDataUrl,    setQrDataUrl]    = useState<string | null>(null);
   const [isLoadingQr,  setIsLoadingQr]  = useState(false);
 
-  // ── Documents (module4.card_attachment) ───────────────────────────────────
+  // Documents (module4.card_attachment)
   const [documents,      setDocuments]      = useState<DocumentAttachment[]>([]);
   const [isLoadingDocs,  setIsLoadingDocs]  = useState(false);
   const [expandedFolder, setExpandedFolder] = useState<string | null>(null);
@@ -1118,28 +1105,28 @@ const UhcMember = () => {
   const [previewDoc,     setPreviewDoc]     = useState<DocumentAttachment | null>(null);
   const [archiveTarget,  setArchiveTarget]  = useState<DocumentAttachment | null>(null);
 
-  // ── PIN (module4.health_card.pin) ──────────────────────────────────────────
+  // PIN (module4.health_card.pin) 
   const [hasPin,       setHasPin]       = useState(false);
   const [pinModalMode, setPinModalMode] = useState<'set' | 'change' | null>(null);
   const [isPinLoading, setIsPinLoading] = useState(false);
   const [pinError,     setPinError]     = useState('');
   const [pinSuccess,   setPinSuccess]   = useState('');
 
-  // ── PIN gate (on patient select) ──────────────────────────────────────────
+  // PIN gate (on patient select)
   const [pendingPatient,  setPendingPatient]  = useState<PatientProfile | null>(null);
   const [pendingCardId,                 ]   = useState<string | null>(null);
   const [pendingHasPin,   setPendingHasPin]   = useState(false);
   const [showPinGate,     setShowPinGate]     = useState(false);
 
-  // ── Card download / print ──────────────────────────────────────────────────
+  // Card download / print
   const [isCapturing,   setIsCapturing]   = useState(false);
   const [printModalImg, setPrintModalImg] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // ── Active tab ─────────────────────────────────────────────────────────────
+  // Active tab
   const [activeTab, setActiveTab] = useState('documents');
 
-  // ─── Canvas card builder (dual format - front & back) ─────────────────────
+  // Canvas card builder (dual format - front & back)
   const buildCardCanvas = useCallback(async (
     patient: PatientProfile, qrUrl: string, qrValue: string, picUrl?: string | null,
   ): Promise<HTMLCanvasElement> => {
@@ -1175,7 +1162,6 @@ const UhcMember = () => {
     logoImg.src = darkLogo;
     await new Promise<void>((resolve) => { logoImg.onload = () => resolve(); logoImg.onerror = () => resolve(); });
 
-    // Helper: draw card base (gradient, Threads frame, blobs, gold borders)
     const drawCardBase = (offsetY: number) => {
       ctx.save();
       ctx.translate(0, offsetY);
@@ -1247,10 +1233,7 @@ const UhcMember = () => {
       ctx.restore();
     };
 
-    // ══════════════════════════════════════════════════════════════════════════
     // FRONT SIDE
-    // ══════════════════════════════════════════════════════════════════════════
-    
     // "FRONT" label
     ctx.fillStyle = '#0d4422';
     ctx.font = 'bold 14px sans-serif';
@@ -1276,7 +1259,6 @@ const UhcMember = () => {
 
     // ADN Seal (left) + UHC Logo (right) in header – preserve aspect ratios
     const sealMaxH = 50;
-    // Load ADN seal
     const sealImg = new Image();
     sealImg.src = adnSeal;
     await new Promise<void>((resolve) => {
@@ -1352,7 +1334,6 @@ const UhcMember = () => {
 
     // Photo placeholder with clean single gold border
     const photoX = 20, photoY = headerH + 36, photoW = 195, photoH = 210;
-    // Background fill
     const photoGrad = ctx.createLinearGradient(photoX, photoY, photoX + photoW, photoY + photoH);
     photoGrad.addColorStop(0, '#fef9c3');
     photoGrad.addColorStop(0.5, '#fde68a');
@@ -1529,10 +1510,7 @@ const UhcMember = () => {
 
     ctx.restore(); // End front side translation
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // BACK SIDE
-    // ══════════════════════════════════════════════════════════════════════════
-    
+    // BACK SIDE 
     const backLabelY = LABEL_H + H + GAP;
     ctx.fillStyle = '#0d4422';
     ctx.font = 'bold 14px sans-serif';
@@ -1691,7 +1669,7 @@ const UhcMember = () => {
     setPendingPatient(null);
   }, []);
 
-  // ─── Load patient data ─────────────────────────────────────────────────────
+  // Load patient data
   // All health card data lives in module4.
   // patient.id (UUID from module3) is stored in module4.health_card.patient_profile.
   const loadPatientData = async (patient: PatientProfile) => {
@@ -1700,7 +1678,7 @@ const UhcMember = () => {
     setErrorMessage('');
     try {
       // Step 1: find existing health_card in module4
-      //    Use .limit(1) instead of .maybeSingle() — multiple cards may exist.
+      // Use .limit(1) instead of .maybeSingle() — multiple cards may exist.
       const { data: cards, error: cardErr } = await supabase
         .schema('module4')               // ← always module4 for health_card
         .from('health_card')
@@ -1786,7 +1764,7 @@ const UhcMember = () => {
     } finally { setIsLoadingDocs(false); }
   };
 
-  // ── Camera functions ──────────────────────────────────────────────────────
+  // Camera functions
   const openCamera = async () => {
     setProfilePicError('');
     setCameraError('');
@@ -1942,7 +1920,7 @@ const UhcMember = () => {
     };
   }, [cameraStream]);
 
-  // ── Upload profile picture to card-attachments bucket (Profile Picture folder) ──
+  // Upload profile picture to card-attachments bucket (Profile Picture folder)
   const handleProfilePicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedPatient) return;
@@ -1975,7 +1953,7 @@ const UhcMember = () => {
     }
   };
 
-  // ─── Auto-load tagged patient on mount ────────────────────────────────────
+  // Auto-load tagged patient on mount
   // If the logged-in user has been tagged to a patient profile (via MemberTagging),
   // automatically load that patient so the member doesn't need to search.
   const authUser = useAuthStore((s) => s.user);
@@ -2123,7 +2101,7 @@ const UhcMember = () => {
     } finally { setIsPinLoading(false); }
   };
 
-  // ─── Card download ─────────────────────────────────────────────────────────
+  // Card download
   const handleDownloadCard = useCallback(async () => {
     if (!selectedPatient || !qrDataUrl || !qrCodeValue) return;
     setIsCapturing(true);
@@ -2137,7 +2115,7 @@ const UhcMember = () => {
     finally { setIsCapturing(false); }
   }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, buildCardCanvas]);
 
-  // ─── Print card ────────────────────────────────────────────────────────────
+  // Print card
   const handlePrintCard = useCallback(async () => {
     if (!selectedPatient || !qrDataUrl || !qrCodeValue) return;
     setIsCapturing(true);
@@ -2148,7 +2126,7 @@ const UhcMember = () => {
     finally { setIsCapturing(false); }
   }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, buildCardCanvas]);
 
-  // ─── Archive helpers ───────────────────────────────────────────────────────
+  // Archive helpers
   const handleArchive  = () => {
     if (!archiveTarget) return;
     setDocuments((prev) => prev.map((d) => d.id === archiveTarget.id ? { ...d, archived: true } : d));
@@ -2174,7 +2152,7 @@ const UhcMember = () => {
     ? filterMatchedFolderKeys.reduce((sum, key) => sum + getDocsForFolder(key, false).length, 0)
     : 0;
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  // Render
   return (
     <>
       <BreadcrumbComp title="My Health Card" items={BCrumb} />
@@ -2310,7 +2288,6 @@ const UhcMember = () => {
                   </button>
                 </div>
               ) : (
-                /* Live — Capture / Switch */
                 <div className="flex items-center justify-center gap-4">
                   <button
                     onClick={switchCamera}

@@ -13,7 +13,7 @@ import {
   Building, Landmark,
 } from 'lucide-react';
 
-// ─── Role Type Options ────────────────────────────────────────────────────────
+// Role Type Options
 type RoleType = 'Member' | 'Barangay Officer' | 'Hospital Operator';
 
 const ROLE_OPTIONS: { value: RoleType; label: string; description: string; icon: React.ReactNode; color: string; border: string; bg: string; text: string }[] = [
@@ -40,8 +40,7 @@ const ROLE_OPTIONS: { value: RoleType; label: string; description: string; icon:
   },
 ];
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
+// Types
 interface AuthUserRecord {
   id: string;           // auth.users.id  (= user_status.id)
   email: string;        // user_status.email
@@ -65,7 +64,7 @@ interface TaggingState {
   message: string;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Helpers
 
 const fullName = (p: PatientProfile) =>
   [p.first_name, p.middle_name, p.last_name, p.ext_name].filter(Boolean).join(' ');
@@ -86,7 +85,7 @@ const generateUniqueQrCode = (patientId: string): string => {
   return `UHC-${frag}-${ts}-${rand}`;
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// Sub-components
 
 const StepBadge = ({ n, active, done }: { n: number; active: boolean; done: boolean }) => (
   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 transition-all ${
@@ -98,8 +97,7 @@ const StepBadge = ({ n, active, done }: { n: number; active: boolean; done: bool
   </div>
 );
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
+// Main Component
 const MemberTagging = () => {
   // Step 1: select registered auth user
   const [userQuery,       setUserQuery]       = useState('');
@@ -125,7 +123,7 @@ const MemberTagging = () => {
   const userInputRef    = useRef<HTMLInputElement>(null);
   const patientInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Step 1: Search registered users from public.user_status ───────────────
+  // Step 1: Search registered users from public.user_status
   const searchUsers = useCallback(async () => {
     const q = userQuery.trim();
     if (!q) return;
@@ -156,7 +154,7 @@ const MemberTagging = () => {
     }
   }, [userQuery]);
 
-  // ── Step 2: Search patient profiles from module3 ──────────────────────────
+  // Step 2: Search patient profiles from module3
   const searchPatients = useCallback(async () => {
     const q = patientQuery.trim();
     if (!q) return;
@@ -215,13 +213,13 @@ const MemberTagging = () => {
     }
   }, [patientQuery]);
 
-  // ── Step 3: Tag — link auth user → patient → health card + role ──────────
+  // Step 3: Tag — link auth user → patient → health card + role
   const handleTag = async () => {
     if (!selectedUser || !selectedPatient) return;
     setTagging({ status: 'linking', message: 'Linking records…' });
 
     try {
-      // ── 0a. Guard: check if this user is already linked to a DIFFERENT patient ─
+      // 0a. Guard: check if this user is already linked to a DIFFERENT patient
       const { data: userCards, error: userCardErr } = await supabase
         .schema('module4')
         .from('health_card')
@@ -253,7 +251,7 @@ const MemberTagging = () => {
         );
       }
 
-      // ── 0b. Guard: check if this patient is already linked to a DIFFERENT user ─
+      // 0b. Guard: check if this patient is already linked to a DIFFERENT user
       const { data: patientCards, error: patientCardErr } = await supabase
         .schema('module4')
         .from('health_card')
@@ -283,7 +281,7 @@ const MemberTagging = () => {
         );
       }
 
-      // ── A. Get role ID from public.role based on selected role ─────────────
+      // A. Get role ID from public.role based on selected role
       let roleId = cachedRoleIds[selectedRole] ?? null;
       if (!roleId) {
         const searchTerm = selectedRole.toLowerCase();
@@ -301,7 +299,7 @@ const MemberTagging = () => {
         setCachedRoleIds((prev) => ({ ...prev, [selectedRole]: roleId! }));
       }
 
-      // ── B. Assign selected role in public.user_role (if not already) ─────
+      // B. Assign selected role in public.user_role (if not already)
       const { data: existingRole } = await supabase
         .from('user_role')
         .select('id')
@@ -317,7 +315,7 @@ const MemberTagging = () => {
         if (roleInsertError) throw roleInsertError;
       }
 
-      // ── C. Create or update module4.health_card ───────────────────────────
+      //    C. Create or update module4.health_card
       //    Link: user (auth.users.id) + patient_profile (module3.patient_profile.id)
       //    Check by BOTH user and patient to avoid creating duplicate rows.
       const { data: cardByPatient } = await supabase
@@ -363,7 +361,7 @@ const MemberTagging = () => {
         if (insertError) throw insertError;
       }
 
-      // ── D. Also create user_assignment if applicable ──────────────────────
+      //    D. Also create user_assignment if applicable
       //    (optional — links user to their "assignment" in public schema)
       //    Skipped here since assignment depends on facility context.
 
@@ -398,7 +396,7 @@ const MemberTagging = () => {
   const step3Done = step1Done && step2Done && !!selectedRole;
   const step4Active = step3Done;
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // Render
   return (
     <div className="flex flex-col gap-5">
 
