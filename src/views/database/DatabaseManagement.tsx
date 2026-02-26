@@ -13,7 +13,6 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from 'src/components/ui/card';
 import { Button } from 'src/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from 'src/components/ui/tabs';
 import { Alert, AlertDescription } from 'src/components/ui/alert';
 import {
   Dialog,
@@ -23,8 +22,6 @@ import {
 } from 'src/components/ui/dialog';
 import {
   Database,
-  Plus,
-  List,
   Info,
   ArrowLeft,
 } from 'lucide-react';
@@ -34,7 +31,6 @@ import { DatabaseConnectionForm, DatabaseList } from 'src/components/database';
 
 const DatabaseManagement = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'list' | 'add'>('list');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showAddDialog, setShowAddDialog] = useState(false);
 
@@ -42,7 +38,6 @@ const DatabaseManagement = () => {
   const handleAddSuccess = () => {
     setRefreshTrigger(prev => prev + 1);
     setShowAddDialog(false);
-    setActiveTab('list');
   };
 
   // Handle add new button click
@@ -88,33 +83,11 @@ const DatabaseManagement = () => {
         </AlertDescription>
       </Alert>
 
-      {/* Main Content with Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'list' | 'add')} className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="list" className="gap-2">
-            <List className="h-4 w-4" />
-            Database List
-          </TabsTrigger>
-          <TabsTrigger value="add" className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Database
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="list" className="space-y-4">
-          <DatabaseList 
-            onAddNew={handleAddNew}
-            refreshTrigger={refreshTrigger}
-          />
-        </TabsContent>
-
-        <TabsContent value="add" className="space-y-4">
-          <DatabaseConnectionForm 
-            onSuccess={handleAddSuccess}
-            onCancel={() => setActiveTab('list')}
-          />
-        </TabsContent>
-      </Tabs>
+      {/* Main Content */}
+      <DatabaseList 
+        onAddNew={handleAddNew}
+        refreshTrigger={refreshTrigger}
+      />
 
       {/* Add Database Dialog (alternative to tab) */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
