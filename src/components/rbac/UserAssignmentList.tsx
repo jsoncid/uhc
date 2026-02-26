@@ -528,6 +528,12 @@ export const UserAssignmentList = () => {
   }>)
 
   const groupedRoleModuleAccessArray = Object.values(groupedRoleModuleAccess)
+    .map(roleAccess => ({
+      ...roleAccess,
+      modules: roleAccess.modules.sort((a, b) => 
+        a.moduleDescription.toLowerCase().localeCompare(b.moduleDescription.toLowerCase())
+      )
+    }))
     .sort((a, b) => {
       let aValue: any, bValue: any
       
