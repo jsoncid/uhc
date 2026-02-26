@@ -31,11 +31,13 @@ import {
   History as HistoryIcon,
   Info,
   LinkIcon,
+  FileText,
 } from 'lucide-react';
 import patientService, { PatientProfile, PatientHistory } from 'src/services/patientService';
 import { getFacilityName } from 'src/utils/facilityMapping';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientInfoCard from './components/PatientInfoCard';
+import { PatientPDFModal } from './components/PatientPDFModal';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -66,6 +68,9 @@ const PatientList = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+
+  const selectedPatientHpercode = selectedPatient?.patient_repository?.[0]?.hpercode;
 
   /* ------------------------------------------------------------------ */
   /*  Effects                                                           */
@@ -74,6 +79,10 @@ const PatientList = () => {
   useEffect(() => {
     loadPatients();
   }, [currentPage]);
+
+  useEffect(() => {
+    setIsRecordModalOpen(false);
+  }, [selectedPatient?.id]);
 
   /* ------------------------------------------------------------------ */
   /*  Handlers                                                          */
@@ -139,6 +148,7 @@ const PatientList = () => {
     } else {
       setPatientHistory([]);
     }
+    navigate(`/module-3/patient-tagging${hpercode ? `?hpercode=${encodeURIComponent(hpercode)}` : ''}`);
   };
 
   const loadPatientHistory = async (hpercode: string) => {
@@ -163,10 +173,16 @@ const PatientList = () => {
     setSelectedPatient(null);
     setPatientHistory([]);
     setTypeFilter('all');
+    setIsRecordModalOpen(false);
   };
 
   const handleViewPatient = (patientId: string) => {
     navigate(`/module-3/patient-details?id=${patientId}`);
+  };
+
+  const handleOpenPatientRecords = () => {
+    if (!selectedPatientHpercode) return;
+    setIsRecordModalOpen(true);
   };
 
   const formatDate = (dateString: string) => {
@@ -503,7 +519,7 @@ const PatientList = () => {
       {selectedPatient && (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Header with Close Button */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-lg">
                 <HistoryIcon className="h-6 w-6 text-primary" />
@@ -546,7 +562,19 @@ const PatientList = () => {
               </div>
 
               {/* Patient History */}
-              <div className="col-span-12 lg:col-span-8">
+              <div className="col-span-12 lg:col-span-8 space-y-3">
+                <div className="flex items-center justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenPatientRecords}
+                    disabled={!selectedPatientHpercode}
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    View Records
+                  </Button>
+                </div>
                 <PatientHistoryTabs
                   history={filteredHistory}
                   isLoading={isLoadingHistory}
@@ -554,12 +582,30 @@ const PatientList = () => {
                   onViewModeChange={setViewMode}
                   typeFilter={typeFilter}
                   onTypeFilterChange={setTypeFilter}
+                  rightActions={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenPatientRecords}
+                      disabled={!selectedPatientHpercode}
+                      className="flex items-center gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      View Records
+                    </Button>
+                  }
                 />
               </div>
             </div>
           )}
         </div>
       )}
+      <PatientPDFModal
+        isOpen={isRecordModalOpen}
+        onClose={() => setIsRecordModalOpen(false)}
+        patient={selectedPatient}
+        hpercode={selectedPatientHpercode}
+      />
     </div>
   );
 };

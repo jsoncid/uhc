@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,22 +16,87 @@ import {
   ZoomOut,
   Loader2,
 } from 'lucide-react';
+import patientService from 'src/services/patientService';
 
 interface PatientPDFModalProps {
   isOpen: boolean;
   onClose: () => void;
   patient: any;
+  hpercode?: string;
 }
 
-export const PatientPDFModal = ({ isOpen, onClose, patient }: PatientPDFModalProps) => {
+export const PatientPDFModal = ({ isOpen, onClose, patient, hpercode }: PatientPDFModalProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Sample PDF URL - Replace with actual patient medical records PDF URL
-  const pdfUrl = '/sample-medical-record.pdf'; // This would come from your backend/storage
+  useEffect(() => {
+    if (!isOpen) {
+      setPdfUrl(null);
+      setErrorMessage(null);
+      setZoom(100);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!hpercode) {
+      setErrorMessage('HPERCODE is required to fetch the electronic patient record.');
+      setPdfUrl(null);
+      setIsLoading(false);
+      return;
+    }
+
+    let isActive = true;
+    let objectUrl: string | null = null;
+
+    const fetchPdf = async () => {
+      setIsLoading(true);
+      setErrorMessage(null);
+      setPdfUrl(null);
+
+      try {
+        const result = await patientService.getPatientRecordPdf(hpercode);
+        if (!isActive) {
+          return;
+        }
+
+        if (result.success && result.pdfBlob) {
+          objectUrl = URL.createObjectURL(result.pdfBlob);
+          setPdfUrl(objectUrl);
+        } else {
+          setErrorMessage(
+            result.message || 'Unable to load the electronic patient record for this patient.',
+          );
+        }
+      } catch (error) {
+        if (isActive) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Something went wrong while loading the patient record.',
+          );
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchPdf();
+
+    return () => {
+      isActive = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [isOpen, hpercode]);
 
   const handlePrint = () => {
-    // Open PDF in new window for printing
+    if (!pdfUrl) return;
+
     const printWindow = window.open(pdfUrl, '_blank');
     if (printWindow) {
       printWindow.onload = () => {
@@ -41,7 +106,8 @@ export const PatientPDFModal = ({ isOpen, onClose, patient }: PatientPDFModalPro
   };
 
   const handleDownload = () => {
-    // Create a temporary link element to trigger download
+    if (!pdfUrl) return;
+
     const link = document.createElement('a');
     link.href = pdfUrl;
     link.download = `medical-record-${patient?.first_name}-${patient?.last_name}.pdf`;
@@ -80,29 +146,27 @@ export const PatientPDFModal = ({ isOpen, onClose, patient }: PatientPDFModalPro
               variant="outline"
               size="sm"
               onClick={handleZoomOut}
-              disabled={zoom <= 50}
+              disabled={zoom <= 50 || !pdfUrl}
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium min-w-[60px] text-center">
-              {zoom}%
-            </span>
+            <span className="text-sm font-medium min-w-[60px] text-center">{zoom}%</span>
             <Button
               variant="outline"
               size="sm"
               onClick={handleZoomIn}
-              disabled={zoom >= 200}
+              disabled={zoom >= 200 || !pdfUrl}
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handlePrint} className="gap-2">
+            <Button variant="outline" onClick={handlePrint} className="gap-2" disabled={!pdfUrl || isLoading}>
               <Printer className="h-4 w-4" />
               Print
             </Button>
-            <Button onClick={handleDownload} className="gap-2">
+            <Button onClick={handleDownload} className="gap-2" disabled={!pdfUrl || isLoading}>
               <Download className="h-4 w-4" />
               Download
             </Button>
@@ -118,9 +182,15 @@ export const PatientPDFModal = ({ isOpen, onClose, patient }: PatientPDFModalPro
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <span className="ml-3 text-muted-foreground">Loading document...</span>
             </div>
-          ) : (
+          ) : errorMessage ? (
+            <div className="flex flex-col items-center justify-center gap-3 h-full text-center">
+              <FileText className="h-12 w-12 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground max-w-[420px]">
+                {errorMessage}
+              </p>
+            </div>
+          ) : pdfUrl ? (
             <div className="w-full h-full flex items-center justify-center">
-              {/* PDF Viewer using iframe */}
               <iframe
                 src={pdfUrl}
                 className="w-full h-[600px] border rounded-md bg-white"
@@ -129,26 +199,11 @@ export const PatientPDFModal = ({ isOpen, onClose, patient }: PatientPDFModalPro
                   transformOrigin: 'top center',
                 }}
                 title="Medical Records PDF"
-                onLoad={() => setIsLoading(false)}
               />
-              
-              {/* Alternative: Display message if PDF is not available */}
-              {/* <div className="text-center">
-                <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Medical Record Preview</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Patient: {patient?.first_name} {patient?.last_name}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  PDF document would be displayed here
-                </p>
-                <div className="mt-6 p-4 bg-muted rounded-md">
-                  <p className="text-xs text-muted-foreground">
-                    Note: Replace the pdfUrl variable in PatientPDFModal.tsx with the actual URL
-                    from your backend or file storage service (e.g., Supabase Storage, AWS S3)
-                  </p>
-                </div>
-              </div> */}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+              No electronic patient record is available yet.
             </div>
           )}
         </div>
@@ -156,8 +211,9 @@ export const PatientPDFModal = ({ isOpen, onClose, patient }: PatientPDFModalPro
         {/* Footer Info */}
         <div className="text-xs text-muted-foreground pt-2">
           <p>
-            <strong>Patient ID:</strong> {patient?.id} | 
-            <strong className="ml-2">Date Generated:</strong> {new Date().toLocaleDateString()}
+            <strong>Patient ID:</strong> {patient?.id} |{' '}
+            <strong>HPERCODE:</strong> {hpercode ?? 'N/A'} |{' '}
+            <strong>Date Generated:</strong> {new Date().toLocaleDateString()}
           </p>
         </div>
       </DialogContent>
