@@ -483,6 +483,70 @@ export const UserAssignmentList = () => {
       return 0
     })
 
+  // Group role module access by role
+  const groupedRoleModuleAccess = filteredRoleModuleAccess.reduce((acc, access) => {
+    const roleId = access.role
+    if (!acc[roleId]) {
+      acc[roleId] = {
+        role: roleId,
+        roleDescription: (access as any).roleDescription || roleId,
+        modules: [],
+        created_at: access.created_at
+      }
+    }
+    acc[roleId].modules.push({
+      id: access.id,
+      module: access.module,
+      moduleDescription: (access as any).moduleDescription || access.module,
+      description: access.description,
+      is_select: access.is_select,
+      is_insert: access.is_insert,
+      is_update: access.is_update,
+      is_delete: access.is_delete,
+      created_at: access.created_at
+    })
+    // Use the earliest created_at date
+    if (access.created_at < acc[roleId].created_at) {
+      acc[roleId].created_at = access.created_at
+    }
+    return acc
+  }, {} as Record<string, { 
+    role: string; 
+    roleDescription: string; 
+    modules: Array<{ 
+      id: string; 
+      module: string; 
+      moduleDescription: string; 
+      description: string | null; 
+      is_select: boolean; 
+      is_insert: boolean; 
+      is_update: boolean; 
+      is_delete: boolean; 
+      created_at: string 
+    }>; 
+    created_at: string 
+  }>)
+
+  const groupedRoleModuleAccessArray = Object.values(groupedRoleModuleAccess)
+    .sort((a, b) => {
+      let aValue: any, bValue: any
+      
+      if (roleModuleSortBy === 'role') {
+        aValue = a.roleDescription.toLowerCase()
+        bValue = b.roleDescription.toLowerCase()
+      } else if (roleModuleSortBy === 'module') {
+        aValue = a.modules.length
+        bValue = b.modules.length
+      } else if (roleModuleSortBy === 'created_at') {
+        aValue = new Date(a.created_at).getTime()
+        bValue = new Date(b.created_at).getTime()
+      }
+      
+      if (aValue < bValue) return roleModuleSortOrder === 'asc' ? -1 : 1
+      if (aValue > bValue) return roleModuleSortOrder === 'asc' ? 1 : -1
+      return 0
+    })
+
   const filteredUsers = usersWithStatus
     .filter((user) => {
       // Status filter
@@ -857,7 +921,7 @@ export const UserAssignmentList = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="role">Role</SelectItem>
-                      <SelectItem value="module">Module</SelectItem>
+                      <SelectItem value="module">Module Count</SelectItem>
                       <SelectItem value="created_at">Date Created</SelectItem>
                     </SelectContent>
                   </Select>
@@ -918,72 +982,110 @@ export const UserAssignmentList = () => {
                 {roleModuleAccess.length > 0 && (
                   <div className="mt-6">
                     <h3 className="text-lg font-semibold mb-4">
-                      Current Role Module Access ({filteredRoleModuleAccess.length} of {roleModuleAccess.length})
+                      Current Role Module Access ({filteredRoleModuleAccess.length} modules in {groupedRoleModuleAccessArray.length} roles)
                     </h3>
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
                           <TableRow>
                             <TableHead>Role</TableHead>
-                            <TableHead>Module</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Select</TableHead>
-                            <TableHead>Insert</TableHead>
-                            <TableHead>Update</TableHead>
-                            <TableHead>Delete</TableHead>
+                            <TableHead>Modules & Permissions</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredRoleModuleAccess.length === 0 ? (
+                          {groupedRoleModuleAccessArray.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                              <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
                                 No role module access found matching your filters
                               </TableCell>
                             </TableRow>
                           ) : (
-                            filteredRoleModuleAccess.map((access) => (
-                            <TableRow key={access.id}>
-                              <TableCell className="font-medium">{(access as any).roleDescription || access.role}</TableCell>
-                              <TableCell>{(access as any).moduleDescription || access.module}</TableCell>
-                              <TableCell>{access.description || 'No description'}</TableCell>
-                              <TableCell>
-                                <Badge variant={access.is_select ? 'default' : 'destructive'}>
-                                  {access.is_select ? 'Yes' : 'No'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={access.is_insert ? 'default' : 'destructive'}>
-                                  {access.is_insert ? 'Yes' : 'No'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={access.is_update ? 'default' : 'destructive'}>
-                                  {access.is_update ? 'Yes' : 'No'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={access.is_delete ? 'default' : 'destructive'}>
-                                  {access.is_delete ? 'Yes' : 'No'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleEditRoleModuleAccess(access)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleDeleteRoleModuleAccess(access)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                            groupedRoleModuleAccessArray.map((roleAccess) => (
+                            <TableRow key={roleAccess.role}>
+                              <TableCell className="font-medium align-top">
+                                {roleAccess.roleDescription}
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {roleAccess.modules.length} module{roleAccess.modules.length !== 1 ? 's' : ''}
                                 </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="space-y-2">
+                                  {roleAccess.modules.map((module) => (
+                                    <div key={module.id} className="flex items-center gap-2 p-2 rounded border bg-muted/30">
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm">{module.moduleDescription}</div>
+                                        {module.description && (
+                                          <div className="text-xs text-muted-foreground">{module.description}</div>
+                                        )}
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <Badge variant={module.is_insert ? 'default' : 'outline'} className="text-xs">
+                                          C
+                                        </Badge>
+                                        <Badge variant={module.is_select ? 'default' : 'outline'} className="text-xs">
+                                          R
+                                        </Badge>
+                                        <Badge variant={module.is_update ? 'default' : 'outline'} className="text-xs">
+                                          U
+                                        </Badge>
+                                        <Badge variant={module.is_delete ? 'default' : 'outline'} className="text-xs">
+                                          D
+                                        </Badge>
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 w-7 p-0"
+                                          onClick={() => handleEditRoleModuleAccess({
+                                            id: module.id,
+                                            role: roleAccess.role,
+                                            module: module.module,
+                                            description: module.description,
+                                            is_select: module.is_select,
+                                            is_insert: module.is_insert,
+                                            is_update: module.is_update,
+                                            is_delete: module.is_delete,
+                                            created_at: module.created_at
+                                          } as RoleModuleAccess)}
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 w-7 p-0"
+                                          onClick={() => handleDeleteRoleModuleAccess({
+                                            id: module.id,
+                                            role: roleAccess.role,
+                                            module: module.module,
+                                            description: module.description,
+                                            is_select: module.is_select,
+                                            is_insert: module.is_insert,
+                                            is_update: module.is_update,
+                                            is_delete: module.is_delete,
+                                            created_at: module.created_at
+                                          } as RoleModuleAccess)}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right align-top">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const role = roles.find(r => r.id === roleAccess.role)
+                                    if (role) handleManageRoleAccess(role)
+                                  }}
+                                >
+                                  Add Module
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))
