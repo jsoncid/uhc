@@ -65,7 +65,8 @@ const renderSidebarItems = (
     }
 
     // Regular menu item
-    const linkTarget = item.url?.startsWith('https') ? '_blank' : '_self';
+    const isExternal = item.url?.startsWith('https');
+    const linkTarget = isExternal ? '_blank' : undefined;
 
     const itemClassNames = isSubItem
       ? `mt-0.5 text-sidebar-foreground dark:text-sidebar-foreground !hover:bg-transparent ${
@@ -85,7 +86,7 @@ const renderSidebarItems = (
           badgeTextColor="text-secondary"
           disabled={item.disabled}
           badgeContent={item.isPro ? 'Pro' : undefined}
-          component={Link}
+          component={isExternal ? 'a' : Link}
           className={`${itemClassNames}`}
         >
           <span className="truncate flex-1">{item.title || item.name}</span>

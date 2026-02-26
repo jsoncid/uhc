@@ -1,5 +1,5 @@
 /**
- * Database Management View
+ * Database Management View - Module 3
  * 
  * Main page for managing dynamic database connections.
  * Features:
@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { DatabaseConnectionForm, DatabaseList } from 'src/components/database';
+import { DatabaseConnectionForm, DatabaseList } from 'src/components/apps/database';
 
 const DatabaseManagement = () => {
   const navigate = useNavigate();
@@ -92,7 +92,7 @@ const DatabaseManagement = () => {
         refreshTrigger={refreshTrigger}
       />
 
-      {/* Add Database Dialog (alternative to tab) */}
+      {/* Add Database Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
