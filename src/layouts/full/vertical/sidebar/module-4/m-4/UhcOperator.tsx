@@ -494,7 +494,7 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
       </div>
       <div className="flex items-center justify-end gap-3 px-6 py-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <Button variant="outline" onClick={onClose} className="flex gap-2"><X className="w-4 h-4" /> Close</Button>
-        <Button variant="outline" className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50"
+        {/* <Button variant="outline" className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50"
           onClick={() => {
             const iframe = document.createElement('iframe');
             iframe.style.display = 'none'; iframe.src = url;
@@ -502,7 +502,7 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
             iframe.onload = () => { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); };
           }}>
           <Printer className="w-4 h-4" /> Print
-        </Button>
+        </Button> */}
         <Button className="flex gap-2 bg-green-700 hover:bg-green-800"
           onClick={() => { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }}>
           <Download className="w-4 h-4" /> Download
@@ -976,6 +976,7 @@ const UhcOperator = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [histPage,         setHistPage]         = useState(1);
   const [histPageSize,     setHistPageSize]     = useState(10);
+  const [histSearch,       setHistSearch]       = useState('');
 
   // Scanner instance
   const SCANNER_DIV_ID = 'uhc-qr-camera-root';
@@ -1881,8 +1882,7 @@ const UhcOperator = () => {
               {/* ── 1. Upload Documents ── */}
               <button
                 onClick={() => { setOperatorMode('documents'); setActiveTab('documents'); }}
-                className="group relative bg-white dark:bg-gray-800 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30 transition-all duration-200 text-left"
-              >
+                  className="group relative bg-white dark:bg-[#262626] rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30 transition-all duration-200 text-left">
                 {/* Top color accent bar */}
                 <div className="h-1.5 w-full bg-gradient-to-r from-green-400 to-emerald-500" />
 
@@ -1905,8 +1905,7 @@ const UhcOperator = () => {
               {/* ── 2. Scan QR Code ── */}
               <button
                 onClick={() => { setOperatorMode('scanner'); setActiveTab('scanner'); }}
-                className="group relative bg-white dark:bg-gray-800 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30 transition-all duration-200 text-left"
-              >
+                className="group relative bg-white dark:bg-[#262626] rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30 transition-all duration-200 text-left">
                 <div className="h-1.5 w-full bg-gradient-to-r from-blue-400 to-indigo-500" />
 
                 <div className="flex items-start justify-between p-6 gap-4">
@@ -2000,9 +1999,8 @@ const UhcOperator = () => {
                     {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Search
                   </Button>
                   {(selectedPatient || searchResults.length > 0 || searchQuery) && (
-                    <Button variant="outline" onClick={resetDocumentManager} className="flex gap-2 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <RefreshCw className="w-4 h-4" /> Clear
-                    </Button>
+                  <Button variant="outline" onClick={resetDocumentManager} className="flex gap-2 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 hover:border-gray-400 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:border-gray-500 dark:hover:text-gray-200 transition-colors duration-200" >
+                    <RefreshCw className="w-4 h-4" /> Clear</Button>
                   )}
                 </div>
 
@@ -2147,7 +2145,7 @@ const UhcOperator = () => {
                 )}
               </Card>
 
-            <Card className="p-4 sm:p-6">
+            {selectedPatient && <Card className="p-4 sm:p-6">
                 {/* Section Header */}
                 <div className="flex items-center gap-3 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
                   <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
@@ -2158,12 +2156,6 @@ const UhcOperator = () => {
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Attach documents to the selected member's health card</p>
                   </div>
                 </div>
-                {!selectedPatient ? (
-                  <div className="text-center py-10 text-gray-400 dark:text-gray-500">
-                    <User className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p>Search and select a patient to manage their documents.</p>
-                  </div>
-                ) : (
                   <div className="space-y-4">
                     {/* Single Upload Area */}
                     <div
@@ -2173,7 +2165,7 @@ const UhcOperator = () => {
                       <Upload className="w-8 h-8 text-green-600 opacity-60" />
                       <div className="text-center">
                         <p className="font-medium text-sm text-green-700">Click to upload PDF or Image</p>
-                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">PDF, JPG, PNG — images auto-converted to PDF</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">PDF, JPG, PNG</p>
                         <p className="text-xs text-green-600 mt-1">All document types available after selection</p>
                       </div>
                       <input
@@ -2236,8 +2228,7 @@ const UhcOperator = () => {
                       </div>
                     )}
                   </div>
-                )}
-              </Card>
+              </Card>}
             </div>
           </TabsContent>
 
@@ -2374,27 +2365,53 @@ const UhcOperator = () => {
           {/* ═══ HISTORY TAB ═══ */}
           <TabsContent value="history">
             {(() => {
-              const totalHistRecords = dbScanHistory.length;
+              const filteredHist = histSearch.trim()
+                ? dbScanHistory.filter(s =>
+                    s.patient_name?.toLowerCase().includes(histSearch.trim().toLowerCase())
+                  )
+                : dbScanHistory;
+              const totalHistRecords = filteredHist.length;
               const totalHistPages   = Math.max(1, Math.ceil(totalHistRecords / histPageSize));
-              const histSlice = dbScanHistory.slice((histPage - 1) * histPageSize, histPage * histPageSize);
+              const histSlice = filteredHist.slice((histPage - 1) * histPageSize, histPage * histPageSize);
               return (
               <Card className="p-4 sm:p-6">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
                       <History className="w-5 h-5 text-green-600 dark:text-green-400" />
                     </div>
                     <div>
                       <h3 className="font-bold text-base sm:text-lg text-gray-800 dark:text-gray-100">Scan History</h3>
-                      <p className="text-xs text-gray-400 dark:text-gray-500">All scanned health cards — newest first</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{dbScanHistory.length} total scan{dbScanHistory.length !== 1 ? 's' : ''}</p>
                     </div>
                   </div>
-                  {totalHistRecords > 0 && (
-                    <span className="text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-full">
-                      {totalHistRecords} scan{totalHistRecords !== 1 ? 's' : ''}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {/* Search bar */}
+                    <div className="relative flex-1 sm:w-72">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search member name…"
+                        value={histSearch}
+                        onChange={(e) => { setHistSearch(e.target.value); setHistPage(1); }}
+                        className="w-full pl-9 pr-9 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-400 transition"
+                      />
+                      {histSearch && (
+                        <button
+                          onClick={() => { setHistSearch(''); setHistPage(1); }}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {totalHistRecords > 0 && (
+                      <span className="flex-shrink-0 text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1.5 rounded-full whitespace-nowrap">
+                        {totalHistRecords} result{totalHistRecords !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {isLoadingHistory ? (
@@ -2409,9 +2426,8 @@ const UhcOperator = () => {
                       <table className="w-full border-collapse text-sm">
                         <thead>
                           <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <th className="py-3 px-4 text-center font-semibold text-gray-600 dark:text-gray-300 w-10">#</th>
+                            <th className="py-3 px-4 text-center font-semibold text-gray-600 dark:text-gray-300 w-10">No.</th>
                             <th className="py-3 px-4 text-left font-semibold text-gray-600 dark:text-gray-300">Member</th>
-                            <th className="py-3 px-4 text-left font-semibold text-gray-600 dark:text-gray-300">QR Code</th>
                             <th className="py-3 px-4 text-center font-semibold text-gray-600 dark:text-gray-300">Scanned By</th>
                             <th className="py-3 px-4 text-right font-semibold text-gray-600 dark:text-gray-300">Date & Time</th>
                           </tr>
@@ -2439,13 +2455,6 @@ const UhcOperator = () => {
                                       className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-gray-200 dark:border-gray-600"
                                     />
                                     <span className="font-semibold text-gray-800 dark:text-gray-100 whitespace-nowrap">{scan.patient_name}</span>
-                                  </div>
-                                </td>
-                                {/* QR Code */}
-                                <td className="py-3 px-4">
-                                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                    <QrCode className="w-3.5 h-3.5 flex-shrink-0 text-green-500" />
-                                    <span className="font-mono">{scan.qr_code}</span>
                                   </div>
                                 </td>
                                 {/* Scanned By */}
@@ -2533,10 +2542,24 @@ const UhcOperator = () => {
                 ) : (
                   <div className="flex flex-col items-center py-16 gap-3">
                     <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                      <History className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                      {histSearch.trim() ? (
+                        <Search className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                      ) : (
+                        <History className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                      )}
                     </div>
-                    <p className="font-semibold text-gray-500 dark:text-gray-400">No scan history yet</p>
-                    <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xs text-center">Use the QR Scanner tab to scan a member's health card. All scans will appear here.</p>
+                    {histSearch.trim() ? (
+                      <>
+                        <p className="font-semibold text-gray-500 dark:text-gray-400">No results found</p>
+                        <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xs text-center">No scan records match "<span className="font-medium text-gray-600 dark:text-gray-300">{histSearch}</span>". Try a different name.</p>
+                        <button onClick={() => { setHistSearch(''); setHistPage(1); }} className="mt-1 text-xs text-green-600 dark:text-green-400 hover:underline font-medium">Clear search</button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-semibold text-gray-500 dark:text-gray-400">No scan history yet</p>
+                        <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xs text-center">Use the QR Scanner tab to scan a member's health card. All scans will appear here.</p>
+                      </>
+                    )}
                   </div>
                 )}
               </Card>

@@ -1,5 +1,5 @@
 /**
- * Database List Component
+ * Database List Component - Module 3
  * 
  * Displays a list of configured database connections with:
  * - Status indicators (active/inactive, connection health)

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from 'src/components/ui/card';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
@@ -22,13 +22,15 @@ import {
   RefreshCw,
   Trash2,
   Plus,
+  FileText,
 } from 'lucide-react';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
+import { useSearchParams } from 'react-router-dom';
 import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
 import PatientSearchPanel, { PatientSearchResultProfile } from './components/PatientSearchPanel';
 import PatientInfoCard from './components/PatientInfoCard';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientLinkingDialog from './components/PatientLinkingDialog';
+import { PatientPDFModal } from './components/PatientPDFModal';
 import { ConfirmDialog } from 'src/components/ui/confirm-dialog';
 import {
   getPatientSearchBuckets,
@@ -46,11 +48,9 @@ const FACILITY_NAME_BY_CODE: Record<string, string> = {
   '0005028': 'NASIPIT DISTRICT HOSPITAL',
 };
 
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient Tagging' },
-];
+const VALID_TAB_VALUES = ['view', 'link', 'linked'] as const;
+type TabValue = (typeof VALID_TAB_VALUES)[number];
+const isValidTab = (value?: string): value is TabValue => VALID_TAB_VALUES.includes(value as TabValue);
 
 const PatientTagging = () => {
   // Active tab
@@ -68,6 +68,7 @@ const PatientTagging = () => {
     totalMatches: 0,
     databaseSummaries: [],
   });
+  const [pendingAutoSelectHpercode, setPendingAutoSelectHpercode] = useState<string | null>(null);
 
   // Supabase Search state (manually entered patients - unlinked)
   const [supabaseSearchTerm, setSupabaseSearchTerm] = useState('');
@@ -98,6 +99,11 @@ const PatientTagging = () => {
   // Filter state
   const [typeFilter, setTypeFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const selectedPatientHpercode = selectedPatient?.hpercode;
+  const [searchParams] = useSearchParams();
+  const viewTabParam = searchParams.get('tab');
+  const hpercodeParam = searchParams.get('hpercode');
 
   /* ------------------------------------------------------------------ */
   /*  Effects                                                           */
@@ -110,17 +116,28 @@ const PatientTagging = () => {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (!selectedPatient) {
+      setIsRecordModalOpen(false);
+    }
+  }, [selectedPatient]);
+
+  useEffect(() => {
+    if (!viewTabParam) return;
+    if (isValidTab(viewTabParam)) {
+      setActiveTab(viewTabParam);
+    }
+  }, [viewTabParam]);
+
   /* ------------------------------------------------------------------ */
   /*  Search Functions                                                  */
   /* ------------------------------------------------------------------ */
 
   // Search MySQL patients (hospital database)
-  const handleSearch = async () => {
-    if (!searchTerm.trim()) return;
-
+  const executePatientSearch = useCallback(async (term: string) => {
     setIsSearching(true);
     try {
-      const result = await patientService.searchPatients(searchTerm, { limit: 10 });
+      const result = await patientService.searchPatients(term, { limit: 10 });
       if (result.success) {
         const buckets = getPatientSearchBuckets(result);
         const combined: PatientSearchResultProfile[] = buckets.flatMap((bucket) => {
@@ -147,7 +164,25 @@ const PatientTagging = () => {
     } finally {
       setIsSearching(false);
     }
+  }, []);
+
+  const handleSearch = (term?: string) => {
+    const query = (term ?? searchTerm).trim();
+    if (!query) return;
+
+    setSearchTerm(query);
+    setPendingAutoSelectHpercode(null);
+    void executePatientSearch(query);
   };
+
+  useEffect(() => {
+    const hpercode = hpercodeParam?.trim();
+    if (!hpercode) return;
+    setActiveTab('view');
+    setSearchTerm(hpercode);
+    setPendingAutoSelectHpercode(hpercode);
+    void executePatientSearch(hpercode);
+  }, [executePatientSearch, hpercodeParam]);
 
   // Search Supabase patients (manually entered - unlinked)
   const handleSearchSupabase = async () => {
@@ -249,7 +284,29 @@ const PatientTagging = () => {
     }
   };
 
-  const handleSelectPatient = async (patient: PatientSearchResultProfile) => {
+  /* ------------------------------------------------------------------ */
+  /*  Data Loading Functions                                            */
+  /* ------------------------------------------------------------------ */
+
+  const loadPatientHistory = useCallback(async (hpercode: string, database?: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const result = await patientService.getPatientHistory(hpercode, { database });
+      if (result.success) {
+        setPatientHistory(result.data);
+      } else {
+        console.error('Failed to load history:', result.message);
+        setPatientHistory([]);
+      }
+    } catch (error) {
+      console.error('Error loading patient history:', error);
+      setPatientHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, []);
+
+  const handleSelectPatient = useCallback(async (patient: PatientSearchResultProfile) => {
     setSelectedPatient(patient);
     setSearchResults([]);
     setSearchTerm('');
@@ -259,6 +316,20 @@ const PatientTagging = () => {
     if (patient.hpercode) {
       await loadPatientHistory(patient.hpercode, patient.sourceDatabase);
     }
+  }, [loadPatientHistory]);
+
+  useEffect(() => {
+    if (!pendingAutoSelectHpercode) return;
+    const match = searchResults.find((result) => result.hpercode === pendingAutoSelectHpercode);
+    if (!match) return;
+
+    void handleSelectPatient(match);
+    setPendingAutoSelectHpercode(null);
+  }, [pendingAutoSelectHpercode, searchResults, handleSelectPatient]);
+
+  const handleOpenPatientRecords = () => {
+    if (!selectedPatientHpercode) return;
+    setIsRecordModalOpen(true);
   };
 
   const handleOpenLinkDialog = (patient: any) => {
@@ -318,28 +389,6 @@ const PatientTagging = () => {
   };
 
   /* ------------------------------------------------------------------ */
-  /*  Data Loading Functions                                            */
-  /* ------------------------------------------------------------------ */
-
-  const loadPatientHistory = async (hpercode: string, database?: string) => {
-    setIsLoadingHistory(true);
-    try {
-      const result = await patientService.getPatientHistory(hpercode, { database });
-      if (result.success) {
-        setPatientHistory(result.data);
-      } else {
-        console.error('Failed to load history:', result.message);
-        setPatientHistory([]);
-      }
-    } catch (error) {
-      console.error('Error loading patient history:', error);
-      setPatientHistory([]);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
-
-  /* ------------------------------------------------------------------ */
   /*  Statistics & Analytics                                            */
   /* ------------------------------------------------------------------ */
 
@@ -383,7 +432,6 @@ const PatientTagging = () => {
 
   return (
     <div className="space-y-6">
-      <BreadcrumbComp items={BCrumb} title="Patient Tagging" />
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
@@ -391,10 +439,10 @@ const PatientTagging = () => {
             <div className="p-2 bg-primary/10 rounded-lg">
               <Activity className="h-7 w-7 text-primary" />
             </div>
-            Patient Repository
+            Patient Tagging
           </h1>
           <p className="text-muted-foreground mt-2">
-            View patient medical records, link manually entered patients with hospital database, and manage patient connections.
+            Link manually entered patients with hospital database records and manage patient connections.
           </p>
         </div>
       </div>
@@ -909,7 +957,8 @@ const PatientTagging = () => {
               </div>
 
               {/* Patient History */}
-              <div className="col-span-12 lg:col-span-8">
+              <div className="col-span-12 lg:col-span-8 space-y-3">
+                
                 <PatientHistoryTabs
                   history={filteredHistory}
                   isLoading={isLoadingHistory}
@@ -917,6 +966,8 @@ const PatientTagging = () => {
                   onViewModeChange={setViewMode}
                   typeFilter={typeFilter}
                   onTypeFilterChange={setTypeFilter}
+                  onViewRecords={handleOpenPatientRecords}
+                  viewRecordsDisabled={!selectedPatientHpercode}
                 />
               </div>
             </div>
@@ -986,6 +1037,12 @@ const PatientTagging = () => {
         cancelText="Cancel"
         isLoading={isUnlinking}
         variant="destructive"
+      />
+      <PatientPDFModal
+        isOpen={isRecordModalOpen}
+        onClose={() => setIsRecordModalOpen(false)}
+        patient={selectedPatient}
+        hpercode={selectedPatientHpercode}
       />
     </div>
   );

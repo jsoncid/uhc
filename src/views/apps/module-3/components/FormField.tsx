@@ -10,13 +10,12 @@ interface FormFieldProps {
   children: React.ReactNode;
 }
 
-const FormField = ({ label, htmlFor, hint, required, children }: FormFieldProps) => {
+const FormField = ({ label, htmlFor, hint, children }: FormFieldProps) => {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5">
         <Label htmlFor={htmlFor} className="text-sm font-medium text-foreground">
           {label}
-          {required && <span className="text-error ml-0.5">*</span>}
         </Label>
         {hint && (
           <Tooltip>

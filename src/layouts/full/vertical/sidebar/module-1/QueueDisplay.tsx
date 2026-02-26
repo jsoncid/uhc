@@ -363,7 +363,12 @@ const QueueDisplay = () => {
         </header>
 
         {/* Bottom section: per-office columns */}
-        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden">
+        <div
+          className="min-h-0 flex-1 grid gap-4 overflow-x-auto overflow-y-hidden"
+          style={{
+            gridTemplateColumns: `repeat(${activeOffices.length}, minmax(calc((100% - 5 * 1rem) / 6), 1fr))`,
+          }}
+        >
           {activeOffices.length === 0 ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground">
               No active offices
@@ -410,7 +415,7 @@ const QueueDisplay = () => {
               return (
                 <div
                   key={office.id}
-                  className="flex min-w-40 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card"
+                  className="flex flex-col overflow-hidden rounded-xl border border-border bg-card"
                 >
                   {/* Office header */}
                   <div className="shrink-0 border-b border-border px-3 py-2">
@@ -420,7 +425,7 @@ const QueueDisplay = () => {
                   {/* Now serving / waiting — split into two colour zones */}
                   <div className="flex flex-1 flex-col overflow-hidden">
                     {/* ── SERVING zone (green tint) ── */}
-                    <div className="flex flex-col items-center gap-2 bg-emerald-100 dark:bg-emerald-950/50 px-4 pt-3 pb-3 shrink-0">
+                    <div className="flex flex-col items-center gap-2 bg-emerald-100 dark:bg-emerald-950/40 px-4 pt-3 pb-3 shrink-0">
                       <span className="self-start text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400/70">
                         Now Serving
                       </span>
@@ -454,9 +459,9 @@ const QueueDisplay = () => {
                     {/* Divider */}
                     <div className="w-full border-t border-dashed border-border" />
 
-                    {/* ── WAITING zone (amber tint) ── */}
-                    <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto bg-amber-50 dark:bg-amber-950/25 px-4 pt-3 pb-4">
-                      <span className="self-start text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400/70 mb-1">
+                    {/* ── WAITING zone (silver/slate tint) ── */}
+                    <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto bg-slate-100 dark:bg-slate-700/30 px-4 pt-3 pb-4">
+                      <span className="self-start text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400/70 mb-1">
                         Waiting
                       </span>
                       {waitingEntries.length === 0 ? (

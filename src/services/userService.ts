@@ -238,20 +238,20 @@ export const userService = {
         return [];
       }
 
-      // Get unique user IDs and role IDs
-      const userIds = [...new Set(data.map((ur: UserRole) => ur.user))];
-      const roleIds = [...new Set(data.map((ur: UserRole) => ur.role))];
+      // Get unique user IDs and role IDs, filtering out null/undefined
+      const userIds = [...new Set(data.map((ur: UserRole) => ur.user))].filter(id => id != null);
+      const roleIds = [...new Set(data.map((ur: UserRole) => ur.role))].filter(id => id != null);
 
       // Fetch users from backend API and roles from Supabase
-      const [users, rolesResult] = await Promise.all([
-        this.getUsersByIds(userIds).catch((err) => {
-          console.warn('Failed to fetch users from API:', err);
-          return [];
-        }),
-        supabase.from('role').select('id, description').in('id', roleIds),
-      ]);
-
-      const roles = rolesResult.data || [];
+      const users = await this.getUsersByIds(userIds).catch((err) => {
+        console.warn('Failed to fetch users from API:', err);
+        return [];
+      });
+      
+      // Only fetch roles if we have valid IDs
+      const roles = roleIds.length > 0
+        ? (await supabase.from('role').select('id, description').in('id', roleIds)).data || []
+        : [];
 
       // Map the data together
       const enrichedUserRoles = data.map((ur: UserRole) => ({
