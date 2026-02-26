@@ -249,6 +249,12 @@ export interface PatientHistoryResult {
   };
 }
 
+export interface PatientRecordPdfResult {
+  success: boolean;
+  pdfBlob?: Blob;
+  message?: string;
+}
+
 export interface HealthPool {
   host: string;
   port: number;
@@ -1440,6 +1446,44 @@ class PatientService {
         success: false,
         data: [],
         message: error instanceof Error ? error.message : 'Failed to get patient history',
+      };
+    }
+  }
+
+  /**
+   * Fetch the patient record PDF generated from the hospital tables (e.g., hvsothr)
+   */
+  async getPatientRecordPdf(hpercode: string): Promise<PatientRecordPdfResult> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/${encodeURIComponent(hpercode)}/records/pdf`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/pdf',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      return {
+        success: true,
+        pdfBlob: blob,
+      };
+    } catch (error) {
+      console.error('Get patient record PDF error:', error);
+      return {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch the electronic patient record',
       };
     }
   }

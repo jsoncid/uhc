@@ -31,12 +31,14 @@ import {
   History as HistoryIcon,
   Info,
   LinkIcon,
+  FileText,
 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import patientService, { PatientProfile, PatientHistory } from 'src/services/patientService';
 import { getFacilityName } from 'src/utils/facilityMapping';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientInfoCard from './components/PatientInfoCard';
+import { PatientPDFModal } from './components/PatientPDFModal';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -73,6 +75,9 @@ const PatientList = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+
+  const selectedPatientHpercode = selectedPatient?.patient_repository?.[0]?.hpercode;
 
   /* ------------------------------------------------------------------ */
   /*  Effects                                                           */
@@ -81,6 +86,10 @@ const PatientList = () => {
   useEffect(() => {
     loadPatients();
   }, [currentPage]);
+
+  useEffect(() => {
+    setIsRecordModalOpen(false);
+  }, [selectedPatient?.id]);
 
   /* ------------------------------------------------------------------ */
   /*  Handlers                                                          */
@@ -170,10 +179,16 @@ const PatientList = () => {
     setSelectedPatient(null);
     setPatientHistory([]);
     setTypeFilter('all');
+    setIsRecordModalOpen(false);
   };
 
   const handleViewPatient = (patientId: string) => {
     navigate(`/module-3/patient-details?id=${patientId}`);
+  };
+
+  const handleOpenPatientRecords = () => {
+    if (!selectedPatientHpercode) return;
+    setIsRecordModalOpen(true);
   };
 
   const formatDate = (dateString: string) => {
@@ -311,51 +326,53 @@ const PatientList = () => {
       </div>
 
       {/* Search and Filters Card */}
-      <Card className="border-2">
-        <CardContent className="pt-6">
-          <div className="flex gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search by patient name, facility, or location..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className="pl-11 h-11 text-base"
-              />
-            </div>
-            <Button
-              onClick={handleSearch}
-              disabled={isSearching}
-              size="lg"
-              className="px-6"
-            >
-              {isSearching ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Searching...
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 h-5 w-5" />
-                  Search
-                </>
-              )}
-            </Button>
-            {searchTerm && (
+      {isSearchVisible && (
+        <Card className="border-2">
+          <CardContent className="pt-6">
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search by patient name, facility, or location..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="pl-11 h-11 text-base"
+                />
+              </div>
               <Button
-                variant="outline"
-                onClick={handleReset}
+                onClick={handleSearch}
+                disabled={isSearching}
                 size="lg"
                 className="px-6"
               >
-                <RefreshCw className="mr-2 h-5 w-5" />
-                Clear
+                {isSearching ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-5 w-5" />
+                    Search
+                  </>
+                )}
               </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              {searchTerm && (
+                <Button
+                  variant="outline"
+                  onClick={handleReset}
+                  size="lg"
+                  className="px-6"
+                >
+                  <RefreshCw className="mr-2 h-5 w-5" />
+                  Clear
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Patient List Card */}
       <Card className="border-2">
@@ -512,7 +529,7 @@ const PatientList = () => {
       {selectedPatient && (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Header with Close Button */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-lg">
                 <HistoryIcon className="h-6 w-6 text-primary" />
@@ -555,7 +572,19 @@ const PatientList = () => {
               </div>
 
               {/* Patient History */}
-              <div className="col-span-12 lg:col-span-8">
+              <div className="col-span-12 lg:col-span-8 space-y-3">
+                <div className="flex items-center justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenPatientRecords}
+                    disabled={!selectedPatientHpercode}
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    View Records
+                  </Button>
+                </div>
                 <PatientHistoryTabs
                   history={filteredHistory}
                   isLoading={isLoadingHistory}
@@ -563,12 +592,30 @@ const PatientList = () => {
                   onViewModeChange={setViewMode}
                   typeFilter={typeFilter}
                   onTypeFilterChange={setTypeFilter}
+                  rightActions={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenPatientRecords}
+                      disabled={!selectedPatientHpercode}
+                      className="flex items-center gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      View Records
+                    </Button>
+                  }
                 />
               </div>
             </div>
           )}
         </div>
       )}
+      <PatientPDFModal
+        isOpen={isRecordModalOpen}
+        onClose={() => setIsRecordModalOpen(false)}
+        patient={selectedPatient}
+        hpercode={selectedPatientHpercode}
+      />
     </div>
   );
 };

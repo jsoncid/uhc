@@ -5,6 +5,7 @@ import { Clock, FileText, Filter, History as HistoryIcon, Activity, CheckCircle2
 import { PatientHistory } from 'src/services/patientService';
 import PatientHistoryTimeline from './PatientHistoryTimeline';
 import PatientHistoryTable from './PatientHistoryTable';
+import type { ReactNode } from 'react';
 
 interface PatientHistoryTabsProps {
   history: PatientHistory[];
@@ -13,6 +14,7 @@ interface PatientHistoryTabsProps {
   onViewModeChange: (mode: 'timeline' | 'table') => void;
   typeFilter: string;
   onTypeFilterChange: (filter: string) => void;
+  rightActions?: React.ReactNode;
 }
 
 const PatientHistoryTabs = ({
@@ -22,6 +24,7 @@ const PatientHistoryTabs = ({
   onViewModeChange,
   typeFilter,
   onTypeFilterChange,
+  rightActions,
 }: PatientHistoryTabsProps) => {
   const uniqueTypes = [
     { value: 'admission', label: 'Admission' },
@@ -31,14 +34,21 @@ const PatientHistoryTabs = ({
   return (
     <Card className="border shadow-md">
       <CardHeader className="pb-3 bg-gradient-to-br from-primary/5 to-primary/10">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="bg-gradient-to-br from-primary to-primary/70 p-2.5 rounded-xl shadow-md">
-            <HistoryIcon className="h-7 w-7 text-white" />
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="bg-gradient-to-br from-primary to-primary/70 p-2.5 rounded-xl shadow-md">
+              <HistoryIcon className="h-7 w-7 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-base mb-0.5">Patient History</CardTitle>
+              <CardDescription>Medical records and encounters</CardDescription>
+            </div>
           </div>
-          <div className="flex-1">
-            <CardTitle className="text-base mb-0.5">Patient History</CardTitle>
-            <CardDescription>Medical records and encounters</CardDescription>
-          </div>
+          {rightActions && (
+            <div className="flex items-center gap-2">
+              {rightActions}
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="pt-4">

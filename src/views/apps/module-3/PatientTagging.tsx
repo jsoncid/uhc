@@ -22,6 +22,7 @@ import {
   RefreshCw,
   Trash2,
   Plus,
+  FileText,
 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
@@ -29,6 +30,7 @@ import PatientSearchPanel, { PatientSearchResultProfile } from './components/Pat
 import PatientInfoCard from './components/PatientInfoCard';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientLinkingDialog from './components/PatientLinkingDialog';
+import { PatientPDFModal } from './components/PatientPDFModal';
 import { ConfirmDialog } from 'src/components/ui/confirm-dialog';
 import {
   getPatientSearchBuckets,
@@ -98,6 +100,8 @@ const PatientTagging = () => {
   // Filter state
   const [typeFilter, setTypeFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const selectedPatientHpercode = selectedPatient?.hpercode;
 
   /* ------------------------------------------------------------------ */
   /*  Effects                                                           */
@@ -109,6 +113,12 @@ const PatientTagging = () => {
       loadAllLinkedPatients();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!selectedPatient) {
+      setIsRecordModalOpen(false);
+    }
+  }, [selectedPatient]);
 
   /* ------------------------------------------------------------------ */
   /*  Search Functions                                                  */
@@ -259,6 +269,11 @@ const PatientTagging = () => {
     if (patient.hpercode) {
       await loadPatientHistory(patient.hpercode, patient.sourceDatabase);
     }
+  };
+
+  const handleOpenPatientRecords = () => {
+    if (!selectedPatientHpercode) return;
+    setIsRecordModalOpen(true);
   };
 
   const handleOpenLinkDialog = (patient: any) => {
@@ -909,7 +924,19 @@ const PatientTagging = () => {
               </div>
 
               {/* Patient History */}
-              <div className="col-span-12 lg:col-span-8">
+              <div className="col-span-12 lg:col-span-8 space-y-3">
+                <div className="flex items-center justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenPatientRecords}
+                    disabled={!selectedPatientHpercode}
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    View Records
+                  </Button>
+                </div>
                 <PatientHistoryTabs
                   history={filteredHistory}
                   isLoading={isLoadingHistory}
@@ -986,6 +1013,12 @@ const PatientTagging = () => {
         cancelText="Cancel"
         isLoading={isUnlinking}
         variant="destructive"
+      />
+      <PatientPDFModal
+        isOpen={isRecordModalOpen}
+        onClose={() => setIsRecordModalOpen(false)}
+        patient={selectedPatient}
+        hpercode={selectedPatientHpercode}
       />
     </div>
   );
