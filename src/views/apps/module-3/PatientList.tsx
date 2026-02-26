@@ -33,7 +33,6 @@ import {
   LinkIcon,
   FileText,
 } from 'lucide-react';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import patientService, { PatientProfile, PatientHistory } from 'src/services/patientService';
 import { getFacilityName } from 'src/utils/facilityMapping';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
@@ -43,12 +42,6 @@ import { PatientPDFModal } from './components/PatientPDFModal';
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
-
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient List' },
-];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -280,7 +273,6 @@ const PatientList = () => {
   // Helper to convert Supabase patient to the format expected by PatientInfoCard
   const getPatientInfoForCard = (patient: any) => {
     return {
-      id: patient.id,
       hpercode: patient.patient_repository?.[0]?.hpercode || patient.id,
       first_name: patient.first_name,
       middle_name: patient.middle_name,
@@ -306,7 +298,6 @@ const PatientList = () => {
 
   return (
     <div className="space-y-6">
-      <BreadcrumbComp items={BCrumb} title="Patient List" />
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
@@ -314,10 +305,10 @@ const PatientList = () => {
             <div className="p-2 bg-primary/10 rounded-lg">
               <Users className="h-7 w-7 text-primary" />
             </div>
-            Patient Repository
+            Patient List
           </h1>
           <p className="text-muted-foreground mt-2">
-            Manage and view all patient records in the system
+            View and manage all patient records in the system
           </p>
         </div>
         <Badge variant="outline" className="text-base px-4 py-2 font-semibold">

@@ -40,7 +40,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN') return;
+      // Skip events that don't require re-initialization
+      // SIGNED_IN: handled by signIn() in auth store
+      // TOKEN_REFRESHED: session is still valid, no need to re-fetch user data
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') return;
 
       if (session?.user) {
         const isActive = await checkUserActiveStatus(session.user.id);
