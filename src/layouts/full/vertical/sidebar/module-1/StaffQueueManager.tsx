@@ -274,16 +274,30 @@ const StaffQueueManager = () => {
     setPingingId(serving.id);
   };
 
+  // Offices available as transfer targets: all active offices under the same
+  // assignment as the sequence being transferred, excluding the source office.
+  const transferableOffices = useMemo(() => {
+    if (!transferringSequence) return [];
+    const sourceOffice = offices.find((o) => o.id === transferringSequence.office);
+    if (!sourceOffice) return [];
+    return offices.filter(
+      (o) =>
+        o.status &&
+        o.assignment === sourceOffice.assignment &&
+        o.id !== transferringSequence.office,
+    );
+  }, [offices, transferringSequence]);
+
   const handleOpenTransferDialog = (sequence: Sequence) => {
     setTransferringSequence(sequence);
-    setTransferTargetOffice(sequence.office);
+    setTransferTargetOffice('');     // reset — user must pick a different office
     setTransferDialogOpen(true);
   };
 
   const handleTransfer = async () => {
     if (!transferringSequence || !transferTargetOffice) return;
 
-    const targetOffice = activeOffices.find((o) => o.id === transferTargetOffice);
+    const targetOffice = offices.find((o) => o.id === transferTargetOffice);
 
     await transferSequence(transferringSequence.id, transferTargetOffice, null);
 
@@ -520,11 +534,17 @@ const StaffQueueManager = () => {
                   <SelectValue placeholder="Select office" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeOffices.map((office) => (
-                    <SelectItem key={office.id} value={office.id}>
-                      {office.description || office.id}
-                    </SelectItem>
-                  ))}
+                  {transferableOffices.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      No other offices available
+                    </div>
+                  ) : (
+                    transferableOffices.map((office) => (
+                      <SelectItem key={office.id} value={office.id}>
+                        {office.description || office.id}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
