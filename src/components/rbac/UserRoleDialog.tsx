@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -25,36 +26,47 @@ interface Role {
   created_at: string
 }
 
+interface UserRole {
+  id: string
+  user: string
+  role: string
+  created_at: string
+}
+
 interface UserRoleDialogProps {
   isOpen: boolean
   onClose: () => void
+  editingUser?: { id: string; email?: string } | null
+  existingUserRoles?: UserRole[]
 }
 
-export const UserRoleDialog = ({ isOpen, onClose }: UserRoleDialogProps) => {
+export const UserRoleDialog = ({ isOpen, onClose, editingUser, existingUserRoles }: UserRoleDialogProps) => {
   const [users, setUsers] = useState<AuthUser[]>([])
   const [roles, setRoles] = useState<Role[]>([])
-  const [formData, setFormData] = useState({
-    user: '',
-    role: ''
-  })
+  const [selectedUser, setSelectedUser] = useState('')
+  const [selectedRoleIds, setSelectedRoleIds] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isEditMode = !!editingUser
 
   useEffect(() => {
     if (isOpen) {
       fetchData()
-    }
-  }, [isOpen])
-
-  useEffect(() => {
-    if (!isOpen) {
-      setFormData({
-        user: '',
-        role: ''
-      })
+      if (editingUser) {
+        setSelectedUser(editingUser.id)
+        // Set existing roles
+        const existingRoleIds = existingUserRoles?.map(ur => ur.role) || []
+        setSelectedRoleIds(new Set(existingRoleIds))
+      } else {
+        setSelectedUser('')
+        setSelectedRoleIds(new Set())
+      }
+    } else {
+      setSelectedUser('')
+      setSelectedRoleIds(new Set())
       setError(null)
     }
-  }, [isOpen])
+  }, [isOpen, editingUser, existingUserRoles])
 
   const fetchData = async () => {
     try {
@@ -70,11 +82,26 @@ export const UserRoleDialog = ({ isOpen, onClose }: UserRoleDialogProps) => {
     }
   }
 
+  const handleRoleToggle = (roleId: string) => {
+    const newSelectedRoles = new Set(selectedRoleIds)
+    if (newSelectedRoles.has(roleId)) {
+      newSelectedRoles.delete(roleId)
+    } else {
+      newSelectedRoles.add(roleId)
+    }
+    setSelectedRoleIds(newSelectedRoles)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.user || !formData.role) {
-      setError('Please select both user and role')
+    if (!selectedUser) {
+      setError('Please select a user')
+      return
+    }
+
+    if (selectedRoleIds.size === 0) {
+      setError('Please select at least one role')
       return
     }
 
@@ -82,34 +109,55 @@ export const UserRoleDialog = ({ isOpen, onClose }: UserRoleDialogProps) => {
     setError(null)
 
     try {
-      await userService.createUserRole({
-        user: formData.user,
-        role: formData.role
-      })
+      if (isEditMode && existingUserRoles) {
+        // Find roles to add and remove
+        const currentRoleIds = new Set(existingUserRoles.map(ur => ur.role))
+        const rolesToAdd = Array.from(selectedRoleIds).filter(id => !currentRoleIds.has(id))
+        const rolesToRemove = existingUserRoles.filter(ur => !selectedRoleIds.has(ur.role))
+
+        // Delete removed roles
+        await Promise.all(rolesToRemove.map(ur => userService.deleteUserRole(ur.id)))
+        
+        // Add new roles
+        await Promise.all(rolesToAdd.map(roleId => 
+          userService.createUserRole({
+            user: selectedUser,
+            role: roleId
+          })
+        ))
+      } else {
+        // Create all selected roles
+        await Promise.all(
+          Array.from(selectedRoleIds).map(roleId => 
+            userService.createUserRole({
+              user: selectedUser,
+              role: roleId
+            })
+          )
+        )
+      }
       onClose()
     } catch (err) {
-      setError('Failed to assign user to role')
-      console.error('Error creating user role:', err)
+      setError(isEditMode ? 'Failed to update user roles' : 'Failed to assign user to roles')
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} user roles:`, err)
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleClose = () => {
-    setFormData({
-      user: '',
-      role: ''
-    })
+    setSelectedUser('')
+    setSelectedRoleIds(new Set())
     setError(null)
     onClose()
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            Assign User to Role
+            {isEditMode ? 'Edit User Roles' : 'Assign User to Roles'}
           </DialogTitle>
         </DialogHeader>
         
@@ -122,40 +170,57 @@ export const UserRoleDialog = ({ isOpen, onClose }: UserRoleDialogProps) => {
           
           <div className="space-y-2">
             <Label htmlFor="user">User</Label>
-            <Select
-              value={formData.user}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, user: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a user" />
-              </SelectTrigger>
-              <SelectContent>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.email || user.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {isEditMode ? (
+              <div className="px-3 py-2 border rounded-md bg-muted">
+                {editingUser?.email || editingUser?.id}
+              </div>
+            ) : (
+              <Select
+                value={selectedUser}
+                onValueChange={setSelectedUser}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.email || user.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="role">Role</Label>
-            <Select
-              value={formData.role}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a role" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id}>
-                    {role.description || role.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-3">
+            <Label>Roles (select one or more)</Label>
+            <div className="border rounded-md p-4 space-y-3 max-h-60 overflow-y-auto">
+              {roles.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  No roles available
+                </div>
+              ) : (
+                roles.map((role) => (
+                  <div key={role.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`role-${role.id}`}
+                      checked={selectedRoleIds.has(role.id)}
+                      onCheckedChange={() => handleRoleToggle(role.id)}
+                    />
+                    <label
+                      htmlFor={`role-${role.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {role.description || role.id}
+                    </label>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {selectedRoleIds.size} role(s) selected
+            </div>
           </div>
 
           <DialogFooter>
@@ -163,7 +228,7 @@ export const UserRoleDialog = ({ isOpen, onClose }: UserRoleDialogProps) => {
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Assigning...' : 'Assign Role'}
+              {isLoading ? (isEditMode ? 'Updating...' : 'Assigning...') : (isEditMode ? 'Update Roles' : 'Assign Roles')}
             </Button>
           </DialogFooter>
         </form>
