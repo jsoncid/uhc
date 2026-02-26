@@ -148,7 +148,12 @@ const PatientList = () => {
     } else {
       setPatientHistory([]);
     }
-    navigate(`/module-3/patient-tagging${hpercode ? `?hpercode=${encodeURIComponent(hpercode)}` : ''}`);
+    const params = new URLSearchParams();
+    params.set('tab', 'view');
+    if (hpercode) {
+      params.set('hpercode', hpercode);
+    }
+    navigate(`/module-3/patient-tagging?${params.toString()}`);
   };
 
   const loadPatientHistory = async (hpercode: string) => {
@@ -273,6 +278,7 @@ const PatientList = () => {
   // Helper to convert Supabase patient to the format expected by PatientInfoCard
   const getPatientInfoForCard = (patient: any) => {
     return {
+      id: patient.id,
       hpercode: patient.patient_repository?.[0]?.hpercode || patient.id,
       first_name: patient.first_name,
       middle_name: patient.middle_name,
@@ -442,7 +448,7 @@ const PatientList = () => {
                         <TableCell className="py-4">
                           <div className="flex items-start gap-2 max-w-[200px]">
                             <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1 group-hover:text-primary transition-colors" />
-                            <span className="text-sm font-medium text-foreground break-words leading-relaxed">
+                            <span className="text-sm font-medium text-foreground leading-relaxed block whitespace-normal break-words">
                               {getFacility(patient)}
                             </span>
                           </div>
@@ -469,7 +475,7 @@ const PatientList = () => {
                         <TableCell className="py-4">
                           <div className="flex items-start gap-2 max-w-[300px]">
                             <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
-                            <span className="text-sm text-muted-foreground break-words leading-relaxed">
+                            <span className="text-sm text-muted-foreground leading-relaxed block whitespace-normal break-words">
                               {getLocationString(patient)}
                             </span>
                           </div>
