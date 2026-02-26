@@ -30,6 +30,12 @@ import PatientInfoCard from './components/PatientInfoCard';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientLinkingDialog from './components/PatientLinkingDialog';
 import { ConfirmDialog } from 'src/components/ui/confirm-dialog';
+import {
+  getPatientSearchBuckets,
+  getPatientSearchSummaries,
+  getPatientSearchTotalMatches,
+  PatientDatabaseSummary,
+} from './utils/patientSearchResultHelpers';
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -55,6 +61,13 @@ const PatientTagging = () => {
   const [searchResults, setSearchResults] = useState<PatientSearchResultProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientSearchResultProfile | null>(null);
+  const [searchMeta, setSearchMeta] = useState<{
+    totalMatches: number;
+    databaseSummaries: PatientDatabaseSummary[];
+  }>({
+    totalMatches: 0,
+    databaseSummaries: [],
+  });
 
   // Supabase Search state (manually entered patients - unlinked)
   const [supabaseSearchTerm, setSupabaseSearchTerm] = useState('');
@@ -109,41 +122,28 @@ const PatientTagging = () => {
     try {
       const result = await patientService.searchPatients(searchTerm, { limit: 10 });
       if (result.success) {
-        const annotate = (
-          patients: PatientProfile[],
-          fallbackName: string,
-          sourceDatabase?: string,
-          forceFallback = false
-        ) =>
-          patients.map((patient) => ({
+        const buckets = getPatientSearchBuckets(result);
+        const combined: PatientSearchResultProfile[] = buckets.flatMap((bucket) => {
+          const displayName = bucket.metadata.description || bucket.metadata.db_name;
+          return bucket.data.map((patient) => ({
             ...patient,
-            facility_display_name: forceFallback
-              ? fallbackName
-              : FACILITY_NAME_BY_CODE[patient.facility_code || ''] || fallbackName,
-            sourceDatabase,
+            facility_display_name:
+              FACILITY_NAME_BY_CODE[patient.facility_code || ''] || displayName,
+            sourceDatabase: bucket.metadata.db_name,
           }));
-
-        const combined: PatientSearchResultProfile[] = [];
-        if (result.database1) {
-          const fallback = result.database1.name === 'adnph_ihomis_plus'
-            ? 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL'
-            : result.database1.name;
-          combined.push(...annotate(result.database1.data, fallback, result.database1.name));
-        }
-        if (result.database2) {
-          const fallback = result.database2.name === 'ndh_ihomis_plus'
-            ? 'NASIPIT DISTRICT HOSPITAL'
-            : result.database2.name;
-          combined.push(...annotate(result.database2.data, fallback, result.database2.name, true));
-        }
-        if (!combined.length && result.data) {
-          combined.push(...annotate(result.data, 'Hospital Repository'));
-        }
+        });
 
         setSearchResults(combined);
+        setSearchMeta({
+          totalMatches: getPatientSearchTotalMatches(result, buckets),
+          databaseSummaries: getPatientSearchSummaries(buckets),
+        });
+      } else {
+        setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
       }
     } catch (error) {
       console.error('Error searching patients:', error);
+      setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
     } finally {
       setIsSearching(false);
     }
@@ -253,6 +253,7 @@ const PatientTagging = () => {
     setSelectedPatient(patient);
     setSearchResults([]);
     setSearchTerm('');
+    setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
 
     // Load patient history using hpercode
     if (patient.hpercode) {
@@ -885,7 +886,13 @@ const PatientTagging = () => {
                 isSearching={isSearching}
                 searchResults={searchResults}
                 onSelectPatient={handleSelectPatient}
-                onClearResults={() => setSearchResults([])}
+                onClearResults={() => {
+                  setSearchResults([]);
+                  setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
+                }}
+                totalMatches={searchMeta.totalMatches}
+                displayedCount={searchResults.length}
+                databaseSummaries={searchMeta.databaseSummaries}
               />
             </CardContent>
           </Card>

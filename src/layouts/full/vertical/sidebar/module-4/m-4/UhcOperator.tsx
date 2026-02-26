@@ -17,8 +17,13 @@ import { Html5Qrcode } from 'html5-qrcode';
 import QRCodeLib from 'qrcode';
 import jsPDF from 'jspdf';
 import { supabase } from 'src/lib/supabase';
+import MemberTagging from './MemberTagging';
+import Threads from 'src/components/ui/Threads';
+import darkLogo from 'src/assets/images/logos/uhc-logo.png';
+import adnSeal from 'src/assets/images/logos/adn-seal.png';
+import defaultProfile from 'src/assets/images/profile/default_profile.jpg';
 
-// ─── Document Type Options per Folder ────────────────────────────────────────
+// Document Type Options per Folder
 const FOLDER_DOC_TYPES: Record<string, string[]> = {
   basic_identification: [
     'Birth Certificate', 'Barangay Certification', 'Barangay Clearance',
@@ -32,7 +37,7 @@ const FOLDER_DOC_TYPES: Record<string, string[]> = {
   admission_requirements: ['Admission Form', 'Surgery Consent', 'Promissory Note', 'Others'],
 };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types
 interface RegionRecord           { id?: string; description?: string; }
 interface ProvinceRecord         { id?: string; description?: string; region?: RegionRecord; }
 interface CityMunicipalityRecord { id?: string; description?: string; province?: ProvinceRecord; }
@@ -104,9 +109,10 @@ interface ScanResult {
   qrCodeDataUrl?: string;
   healthCardId?: string;
   fromHistory?: boolean;
+  dateIssued?: string;
 }
 
-// ─── PIN Types ────────────────────────────────────────────────────────────────
+// PIN Types
 type PinVerifyStatus = 'idle' | 'checking' | 'verified' | 'failed' | 'no_pin';
 
 interface PinVerifyState {
@@ -123,39 +129,273 @@ interface PendingPatientPin {
 
 
 
-// ─── Folder Definitions ───────────────────────────────────────────────────────
+// Folder Definitions
 const FOLDER_DEFS = [
-  { key: 'basic_identification',   label: 'Basic Identification',   description: 'Government-issued IDs, birth certificate, and personal identification documents.', color: 'blue',   supabaseCategory: 'Basic Identification',   bucketFolder: 'Basic Identification',   icon: <IdCard        className="w-5 h-5" /> },
-  { key: 'philhealth',             label: 'PhilHealth',             description: 'PhilHealth membership documents, MDR, and contribution records.',                   color: 'red',    supabaseCategory: 'PhilHealth',             bucketFolder: 'PhilHealth',             icon: <Heart         className="w-5 h-5" /> },
-  { key: 'senior_pwd',             label: 'Senior / PWD',           description: 'Senior citizen ID, PWD ID, and OSCA booklet.',                                      color: 'purple', supabaseCategory: 'Senior/PWD',             bucketFolder: 'Senior or PWD',          icon: <Accessibility className="w-5 h-5" /> },
-  { key: 'company_documents',      label: 'Company Employee',       description: 'Company ID, Certificate of Employment, and Incident Report.',                       color: 'amber',  supabaseCategory: 'Company Documents',      bucketFolder: 'Company Documents',      icon: <Building2     className="w-5 h-5" /> },
-  { key: 'medical_documents',      label: 'Medical Documents',      description: "Doctor's referral, laboratory results, X-ray, and medical certificates.",           color: 'green',  supabaseCategory: 'Medical Documents',      bucketFolder: 'Medical Documents',      icon: <Stethoscope   className="w-5 h-5" /> },
-  { key: 'admission_requirements', label: 'Admission Requirements', description: 'Admission form, surgery consent, and promissory note.',                             color: 'teal',   supabaseCategory: 'Admission Requirements', bucketFolder: 'Admission Requirements', icon: <ClipboardList className="w-5 h-5" /> },
+  { key: 'basic_identification',   label: 'Basic Identification',   description: 'Government-issued IDs, birth certificate, and personal identification documents.', color: 'light',   supabaseCategory: 'Basic Identification',   bucketFolder: 'Basic Identification',   icon: <IdCard        className="w-5 h-5" /> },
+  { key: 'philhealth',             label: 'PhilHealth',             description: 'PhilHealth membership documents, MDR, and contribution records.',                   color: 'green',   supabaseCategory: 'PhilHealth',             bucketFolder: 'PhilHealth',             icon: <Heart         className="w-5 h-5" /> },
+  { key: 'senior_pwd',             label: 'Senior / PWD',           description: 'Senior citizen ID, PWD ID, and OSCA booklet.',                                      color: 'emerald', supabaseCategory: 'Senior/PWD',             bucketFolder: 'Senior or PWD',          icon: <Accessibility className="w-5 h-5" /> },
+  { key: 'company_documents',      label: 'Company Employee',       description: 'Company ID, Certificate of Employment, and Incident Report.',                       color: 'teal',    supabaseCategory: 'Company Documents',      bucketFolder: 'Company Documents',      icon: <Building2     className="w-5 h-5" /> },
+  { key: 'medical_documents',      label: 'Medical Documents',      description: "Doctor's referral, laboratory results, X-ray, and medical certificates.",           color: 'sage',    supabaseCategory: 'Medical Documents',      bucketFolder: 'Medical Documents',      icon: <Stethoscope   className="w-5 h-5" /> },
+  { key: 'admission_requirements', label: 'Admission Requirements', description: 'Admission form, surgery consent, and promissory note.',                             color: 'forest',  supabaseCategory: 'Admission Requirements', bucketFolder: 'Admission Requirements', icon: <ClipboardList className="w-5 h-5" /> },
 ];
 
-type ColorKey = 'blue' | 'red' | 'purple' | 'amber' | 'green' | 'teal' | 'gray';
+type ColorKey = 'light' | 'green' | 'emerald' | 'teal' | 'sage' | 'forest' | 'gray';
 const COLOR_MAP: Record<ColorKey, { bg: string; border: string; text: string; badge: string }> = {
-  blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   badge: 'bg-blue-100 text-blue-700'    },
-  red:    { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    badge: 'bg-red-100 text-red-700'      },
-  purple: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700' },
-  amber:  { bg: 'bg-amber-50',  border: 'border-amber-200',  text: 'text-amber-700',  badge: 'bg-amber-100 text-amber-700'  },
-  green:  { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  badge: 'bg-green-100 text-green-700'  },
-  teal:   { bg: 'bg-teal-50',   border: 'border-teal-200',   text: 'text-teal-700',   badge: 'bg-teal-100 text-teal-700'   },
-  gray:   { bg: 'bg-gray-50',   border: 'border-gray-200',   text: 'text-gray-700',   badge: 'bg-gray-100 text-gray-700'   },
+  light:   { bg: 'bg-green-50',   border: 'border-green-200',   text: 'text-green-600',   badge: 'bg-green-100 text-green-600'     },
+  green:   { bg: 'bg-green-50',   border: 'border-green-200',   text: 'text-green-700',   badge: 'bg-green-100 text-green-700'     },
+  emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+  teal:    { bg: 'bg-teal-50',    border: 'border-teal-200',    text: 'text-teal-700',    badge: 'bg-teal-100 text-teal-700'       },
+  sage:    { bg: 'bg-green-100',  border: 'border-green-300',   text: 'text-green-800',   badge: 'bg-green-200 text-green-800'     },
+  forest:  { bg: 'bg-emerald-100',border: 'border-emerald-300', text: 'text-emerald-800', badge: 'bg-emerald-200 text-emerald-800' },
+  gray:    { bg: 'bg-gray-50',    border: 'border-gray-200',    text: 'text-gray-700',    badge: 'bg-gray-100 text-gray-700'       },
 };
 
 const CATEGORY_COLORS: Record<string, ColorKey> = {
-  'Basic Identification':   'blue',
-  'PhilHealth':             'red',
-  'Senior/PWD':             'purple',
-  'Company Documents':      'amber',
-  'Medical Documents':      'green',
-  'Admission Requirements': 'teal',
+  'Basic Identification':   'light',
+  'PhilHealth':             'green',
+  'Senior/PWD':             'emerald',
+  'Company Documents':      'teal',
+  'Medical Documents':      'sage',
+  'Admission Requirements': 'forest',
 };
 
-const BCrumb = [{ to: '/', title: 'Home' }, { title: 'QR Scanner' }];
+const BCrumb = [{ to: '/', title: 'Home' }];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Health ID Card visual (Flip Card)
+const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl, dateIssued: dateIssuedProp }: {
+  patient: PatientProfile; qrDataUrl: string; qrCodeValue: string;
+  cardRef?: React.RefObject<HTMLDivElement | null>;
+  profilePicUrl?: string | null;
+  dateIssued?: string | null;
+}) => {
+  const [isFlipped, setIsFlipped] = useState(false);
+  const lastName = patient.last_name?.toUpperCase() || 'N/A';
+  const givenNames = [patient.first_name, patient.middle_name].filter(Boolean).join(' ').toUpperCase();
+  const sex = patient.sex?.toUpperCase() || 'N/A';
+  const dateIssued = (dateIssuedProp ? new Date(dateIssuedProp) : new Date()).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+
+  const WatermarkLogo = () => (
+    <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'grayscale(100%) brightness(0.4)' }} />
+  );
+
+  const WatermarkSVG = () => (
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none" style={{ width: '100%', height: '100%' }}>
+      <circle cx="100" cy="100" r="95" stroke="#0a3318" strokeWidth="4" fill="none"/>
+      <circle cx="100" cy="100" r="87" stroke="#0a3318" strokeWidth="1.5" fill="none" strokeDasharray="4 3"/>
+      <g stroke="#0a3318" strokeWidth="2.5">
+        <line x1="100" y1="8" x2="100" y2="22"/><line x1="100" y1="178" x2="100" y2="192"/>
+        <line x1="8" y1="100" x2="22" y2="100"/><line x1="178" y1="100" x2="192" y2="100"/>
+        <line x1="34" y1="34" x2="44" y2="44"/><line x1="156" y1="156" x2="166" y2="166"/>
+        <line x1="166" y1="34" x2="156" y2="44"/><line x1="44" y1="156" x2="34" y2="166"/>
+        <line x1="17" y1="67" x2="29" y2="71"/><line x1="171" y1="129" x2="183" y2="133"/>
+        <line x1="67" y1="17" x2="71" y2="29"/><line x1="129" y1="171" x2="133" y2="183"/>
+        <line x1="183" y1="67" x2="171" y2="71"/><line x1="29" y1="129" x2="17" y2="133"/>
+        <line x1="133" y1="17" x2="129" y2="29"/><line x1="71" y1="171" x2="67" y2="183"/>
+      </g>
+      <g fill="#0a3318">
+        <polygon points="100,32 103,42 113,42 105,48 108,58 100,52 92,58 95,48 87,42 97,42" transform="scale(0.55) translate(82,30)"/>
+        <polygon points="100,32 103,42 113,42 105,48 108,58 100,52 92,58 95,48 87,42 97,42" transform="scale(0.55) translate(-28,140)"/>
+        <polygon points="100,32 103,42 113,42 105,48 108,58 100,52 92,58 95,48 87,42 97,42" transform="scale(0.55) translate(192,140)"/>
+      </g>
+      <g fill="#0a3318" opacity="0.9">
+        <path d="M100 50 C70 50 55 65 55 85 C55 120 75 145 100 158 C125 145 145 120 145 85 C145 65 130 50 100 50Z" fill="none" stroke="#0a3318" strokeWidth="2.5"/>
+        <rect x="93" y="68" width="14" height="52" rx="2" fill="#0a3318" opacity="0.7"/>
+        <rect x="74" y="87" width="52" height="14" rx="2" fill="#0a3318" opacity="0.7"/>
+      </g>
+      <defs>
+        <path id="opArcTop" d="M 22,100 A 78,78 0 0,1 178,100"/>
+        <path id="opArcBot" d="M 30,110 A 70,70 0 0,0 170,110"/>
+      </defs>
+      <text fontFamily="serif" fontSize="10" fill="#0a3318" letterSpacing="2">
+        <textPath href="#opArcTop" startOffset="8%">REPUBLIKA NG PILIPINAS</textPath>
+      </text>
+      <text fontFamily="serif" fontSize="9" fill="#0a3318" letterSpacing="1.5">
+        <textPath href="#opArcBot" startOffset="14%">UNIVERSAL HEALTH CARE</textPath>
+      </text>
+    </svg>
+  );
+
+  const CardBackground = () => (
+    <>
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #e8f5e9 0%, #eef6ee 40%, #e0f2e1 100%)' }} />
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.18, zIndex: 0, pointerEvents: 'none' }}>
+        <Threads color={[0.18, 0.72, 0.36]} amplitude={1.4} distance={0} enableMouseInteraction={false} />
+      </div>
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.03, zIndex: 0,
+        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px), repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px)` }} />
+      <div style={{ position: 'absolute', width: 300, height: 230, background: '#2d8a50', top: -55, left: 15, opacity: 0.10, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 260, height: 210, background: '#c8a018', top: 55, right: -15, opacity: 0.05, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 230, height: 190, background: '#1a6b3a', bottom: -28, right: 80, opacity: 0.08, borderRadius: '50%', filter: 'blur(46px)' }} />
+    </>
+  );
+
+  const GoldBorders = () => (
+    <>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 5, background: 'linear-gradient(90deg, #7a5c10, #c8a018, #f0d44a, #c8a018, #7a5c10)', zIndex: 2 }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5, background: 'linear-gradient(90deg, #7a5c10, #c8a018, #f0d44a, #c8a018, #7a5c10)', zIndex: 2 }} />
+    </>
+  );
+
+  const FrontSide = () => (
+    <div style={{ width: '100%', height: '100%', position: 'absolute', backfaceVisibility: 'hidden', borderRadius: 18, overflow: 'hidden',
+      boxShadow: '0 2px 0 rgba(255,255,255,0.9) inset, 0 28px 70px rgba(0,0,0,0.26), 0 0 0 1px rgba(0,100,40,0.16)' }}>
+      <CardBackground />
+      <GoldBorders />
+      <div style={{ position: 'absolute', right: '8%', top: '50%', transform: 'translateY(-50%)', width: 260, height: 260, opacity: 0.06, zIndex: 1, pointerEvents: 'none' }}>
+        <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      </div>
+      <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '10px 20px 10px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 8, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
+          <img src={adnSeal} alt="ADN Seal" style={{ width: 50, height: 50, flexShrink: 0, borderRadius: '50%', objectFit: 'contain' }} />
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 9, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas</div>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 13, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.2 }}>AGUSAN DEL NORTE</div>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 17, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.1 }}>UNIVERSAL HEALTH CARE</div>
+            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 9, fontWeight: 600, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
+          </div>
+          <img src={darkLogo} alt="UHC Logo" style={{ width: 55, height: 55, flexShrink: 0, objectFit: 'contain' }} />
+        </div>
+        {/* ID Row */}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid rgba(0,100,40,0.13)', flexShrink: 0 }}>
+          <span style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 11, fontWeight: 700, color: '#0d4022', letterSpacing: 1 }}>UHC-ID</span>
+          <span style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 13, fontWeight: 700, color: '#0a2e1a', letterSpacing: 1.5, marginLeft: 6 }}>{qrCodeValue.substring(4, 24).toUpperCase()}-NDC</span>
+        </div>
+        {/* Body */}
+        <div style={{ display: 'flex', gap: 0, paddingTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {/* Photo */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 215 }}>
+            <div style={{ flex: 1, width: '100%', minHeight: 0, border: '3px solid #c8a018', borderRadius: 8, overflow: 'hidden',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.22), 0 0 0 5px rgba(200,160,24,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'linear-gradient(160deg, #fef9c3 0%, #fde68a 50%, #f59e0b 100%)' }}>
+              <img src={profilePicUrl || defaultProfile} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 600, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase', flexShrink: 0 }}>Card Holder</div>
+          </div>
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, paddingLeft: 55, paddingRight: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Apelyido</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Last Name</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lastName}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Mga Pangalan</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Given Names</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{givenNames}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Petsa ng Kapanganakan</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Date of Birth</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatDate(patient.birth_date).toUpperCase()}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'baseline', marginBottom: 1 }}>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#2d6b40', whiteSpace: 'nowrap' }}>Kasarian</span>
+                <span style={{ fontSize: 7.5, color: '#2d6b40' }}>/</span>
+                <span style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, fontStyle: 'italic', color: '#666', whiteSpace: 'nowrap' }}>Sex</span>
+              </div>
+              <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 20, fontWeight: 700, color: '#0a2e1a', letterSpacing: 0.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sex}</div>
+              <div style={{ height: 1, background: 'rgba(0,100,40,0.18)', marginTop: 4 }} />
+            </div>
+          </div>
+        </div>
+        {/* Footer */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid rgba(0,100,40,0.13)', flexShrink: 0, marginTop: 6 }}>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 500, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase' }}>DOH — UHC Act R.A. 11223</div>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 10, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>DATE ISSUED: {dateIssued}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 19, fontWeight: 700, color: '#1a6b3a', letterSpacing: 2, textShadow: '1px 1px 0 rgba(200,160,24,0.3)' }}>PHL</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const BackSide = () => (
+    <div style={{ width: '100%', height: '100%', position: 'absolute', backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', borderRadius: 18, overflow: 'hidden',
+      boxShadow: '0 2px 0 rgba(255,255,255,0.9) inset, 0 28px 70px rgba(0,0,0,0.26), 0 0 0 1px rgba(0,100,40,0.16)' }}>
+      <CardBackground />
+      <GoldBorders />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(135deg, #1a1a1a, #2d2d2d, #1a1a1a)', opacity: 0.88, zIndex: 5 }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(180deg, rgba(255,255,255,0.07), transparent)', zIndex: 6 }} />
+      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 200, height: 200, opacity: 0.05, zIndex: 1, pointerEvents: 'none' }}>
+        <WatermarkLogo />
+      </div>
+      <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '42px 24px 10px', overflow: 'hidden' }}>
+        <div style={{ paddingBottom: 7, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 8, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 11, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.2 }}>AGUSAN DEL NORTE</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 14, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>UNIVERSAL HEALTH CARE</div>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 8, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 215, height: 215, flexShrink: 0, border: '3px solid #c8a018', borderRadius: 9, padding: 7, background: 'white', position: 'relative',
+              boxShadow: '0 5px 24px rgba(0,0,0,0.2), 0 0 0 5px rgba(200,160,24,0.13)' }}>
+              <div style={{ position: 'absolute', inset: -7, border: '1.5px solid rgba(200,160,24,0.32)', borderRadius: 12, pointerEvents: 'none' }} />
+              <img src={qrDataUrl} alt="QR Code" style={{ width: '100%', height: '100%', display: 'block' }} />
+            </div>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 10.5, fontWeight: 700, color: '#0a3318', letterSpacing: 4, textAlign: 'center' }}>Scan to Verify</div>
+            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, color: '#2d6b40', letterSpacing: 1.5, textAlign: 'center' }}>UHC Member Verification Portal</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid rgba(0,100,40,0.13)', flexShrink: 0 }}>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7, fontWeight: 500, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase' }}>DOH — UHC Act R.A. 11223</div>
+          <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 8, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>VALID WHILE MEMBERSHIP IS ACTIVE</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 19, fontWeight: 700, color: '#1a6b3a', letterSpacing: 2, textShadow: '1px 1px 0 rgba(200,160,24,0.3)' }}>PHL</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+      {/* Card container with 3D perspective — scales down on mobile */}
+      <div style={{ width: '100%', maxWidth: 700, aspectRatio: '700 / 420', perspective: '1000px' }}>
+        <div ref={cardRef} style={{ width: 700, height: 420, transformOrigin: 'top left', transform: 'scale(var(--card-scale, 1))' }}>
+          <style>{`
+            @media (max-width: 740px) {
+              [data-op-card-inner] { --card-scale: calc(min(100vw - 48px, 700px) / 700) !important; }
+            }
+          `}</style>
+          <div data-op-card-inner style={{
+            width: '100%', height: '100%', position: 'relative',
+            transformStyle: 'preserve-3d', transition: 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1)',
+            transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+            ['--card-scale' as any]: typeof window !== 'undefined' && window.innerWidth < 740 ? Math.min((window.innerWidth - 48) / 700, 1) : 1,
+          }}>
+            <FrontSide />
+            <BackSide />
+          </div>
+        </div>
+      </div>
+      <button onClick={() => setIsFlipped(!isFlipped)}
+        style={{ marginTop: 16, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
+          fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 14, fontWeight: 500,
+          color: '#16a34a', letterSpacing: 0.3, transition: 'all 0.2s ease' }}
+        onMouseOver={(e) => { e.currentTarget.style.color = '#15803d'; e.currentTarget.style.textDecoration = 'underline'; }}
+        onMouseOut={(e) => { e.currentTarget.style.color = '#16a34a'; e.currentTarget.style.textDecoration = 'none'; }}>
+        {isFlipped ? '← Show Front' : 'Show Backside →'}
+      </button>
+    </div>
+  );
+};
+
+// Helpers
 const fullName = (p: PatientProfile) =>
   [p.first_name, p.middle_name, p.last_name, p.ext_name].filter(Boolean).join(' ');
 
@@ -179,9 +419,22 @@ const getFullAddress = (brgy: PatientProfile['brgy']): string => {
   return parts.join(', ');
 };
 
+const formatDate = (dateStr?: string | null): string => {
+  if (!dateStr) return 'N/A';
+  try { return new Date(dateStr).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }); } catch { return dateStr; }
+};
 
+const computeAge = (dateStr?: string | null): string => {
+  if (!dateStr) return '';
+  const birth = new Date(dateStr);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return `${age} yrs old`;
+};
 
-// ─── Image → PDF ──────────────────────────────────────────────────────────────
+// Image → PDF
 const imageToPdfBlobUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -210,23 +463,23 @@ const imageToPdfBlobUrl = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
-// ─── PDF Preview Modal ────────────────────────────────────────────────────────
+// PDF Preview Modal
 const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; onClose: () => void }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 border-b">
+    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-4 border-b dark:border-gray-700">
         <div className="flex items-center gap-3">
           <FileText className="w-5 h-5 text-green-600" />
-          <p className="font-semibold text-gray-900 text-sm">{name}</p>
+          <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{name}</p>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-          <X className="w-5 h-5 text-gray-500" />
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
         </button>
       </div>
-      <div className="flex-1 overflow-hidden bg-gray-100">
+      <div className="flex-1 overflow-hidden bg-gray-100 dark:bg-gray-800">
         <iframe src={url} className="w-full h-full border-0" title={name} />
       </div>
-      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <Button variant="outline" onClick={onClose} className="flex gap-2"><X className="w-4 h-4" /> Close</Button>
         <Button variant="outline" className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50"
           onClick={() => {
@@ -246,7 +499,7 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
   </div>
 );
 
-// ─── Display filename: strip UUID + timestamp, use patient name ──────────────
+// Display filename: strip UUID + timestamp, use patient name
 const displayFileName = (rawUrl: string, patientName?: string): string => {
   const base = rawUrl.split('/').pop() ?? 'Document';
   // Pattern: uuid_timestamp_DocType.ext  →  lastname_firstname_DocType.ext
@@ -259,7 +512,7 @@ const displayFileName = (rawUrl: string, patientName?: string): string => {
   return base;
 };
 
-// ─── Document List ────────────────────────────────────────────────────────────
+// Document List
 const DocumentList = ({ documents, patientName }: { documents: DocumentAttachment[]; patientName?: string }) => {
   const [expandedCat, setExpandedCat] = useState<string | null>(null);
   const [previewDoc,  setPreviewDoc]  = useState<DocumentAttachment | null>(null);
@@ -273,7 +526,7 @@ const DocumentList = ({ documents, patientName }: { documents: DocumentAttachmen
 
   if (documents.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-400">
+      <div className="text-center py-8 text-gray-400 dark:text-gray-500">
         <FileText className="w-10 h-10 mx-auto mb-2 opacity-40" />
         <p className="text-sm">No documents uploaded for this patient yet.</p>
       </div>
@@ -287,7 +540,7 @@ const DocumentList = ({ documents, patientName }: { documents: DocumentAttachmen
       )}
       <div className="flex flex-col gap-2 mt-4">
         {Object.entries(grouped).map(([cat, docs]) => {
-          const colorKey = CATEGORY_COLORS[cat] ?? 'gray';
+          const colorKey = CATEGORY_COLORS[cat] ?? 'light';
           const colors   = COLOR_MAP[colorKey];
           const isOpen   = expandedCat === cat;
           return (
@@ -306,15 +559,17 @@ const DocumentList = ({ documents, patientName }: { documents: DocumentAttachmen
                 {isOpen ? <ChevronDown className={`w-4 h-4 ${colors.text}`} /> : <ChevronRight className={`w-4 h-4 ${colors.text}`} />}
               </button>
               {isOpen && (
-                <div className="bg-white p-3 border-t flex flex-col gap-2">
+                <div className="bg-white dark:bg-gray-800 p-3 border-t dark:border-gray-700 flex flex-col gap-2">
                   {docs.map((doc) => (
-                    <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, patientName)}</p>
-                        <p className="text-xs text-gray-400">{cat}</p>
+                   <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{displayFileName(doc.attachment, patientName)}</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500">{cat}</p>
+                        </div>
                       </div>
-                      <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 text-green-700 hover:bg-green-50" onClick={() => setPreviewDoc(doc)}>
+                      <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 text-green-700 hover:bg-green-50 ml-7 sm:ml-0 self-start sm:self-auto flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
                         <Eye className="w-3.5 h-3.5" /> View
                       </Button>
                     </div>
@@ -329,18 +584,13 @@ const DocumentList = ({ documents, patientName }: { documents: DocumentAttachmen
   );
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // PIN VERIFY MODAL
-// Logic:
-//  - hasPin=false  → operator CANNOT proceed; member must set PIN first
-//  - hasPin=true   → operator must enter correct PIN (hard block, max 3 attempts)
-// ══════════════════════════════════════════════════════════════════════════════
 interface PinVerifyModalProps {
   patientName: string;
   hasPin: boolean;
   pinState: PinVerifyState;
   onDigitEntry: (pin: string) => void;
-  onProceedNoPin?: () => void;   // no longer used — kept for compatibility
+  onProceedNoPin?: () => void;
   onClose: () => void;
 }
 
@@ -372,9 +622,9 @@ const PinVerifyModal = ({
     setEntered((p) => p.slice(0, -1));
   };
 
-  // ── Keyboard support ──
+  // Keyboard support
   useEffect(() => {
-    if (!hasPin) return; // no-pin screen has no entry
+    if (!hasPin) return;
     const onKey = (e: KeyboardEvent) => {
       if (/^[0-9]$/.test(e.key)) { handleDigit(e.key); e.preventDefault(); }
       else if (e.key === 'Backspace') { handleBack(); e.preventDefault(); }
@@ -391,12 +641,12 @@ const PinVerifyModal = ({
     prevStatus.current = pinState.status;
   }, [pinState.status]);
 
-  // ── No PIN case: operator CANNOT proceed — member must set PIN first ──────
+  // No PIN case: operator CANNOT proceed — member must set PIN first
   if (!hasPin) {
     return (
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 backdrop-blur-sm p-4">
         <style>{`@keyframes pinModalIn{from{opacity:0;transform:scale(0.92) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}.pin-modal-enter{animation:pinModalIn 0.22s cubic-bezier(0.34,1.56,0.64,1)}`}</style>
-        <div className="pin-modal-enter bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div className="pin-modal-enter bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
           <div className="bg-gradient-to-br from-red-600 to-red-800 px-7 py-6 flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
               <ShieldX className="w-6 h-6 text-white" />
@@ -415,8 +665,8 @@ const PinVerifyModal = ({
                 <ShieldX className="w-8 h-8 text-red-500" />
               </div>
               <div>
-                <p className="font-bold text-red-800 text-base">Member Has No PIN</p>
-                <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+                <p className="font-bold text-red-800 dark:text-red-400 text-base">Member Has No PIN</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 leading-relaxed">
                   <strong>{patientName.split(' ')[0]}</strong> has not set up a security PIN yet.
                   You cannot access their records until they create one.
                 </p>
@@ -437,7 +687,7 @@ const PinVerifyModal = ({
     );
   }
 
-  // ── Has PIN: hard gate ────────────────────────────────────────────────────
+  // Has PIN: hard gate
   const headerGradient =
     status === 'verified' ? 'from-green-600 to-green-800' :
     isLocked             ? 'from-red-700 to-red-900'      :
@@ -457,7 +707,7 @@ const PinVerifyModal = ({
         .pin-dots-shake  { animation: pinShake 0.38s ease; }
       `}</style>
 
-      <div className="pin-modal-enter bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div className="pin-modal-enter bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
         {/* Header */}
         <div className={`bg-gradient-to-br ${headerGradient} px-7 py-6 flex items-center gap-4`}>
           <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
@@ -504,8 +754,8 @@ const PinVerifyModal = ({
             <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
               <CheckCircle2 className="w-10 h-10 text-green-600" />
             </div>
-            <p className="font-bold text-gray-800 text-lg">PIN Verified!</p>
-            <p className="text-sm text-gray-400">Opening member records…</p>
+            <p className="font-bold text-gray-800 dark:text-gray-200 text-lg">PIN Verified!</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">Opening member records…</p>
             <div className="flex gap-1.5 mt-1">
               {[0,1,2].map((i) => (
                 <div key={i} className="w-2 h-2 rounded-full bg-green-500" style={{ animation: `pinModalIn 0.4s ease ${i * 0.12}s both` }} />
@@ -517,9 +767,9 @@ const PinVerifyModal = ({
         {/* PIN Entry */}
         {status !== 'verified' && !isLocked && (
           <div className="px-7 pt-5 pb-7">
-            <p className="text-sm text-gray-500 text-center mb-5 leading-relaxed">
-              Ask <strong className="text-gray-700">{patientName.split(' ')[0]}</strong> for their{' '}
-              <strong className="text-gray-700">4-digit PIN</strong> and enter it below.
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-5 leading-relaxed">
+              Ask <strong className="text-gray-700 dark:text-gray-300">{patientName.split(' ')[0]}</strong> for their{' '}
+              <strong className="text-gray-700 dark:text-gray-300">4-digit PIN</strong> and enter it below.
             </p>
 
             {/* PIN Dots */}
@@ -532,9 +782,9 @@ const PinVerifyModal = ({
                   key={i}
                   className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all duration-150 ${
                     entered.length > i
-                      ? status === 'failed' ? 'border-red-400 bg-red-50' : 'border-green-500 bg-green-50'
-                      : entered.length === i ? 'border-green-400 bg-white shadow-sm ring-2 ring-green-200'
-                      : 'border-gray-200 bg-gray-50'
+                      ? status === 'failed' ? 'border-red-400 bg-red-50 dark:bg-red-900/30' : 'border-green-500 bg-green-50 dark:bg-green-900/30'
+                      : entered.length === i ? 'border-green-400 bg-white dark:bg-gray-800 shadow-sm ring-2 ring-green-200 dark:ring-green-800'
+                      : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
                   }`}
                 >
                   {entered.length > i && (
@@ -548,7 +798,7 @@ const PinVerifyModal = ({
 
             <button
               onClick={() => setShowDigits(!showDigits)}
-              className="flex items-center gap-1.5 mx-auto mb-4 text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+              className="flex items-center gap-1.5 mx-auto mb-4 text-[11px] text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
             >
               {showDigits ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
               {showDigits ? 'Hide' : 'Show'} digits
@@ -579,8 +829,8 @@ const PinVerifyModal = ({
                   onClick={() => d === '⌫' ? handleBack() : d !== '' ? handleDigit(d) : undefined}
                   className={`h-12 rounded-xl font-semibold text-lg transition-all active:scale-95 select-none ${
                     d === '' ? 'cursor-default' :
-                    d === '⌫' ? 'bg-gray-100 hover:bg-gray-200 text-gray-600 active:bg-gray-300' :
-                    'bg-gray-50 hover:bg-green-50 hover:text-green-700 border border-gray-200 hover:border-green-300 text-gray-800 active:bg-green-100'
+                    d === '⌫' ? 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 active:bg-gray-300' :
+                    'bg-gray-50 dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-700 dark:hover:text-green-400 border border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600 text-gray-800 dark:text-gray-200 active:bg-green-100'
                   }`}
                 >
                   {status === 'checking' && d === '⌫' ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : d}
@@ -588,7 +838,7 @@ const PinVerifyModal = ({
               ))}
             </div>
 
-            <Button variant="outline" onClick={onClose} className="w-full text-sm border-gray-300 text-gray-600">
+            <Button variant="outline" onClick={onClose} className="w-full text-sm border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400">
               <X className="w-4 h-4 mr-1.5" /> Cancel
             </Button>
           </div>
@@ -615,11 +865,12 @@ const UhcOperator = () => {
       roleId: userRole?.role ?? null,
     };
   }, []);
-  // ── Document Manager ──────────────────────────────────────────────────────
-  const [searchQuery,     setSearchQuery]     = useState('');
-  const [searchResults,   setSearchResults]   = useState<PatientProfile[]>([]);
-  const [selectedPatient, setSelectedPatient] = useState<PatientProfile | null>(null);
-  const [isSearching,     setIsSearching]     = useState(false);
+  // Document Manager
+  const [searchQuery,      setSearchQuery]      = useState('');
+  const [searchResults,    setSearchResults]    = useState<PatientProfile[]>([]);
+  const [searchResultPics, setSearchResultPics] = useState<Record<string, string>>({});
+  const [selectedPatient,  setSelectedPatient]  = useState<PatientProfile | null>(null);
+  const [isSearching,      setIsSearching]      = useState(false);
   const [folders,         setFolders]         = useState<DocumentFolder[]>(FOLDER_DEFS.map((f, i) => ({ ...f, id: String(i + 1), files: [] })));
   const [expandedFolder,  setExpandedFolder]  = useState<string | null>(null);
   const [generatedQr,     setGeneratedQr]     = useState<string | null>(null);
@@ -635,24 +886,53 @@ const UhcOperator = () => {
   const [isProcessing,    setIsProcessing]    = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  // ── Profile picture ────────────────────────────────────────────────────────
+  // Reset Document Manager to initial state
+  const resetDocumentManager = useCallback(() => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setSelectedPatient(null);
+    setIsSearching(false);
+    setFolders(FOLDER_DEFS.map((f, i) => ({ ...f, id: String(i + 1), files: [] })));
+    setExpandedFolder(null);
+    setGeneratedQr(null);
+    setQrDataUrl(null);
+    setIsGenerating(false);
+    setErrorMessage('');
+    setPreviewFile(null);
+    setPendingUpload(null);
+    setSelectedDocType('');
+    setCustomDocType('');
+    setIsProcessing(false);
+    setProfilePicUrl(null);
+    setProfilePicError('');
+  }, []);
+
+  // Profile picture
   const [profilePicUrl,       setProfilePicUrl]       = useState<string | null>(null);
   const [isUploadingPic,      setIsUploadingPic]      = useState(false);
   const [profilePicError,     setProfilePicError]     = useState('');
   const profilePicInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ── Scanner ───────────────────────────────────────────────────────────────
+  // Scanner
   const [activeTab,    setActiveTab]    = useState('documents');
   const [cameraActive, setCameraActive] = useState(false);
 
-  // ── Operator mode selection ────────────────────────────────────────────────
+  // Current user role
+  const [currentRoleName, setCurrentRoleName] = useState<string | null>(null);
+  const isBarangayOfficer = currentRoleName?.toLowerCase().includes('barangay') ?? false;
+
+  // Operator mode selection
   const [operatorMode, setOperatorMode] = useState<'documents' | 'scanner' | 'tagging' | null>(null);
   const [scanLookup,   setScanLookup]   = useState(false);
   const [scanResult,   setScanResult]   = useState<ScanResult | null>(null);
   const [cameraError,  setCameraError]  = useState('');
   const [scanError,    setScanError]    = useState('');
 
-  // ── PIN: QR scanner gate ──────────────────────────────────────────────────
+  // Scan result card display (HealthIdCard)
+  const [scanQrDataUrl,      setScanQrDataUrl]      = useState<string | null>(null);
+  const [scanProfilePicUrl,  setScanProfilePicUrl]  = useState<string | null>(null);
+
+  // PIN: QR scanner gate
   const [pendingScanResult, setPendingScanResult] = useState<ScanResult | null>(null);
   const [showScanPinModal,  setShowScanPinModal]  = useState(false);
   const [scanPinHasPin,     setScanPinHasPin]     = useState(false);
@@ -660,7 +940,7 @@ const UhcOperator = () => {
     status: 'idle', attemptsLeft: 3, isLocked: false,
   });
 
-  // ── PIN: patient-select gate ──────────────────────────────────────────────
+  // PIN: patient-select gate
   const [pendingPatientPin,   setPendingPatientPin]   = useState<PendingPatientPin | null>(null);
   const [showPatientPinModal, setShowPatientPinModal] = useState(false);
   const [patientPinState,     setPatientPinState]     = useState<PinVerifyState>({
@@ -668,7 +948,7 @@ const UhcOperator = () => {
   });
   const [isLoadingPatientPin, setIsLoadingPatientPin] = useState(false);
 
-  // ── Scan History (from DB) ───────────────────────────────────────────────
+  // Scan History (from DB)
   const [dbScanHistory, setDbScanHistory] = useState<{
     id: string;
     created_at: string;
@@ -678,10 +958,12 @@ const UhcOperator = () => {
     scanned_by_user?: string | null;
     scanned_by_role?: string | null;
     role_name?: string;
+    patient_profile_id?: string | null;
+    profile_pic_url?: string | null;
   }[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // ── Scanner instance ──────────────────────────────────────────────────────
+  // Scanner instance
   const SCANNER_DIV_ID = 'uhc-qr-camera-root';
   const scannerRef     = useRef<Html5Qrcode | null>(null);
   const qrSuccessRef   = useRef<((text: string) => Promise<void>) | null>(null);
@@ -694,6 +976,30 @@ const UhcOperator = () => {
       }
     }, 50);
     return () => clearTimeout(t);
+  }, []);
+
+  // Fetch current user role name on mount
+  useEffect(() => {
+    const fetchCurrentRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: userRole } = await supabase
+          .from('user_role')
+          .select('role')
+          .eq('user', user.id)
+          .single();
+        if (userRole?.role) {
+          const { data: roleData } = await supabase
+            .from('role')
+            .select('description')
+            .eq('id', userRole.role)
+            .single();
+          if (roleData?.description) setCurrentRoleName(roleData.description);
+        }
+      } catch { /* ignore */ }
+    };
+    fetchCurrentRole();
   }, []);
 
   const stopCamera = useCallback(async () => {
@@ -709,7 +1015,30 @@ const UhcOperator = () => {
   useEffect(() => { if (activeTab !== 'scanner') stopCamera(); }, [activeTab, stopCamera]);
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
 
-  // ── Fetch scan history from DB when tab changes ──────────────────────────
+  // Generate QR data URL + load profile pic when scan result changes
+  useEffect(() => {
+    if (!scanResult) { setScanQrDataUrl(null); setScanProfilePicUrl(null); return; }
+    // Generate QR image
+    QRCodeLib.toDataURL(scanResult.qrValue, { width: 256, margin: 2, color: { dark: '#166534', light: '#FFFFFF' } })
+      .then((url: string) => setScanQrDataUrl(url))
+      .catch(() => setScanQrDataUrl(null));
+    // Load profile picture
+    const pid = scanResult.patient?.id;
+    if (pid) {
+      (async () => {
+        try {
+          const { data: files } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: pid });
+          const match = files?.find((f) => f.name.startsWith(pid));
+          if (match) {
+            const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(`Profile Picture/${match.name}`);
+            setScanProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
+          } else { setScanProfilePicUrl(null); }
+        } catch { setScanProfilePicUrl(null); }
+      })();
+    }
+  }, [scanResult]);
+
+  // Fetch scan history from DB when tab changes
   useEffect(() => {
     if (activeTab !== 'history') return;
     const fetchHistory = async () => {
@@ -754,11 +1083,62 @@ const UhcOperator = () => {
           return true;
         });
 
+        // Fetch patient_profile IDs from health_card table
+        const healthCardIds = [...new Set(unique.map((s: any) => s.health_card).filter(Boolean))];
+        let hcPatientMap: Record<string, string> = {};
+        if (healthCardIds.length > 0) {
+          const { data: hcRows } = await supabase
+            .schema('module4')
+            .from('health_card')
+            .select('id, patient_profile')
+            .in('id', healthCardIds);
+          (hcRows ?? []).forEach((r: any) => { if (r.patient_profile) hcPatientMap[r.id] = r.patient_profile; });
+        }
+
+        // Resolve profile picture URLs from storage
+        const patientIds = [...new Set(Object.values(hcPatientMap).filter(Boolean))];
+        let picMap: Record<string, string> = {};
+        if (patientIds.length > 0) {
+          const { data: allFiles } = await supabase.storage.from('card-attachments').list('Profile Picture', { limit: 1000 });
+          if (allFiles && allFiles.length > 0) {
+            for (const pid of patientIds) {
+              // Match file that starts with the patient ID (e.g. uuid.jpg, uuid.png)
+              const match = allFiles.find((f) => f.name.startsWith(pid));
+              if (match) {
+                const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(`Profile Picture/${match.name}`);
+                picMap[pid] = pub.publicUrl + '?t=' + Date.now();
+              }
+            }
+          }
+          // Fallback: for any patient IDs not found via list(), try common extensions directly
+          const EXTS = ['jpg', 'jpeg', 'png', 'webp'];
+          for (const pid of patientIds) {
+            if (picMap[pid]) continue; // already found
+            for (const ext of EXTS) {
+              const path = `Profile Picture/${pid}.${ext}`;
+              const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(path);
+              // Verify the file actually exists with a quick HEAD check
+              try {
+                const resp = await fetch(pub.publicUrl, { method: 'HEAD' });
+                if (resp.ok) {
+                  picMap[pid] = pub.publicUrl + '?t=' + Date.now();
+                  break;
+                }
+              } catch { /* skip */ }
+            }
+          }
+        }
+
         // Map into display-friendly shape
-        const mapped = unique.map((s: any) => ({
-          ...s,
-          role_name: roleMap[s.scanned_by_role] ?? 'Unknown Role',
-        }));
+        const mapped = unique.map((s: any) => {
+          const patientProfileId = hcPatientMap[s.health_card] ?? null;
+          return {
+            ...s,
+            role_name: roleMap[s.scanned_by_role] ?? 'Unknown Role',
+            patient_profile_id: patientProfileId,
+            profile_pic_url: patientProfileId ? (picMap[patientProfileId] ?? null) : null,
+          };
+        });
         setDbScanHistory(mapped);
       } catch (err) {
         console.error(err);
@@ -770,7 +1150,7 @@ const UhcOperator = () => {
   }, [activeTab]);
 
 
-  // ── QR PIN verify ─────────────────────────────────────────────────────────
+  // QR PIN verify
   const handleScanPinDigitEntry = useCallback(async (enteredPin: string) => {
     if (!pendingScanResult?.healthCardId) return;
 
@@ -828,12 +1208,11 @@ const UhcOperator = () => {
   }, []);
 
   const scanningRef = useRef(false);
-  // ── QR success handler ────────────────────────────────────────────────────
+  // QR success handler
   qrSuccessRef.current = async (decodedText: string) => {
-    // ── GUARD: prevent duplicate fires ──────────────────────
+    // GUARD: prevent duplicate fires
     if (scanningRef.current) return;
     scanningRef.current = true;
-    // ────────────────────────────────────────────────────────
 
     await stopCamera();
     setScanLookup(true);
@@ -853,7 +1232,7 @@ const UhcOperator = () => {
       const { data: cardData, error: cardErr } = await supabase
         .schema('module4')
         .from('health_card')
-        .select('id, qr_code, pin, patient_profile')
+        .select('id, qr_code, pin, patient_profile, created_at')
         .eq('qr_code', qrValue)
         .single();
 
@@ -919,7 +1298,7 @@ const UhcOperator = () => {
           });
       } catch (histErr) { console.warn('Failed to save scan history:', histErr); }
 
-      const pending: ScanResult = { qrValue, scanTime, patient, documents, healthCardId };
+      const pending: ScanResult = { qrValue, scanTime, patient, documents, healthCardId, dateIssued: (cardData as any).created_at };
       setPendingScanResult(pending);
       setScanPinHasPin(cardHasPin);
       setScanPinState({ status: 'idle', attemptsLeft: 3, isLocked: false });
@@ -937,7 +1316,7 @@ const UhcOperator = () => {
   };
 
   const startCamera = useCallback(async () => {
-    scanningRef.current = false;          // allow a fresh scan
+    scanningRef.current = false;       
     setScanError(''); setCameraError('');
     if (!scannerRef.current) {
       try { scannerRef.current = new Html5Qrcode(SCANNER_DIV_ID); }
@@ -963,7 +1342,7 @@ const UhcOperator = () => {
 
   const resetScan = () => { scanningRef.current = false; setScanResult(null); setScanError(''); setCameraError(''); };
 
-  // ── Search (module3) — flat sequential fetches ────────────────────────────
+  // Search (module3) — flat sequential fetches
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setIsSearching(true); setErrorMessage(''); setSearchResults([]);
@@ -1008,6 +1387,20 @@ const UhcOperator = () => {
       }
       const assembled: PatientProfile[] = profiles.map((p: any) => ({ ...p, brgy: brgyMap[p.brgy] ?? null }));
       setSearchResults(assembled);
+
+      // 3. Fetch profile pictures for all results
+      const picMap: Record<string, string> = {};
+      await Promise.all(assembled.map(async (p) => {
+        try {
+          const { data: files } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: p.id });
+          const match = files?.find((f) => f.name.startsWith(p.id));
+          if (match) {
+            const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(`Profile Picture/${match.name}`);
+            picMap[p.id] = pub.publicUrl + '?t=' + Date.now();
+          }
+        } catch { /* ignore */ }
+      }));
+      setSearchResultPics(picMap);
     } catch (err) {
       console.error('Search error:', err);
       setErrorMessage('Failed to search patients. Please try again.');
@@ -1016,7 +1409,7 @@ const UhcOperator = () => {
     }
   };
 
-  // ── Patient select: check module4.health_card for PIN ────────────────────
+  // Patient select: check module4.health_card for PIN
   // KEY LOGIC:
   //   - If no health_card row exists yet → hasPin=false → operator proceeds freely
   //   - If health_card exists but pin is null/empty → hasPin=false → operator proceeds freely
@@ -1052,15 +1445,15 @@ const UhcOperator = () => {
     }
   };
 
-  // ── Commit patient after PIN cleared ──────────────────────────────────────
+  // Commit patient after PIN cleared
   // Load profile pic when patient is selected
   const loadProfilePic = useCallback(async (patientId: string) => {
     setProfilePicUrl(null);
     try {
-      const { data: files } = await supabase.storage.from('card-user-picture').list('', { search: patientId });
+      const { data: files } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: patientId });
       const match = files?.find((f) => f.name.startsWith(patientId));
       if (match) {
-        const { data: pub } = supabase.storage.from('card-user-picture').getPublicUrl(match.name);
+        const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(`Profile Picture/${match.name}`);
         setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
       }
     } catch { /* ignore */ }
@@ -1077,7 +1470,7 @@ const UhcOperator = () => {
     loadProfilePic(p.id);
   }, [loadProfilePic]);
 
-  // ── Patient PIN digit handler ─────────────────────────────────────────────
+  // Patient PIN digit handler
   const handlePatientPinDigitEntry = useCallback(async (enteredPin: string) => {
     if (!pendingPatientPin?.healthCardId) return;
 
@@ -1113,7 +1506,7 @@ const UhcOperator = () => {
     }
   }, [pendingPatientPin, commitPatientSelect]);
 
-  // ── Patient PIN: no-PIN proceed ───────────────────────────────────────────
+  // Patient PIN: no-PIN proceed
   const handlePatientPinProceedNoPin = useCallback(() => {
     if (!pendingPatientPin) return;
     commitPatientSelect(pendingPatientPin.patient);
@@ -1126,7 +1519,7 @@ const UhcOperator = () => {
     setSearchQuery('');
   }, []);
 
-  // ── File handling ─────────────────────────────────────────────────────────
+  // File handling
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>, folderKey: string) => {
     const file = e.target.files?.[0];
     if (!file || !selectedPatient) return;
@@ -1159,7 +1552,7 @@ const UhcOperator = () => {
 
   const handleDocTypeCancel = () => { setPendingUpload(null); setSelectedDocType(''); setCustomDocType(''); };
 
-  // ── Save file to Supabase (module4) ───────────────────────────────────────
+  // Save file to Supabase (module4)
   const handleSaveFile = async (folderKey: string, fileIdx: number) => {
     if (!selectedPatient) return;
     setFolders((prev) => prev.map((f) => f.key === folderKey
@@ -1246,7 +1639,7 @@ const UhcOperator = () => {
     }
   };
 
-  // ── Generate QR code (module4) ────────────────────────────────────────────
+  // Generate QR code (module4)
   const handleGenerateQr = async () => {
     if (!selectedPatient) return;
     setIsGenerating(true); setErrorMessage('');
@@ -1271,7 +1664,7 @@ const UhcOperator = () => {
     finally { setIsGenerating(false); }
   };
 
-  // ── Upload profile picture to card-user-picture bucket ────────────────────
+  // Upload profile picture to card-attachments/Profile Picture
   const handleProfilePicUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedPatient) return;
@@ -1280,12 +1673,18 @@ const UhcOperator = () => {
     setProfilePicError('');
     try {
       const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `${selectedPatient.id}.${ext}`;
-      // Remove old picture first (ignore errors — might not exist)
-      await supabase.storage.from('card-user-picture').remove([path]);
-      const { error: upErr } = await supabase.storage.from('card-user-picture').upload(path, file, { upsert: true });
+      const pid = selectedPatient.id;
+      const path = `Profile Picture/${pid}_${Date.now()}.${ext}`;
+
+      // Remove ALL existing profile pictures for this patient (any extension)
+      const { data: existing } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: pid });
+      const toRemove = (existing ?? []).filter((f) => f.name.startsWith(pid)).map((f) => `Profile Picture/${f.name}`);
+      if (toRemove.length > 0) await supabase.storage.from('card-attachments').remove(toRemove);
+
+      // Upload new file with unique name to bypass CDN cache
+      const { error: upErr } = await supabase.storage.from('card-attachments').upload(path, file);
       if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from('card-user-picture').getPublicUrl(path);
+      const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(path);
       setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
     } catch (err: any) {
       console.error('Profile pic upload error:', err);
@@ -1295,21 +1694,18 @@ const UhcOperator = () => {
 
   const totalFiles    = folders.reduce((s, f) => s + f.files.length, 0);
   const pendingFolder = pendingUpload ? FOLDER_DEFS.find((f) => f.key === pendingUpload.folderKey) : null;
-  const pendingColors = pendingFolder ? COLOR_MAP[pendingFolder.color as ColorKey] : COLOR_MAP.blue;
+  const pendingColors = pendingFolder ? COLOR_MAP[pendingFolder.color as ColorKey] : COLOR_MAP.light;
   const pendingOptions = pendingUpload ? (FOLDER_DOC_TYPES[pendingUpload.folderKey] ?? []) : [];
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  // Render
   return (
     <>
       <BreadcrumbComp title="Health Card Operator" items={BCrumb} />
-
-      {/* Floating camera div (never unmounted) */}
       <div
         style={{
-          position: 'fixed',
-          bottom: cameraActive ? 24 : -9999,
-          right: cameraActive ? 24 : -9999,
-          width: 320, zIndex: 9998, borderRadius: 16, overflow: 'hidden',
+          bottom: cameraActive ? 16 : -9999,
+          right: cameraActive ? 16 : -9999,
+          width: 'min(320px, calc(100vw - 32px))', zIndex: 9998, borderRadius: 16, overflow: 'hidden',
           boxShadow: cameraActive ? '0 8px 40px rgba(0,0,0,0.4)' : 'none',
           border: '3px solid #16a34a', background: '#000',
           transition: 'bottom 0.35s ease, right 0.35s ease',
@@ -1355,31 +1751,31 @@ const UhcOperator = () => {
       {/* Document type selection modal */}
       {pendingUpload && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className={`px-6 py-5 ${pendingColors.bg} border-b ${pendingColors.border}`}>
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className={`font-bold text-lg ${pendingColors.text}`}>Select Document Type</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Category: <span className="font-semibold">{pendingUpload.folderLabel}</span></p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Category: <span className="font-semibold">{pendingUpload.folderLabel}</span></p>
                 </div>
-                <button onClick={handleDocTypeCancel} className="p-1.5 rounded-lg hover:bg-black/10"><X className="w-4 h-4 text-gray-500" /></button>
+                <button onClick={handleDocTypeCancel} className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10"><X className="w-4 h-4 text-gray-500 dark:text-gray-400" /></button>
               </div>
-              <div className="mt-3 flex items-center gap-2 bg-white/70 rounded-lg px-3 py-2 border border-white">
+              <div className="mt-3 flex items-center gap-2 bg-white/70 dark:bg-gray-800/70 rounded-lg px-3 py-2 border border-white dark:border-gray-700">
                 <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-700 truncate">{pendingUpload.file.name}</p>
-                  <p className="text-[10px] text-gray-400">{pendingUpload.file.type.startsWith('image/') ? 'Image — will be converted to PDF' : 'PDF document'}</p>
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{pendingUpload.file.name}</p>
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500">{pendingUpload.file.type.startsWith('image/') ? 'Image — will be converted to PDF' : 'PDF document'}</p>
                 </div>
               </div>
             </div>
             <div className="px-6 py-5">
-              <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">What type of document is this?</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-medium uppercase tracking-wide">What type of document is this?</p>
               <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
                 {pendingOptions.map((option) => {
                   const sel = selectedDocType === option;
                   return (
                     <button key={option} onClick={() => { setSelectedDocType(option); setCustomDocType(''); }}
-                      className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all text-sm font-medium flex items-center gap-3 ${sel ? `${pendingColors.bg} ${pendingColors.border} ${pendingColors.text}` : 'bg-gray-50 border-gray-100 text-gray-700 hover:border-gray-300'}`}>
+                      className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all text-sm font-medium flex items-center gap-3 ${sel ? `${pendingColors.bg} ${pendingColors.border} ${pendingColors.text}` : 'bg-gray-50 dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500'}`}>
                       <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${sel ? pendingColors.border : 'border-gray-300'}`}>
                         {sel && <span className={`w-2 h-2 rounded-full ${pendingColors.text.replace('text-', 'bg-')}`} />}
                       </span>
@@ -1392,7 +1788,7 @@ const UhcOperator = () => {
                 <Input className="mt-3 text-sm" placeholder="Specify document type…" value={customDocType} onChange={(e) => setCustomDocType(e.target.value)} autoFocus />
               )}
             </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
               <Button variant="outline" onClick={handleDocTypeCancel} className="flex gap-2"><X className="w-4 h-4" /> Cancel</Button>
               <Button disabled={!selectedDocType || (selectedDocType === 'Others' && !customDocType.trim()) || isProcessing}
                 onClick={handleDocTypeConfirm} className="flex gap-2 bg-green-700 hover:bg-green-800 text-white">
@@ -1408,10 +1804,10 @@ const UhcOperator = () => {
 
       {scanLookup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4">
             <Loader2 className="w-10 h-10 text-green-600 animate-spin" />
-            <p className="font-semibold text-gray-700">Looking up QR code…</p>
-            <p className="text-sm text-gray-400">Fetching patient info and documents</p>
+            <p className="font-semibold text-gray-700 dark:text-gray-300">Looking up QR code…</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">Fetching patient info and documents</p>
           </div>
         </div>
       )}
@@ -1421,62 +1817,98 @@ const UhcOperator = () => {
 
         {/* ── Mode selection cards ── */}
         {!operatorMode && (
-          <div className="flex flex-col items-center gap-8 py-10">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-800">What would you like to do?</h2>
-              <p className="text-sm text-gray-500 mt-1">Choose an action to get started</p>
+          <div className="flex flex-col items-center gap-8 py-10 px-4">
+            {/* ── Header ── */}
+            <div className="text-center space-y-1">
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">What would you like to do?</h2>
+              <p className="text-sm text-gray-400 dark:text-gray-500">Choose an action to get started</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-3xl">
-              {/* Upload Documents Card */}
+
+            {/* ── Cards ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 w-full max-w-5xl">
+
+              {/* ── 1. Upload Documents ── */}
               <button
                 onClick={() => { setOperatorMode('documents'); setActiveTab('documents'); }}
-                className="group relative flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-gray-200 bg-white hover:border-green-500 hover:shadow-xl transition-all duration-200 text-center"
+                className="group relative bg-white dark:bg-gray-800 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30 transition-all duration-200 text-left"
               >
-                <div className="w-20 h-20 rounded-2xl bg-green-100 group-hover:bg-green-200 flex items-center justify-center transition-colors">
-                  <Upload className="w-10 h-10 text-green-700" />
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-gray-800 group-hover:text-green-700 transition-colors">Upload Documents</p>
-                  <p className="text-sm text-gray-500 mt-1">Search for a patient and manage their documents</p>
-                </div>
-                <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-green-50 group-hover:bg-green-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                  <ChevronRight className="w-4 h-4 text-green-600" />
+                {/* Top color accent bar */}
+                <div className="h-1.5 w-full bg-gradient-to-r from-green-400 to-emerald-500" />
+
+                <div className="flex items-start justify-between p-6 gap-4">
+                  {/* Text content */}
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <h3 className="text-base font-bold text-gray-800 dark:text-gray-100 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">Upload Documents</h3>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 leading-relaxed">Search for a patient and manage their documents</p>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      Open <ChevronRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                  {/* Icon area */}
+                  <div className="flex-shrink-0 w-16 h-16 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center group-hover:bg-green-100 dark:group-hover:bg-green-900/50 transition-colors">
+                    <Upload className="w-7 h-7 text-green-600 dark:text-green-400" />
+                  </div>
                 </div>
               </button>
 
-              {/* Scan QR Code Card */}
+              {/* ── 2. Scan QR Code ── */}
               <button
                 onClick={() => { setOperatorMode('scanner'); setActiveTab('scanner'); }}
-                className="group relative flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-gray-200 bg-white hover:border-blue-500 hover:shadow-xl transition-all duration-200 text-center"
+                className="group relative bg-white dark:bg-gray-800 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30 transition-all duration-200 text-left"
               >
-                <div className="w-20 h-20 rounded-2xl bg-blue-100 group-hover:bg-blue-200 flex items-center justify-center transition-colors">
-                  <QrCode className="w-10 h-10 text-blue-700" />
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-gray-800 group-hover:text-blue-700 transition-colors">Scan QR Code</p>
-                  <p className="text-sm text-gray-500 mt-1">Scan a member's health card QR code</p>
-                </div>
-                <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                  <ChevronRight className="w-4 h-4 text-blue-600" />
+                <div className="h-1.5 w-full bg-gradient-to-r from-blue-400 to-indigo-500" />
+
+                <div className="flex items-start justify-between p-6 gap-4">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <h3 className="text-base font-bold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Scan QR Code</h3>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 leading-relaxed">Scan a member's health card QR code</p>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      Open <ChevronRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                  <div className="flex-shrink-0 w-16 h-16 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors">
+                    <QrCode className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+                  </div>
                 </div>
               </button>
 
-              {/* Member Tagging Card */}
+              {/* ── 3. Member Tagging ── */}
               <button
-                onClick={() => { setOperatorMode('tagging'); setActiveTab('tagging'); }}
-                className="group relative flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-gray-200 bg-white hover:border-amber-500 hover:shadow-xl transition-all duration-200 text-center"
+                onClick={() => { if (!isBarangayOfficer) { setOperatorMode('tagging'); setActiveTab('tagging'); } }}
+                disabled={isBarangayOfficer}
+                className={`group relative rounded-2xl overflow-hidden border transition-all duration-200 text-left ${
+                  isBarangayOfficer
+                    ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700 cursor-not-allowed'
+                    : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30'
+                }`}
               >
-                <div className="w-20 h-20 rounded-2xl bg-amber-100 group-hover:bg-amber-200 flex items-center justify-center transition-colors">
-                  <Tag className="w-10 h-10 text-amber-700" />
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-gray-800 group-hover:text-amber-700 transition-colors">Member Tagging</p>
-                  <p className="text-sm text-gray-500 mt-1">Tag and categorize health card members</p>
-                </div>
-                <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                  <ChevronRight className="w-4 h-4 text-amber-600" />
+                <div className={`h-1.5 w-full ${isBarangayOfficer ? 'bg-gray-200 dark:bg-gray-600' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} />
+
+                <div className="flex items-start justify-between p-6 gap-4">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className={`text-base font-bold transition-colors ${
+                        isBarangayOfficer ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-100 group-hover:text-amber-600 dark:group-hover:text-amber-400'
+                      }`}>Member Tagging</h3>
+                      {isBarangayOfficer && <Lock className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600" />}
+                    </div>
+                    <p className={`text-xs leading-relaxed ${isBarangayOfficer ? 'text-gray-300 dark:text-gray-600' : 'text-gray-400 dark:text-gray-500'}`}>
+                      {isBarangayOfficer ? 'Not available for Barangay Officers' : 'Tag and categorize health card members'}
+                    </p>
+                    {!isBarangayOfficer && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        Open <ChevronRight className="w-3 h-3" />
+                      </span>
+                    )}
+                  </div>
+                  <div className={`flex-shrink-0 w-16 h-16 rounded-xl flex items-center justify-center transition-colors ${
+                    isBarangayOfficer ? 'bg-gray-100 dark:bg-gray-700' : 'bg-amber-50 dark:bg-amber-900/30 group-hover:bg-amber-100 dark:group-hover:bg-amber-900/50'
+                  }`}>
+                    <Tag className={`w-7 h-7 ${isBarangayOfficer ? 'text-gray-300 dark:text-gray-600' : 'text-amber-600 dark:text-amber-400'}`} />
+                  </div>
                 </div>
               </button>
+
             </div>
           </div>
         )}
@@ -1485,8 +1917,8 @@ const UhcOperator = () => {
         {operatorMode && (
         <>
         <button
-          onClick={() => { setOperatorMode(null); stopCamera(); }}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 transition-colors w-fit mb-1"
+          onClick={() => { resetDocumentManager(); setOperatorMode(null); stopCamera(); }}
+          className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors w-fit mb-1"
         >
           <ArrowLeft className="w-4 h-4" /> Back to menu
         </button>
@@ -1495,7 +1927,7 @@ const UhcOperator = () => {
             <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="documents">Document Manager</TabsTrigger>
             </TabsList>
-          ) : operatorMode === 'tagging' ? (
+          ) : operatorMode === 'tagging' && !isBarangayOfficer ? (
             <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="tagging">Member Tagging</TabsTrigger>
             </TabsList>
@@ -1509,38 +1941,45 @@ const UhcOperator = () => {
           {/* ═══ DOCUMENT MANAGER ═══ */}
           <TabsContent value="documents">
             <div className="flex flex-col gap-5">
-              <Card className="p-6">
-                <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
-                  <Search className="w-5 h-5 text-green-600" /> Search Patient
+           <Card className="p-4 sm:p-6">
+                <h3 className="font-semibold text-base sm:text-lg mb-1 flex items-center gap-2">
+                  <Search className="w-5 h-5 text-green-600" /> Search Member
                 </h3>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Input
                     placeholder="Search by first or last name"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    className="flex-1"
+                    className="flex-1 min-w-0"
                   />
                   <Button onClick={handleSearch} disabled={isSearching} className="flex gap-2 bg-green-700 hover:bg-green-800">
                     {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Search
                   </Button>
+                  {(selectedPatient || searchResults.length > 0 || searchQuery) && (
+                    <Button variant="outline" onClick={resetDocumentManager} className="flex gap-2 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <RefreshCw className="w-4 h-4" /> Clear
+                    </Button>
+                  )}
                 </div>
 
                 {searchResults.length > 0 && (
-                  <div className="mt-3 border rounded-lg overflow-hidden divide-y">
+                  <div className="mt-3 border dark:border-gray-700 rounded-lg overflow-hidden divide-y dark:divide-gray-700">
                     {searchResults.map((p) => (
                       <button
                         key={p.id}
                         onClick={() => selectPatient(p)}
                         disabled={isLoadingPatientPin}
-                        className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors flex items-center gap-3 disabled:opacity-60"
+                        className="w-full text-left px-4 py-3 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors flex items-center gap-3 disabled:opacity-60"
                       >
-                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-xs flex-shrink-0">
-                          {p.first_name[0]}{p.last_name[0]}
-                        </div>
+                        <img
+                          src={searchResultPics[p.id] || defaultProfile}
+                          alt={fullName(p)}
+                          className="w-8 h-8 rounded-full object-cover border-2 border-green-200 dark:border-green-800 flex-shrink-0"
+                        />
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{fullName(p)}</p>
-                          <p className="text-xs text-gray-500">{p.sex} · DOB: {p.birth_date} · {getFullAddress(p.brgy)}</p>
+                          <p className="font-medium text-gray-900 dark:text-gray-100">{fullName(p)}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{p.sex} · DOB: {p.birth_date} · {getFullAddress(p.brgy)}</p>
                         </div>
                         {isLoadingPatientPin
                           ? <Loader2 className="w-4 h-4 text-green-600 animate-spin flex-shrink-0" />
@@ -1552,24 +1991,108 @@ const UhcOperator = () => {
                 )}
 
                 {selectedPatient && (
-                  <div className="mt-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {profilePicUrl ? (
-                        <img src={profilePicUrl} alt="Profile" className="w-10 h-10 rounded-full object-cover border-2 border-green-300" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
-                          {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
+                 <div className="mt-4 flex flex-col items-center sm:items-start sm:flex-row gap-6 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 sm:p-5">
+                    {/* ── Profile Picture Section ── */}
+                    <div className="flex flex-col items-center gap-3 sm:min-w-[180px]">
+                      <div className="relative group">
+                        <div className="w-28 h-28 rounded-2xl overflow-hidden ring-4 ring-green-100 dark:ring-green-900/40 shadow-lg">
+                          <img
+                            src={profilePicUrl || defaultProfile}
+                            alt="Profile"
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                      )}
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-green-900">{fullName(selectedPatient)}</p>
-                        </div>
-                        <p className="text-xs text-green-600">{selectedPatient.sex} · {selectedPatient.birth_date} · {getFullAddress(selectedPatient.brgy)}</p>
+                        {/* Hover overlay — hidden for Barangay Officers */}
+                        {!isBarangayOfficer && (
+                          <button
+                            onClick={() => profilePicInputRef.current?.click()}
+                            className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col items-center justify-center cursor-pointer gap-1"
+                            title="Upload profile picture"
+                          >
+                            <Camera className="w-6 h-6 text-white drop-shadow" />
+                            <span className="text-[10px] font-semibold text-white drop-shadow">
+                              {profilePicUrl ? 'Change' : 'Upload'}
+                            </span>
+                          </button>
+                        )}
+                        {/* Uploading spinner */}
+                        {isUploadingPic && (
+                          <div className="absolute inset-0 rounded-2xl bg-black/50 flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 text-white animate-spin" />
+                          </div>
+                        )}
+                        {/* Hidden file input — only for non-Barangay Officers */}
+                        {!isBarangayOfficer && (
+                          <input
+                            ref={profilePicInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleProfilePicUpload}
+                          />
+                        )}
+                        {/* Small camera badge — hidden for Barangay Officers */}
+                        {!isBarangayOfficer && (
+                          <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-green-600 dark:bg-green-500 flex items-center justify-center shadow-md border-2 border-white dark:border-gray-800">
+                            <Camera className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        )}
                       </div>
+                      {/* Upload button — hidden for Barangay Officers */}
+                      {!isBarangayOfficer && (
+                        <button
+                          onClick={() => profilePicInputRef.current?.click()}
+                          className="text-xs font-medium text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 flex items-center gap-1.5 transition-colors px-3 py-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          Upload Photo
+                        </button>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-green-700">
-                      <CheckCircle2 className="w-4 h-4" />{totalFiles} file{totalFiles !== 1 ? 's' : ''} added
+
+                    {/* ── Profile Details Section ── */}
+                    <div className="flex-1 min-w-0 text-center sm:text-left">
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
+                        <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-gray-100 truncate">
+                          {fullName(selectedPatient)}
+                        </h3>
+                        <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-[10px] font-semibold uppercase tracking-wide">
+                          Member
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Health Profile</p>
+
+                      {/* Info grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                          <User className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Sex</p>
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{selectedPatient.sex || 'N/A'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                          <IdCard className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Date of Birth</p>
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{formatDate(selectedPatient.birth_date)} ({computeAge(selectedPatient.birth_date)})</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 sm:col-span-2">
+                          <Building2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          <div className="min-w-0 overflow-hidden">
+                            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Address</p>
+                            <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200 break-words">{getFullAddress(selectedPatient.brgy)}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Document stats */}
+                      <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400">
+                          <CheckCircle2 className="w-3.5 h-3.5" />{totalFiles} file{totalFiles !== 1 ? 's' : ''} added
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1581,53 +2104,12 @@ const UhcOperator = () => {
                 )}
               </Card>
 
-              {/* ── Profile Picture Upload ── */}
-              {selectedPatient && (
-                <Card className="p-6">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                    <Camera className="w-5 h-5 text-green-600" /> Profile Picture
-                  </h3>
-                  <div className="flex items-center gap-6">
-                    <div className="relative flex-shrink-0">
-                      {profilePicUrl ? (
-                        <img src={profilePicUrl} alt="Profile" className="w-24 h-24 rounded-full object-cover border-4 border-green-200 shadow-md" />
-                      ) : (
-                        <div className="w-24 h-24 rounded-full bg-gray-100 border-4 border-dashed border-gray-300 flex items-center justify-center">
-                          <User className="w-10 h-10 text-gray-300" />
-                        </div>
-                      )}
-                      {isUploadingPic && (
-                        <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
-                          <Loader2 className="w-6 h-6 text-white animate-spin" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-600 mb-3">
-                        Upload a profile photo for <strong>{fullName(selectedPatient)}</strong>. This will appear on their Health ID Card.
-                      </p>
-                      <Button variant="outline" disabled={isUploadingPic}
-                        onClick={() => profilePicInputRef.current?.click()}
-                        className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50">
-                        <Upload className="w-4 h-4" />
-                        {profilePicUrl ? 'Change Photo' : 'Upload Photo'}
-                      </Button>
-                      <input ref={profilePicInputRef} type="file" accept="image/*" className="hidden"
-                        onChange={handleProfilePicUpload} />
-                      {profilePicError && (
-                        <p className="text-xs text-red-600 mt-2 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{profilePicError}</p>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              )}
-
-              <Card className="p-6">
-                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+            <Card className="p-4 sm:p-6">
+                <h3 className="font-semibold text-base sm:text-lg mb-4 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-green-600" /> Document Folders
                 </h3>
                 {!selectedPatient ? (
-                  <div className="text-center py-10 text-gray-400">
+                  <div className="text-center py-10 text-gray-400 dark:text-gray-500">
                     <User className="w-10 h-10 mx-auto mb-2 opacity-40" />
                     <p>Search and select a patient to manage their documents.</p>
                   </div>
@@ -1639,13 +2121,13 @@ const UhcOperator = () => {
                       return (
                         <div key={folder.key} className={`border rounded-xl overflow-hidden ${colors.border}`}>
                           <button
-                            className={`w-full flex items-center gap-4 px-5 py-4 ${colors.bg} transition-colors hover:opacity-90`}
+                            className={`w-full flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-3 sm:py-4 ${colors.bg} transition-colors hover:opacity-90`}
                             onClick={() => setExpandedFolder(isExp ? null : folder.key)}
                           >
                             <span className={colors.text}>{folder.icon}</span>
-                            <div className="flex-1 text-left">
-                              <p className={`font-semibold ${colors.text}`}>{folder.label}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">{folder.description}</p>
+                            <div className="flex-1 text-left min-w-0">
+                              <p className={`font-semibold text-sm sm:text-base ${colors.text}`}>{folder.label}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 hidden sm:block">{folder.description}</p>
                             </div>
                             <div className="flex items-center gap-3">
                               {folder.files.length > 0 && (
@@ -1659,8 +2141,8 @@ const UhcOperator = () => {
                             </div>
                           </button>
                           {isExp && (
-                            <div className="p-5 border-t bg-white">
-                              <p className="text-xs text-gray-400 mb-3 italic">
+                            <div className="p-5 border-t dark:border-gray-700 bg-white dark:bg-gray-800">
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 italic">
                                 Select a file — you will be asked to identify the document type. Files saved to <strong>{folder.bucketFolder}</strong>.
                               </p>
                               <div
@@ -1670,7 +2152,7 @@ const UhcOperator = () => {
                                 <Upload className={`w-8 h-8 ${colors.text} opacity-60`} />
                                 <div className="text-center">
                                   <p className={`font-medium text-sm ${colors.text}`}>Click to upload PDF or Image</p>
-                                  <p className="text-xs text-gray-400 mt-0.5">PDF, JPG, PNG — images auto-converted to PDF</p>
+                                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">PDF, JPG, PNG — images auto-converted to PDF</p>
                                 </div>
                                 <input
                                   ref={(el) => { fileInputRefs.current[folder.key] = el; }}
@@ -1681,28 +2163,32 @@ const UhcOperator = () => {
                               {folder.files.length > 0 && (
                                 <div className="mt-4 flex flex-col gap-2">
                                   {folder.files.map((file, idx) => (
-                                    <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg border ${file.saved ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'}`}>
-                                      <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-800 truncate">{file.docType}</p>
-                                        <p className="text-xs text-gray-400">{file.uploadedAt}</p>
+                                    <div key={idx} className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border ${file.saved ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-600'}`}>
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{file.docType}</p>
+                                          <p className="text-xs text-gray-400 dark:text-gray-500">{file.uploadedAt}</p>
+                                        </div>
                                       </div>
-                                      {file.saved && (
-                                        <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">
-                                          <CheckCircle2 className="w-3 h-3" /> Saved
-                                        </span>
-                                      )}
-                                      <button onClick={() => setPreviewFile(file)} className="p-1 rounded hover:bg-gray-200 flex-shrink-0">
-                                        <Eye className="w-4 h-4 text-gray-400 hover:text-green-600" />
-                                      </button>
-                                      {!file.saved && (
-                                        <Button size="sm" disabled={file.saving}
-                                          className="bg-green-700 hover:bg-green-800 text-white text-xs flex gap-1.5 px-3 min-w-[72px] flex-shrink-0"
-                                          onClick={() => handleSaveFile(folder.key, idx)}>
-                                          {file.saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                          {file.saving ? 'Saving…' : 'Save'}
-                                        </Button>
-                                      )}
+                                      <div className="flex items-center gap-2 ml-7 sm:ml-0 flex-shrink-0">
+                                        {file.saved && (
+                                          <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                                            <CheckCircle2 className="w-3 h-3" /> Saved
+                                          </span>
+                                        )}
+                                        <button onClick={() => setPreviewFile(file)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0">
+                                          <Eye className="w-4 h-4 text-gray-400 hover:text-green-600 dark:text-gray-500 dark:hover:text-green-400" />
+                                        </button>
+                                        {!file.saved && (
+                                          <Button size="sm" disabled={file.saving}
+                                            className="bg-green-700 hover:bg-green-800 text-white text-xs flex gap-1.5 px-3 min-w-[72px] flex-shrink-0"
+                                            onClick={() => handleSaveFile(folder.key, idx)}>
+                                            {file.saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                            {file.saving ? 'Saving…' : 'Save'}
+                                          </Button>
+                                        )}
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -1720,49 +2206,6 @@ const UhcOperator = () => {
                   </div>
                 )}
               </Card>
-
-              {selectedPatient && (
-                <Card className="p-6">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                    <QrCode className="w-5 h-5 text-green-600" /> Generate QR Code
-                  </h3>
-                  <div className="flex flex-col md:flex-row gap-6 items-start">
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-600 mb-4">
-                        Generate a unique, permanent QR code for <strong>{fullName(selectedPatient)}</strong>.
-                      </p>
-                      <Button onClick={handleGenerateQr} disabled={isGenerating} className="bg-green-700 hover:bg-green-800 flex gap-2">
-                        {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
-                        {isGenerating ? 'Generating…' : generatedQr ? 'Regenerate QR Code' : 'Generate QR Code'}
-                      </Button>
-                      {generatedQr && (
-                        <div className="mt-4 p-3 bg-gray-50 rounded-lg border text-xs font-mono text-gray-700 break-all">
-                          <p className="text-xs text-gray-400 mb-1">QR Code Value:</p>{generatedQr}
-                        </div>
-                      )}
-                      {errorMessage && selectedPatient && (
-                        <div className="mt-3 flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" /><p>{errorMessage}</p>
-                        </div>
-                      )}
-                    </div>
-                    {qrDataUrl && (
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="p-4 bg-white border-4 border-green-700 rounded-2xl shadow-lg">
-                          <img src={qrDataUrl} alt="Generated QR Code" className="w-40 h-40" />
-                        </div>
-                        <a
-                          href={qrDataUrl}
-                          download={`QR_${selectedPatient.last_name}_${selectedPatient.first_name}.png`}
-                          className="flex items-center gap-1 text-sm text-green-700 hover:underline font-medium"
-                        >
-                          <Download className="w-4 h-4" /> Download QR
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              )}
             </div>
           </TabsContent>
 
@@ -1770,22 +2213,22 @@ const UhcOperator = () => {
           <TabsContent value="scanner">
             <div className="flex flex-col gap-5">
               {!scanResult ? (
-                <Card className="p-6">
-                  <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
+                <Card className="p-4 sm:p-6">
+                  <h3 className="font-semibold text-base sm:text-lg mb-1 flex items-center gap-2">
                     <Camera className="w-5 h-5 text-green-600" /> QR Code Scanner
                   </h3>
-                  <div className="mb-5 flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+                  <div className="mb-5 flex items-start gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
                     <Lock className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-sm font-semibold text-green-800">PIN verification</p>
-                      <p className="text-xs text-green-600 mt-0.5 leading-relaxed">
+                      <p className="text-sm font-semibold text-green-800 dark:text-green-300">PIN verification</p>
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-0.5 leading-relaxed">
                         If the member has set a PIN, you must ask them for it before viewing their records.
                         If no PIN is set yet, you can still proceed — but remind them to set one.
                       </p>
                     </div>
                   </div>
 
-                  <div className={`w-full max-w-md mx-auto rounded-xl border-2 transition-all ${cameraActive ? 'border-green-500 bg-green-50' : 'border-dashed border-gray-300 bg-gray-50'}`} style={{ minHeight: 180 }}>
+                  <div className={`w-full max-w-md mx-auto rounded-xl border-2 transition-all ${cameraActive ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800'}`} style={{ minHeight: 180 }}>
                     <div className="flex flex-col items-center justify-center h-44 gap-3">
                       {cameraActive ? (
                         <>
@@ -1796,12 +2239,12 @@ const UhcOperator = () => {
                             <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse inline-block" />
                             Camera is active
                           </p>
-                          <p className="text-xs text-gray-500 text-center max-w-xs">See the floating window (bottom-right). Hold the QR code steady.</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 text-center max-w-xs">See the floating window (bottom-right). Hold the QR code steady.</p>
                         </>
                       ) : (
                         <>
-                          <CameraOff className="w-12 h-12 text-gray-300" />
-                          <p className="text-sm text-gray-400">Camera is off</p>
+                          <CameraOff className="w-12 h-12 text-gray-300 dark:text-gray-600" />
+                          <p className="text-sm text-gray-400 dark:text-gray-500">Camera is off</p>
                         </>
                       )}
                     </div>
@@ -1832,129 +2275,61 @@ const UhcOperator = () => {
                 </Card>
               ) : (
                 <div className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-sm text-gray-500">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex items-center gap-1.5"><Clock className="w-4 h-4" />Scanned: {scanResult.scanTime}</div>
                       <span className="flex items-center gap-1 bg-green-100 text-green-700 border border-green-200 text-xs font-semibold px-2.5 py-1 rounded-full">
                         <ShieldCheck className="w-3.5 h-3.5" /> Access Granted
                       </span>
                     </div>
-                    <Button variant="outline" onClick={resetScan} className="flex gap-2">
+                    <Button variant="outline" onClick={resetScan} className="flex gap-2 self-start sm:self-auto">
                       <RefreshCw className="w-4 h-4" /> Scan Another
                     </Button>
                   </div>
 
                   {/* Health ID Card */}
-                  <div className="max-w-2xl mx-auto w-full">
-                    <div className="bg-yellow-400 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-                      <div className="absolute top-0 left-0 right-0 h-24">
-                        <svg className="absolute bottom-0 w-full" viewBox="0 0 1200 80" preserveAspectRatio="none">
-                          <path d="M0,40 Q300,10 600,40 T1200,40 L1200,80 L0,80 Z" fill="#16a34a" />
-                        </svg>
-                      </div>
-                      <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-8 pt-4">
-                          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center border-4 border-green-700 flex-shrink-0">
-                            <div className="text-center">
-                              <p className="text-xs font-bold text-green-700 leading-none">UHC</p>
-                              <p className="text-xs font-bold text-green-700 leading-none">2026</p>
-                            </div>
-                          </div>
-                          <h1 className="text-3xl font-bold text-green-700">HEALTH ID CARD</h1>
-                          <span className="ml-auto flex items-center gap-1 bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Verified
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-5 items-start">
-                          <div className="col-span-2 space-y-3">
-                            <div className="bg-green-600 text-white px-5 py-3 rounded-xl">
-                              <p className="text-xs uppercase tracking-wide opacity-80 mb-0.5">First Name</p>
-                              <h2 className="text-2xl font-bold leading-tight">{scanResult.patient.first_name}</h2>
-                            </div>
-                            <div className="bg-green-600 text-white px-5 py-3 rounded-xl">
-                              <p className="text-xs uppercase tracking-wide opacity-80 mb-0.5">Last Name</p>
-                              <h2 className="text-2xl font-bold leading-tight">{scanResult.patient.last_name}</h2>
-                            </div>
-                            {scanResult.patient.ext_name && (
-                              <div className="bg-green-500 text-white px-5 py-3 rounded-xl flex items-center gap-3">
-                                <User className="w-5 h-5 opacity-80 flex-shrink-0" />
-                                <div>
-                                  <p className="text-xs uppercase tracking-wide opacity-80">Extension Name</p>
-                                  <p className="font-bold">{scanResult.patient.ext_name}</p>
-                                </div>
-                              </div>
-                            )}
-                            {scanResult.patient.sex && (
-                              <div className="bg-green-500 text-white px-5 py-3 rounded-xl flex items-center gap-3">
-                                <User className="w-5 h-5 opacity-80 flex-shrink-0" />
-                                <div>
-                                  <p className="text-xs uppercase tracking-wide opacity-80">Sex</p>
-                                  <p className="font-bold">{scanResult.patient.sex}</p>
-                                </div>
-                              </div>
-                            )}
-                            {scanResult.patient.birth_date && (
-                              <div className="bg-green-500 text-white px-5 py-3 rounded-xl flex items-center gap-3">
-                                <Calendar className="w-5 h-5 opacity-80 flex-shrink-0" />
-                                <div>
-                                  <p className="text-xs uppercase tracking-wide opacity-80">Date of Birth</p>
-                                  <p className="font-bold">{scanResult.patient.birth_date}</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex flex-col items-center gap-3">
-                            <div className="bg-white p-3 rounded-2xl border-4 border-green-700 shadow-lg">
-                              {scanResult.qrCodeDataUrl
-                                ? <img src={scanResult.qrCodeDataUrl} alt="QR" className="w-28 h-28 rounded" />
-                                : <div className="w-28 h-28 flex flex-col items-center justify-center bg-gray-50 rounded p-1">
-                                    <QrCode className="w-16 h-16 text-green-700 opacity-60" />
-                                    <p className="text-[7px] font-mono text-gray-400 break-all text-center mt-1">{scanResult.qrValue.substring(0, 24)}</p>
-                                  </div>
-                              }
-                            </div>
-                            <p className="text-[10px] font-mono text-green-800 text-center opacity-70 leading-tight max-w-[7rem] break-all">
-                              {scanResult.qrValue.substring(0, 20)}…
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                  {scanQrDataUrl && (
+                    <div className="overflow-x-auto flex justify-center">
+                      <HealthIdCard
+                        patient={scanResult.patient}
+                        qrDataUrl={scanQrDataUrl}
+                        qrCodeValue={scanResult.qrValue}
+                        profilePicUrl={scanProfilePicUrl}
+                      />
                     </div>
-                  </div>
+                  )}
 
-                  <Card className="p-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <Card className="p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                      <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                         <FileText className="w-5 h-5 text-green-600" /> Uploaded Documents
                       </h3>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
                         {scanResult.documents.length} document{scanResult.documents.length !== 1 ? 's' : ''} found
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400 mb-2">Click a category to expand and view its files.</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Click a category to expand and view its files.</p>
                     <DocumentList documents={scanResult.documents} patientName={`${scanResult.patient.last_name}_${scanResult.patient.first_name}`} />
                   </Card>
                 </div>
               )}
 
               {!scanResult && scanHistory.length > 0 && (
-                <Card className="p-6">
-                  <h3 className="font-semibold text-base mb-3 flex items-center gap-2 text-gray-700">
+                <Card className="p-4 sm:p-6">
+                  <h3 className="font-semibold text-base mb-3 flex items-center gap-2 text-gray-700 dark:text-gray-300">
                     <Clock className="w-4 h-4 text-green-600" /> Recent Scans
                   </h3>
                   <div className="flex flex-col gap-2">
                     {scanHistory.slice(0, 5).map((e) => (
-                      <div key={e.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50">
-                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-xs flex-shrink-0">
+                      <div key={e.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                        <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center text-green-700 dark:text-green-400 font-bold text-xs flex-shrink-0">
                           {e.memberName[0]}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{e.memberName}</p>
-                          <p className="text-xs text-gray-400 truncate">{e.qrData}</p>
+                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{e.memberName}</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{e.qrData}</p>
                         </div>
-                        <p className="text-xs text-gray-400 flex-shrink-0">{e.scanTime}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">{e.scanTime}</p>
                       </div>
                     ))}
                   </div>
@@ -1965,87 +2340,110 @@ const UhcOperator = () => {
 
           {/* ═══ HISTORY TAB ═══ */}
           <TabsContent value="history">
-            <Card className="p-6">
-              <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                <History className="w-5 h-5 text-green-600" /> Scan History
-              </h3>
+            <Card className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                    <History className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base sm:text-lg text-gray-800 dark:text-gray-100">Scan History</h3>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">Recently scanned health cards</p>
+                  </div>
+                </div>
+                {dbScanHistory.length > 0 && (
+                  <span className="text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-full">
+                    {dbScanHistory.length} scan{dbScanHistory.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+
               {isLoadingHistory ? (
-                <div className="flex justify-center py-10">
+                <div className="flex flex-col items-center justify-center py-14 gap-3">
                   <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+                  <p className="text-sm text-gray-400 dark:text-gray-500">Loading history…</p>
                 </div>
               ) : dbScanHistory.length > 0 ? (
                 <div className="space-y-3">
-                {dbScanHistory.map((scan) => (
-                <div
-                  key={scan.id}
-                  className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+                {dbScanHistory.map((scan) => {
+                  const roleName = scan.role_name || 'Unknown Role';
+                  const isBarangay = roleName.toLowerCase().includes('barangay');
+                  const roleColor = isBarangay
+                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                    : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800';
 
-                    <div className="flex flex-col items-center">
-                      <p className="text-xs text-gray-500">Member</p>
-                      <p className="font-medium text-gray-900">
-                        {scan.patient_name}
-                      </p>
-                    </div>
+                  return (
+                    <div
+                      key={scan.id}
+                      className="group relative bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl p-4 hover:shadow-md dark:hover:shadow-gray-900/40 hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-200"
+                    >
+                      {/* Left accent */}
+                      <div className="absolute left-0 top-3 bottom-3 w-1 rounded-full bg-gradient-to-b from-green-200 to-emerald-200 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
 
-                    <div className="flex flex-col items-center">
-                      <p className="text-xs text-gray-500">QR Code</p>
-                      <p className="font-medium text-gray-800 text-xs break-all">
-                        {scan.qr_code}
-                      </p>
-                    </div>
+                      <div className="flex items-center gap-4">
+                        {/* Profile picture */}
+                        <img
+                          src={scan.profile_pic_url || defaultProfile}
+                          alt={scan.patient_name}
+                          className="w-11 h-11 rounded-xl object-cover flex-shrink-0 border-2 border-green-200 dark:border-green-800"
+                        />
 
-                    <div className="flex flex-col items-center">
-                      <p className="text-xs text-gray-500">Scanned By</p>
-                      <span className="inline-flex items-center justify-center gap-1 text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                        {scan.role_name || 'Unknown Role'}
-                      </span>
-                    </div>
+                        {/* Main info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-gray-800 dark:text-gray-100 truncate">{scan.patient_name}</p>
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${roleColor}`}>
+                              <ShieldCheck className="w-3 h-3" />
+                              {roleName}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                              <QrCode className="w-3 h-3 flex-shrink-0" />
+                              <span className="font-mono break-all">{scan.qr_code}</span>
+                            </span>
+                          </div>
+                        </div>
 
-                    <div className="flex flex-col items-center">
-                      <p className="text-xs text-gray-500">Scanned At</p>
-                      <p className="font-medium text-gray-900 flex items-center justify-center gap-1 text-sm w-full">
+                        {/* Timestamp */}
+                        <div className="flex-shrink-0 text-right hidden sm:block">
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5 justify-end">
+                            <Clock className="w-3.5 h-3.5" />
+                            {new Date(scan.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+                            {new Date(scan.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Mobile timestamp */}
+                      <div className="flex items-center gap-1.5 mt-2 sm:hidden text-xs text-gray-400 dark:text-gray-500">
                         <Clock className="w-3 h-3" />
                         {new Date(scan.created_at).toLocaleString()}
-                      </p>
+                      </div>
                     </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 </div>
               ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <History className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>No scan history yet</p>
-                  <p className="text-sm mt-1">Use the QR Scanner tab to scan a health card</p>
+                <div className="flex flex-col items-center py-16 gap-3">
+                  <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                    <History className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                  </div>
+                  <p className="font-semibold text-gray-500 dark:text-gray-400">No scan history yet</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xs text-center">Use the QR Scanner tab to scan a member's health card. All scans will appear here.</p>
                 </div>
               )}
             </Card>
           </TabsContent>
 
-          {/* ═══ MEMBER TAGGING ═══ */}
+        {/* ═══ MEMBER TAGGING ═══ */}
+          {!isBarangayOfficer && (
           <TabsContent value="tagging">
-            <Card className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                  <Tag className="w-5 h-5 text-amber-700" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-lg text-gray-900">Health Card Member Tagging</h3>
-                  <p className="text-xs text-gray-400">Tag and categorize health card members.</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center py-16 text-gray-400">
-                <Tag className="w-16 h-16 opacity-20 mb-4" />
-                <p className="font-medium text-gray-500">Coming Soon</p>
-                <p className="text-sm mt-1 text-center max-w-sm">
-                  This section will allow you to tag and categorize health card members for better organization and tracking.
-                </p>
-              </div>
-            </Card>
+            <MemberTagging />
           </TabsContent>
+          )}
 
         </Tabs>
         </>

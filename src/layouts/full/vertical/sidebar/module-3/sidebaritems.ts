@@ -42,6 +42,7 @@ const SidebarContent: MenuItem[] = [
         icon: 'solar:users-group-rounded-linear',
         id: uniqueId(),
         url: '/module-3/patient-list',
+        module: PAGE_MODULES.MODULE_3_PATIENT_LIST,
       },
       {
         name: 'Patient Profiling',

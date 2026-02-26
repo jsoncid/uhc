@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,12 @@ import {
   Square,
 } from 'lucide-react';
 import patientService, { PatientProfileWithLocations as PatientProfile, Facility } from 'src/services/patientService';
+import { mapFacilityList } from '../utils/facilityHelpers';
+import {
+  getPatientSearchBuckets,
+  getPatientSearchSummaries,
+  PatientDatabaseSummary,
+} from '../utils/patientSearchResultHelpers';
 
 interface PatientLinkingDialogProps {
   open: boolean;
@@ -68,28 +74,43 @@ export const PatientLinkingDialog = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [linkingProgress, setLinkingProgress] = useState({ current: 0, total: 0 });
+  const [searchMeta, setSearchMeta] = useState<{ totalMatches: number; databaseSummaries: PatientDatabaseSummary[] }>({
+    totalMatches: 0,
+    databaseSummaries: [],
+  });
 
-  // The only 2 supported facilities for patient linking/history
-  const SUPPORTED_FACILITIES: Facility[] = [
-    {
-      facility_code: '0005027',
-      facility_name: 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL',
-      patient_count: 17468,
-      database: 'adnph_ihomis_plus',
-    },
-    {
-      facility_code: '0005028',
-      facility_name: 'NASIPIT DISTRICT HOSPITAL',
-      patient_count: 17468,
-      database: 'ndh_ihomis_plus',
-    },
-  ];
+  const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
+  const [facilityLoadError, setFacilityLoadError] = useState<string | null>(null);
+  const validFacilities = facilities.filter((facility) => facility.facility_code);
+
+  const loadFacilities = useCallback(async () => {
+    setIsLoadingFacilities(true);
+    setFacilityLoadError(null);
+    try {
+      const response = await patientService.getFacilities();
+      if (!response.success) {
+        throw new Error(response.message || 'Unable to load repository metadata');
+      }
+
+      const normalized = mapFacilityList(response);
+      if (!normalized.length) {
+        setFacilityLoadError('No repository databases are configured in module3.db_informations.');
+      }
+
+      setFacilities(normalized);
+    } catch (error) {
+      console.error('Failed to load facilities:', error);
+      setFacilities([]);
+      setFacilityLoadError(error instanceof Error ? error.message : 'Failed to load facilities');
+    } finally {
+      setIsLoadingFacilities(false);
+    }
+  }, []);
 
   // Load facilities on mount
   useEffect(() => {
     if (open) {
-      // Use only the 2 supported facilities instead of loading all
-      setFacilities(SUPPORTED_FACILITIES);
+      void loadFacilities();
       // Reset state when dialog opens
       setSearchTerm('');
       setMysqlSearchResults([]);
@@ -99,8 +120,9 @@ export const PatientLinkingDialog = ({
       setError(null);
       setSuccess(false);
       setLinkingProgress({ current: 0, total: 0 });
+      setFacilityLoadError(null);
     }
-  }, [open]);
+  }, [open, loadFacilities]);
 
   // Toggle single patient selection
   const togglePatientSelection = (patient: PatientProfile) => {
@@ -137,6 +159,8 @@ export const PatientLinkingDialog = ({
 
     setIsSearching(true);
     setError(null);
+    setMysqlSearchResults([]);
+    setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
     try {
       const result = await patientService.searchPatients(searchTerm, {
         database: selectedDatabase || undefined,
@@ -144,33 +168,38 @@ export const PatientLinkingDialog = ({
       });
 
       if (result.success) {
-        // Handle new API format with database1 and database2
-        let allPatients: PatientProfile[] = [];
-        
-        if (result.database1?.data) {
-          allPatients = [...allPatients, ...result.database1.data];
-        }
-        if (result.database2?.data) {
-          allPatients = [...allPatients, ...result.database2.data];
-        }
-        // Fallback to legacy format
-        if (allPatients.length === 0 && result.data) {
-          allPatients = result.data;
-        }
-        
-        // Filter by selected facility if one is chosen
-        if (selectedFacility) {
-          allPatients = allPatients.filter(p => p.facility_code === selectedFacility);
-        }
-        
+        const buckets = getPatientSearchBuckets(result);
+        const filteredBuckets = buckets.map((bucket) => {
+          const filteredData = selectedFacility
+            ? bucket.data.filter((patient) => patient.facility_code === selectedFacility)
+            : bucket.data;
+          return {
+            ...bucket,
+            data: filteredData,
+            pagination: {
+              ...bucket.pagination,
+              total: filteredData.length,
+            },
+          };
+        });
+
+        const allPatients = filteredBuckets.flatMap((bucket) => bucket.data);
         setMysqlSearchResults(allPatients);
+        setSelectedMysqlPatients([]);
+        setSearchMeta({
+          totalMatches: allPatients.length,
+          databaseSummaries: getPatientSearchSummaries(filteredBuckets),
+        });
+
         if (allPatients.length === 0) {
           setError('No patients found in hospital database with that search term');
         }
       } else {
+        setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
         setError(result.message || 'Failed to search patients');
       }
     } catch (err) {
+      setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
       setError(err instanceof Error ? err.message : 'Failed to search patients');
     } finally {
       setIsSearching(false);
@@ -315,24 +344,32 @@ export const PatientLinkingDialog = ({
               Facility (Optional)
             </Label>
             <div className="flex gap-2">
-              <Select 
-                value={selectedFacility} 
-                onValueChange={(value) => {
-                  setSelectedFacility(value);
-                  // Also set the database based on the selected facility
-                  const facility = SUPPORTED_FACILITIES.find(f => f.facility_code === value);
-                  setSelectedDatabase(facility?.database || '');
-                }}
-              >
+                <Select
+                  value={selectedFacility}
+                  onValueChange={(value) => {
+                    setSelectedFacility(value);
+                    const facility = facilities.find((f) => f.facility_code === value);
+                    setSelectedDatabase(facility?.database || '');
+                  }}
+                  disabled={isLoadingFacilities}
+                >
                 <SelectTrigger id="facility">
                   <SelectValue placeholder="Select a facility to filter results" />
                 </SelectTrigger>
                 <SelectContent>
-                  {facilities.map((facility) => (
-                    <SelectItem key={facility.facility_code} value={facility.facility_code}>
-                      {facility.facility_name} ({facility.patient_count.toLocaleString()} patients)
+                  {validFacilities.length === 0 ? (
+                    <SelectItem value="facility-placeholder" disabled>
+                      {isLoadingFacilities
+                        ? 'Loading repositories…'
+                        : facilityLoadError || 'No repositories configured yet.'}
                     </SelectItem>
-                  ))}
+                  ) : (
+                    validFacilities.map((facility) => (
+                      <SelectItem key={facility.facility_code} value={facility.facility_code}>
+                        {facility.facility_name} ({facility.patient_count.toLocaleString()} patients)
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               {selectedFacility && (
@@ -414,6 +451,21 @@ export const PatientLinkingDialog = ({
                   </Button>
                 </div>
               </div>
+              {searchMeta.totalMatches > 0 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Showing {mysqlSearchResults.length} of {searchMeta.totalMatches} record{searchMeta.totalMatches === 1 ? '' : 's'}
+                </p>
+              )}
+              {searchMeta.databaseSummaries.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {searchMeta.databaseSummaries.map((summary) => (
+                    <Badge key={summary.dbName} variant="outline" className="text-[11px] font-medium">
+                      <span className="font-semibold">{summary.description || summary.dbName}</span>
+                      {`: ${summary.count.toLocaleString()} records`}
+                    </Badge>
+                  ))}
+                </div>
+              )}
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {mysqlSearchResults.map((patient) => {
                   const isSelected = isPatientSelected(patient);

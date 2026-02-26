@@ -5,9 +5,10 @@ import FullLogo from '../../shared/logo/FullLogo';
 import { Link, useLocation } from 'react-router';
 import { useTheme } from 'src/components/provider/theme-provider';
 import { usePermissions } from 'src/context/PermissionsContext';
+import { useAuthStore } from 'src/stores/useAuthStore';
+import { ROLE_IDS } from 'src/constants/moduleAccess';
 import { AMLogo, AMMenu, AMMenuItem, AMSidebar, AMSubmenu } from 'tailwind-sidebar';
 import 'tailwind-sidebar/styles.css';
-
 
 interface SidebarItemType {
   heading?: string;
@@ -94,32 +95,49 @@ const renderSidebarItems = (
   });
 };
 
-const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
+const SidebarLayout = ({
+  onClose,
+  isOpen = true,
+  onToggle,
+}: {
+  onClose?: () => void;
+  isOpen?: boolean;
+  onToggle?: () => void;
+}) => {
   const location = useLocation();
   const pathname = location.pathname;
   const { theme } = useTheme();
   const { checkAccess, loading } = usePermissions();
+  const userRoleId = useAuthStore((s) => s.userRoleId);
+  const isMember = userRoleId === ROLE_IDS.module4Member;
+
+  // Sections that should be hidden for member-role users
+  const MEMBER_HIDDEN_SECTIONS = ['Module 5 - OCR', 'Role-Based Access Control', 'Auth'];
 
   // Only allow "light" or "dark" for AMSidebar
   const sidebarMode = theme === 'light' || theme === 'dark' ? theme : undefined;
 
   // Filter children within each section by their page-level module tag.
-  // A section heading is hidden entirely if none of its children are accessible.
+  // Additionally, hide admin-only sections from member users.
   const visibleSections = SidebarContent
     .map((section) => {
+      // Hide entire section from members if it's in the restricted list
+      if (isMember && section.heading && MEMBER_HIDDEN_SECTIONS.includes(section.heading)) {
+        return null;
+      }
+
       if (!section.children || section.children.length === 0) return section;
 
-      const visibleChildren = section.children.filter((child) => {
-        if (!child.module) return true; // no tag → always visible
-        return checkAccess(child.module, 'select');
-      });
+    const visibleChildren = section.children.filter((child) => {
+      if (!child.module) return true; // no tag → always visible
+      return checkAccess(child.module, 'select');
+    });
 
-      // Hide entire section if no children pass the filter
-      if (visibleChildren.length === 0) return null;
+    // Hide entire section if no children pass the filter
+    if (visibleChildren.length === 0) return null;
 
-      return { ...section, children: visibleChildren };
-    })
-    .filter(Boolean) as typeof SidebarContent;
+    return { ...section, children: visibleChildren };
+  }).filter(Boolean) as typeof SidebarContent;
 
   return (
     <AMSidebar
@@ -131,7 +149,9 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
       mode={sidebarMode}
       themeColor="#2eb85c"
       themeSecondaryColor="#ffd34a"
-      className="fixed left-0 top-0 border border-border dark:border-border bg-sidebar dark:bg-sidebar z-10 h-screen"
+      className={`fixed left-0 top-0 border border-border dark:border-border bg-sidebar dark:bg-sidebar z-10 h-screen transition-transform duration-300 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
     >
       {/* Logo */}
       <div className="px-6 flex items-center brand-logo overflow-hidden">
