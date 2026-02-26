@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Trash2, Building2, RefreshCw, Pencil, Users, Tag, ListChecks } from 'lucide-react';
+import { Plus, Search, Trash2, Building2, RefreshCw, Pencil, Users, Tag, ListChecks, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,13 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { AddOfficeDialog } from './AddOfficeDialog';
 import { EditOfficeDialog } from './EditOfficeDialog';
@@ -45,10 +52,12 @@ const AdminPage = () => {
     removeUserFromOffice,
   } = useOfficeUserAssignmentStore();
   const {
+    sequences,
     allPriorities,
     statuses,
     isLoading: isLoadingPriorities,
     error: priorityError,
+    fetchAllSequencesForLogs,
     fetchAllPriorities,
     addPriority,
     updatePriority,
@@ -62,6 +71,14 @@ const AdminPage = () => {
   const [userAssignmentSearchTerm, setUserAssignmentSearchTerm] = useState('');
   const [prioritySearchTerm, setPrioritySearchTerm] = useState('');
   const [statusSearchTerm, setStatusSearchTerm] = useState('');
+  const [queueLogsSearchTerm, setQueueLogsSearchTerm] = useState('');
+  
+  // Queue logs filter states
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterPriority, setFilterPriority] = useState<string>('all');
+  const [filterOffice, setFilterOffice] = useState<string>('all');
+  const [filterActive, setFilterActive] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('date-desc');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAssignUserDialogOpen, setIsAssignUserDialogOpen] = useState(false);
@@ -135,7 +152,8 @@ const AdminPage = () => {
   useEffect(() => {
     fetchAllPriorities();
     fetchStatuses();
-  }, [fetchAllPriorities, fetchStatuses]);
+    fetchAllSequencesForLogs();
+  }, [fetchAllPriorities, fetchStatuses, fetchAllSequencesForLogs]);
 
   const handleDeleteOfficeClick = (office: Office) => {
     setDeleteOfficeConfirm({ isOpen: true, office });
@@ -296,6 +314,81 @@ const AdminPage = () => {
     fetchStatuses();
   };
 
+  // Queue logs handlers
+  const filteredQueueLogs = sequences
+    .filter((sequence) => {
+      // Text search filter
+      if (queueLogsSearchTerm) {
+        const lower = queueLogsSearchTerm.toLowerCase();
+        const matchesSearch = (
+          (sequence.queue_data?.code?.toLowerCase().includes(lower) ?? false) ||
+          (sequence.office_data?.description?.toLowerCase().includes(lower) ?? false) ||
+          (sequence.status_data?.description?.toLowerCase().includes(lower) ?? false) ||
+          (sequence.priority_data?.description?.toLowerCase().includes(lower) ?? false)
+        );
+        if (!matchesSearch) return false;
+      }
+      
+      // Status filter
+      if (filterStatus !== 'all' && sequence.status !== filterStatus) {
+        return false;
+      }
+      
+      // Priority filter
+      if (filterPriority !== 'all' && sequence.priority !== filterPriority) {
+        return false;
+      }
+      
+      // Office filter
+      if (filterOffice !== 'all' && sequence.office !== filterOffice) {
+        return false;
+      }
+      
+      // Active/Inactive filter
+      if (filterActive === 'active' && !sequence.is_active) {
+        return false;
+      }
+      if (filterActive === 'inactive' && sequence.is_active) {
+        return false;
+      }
+      
+      return true;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'date-asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'date-desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'code-asc':
+          return (a.queue_data?.code || '').localeCompare(b.queue_data?.code || '');
+        case 'code-desc':
+          return (b.queue_data?.code || '').localeCompare(a.queue_data?.code || '');
+        case 'office':
+          return (a.office_data?.description || '').localeCompare(b.office_data?.description || '');
+        default:
+          return 0;
+      }
+    });
+
+  const handleRefreshQueueLogs = () => {
+    fetchAllSequencesForLogs();
+  };
+
+  const handleClearFilters = () => {
+    setQueueLogsSearchTerm('');
+    setFilterStatus('all');
+    setFilterPriority('all');
+    setFilterOffice('all');
+    setFilterActive('all');
+    setSortBy('date-desc');
+  };
+
+  // Get unique offices from sequences for filter
+  const uniqueOffices = Array.from(
+    new Map(sequences.map(s => [s.office, s.office_data])).values()
+  ).filter(Boolean);
+
   return (
     <>
       <BreadcrumbComp title="Admin Page" items={BCrumb} />
@@ -306,6 +399,7 @@ const AdminPage = () => {
           <TabsTrigger value="user-assignment">Office User Assignment</TabsTrigger>
           <TabsTrigger value="priority-types">Priority Types</TabsTrigger>
           <TabsTrigger value="status-types">Status Types</TabsTrigger>
+          <TabsTrigger value="queue-logs">Queue Logs</TabsTrigger>
         </TabsList>
 
         <TabsContent value="offices">
@@ -845,6 +939,199 @@ const AdminPage = () => {
                                 </>
                               )}
                             </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="queue-logs">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5" />
+                  Queue Logs
+                </CardTitle>
+                <Button variant="outline" onClick={handleRefreshQueueLogs} disabled={isLoading}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4 p-3 bg-muted rounded-md">
+                <span className="text-sm text-muted-foreground">
+                  View all queue sequences and their status from the sequence table. Total records: {sequences.length} | Filtered: {filteredQueueLogs.length}
+                </span>
+              </div>
+
+              <div className="space-y-4 mb-4">
+                {/* Search Bar */}
+                <div className="flex items-center space-x-2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by queue code, office, status, or priority..."
+                    value={queueLogsSearchTerm}
+                    onChange={(e) => setQueueLogsSearchTerm(e.target.value)}
+                    className="max-w-md"
+                  />
+                </div>
+
+                {/* Filters and Sort */}
+                <div className="flex flex-wrap gap-3 items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">Status:</span>
+                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="All Statuses" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        {statuses.map((status) => (
+                          <SelectItem key={status.id} value={status.id}>
+                            {status.description || 'Unnamed'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">Priority:</span>
+                    <Select value={filterPriority} onValueChange={setFilterPriority}>
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="All Priorities" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Priorities</SelectItem>
+                        {allPriorities.map((priority) => (
+                          <SelectItem key={priority.id} value={priority.id}>
+                            {priority.description || 'Unnamed'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">Office:</span>
+                    <Select value={filterOffice} onValueChange={setFilterOffice}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="All Offices" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Offices</SelectItem>
+                        {uniqueOffices.map((office) => (
+                          <SelectItem key={office?.id} value={office?.id || ''}>
+                            {office?.description || 'Unnamed'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">Active:</span>
+                    <Select value={filterActive} onValueChange={setFilterActive}>
+                      <SelectTrigger className="w-[130px]">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">Sort by:</span>
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Sort by" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="date-desc">Date (Newest First)</SelectItem>
+                        <SelectItem value="date-asc">Date (Oldest First)</SelectItem>
+                        <SelectItem value="code-asc">Queue Code (A-Z)</SelectItem>
+                        <SelectItem value="code-desc">Queue Code (Z-A)</SelectItem>
+                        <SelectItem value="office">Office (A-Z)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleClearFilters}
+                    className="ml-auto"
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Queue Code</TableHead>
+                      <TableHead>Office</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Window</TableHead>
+                      <TableHead>Active</TableHead>
+                      <TableHead>Created At</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoadingPriorities ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          Loading queue logs...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredQueueLogs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          {queueLogsSearchTerm || filterStatus !== 'all' || filterPriority !== 'all' || filterOffice !== 'all' || filterActive !== 'all'
+                            ? 'No queue logs match your filters'
+                            : 'No queue logs found.'}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredQueueLogs.map((sequence) => (
+                        <TableRow key={sequence.id}>
+                          <TableCell className="font-medium">
+                            <code className="text-sm font-mono">{sequence.queue_data?.code || 'N/A'}</code>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{sequence.office_data?.description || 'Unknown'}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {sequence.priority_data?.description || <span className="text-muted-foreground text-xs">—</span>}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={sequence.status_data?.is_active ? 'default' : 'secondary'}>
+                              {sequence.status_data?.description || 'Unknown'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {sequence.window_data?.description || <span className="text-muted-foreground text-xs">—</span>}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={sequence.is_active ? 'default' : 'destructive'}>
+                              {sequence.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {new Date(sequence.created_at).toLocaleString()}
                           </TableCell>
                         </TableRow>
                       ))
