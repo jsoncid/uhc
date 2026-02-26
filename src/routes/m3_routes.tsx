@@ -22,7 +22,7 @@ const PatientTagging = Loadable(
 
 // Database Management - Dynamic Database Connections
 const DatabaseManagement = Loadable(
-  lazy(() => import('../views/database/DatabaseManagement')),
+  lazy(() => import('../views/apps/module-3/database/DatabaseManagement')),
 );
 
 export const module3Routes = [
@@ -64,7 +64,9 @@ export const module3Routes = [
     path: '/module-3/database-management',
     element: (
       <ProtectedRoute>
-        <DatabaseManagement />
+        {/* <ModuleRoute moduleName={PAGE_MODULES.MODULE_3_DATABASE_MANAGEMENT}> */}
+          <DatabaseManagement />
+        {/* </ModuleRoute> */}
       </ProtectedRoute>
     ),
   },
