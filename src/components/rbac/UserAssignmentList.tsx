@@ -940,46 +940,7 @@ export const UserAssignmentList = () => {
                 </div>
               )}
               
-              <div className="grid gap-4">
-                {isLoading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                    <p className="text-muted-foreground">Loading roles...</p>
-                  </div>
-                ) : roles.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground mb-4">No roles found</p>
-                    <p className="text-sm text-muted-foreground">
-                      Create roles first to manage module access permissions
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {roles.map((role) => (
-                      <Card key={role.id} className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold">{role.id}</h3>
-                          <Badge variant={role.is_active ? 'default' : 'secondary'}>
-                            {role.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {role.description || 'No description'}
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleManageRoleAccess(role)}
-                          >
-                            Manage Access
-                          </Button>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-
-                {roleModuleAccess.length > 0 && (
+              {roleModuleAccess.length > 0 ? (
                   <div className="mt-6">
                     <h3 className="text-lg font-semibold mb-4">
                       Current Role Module Access ({filteredRoleModuleAccess.length} modules in {groupedRoleModuleAccessArray.length} roles)
@@ -1094,8 +1055,14 @@ export const UserAssignmentList = () => {
                       </Table>
                     </div>
                   </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">No role module access configured</p>
+                    <p className="text-sm text-muted-foreground">
+                      Create role module access to manage permissions
+                    </p>
+                  </div>
                 )}
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
