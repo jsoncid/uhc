@@ -46,27 +46,27 @@ const DatabaseManagement = () => {
   };
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-7xl">
+    <div className="container mx-auto py-8 px-6 max-w-7xl">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-4 mb-4">
+      <div className="mb-8">
+        <div className="flex items-center gap-4 mb-6">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate(-1)}
-            className="gap-1"
+            className="gap-1.5 hover:bg-accent transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            <span>Back</span>
           </Button>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <Database className="h-8 w-8 text-primary" />
+        <div className="flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+            <Database className="h-9 w-9 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Database Management</h1>
-            <p className="text-muted-foreground text-base">
+            <h1 className="text-3xl font-bold tracking-tight">Database Management</h1>
+            <p className="text-muted-foreground text-base mt-1">
               Configure and manage connections to hospital database systems
             </p>
           </div>
@@ -74,14 +74,14 @@ const DatabaseManagement = () => {
       </div>
 
       {/* Info Alert */}
-      <Alert className="mb-6">
-        <Info className="h-4 w-4" />
-        <AlertDescription className="text-sm leading-relaxed">
-          <strong className="text-base">Dynamic Database Connections</strong>
+      <Alert className="mb-8 border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900">
+        <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+        <AlertDescription className="text-sm leading-relaxed ml-1">
+          <strong className="text-base font-semibold text-blue-900 dark:text-blue-100">Dynamic Database Connections</strong>
           <br />
-          <span className="block mt-1">
+          <span className="block mt-2 text-blue-800/90 dark:text-blue-200/80">
             Add database credentials through this interface. All connections are stored securely in Supabase.
-            Always use <strong>Test Connection</strong> before saving to verify your credentials.
+            Always use <strong className="font-semibold">Test Connection</strong> before saving to verify your credentials.
           </span>
         </AlertDescription>
       </Alert>
@@ -109,32 +109,41 @@ const DatabaseManagement = () => {
       </Dialog>
 
       {/* Footer Help */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle className="text-lg">Quick Guide</CardTitle>
+      <Card className="mt-10 shadow-sm border-muted/40">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-xl">Quick Guide</CardTitle>
           <CardDescription className="text-sm">Learn how to add and manage database connections</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-lg bg-muted/50">
-              <h4 className="font-semibold mb-2 text-base">1. Add Database</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-5 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/30 dark:from-emerald-950/20 dark:to-emerald-900/10 border border-emerald-200/50 dark:border-emerald-800/30 transition-all hover:shadow-md hover:scale-[1.02]">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-bold">1</div>
+                <h4 className="font-semibold text-base">Add Database</h4>
+              </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Click <strong>Add Database</strong> and enter your connection details: host, port, 
+                Click <strong className="text-foreground">Add Database</strong> and enter your connection details: host, port, 
                 username, password, and database name. Choose your system type (iHOMIS or iClinic).
               </p>
             </div>
-            <div className="p-4 rounded-lg bg-muted/50">
-              <h4 className="font-semibold mb-2 text-base">2. Test Connection</h4>
+            <div className="p-5 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/30 dark:from-blue-950/20 dark:to-blue-900/10 border border-blue-200/50 dark:border-blue-800/30 transition-all hover:shadow-md hover:scale-[1.02]">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">2</div>
+                <h4 className="font-semibold text-base">Test Connection</h4>
+              </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Before saving, click <strong>Test Connection</strong> to verify your credentials 
+                Before saving, click <strong className="text-foreground">Test Connection</strong> to verify your credentials 
                 are correct. This prevents invalid connections from being saved.
               </p>
             </div>
-            <div className="p-4 rounded-lg bg-muted/50">
-              <h4 className="font-semibold mb-2 text-base">3. Manage Connections</h4>
+            <div className="p-5 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100/30 dark:from-purple-950/20 dark:to-purple-900/10 border border-purple-200/50 dark:border-purple-800/30 transition-all hover:shadow-md hover:scale-[1.02]">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-full bg-purple-500 text-white flex items-center justify-center text-sm font-bold">3</div>
+                <h4 className="font-semibold text-base">Manage Connections</h4>
+              </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Toggle connections on/off as needed. Only active databases are used in patient searches. 
-                Click <strong>Refresh Pools</strong> to apply changes.
+                Click <strong className="text-foreground">Refresh Pools</strong> to apply changes.
               </p>
             </div>
           </div>

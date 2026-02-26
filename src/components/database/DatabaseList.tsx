@@ -171,7 +171,7 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
   const getDbTypeBadge = (dbType: string) => {
     const option = DB_TYPE_OPTIONS.find(o => o.value === dbType);
     return (
-      <Badge variant="outline" className="font-mono text-xs">
+      <Badge variant="outline" className="font-mono text-xs font-medium px-2.5 py-0.5">
         {option?.label || dbType}
       </Badge>
     );
@@ -183,7 +183,10 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
     const isIhomis = systemType?.toLowerCase() === 'ihomis';
     
     return (
-      <Badge variant={isIhomis ? 'default' : 'secondary'}>
+      <Badge 
+        variant={isIhomis ? 'default' : 'secondary'} 
+        className={`font-medium px-2.5 py-1 ${isIhomis ? 'bg-emerald-500 hover:bg-emerald-600' : ''}`}
+      >
         {option?.label || systemType}
       </Badge>
     );
@@ -193,9 +196,11 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
   const getStatusIndicator = (db: DatabaseConnection) => {
     if (!db.status) {
       return (
-        <div className="flex items-center gap-1.5 text-muted-foreground">
-          <div className="w-2 h-2 rounded-full bg-gray-400" />
-          <span className="text-xs">Inactive</span>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <div className="relative">
+            <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+          </div>
+          <span className="text-xs font-medium">Inactive</span>
         </div>
       );
     }
@@ -204,60 +209,70 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
     
     if (status === 'connected') {
       return (
-        <div className="flex items-center gap-1.5 text-green-600">
-          <div className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-xs">Connected</span>
+        <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+          <div className="relative">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+            <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-green-500 opacity-50 blur-sm" />
+          </div>
+          <span className="text-xs font-semibold">Connected</span>
         </div>
       );
     }
     
     if (status === 'failed') {
       return (
-        <div className="flex items-center gap-1.5 text-red-600">
-          <div className="w-2 h-2 rounded-full bg-red-500" />
-          <span className="text-xs">Failed</span>
+        <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+          <div className="relative">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+          </div>
+          <span className="text-xs font-semibold">Failed</span>
         </div>
       );
     }
 
     return (
-      <div className="flex items-center gap-1.5 text-yellow-600">
-        <div className="w-2 h-2 rounded-full bg-yellow-500" />
-        <span className="text-xs">Active</span>
+      <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+        <div className="relative">
+          <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+        </div>
+        <span className="text-xs font-semibold">Active</span>
       </div>
     );
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5" />
+    <Card className="shadow-sm border-muted/40">
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex-1">
+            <CardTitle className="flex items-center gap-2.5 text-xl">
+              <div className="p-1.5 rounded-lg bg-primary/10">
+                <Database className="h-5 w-5 text-primary" />
+              </div>
               Database Connections
             </CardTitle>
-            <CardDescription className="text-sm">
-              View and manage all database connections. {databases.length} {databases.length === 1 ? 'database' : 'databases'} configured.
+            <CardDescription className="text-sm mt-1.5">
+              View and manage all database connections. <strong className="text-foreground font-medium">{databases.length}</strong> {databases.length === 1 ? 'database' : 'databases'} configured.
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2.5">
             <Button
               variant="outline"
               size="sm"
               onClick={handleRefreshPools}
               disabled={isRefreshing}
+              className="gap-2 hover:bg-accent transition-colors"
             >
               {isRefreshing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              <span className="ml-2">Refresh Pools</span>
+              <span>Refresh Pools</span>
             </Button>
             {onAddNew && (
-              <Button size="sm" onClick={onAddNew}>
-                <Plus className="h-4 w-4 mr-2" />
+              <Button size="sm" onClick={onAddNew} className="gap-2 shadow-sm">
+                <Plus className="h-4 w-4" />
                 Add Database
               </Button>
             )}
@@ -283,16 +298,18 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
 
         {/* Empty State */}
         {!isLoading && databases.length === 0 && (
-          <div className="text-center py-12">
-            <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Database Connections</h3>
-            <p className="text-muted-foreground text-sm mb-4">
-              Get started by adding your first hospital database connection.
+          <div className="text-center py-16 px-4">
+            <div className="inline-flex p-4 rounded-full bg-muted/50 mb-4">
+              <Database className="h-14 w-14 text-muted-foreground/60" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No Database Connections</h3>
+            <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto">
+              Get started by adding your first hospital database connection to enable patient data access.
             </p>
             {onAddNew && (
-              <Button onClick={onAddNew}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Database
+              <Button onClick={onAddNew} size="lg" className="gap-2 shadow-sm">
+                <Plus className="h-4 w-4" />
+                Add Your First Database
               </Button>
             )}
           </div>
@@ -300,55 +317,55 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
 
         {/* Database Table */}
         {!isLoading && databases.length > 0 && (
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-xl overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]">Status</TableHead>
-                  <TableHead>Database</TableHead>
-                  <TableHead>Connection</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>System</TableHead>
-                  <TableHead>Facility</TableHead>
-                  <TableHead className="w-[100px]">Active</TableHead>
-                  <TableHead className="w-[80px]">Actions</TableHead>
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableHead className="w-[100px] font-semibold">Status</TableHead>
+                  <TableHead className="font-semibold">Database</TableHead>
+                  <TableHead className="font-semibold">Connection</TableHead>
+                  <TableHead className="font-semibold">Type</TableHead>
+                  <TableHead className="font-semibold">System</TableHead>
+                  <TableHead className="font-semibold">Facility</TableHead>
+                  <TableHead className="w-[100px] font-semibold">Active</TableHead>
+                  <TableHead className="w-[80px] font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {databases.map((db) => (
-                  <TableRow key={db.id} className={!db.status ? 'opacity-60' : ''}>
-                    <TableCell>
+                  <TableRow key={db.id} className={`transition-all ${!db.status ? 'opacity-60 hover:opacity-80' : 'hover:bg-muted/30'}`}>
+                    <TableCell className="py-4">
                       {getStatusIndicator(db)}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{db.description || db.db_name}</span>
-                        <span className="text-xs text-muted-foreground font-mono">{db.db_name}</span>
+                    <TableCell className="py-4">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold text-sm">{db.description || db.db_name}</span>
+                        <span className="text-xs text-muted-foreground font-mono bg-muted/40 px-1.5 py-0.5 rounded w-fit">{db.db_name}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Server className="h-3 w-3 text-muted-foreground" />
-                        <span className="font-mono text-xs">{db.host}:{db.port}</span>
+                    <TableCell className="py-4">
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <Server className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="font-mono text-xs bg-muted/30 px-2 py-1 rounded">{db.host}:{db.port}</span>
                       </div>
                     </TableCell>
-                    <TableCell>{getDbTypeBadge(db.db_type)}</TableCell>
-                    <TableCell>{getSystemTypeBadge(db.system_type)}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col text-xs">
-                        <div className="flex items-center gap-1">
-                          <Building2 className="h-3 w-3 text-muted-foreground" />
-                          <span>{db.facility_code || '-'}</span>
+                    <TableCell className="py-4">{getDbTypeBadge(db.db_type)}</TableCell>
+                    <TableCell className="py-4">{getSystemTypeBadge(db.system_type)}</TableCell>
+                    <TableCell className="py-4">
+                      <div className="flex flex-col gap-1 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="font-medium">{db.facility_code || '-'}</span>
                         </div>
                         {db.region && (
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <MapPin className="h-3 w-3" />
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <MapPin className="h-3.5 w-3.5" />
                             <span>{db.region}</span>
                           </div>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-4">
                       <div className="flex items-center gap-2">
                         <Switch
                           checked={db.status}
@@ -360,11 +377,11 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-4">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
                         onClick={() => handleDeleteClick(db)}
                         disabled={deletingId === db.id}
                       >
@@ -384,17 +401,21 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
 
         {/* Connection Stats */}
         {!isLoading && databases.length > 0 && (
-          <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <Activity className="h-4 w-4" />
-              <span>
-                {databases.filter(d => d.status).length} active / {databases.length} total
+          <div className="mt-6 pt-4 border-t flex items-center gap-6 text-sm">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50">
+              <Activity className="h-4 w-4 text-primary" />
+              <span className="font-medium">
+                <strong className="text-foreground">{databases.filter(d => d.status).length}</strong>
+                <span className="text-muted-foreground"> active / </span>
+                <strong className="text-foreground">{databases.length}</strong>
+                <span className="text-muted-foreground"> total</span>
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>
-                {databases.filter(d => d.connection_status === 'connected').length} connected
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-950/20">
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <span className="font-medium">
+                <strong className="text-green-700 dark:text-green-300">{databases.filter(d => d.connection_status === 'connected').length}</strong>
+                <span className="text-green-600/80 dark:text-green-400/80"> connected</span>
               </span>
             </div>
           </div>
