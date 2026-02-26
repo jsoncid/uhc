@@ -63,6 +63,7 @@ const SidebarContent: MenuItem[] = [
         id: uniqueId(),
         icon: 'solar:database-linear',
         url: '/module-3/database-management',
+        // module: PAGE_MODULES.MODULE_3_DATABASE_MANAGEMENT, // Temporarily commented for immediate access
       },
     ],
   },
