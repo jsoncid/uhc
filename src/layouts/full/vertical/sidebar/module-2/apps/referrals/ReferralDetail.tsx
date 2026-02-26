@@ -771,41 +771,64 @@ const ReferralDetail = () => {
         <div className="lg:col-span-4 col-span-12 flex flex-col gap-6">
           {/* Referral History timeline */}
           {history.length > 0 && (
-            <CardBox>
-              <SectionTitle icon="solar:history-bold-duotone" title="Referral History" />
+            <CardBox className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 border-green-200 dark:border-green-700">
+              <div className="flex items-center gap-2 mb-5 pb-4 border-b border-green-200 dark:border-green-700">
+                <div className="w-8 h-8 rounded-lg bg-green-600 dark:bg-green-500 flex items-center justify-center flex-shrink-0">
+                  <Icon icon="solar:history-bold-duotone" height={18} className="text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-green-900 dark:text-green-100">Referral History</h3>
+              </div>
               <div className="relative">
                 {history.map((h, idx) => (
-                  <div key={h.id} className="flex gap-x-3">
+                  <div key={h.id} className="flex gap-x-4 mb-4 last:mb-0">
                     <div
-                      className={`relative ${idx === history.length - 1 ? '' : 'after:absolute after:top-7 after:bottom-0 after:start-3.5 after:w-px after:-translate-x-[0.5px] after:bg-border'}`}
+                      className={`relative flex-shrink-0 ${idx === history.length - 1 ? '' : 'after:absolute after:top-10 after:bottom-0 after:start-3.5 after:w-0.5 after:-translate-x-[0.5px] after:bg-green-300 dark:after:bg-green-600'}`}
                     >
-                      <div className="relative z-1 w-7 h-7 flex justify-center items-center">
+                      <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 flex-grow-0">
                         <div
-                          className={`h-3 w-3 rounded-full border-2 ${h.is_active ? 'bg-success border-success' : 'bg-transparent border-border'}`}
+                          className={`w-4 h-4 rounded-full border-2 transition-all ${h.is_active ? 'bg-green-600 dark:bg-green-500 border-green-600 dark:border-green-500 ring-2 ring-green-200 dark:ring-green-700' : 'bg-white dark:bg-green-800 border-green-300 dark:border-green-600'}`}
                         />
                       </div>
                     </div>
-                    <div className="grow pt-0.5 pb-5">
-                      <div className="flex items-start justify-between gap-2 mb-0.5">
+                    <div className="flex-1 min-w-0 pt-1">
+                      <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge
                             variant="outline"
-                            className={`text-xs ${STATUS_STYLES[h.status_description ?? ''] ?? 'bg-lightprimary text-primary'} ${h.is_active ? '' : 'opacity-60'}`}
+                            className={`text-xs font-semibold px-2.5 py-1 ${STATUS_STYLES[h.status_description ?? ''] ?? 'bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200 border-green-300 dark:border-green-600'} ${h.is_active ? '' : 'opacity-70'}`}
                           >
+                            <Icon 
+                              icon={
+                                h.status_description === 'Pending' ? 'solar:clock-circle-bold-duotone' :
+                                h.status_description === 'Seen' ? 'solar:eye-bold-duotone' :
+                                h.status_description === 'Accepted' ? 'solar:check-circle-bold-duotone' :
+                                h.status_description === 'In Transit' ? 'solar:routing-bold-duotone' :
+                                h.status_description === 'Arrived' ? 'solar:home-bold-duotone' :
+                                h.status_description === 'Admitted' ? 'solar:hospital-bold-duotone' :
+                                h.status_description === 'Discharged' ? 'solar:exit-bold-duotone' :
+                                h.status_description === 'Declined' ? 'solar:close-circle-bold-duotone' :
+                                'solar:info-circle-bold-duotone'
+                              }
+                              height={12}
+                              className="mr-1"
+                            />
                             {h.status_description ?? '—'}
                           </Badge>
                           {h.is_active && (
-                            <span className="text-xs text-success font-medium">● Active</span>
+                            <span className="inline-flex items-center gap-1 bg-green-500 dark:bg-green-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                              <Icon icon="solar:play-bold-duotone" height={11} />
+                              Active
+                            </span>
                           )}
                         </div>
                         {h.email && (
-                          <div className="flex items-center gap-1 bg-lightprimary text-primary rounded-full px-2 py-0.5 flex-shrink-0">
+                          <div className="flex items-center gap-1.5 bg-green-200 dark:bg-green-700 text-green-800 dark:text-green-100 rounded-lg px-2.5 py-1 flex-shrink-0 text-xs font-medium">
                             <Icon
-                              icon="solar:user-bold-duotone"
-                              height={12}
+                              icon="solar:user-id-bold-duotone"
+                              height={13}
                               className="flex-shrink-0"
                             />
-                            <span className="text-xs font-medium max-w-[100px] truncate">
+                            <span className="max-w-[90px] truncate">
                               {h.email}
                             </span>
                           </div>
@@ -825,14 +848,25 @@ const ReferralDetail = () => {
                           (receiverSide.has(h.status_description ?? '')
                             ? (referral.to_assignment_name ?? referral.from_assignment_name)
                             : referral.from_assignment_name);
-                        return facility ? <p className="text-sm font-medium">{facility}</p> : null;
+                        return facility ? (
+                          <div className="flex items-center gap-2 mb-1">
+                            <Icon icon="solar:buildings-2-bold-duotone" height={14} className="text-green-700 dark:text-green-300 flex-shrink-0" />
+                            <p className="text-sm font-semibold text-green-900 dark:text-green-100">{facility}</p>
+                          </div>
+                        ) : null;
                       })()}
                       {h.details && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{h.details}</p>
+                        <div className="flex items-start gap-2 mb-1">
+                          <Icon icon="solar:notes-bold-duotone" height={14} className="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-green-700 dark:text-green-300">{h.details}</p>
+                        </div>
                       )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(h.created_at), 'MMM dd, yyyy · h:mm a')}
-                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Icon icon="solar:calendar-bold-duotone" height={12} className="text-green-500 dark:text-green-400 flex-shrink-0" />
+                        <p className="text-xs text-green-600 dark:text-green-400 font-medium">
+                          {format(new Date(h.created_at), 'MMM dd, yyyy · h:mm a')}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))}

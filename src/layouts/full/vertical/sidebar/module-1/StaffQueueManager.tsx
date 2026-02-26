@@ -41,7 +41,7 @@ const StaffQueueManager = () => {
   const pingDoneChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const { profile, loading: profileLoading } = useUserProfile();
-  const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
+  const { offices, fetchOffices, fetchOfficeById, isLoading: officesLoading } = useOfficeStore();
   const {
     sequences,
     statuses,
@@ -89,6 +89,14 @@ const StaffQueueManager = () => {
     }
   }, [profileLoading, userAssignmentIds, fetchOffices]);
 
+  // Ensure the office from the user's direct office assignment is always fetched,
+  // even if it doesn't appear in the RBAC assignment filter above.
+  useEffect(() => {
+    if (myAssignment?.office) {
+      fetchOfficeById(myAssignment.office);
+    }
+  }, [myAssignment?.office, fetchOfficeById]);
+
   useEffect(() => {
     const unsubscribe = subscribeToSequences();
     return () => unsubscribe();
@@ -120,16 +128,12 @@ const StaffQueueManager = () => {
     });
   }, [offices, myAssignment]);
 
-  // Scope visible offices:
-  //  • Window-assigned user → only their assigned office
-  //  • Unassigned user      → all active offices (global access)
+  // Scope visible offices: only the office assigned to the current user.
+  // If the user has no assignment, nothing is shown.
   const activeOffices = useMemo(() => {
     if (!myAssignmentLoaded) return [];
-    const all = offices.filter((o) => o.status);
-    if (myAssignment?.window) {
-      return all.filter((o) => o.id === myAssignment.office);
-    }
-    return all;
+    if (!myAssignment?.office) return [];
+    return offices.filter((o) => o.status && o.id === myAssignment.office);
   }, [offices, myAssignment, myAssignmentLoaded]);
 
   // Keep activeTab in sync with visible offices
@@ -217,9 +221,10 @@ const StaffQueueManager = () => {
 
     // Atomically claim the next pending sequence via DB function —
     // prevents two windows from grabbing the same queue number simultaneously.
+    console.log('[callNext] officeId:', officeId, '| servingStatusId:', servingStatus.id, '| windowId:', windowId);
     const claimed = await callNextSequence(officeId, servingStatus.id, windowId);
     if (!claimed) {
-      console.log('ℹ️ No one waiting in queue');
+      console.log('ℹ️ No one waiting in queue (DB claim_next_sequence returned null)');
     }
   };
 
@@ -330,7 +335,7 @@ const StaffQueueManager = () => {
       {activeOffices.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            No offices available. Please contact an administrator.
+            You are not assigned to any office or window. Please contact an administrator.
           </CardContent>
         </Card>
       ) : (
@@ -354,40 +359,17 @@ const StaffQueueManager = () => {
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <CardTitle>{office.description || office.id} Queue</CardTitle>
                       <div className="flex items-center gap-3">
-                        {(office.windows || []).filter((w) => w.status).length > 0 && (
+                        {myAssignment?.window && (
                           <div className="flex items-center gap-2">
                             <Label className="text-sm text-muted-foreground whitespace-nowrap">
-                              Call to window
+                              Window
                             </Label>
-                            {/* Assigned user: locked window | Unassigned: free dropdown */}
-                            {myAssignment?.office === office.id && myAssignment?.window ? (
-                              <div className="px-3 py-2 border rounded-md text-sm bg-muted w-45">
-                                {(office.windows || []).find((w) => w.id === myAssignment.window)
-                                  ?.description ||
-                                  myAssignment.window_description ||
-                                  'Assigned Window'}
-                              </div>
-                            ) : (
-                              <Select
-                                value={selectedWindowByOffice[office.id]?.toString() ?? ''}
-                                onValueChange={(v) =>
-                                  setSelectedWindowByOffice((prev) => ({ ...prev, [office.id]: v }))
-                                }
-                              >
-                                <SelectTrigger className="w-45">
-                                  <SelectValue placeholder="Select window" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {(office.windows || [])
-                                    .filter((w) => w.status)
-                                    .map((w) => (
-                                      <SelectItem key={w.id} value={w.id.toString()}>
-                                        {w.description || `Window ${w.id}`}
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
-                            )}
+                            <div className="px-3 py-2 border rounded-md text-sm bg-muted w-45">
+                              {(office.windows || []).find((w) => w.id === myAssignment.window)
+                                ?.description ||
+                                myAssignment.window_description ||
+                                'Assigned Window'}
+                            </div>
                           </div>
                         )}
                         <Button
