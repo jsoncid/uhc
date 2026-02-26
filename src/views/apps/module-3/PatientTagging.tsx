@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from 'src/components/ui/card';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
@@ -24,6 +24,7 @@ import {
   Plus,
   FileText,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
 import PatientSearchPanel, { PatientSearchResultProfile } from './components/PatientSearchPanel';
 import PatientInfoCard from './components/PatientInfoCard';
@@ -95,6 +96,10 @@ const PatientTagging = () => {
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const selectedPatientHpercode = selectedPatient?.hpercode;
+  const [pendingAutoSelectHpercode, setPendingAutoSelectHpercode] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const viewTabParam = searchParams.get('tab');
+  const hpercodeParam = searchParams.get('hpercode');
 
   /* ------------------------------------------------------------------ */
   /*  Effects                                                           */
@@ -118,12 +123,10 @@ const PatientTagging = () => {
   /* ------------------------------------------------------------------ */
 
   // Search MySQL patients (hospital database)
-  const handleSearch = async () => {
-    if (!searchTerm.trim()) return;
-
+  const executePatientSearch = useCallback(async (term: string) => {
     setIsSearching(true);
     try {
-      const result = await patientService.searchPatients(searchTerm, { limit: 10 });
+      const result = await patientService.searchPatients(term, { limit: 10 });
       if (result.success) {
         const buckets = getPatientSearchBuckets(result);
         const combined: PatientSearchResultProfile[] = buckets.flatMap((bucket) => {
@@ -150,6 +153,15 @@ const PatientTagging = () => {
     } finally {
       setIsSearching(false);
     }
+  }, []);
+
+  const handleSearch = (term?: string) => {
+    const query = (term ?? searchTerm).trim();
+    if (!query) return;
+
+    setSearchTerm(query);
+    setPendingAutoSelectHpercode(null);
+    void executePatientSearch(query);
   };
 
   // Search Supabase patients (manually entered - unlinked)
@@ -252,7 +264,29 @@ const PatientTagging = () => {
     }
   };
 
-  const handleSelectPatient = async (patient: PatientSearchResultProfile) => {
+  /* ------------------------------------------------------------------ */
+  /*  Data Loading Functions                                            */
+  /* ------------------------------------------------------------------ */
+
+  const loadPatientHistory = useCallback(async (hpercode: string, database?: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const result = await patientService.getPatientHistory(hpercode, { database });
+      if (result.success) {
+        setPatientHistory(result.data);
+      } else {
+        console.error('Failed to load history:', result.message);
+        setPatientHistory([]);
+      }
+    } catch (error) {
+      console.error('Error loading patient history:', error);
+      setPatientHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, []);
+
+  const handleSelectPatient = useCallback(async (patient: PatientSearchResultProfile) => {
     setSelectedPatient(patient);
     setSearchResults([]);
     setSearchTerm('');
@@ -262,7 +296,7 @@ const PatientTagging = () => {
     if (patient.hpercode) {
       await loadPatientHistory(patient.hpercode, patient.sourceDatabase);
     }
-  };
+  }, [loadPatientHistory]);
 
   const handleOpenPatientRecords = () => {
     if (!selectedPatientHpercode) return;
@@ -322,28 +356,6 @@ const PatientTagging = () => {
       setIsUnlinking(false);
       setIsUnlinkDialogOpen(false);
       setRepositoryToUnlink(null);
-    }
-  };
-
-  /* ------------------------------------------------------------------ */
-  /*  Data Loading Functions                                            */
-  /* ------------------------------------------------------------------ */
-
-  const loadPatientHistory = async (hpercode: string, database?: string) => {
-    setIsLoadingHistory(true);
-    try {
-      const result = await patientService.getPatientHistory(hpercode, { database });
-      if (result.success) {
-        setPatientHistory(result.data);
-      } else {
-        console.error('Failed to load history:', result.message);
-        setPatientHistory([]);
-      }
-    } catch (error) {
-      console.error('Error loading patient history:', error);
-      setPatientHistory([]);
-    } finally {
-      setIsLoadingHistory(false);
     }
   };
 
