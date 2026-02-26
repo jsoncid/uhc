@@ -1,12 +1,15 @@
 import { create } from 'zustand';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { userService } from '@/services/userService';
+import { AuthCodeService } from '../services/authCodeService';
+import { userService } from '../services/userService';
 
 interface AuthState {
   user: User | null;
   userModuleId: string | null;
   userRoleId: string | null;
+  userAssignmentId: string | null; // uuid → public.assignment.id
+  userAssignmentName: string | null; // public.assignment.description
   isLoading: boolean;
   error: string | null;
   sessionExpiry: number | null;
@@ -62,9 +65,21 @@ const fetchRoleAndModule = async (userId: string) => {
 
   console.log('user_assignment record:', userAssignment);
 
+  let assignmentName: string | null = null;
+  if (userAssignment?.assignment) {
+    const { data: asgnData } = await supabase
+      .from('assignment')
+      .select('description')
+      .eq('id', userAssignment.assignment)
+      .single();
+    assignmentName = asgnData?.description ?? null;
+  }
+
   return {
     roleId: userRole.role as string,
     moduleId: roleModuleAccess.module as string,
+    assignmentId: (userAssignment?.assignment as string) ?? null,
+    assignmentName,
     isAssignmentActive: userAssignment?.is_active ?? false,
   };
 };
@@ -115,6 +130,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
     user: null,
     userModuleId: null,
     userRoleId: null,
+    userAssignmentId: null,
+    userAssignmentName: null,
     isLoading: false,
     error: null,
     sessionExpiry: null,
@@ -137,12 +154,16 @@ export const useAuthStore = create<AuthState>((set, get) => {
           return;
         }
 
-        const { roleId, moduleId } = await fetchRoleAndModule(session.user.id);
+        const { roleId, moduleId, assignmentId, assignmentName } = await fetchRoleAndModule(
+          session.user.id,
+        );
 
         set({
           user: session.user,
           userModuleId: moduleId,
           userRoleId: roleId,
+          userAssignmentId: assignmentId ?? null,
+          userAssignmentName: assignmentName ?? null,
           sessionExpiry: getExpiryFromSession(session),
           isLoading: false,
         });
@@ -157,12 +178,16 @@ export const useAuthStore = create<AuthState>((set, get) => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        const { roleId, moduleId } = await fetchRoleAndModule(data.user.id);
+        const { roleId, moduleId, assignmentId, assignmentName } = await fetchRoleAndModule(
+          data.user.id,
+        );
 
         set({
           user: data.user,
           userModuleId: moduleId,
           userRoleId: roleId,
+          userAssignmentId: assignmentId ?? null,
+          userAssignmentName: assignmentName ?? null,
           sessionExpiry: getExpiryFromSession(data.session),
           isLoading: false,
         });
@@ -251,10 +276,16 @@ export const useAuthStore = create<AuthState>((set, get) => {
       try {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
+        
+        // Clear all localStorage data related to auth/session using AuthCodeService
+        AuthCodeService.clearAllSessionData();
+        
         set({
           user: null,
           userModuleId: null,
           userRoleId: null,
+          userAssignmentId: null,
+          userAssignmentName: null,
           sessionExpiry: null,
           isLoading: false,
         });

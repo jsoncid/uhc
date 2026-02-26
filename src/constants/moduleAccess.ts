@@ -46,12 +46,16 @@ export const PAGE_MODULES = {
   MODULE_2_REFERRAL_HISTORY: 'Module 2 - Referral History',
 
   // Module 3 - Patient Repository pages
+  MODULE_3_PATIENT_LIST: 'Module 3 - Patient List',
   MODULE_3_PATIENT_PROFILING: 'Module 3 - Patient Profiling',
   MODULE_3_PATIENT_TAGGING: 'Module 3 - Patient Tagging',
 
   // Module 4 - Health Card pages
   MODULE_4_HEALTH_CARD_HOLDER: 'Module 4 - Health Card Holder',
   MODULE_4_HEALTH_CARD_OPERATOR: 'Module 4 - Health Card Operator',
+
+  // Module 5 - OCR pages
+  MODULE_5_OCR: 'Module 5 - OCR',
 };
 
 export const ROLE_IDS = {

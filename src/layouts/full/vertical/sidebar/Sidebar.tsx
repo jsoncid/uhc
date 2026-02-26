@@ -5,6 +5,8 @@ import FullLogo from '../../shared/logo/FullLogo';
 import { Link, useLocation } from 'react-router';
 import { useTheme } from 'src/components/provider/theme-provider';
 import { usePermissions } from 'src/context/PermissionsContext';
+import { useAuthStore } from 'src/stores/useAuthStore';
+import { ROLE_IDS } from 'src/constants/moduleAccess';
 import { AMLogo, AMMenu, AMMenuItem, AMSidebar, AMSubmenu } from 'tailwind-sidebar';
 import 'tailwind-sidebar/styles.css';
 
@@ -106,14 +108,25 @@ const SidebarLayout = ({
   const pathname = location.pathname;
   const { theme } = useTheme();
   const { checkAccess, loading } = usePermissions();
+  const userRoleId = useAuthStore((s) => s.userRoleId);
+  const isMember = userRoleId === ROLE_IDS.module4Member;
+
+  // Sections that should be hidden for member-role users
+  const MEMBER_HIDDEN_SECTIONS = ['Module 5 - OCR', 'Role-Based Access Control', 'Auth'];
 
   // Only allow "light" or "dark" for AMSidebar
   const sidebarMode = theme === 'light' || theme === 'dark' ? theme : undefined;
 
   // Filter children within each section by their page-level module tag.
-  // A section heading is hidden entirely if none of its children are accessible.
-  const visibleSections = SidebarContent.map((section) => {
-    if (!section.children || section.children.length === 0) return section;
+  // Additionally, hide admin-only sections from member users.
+  const visibleSections = SidebarContent
+    .map((section) => {
+      // Hide entire section from members if it's in the restricted list
+      if (isMember && section.heading && MEMBER_HIDDEN_SECTIONS.includes(section.heading)) {
+        return null;
+      }
+
+      if (!section.children || section.children.length === 0) return section;
 
     const visibleChildren = section.children.filter((child) => {
       if (!child.module) return true; // no tag → always visible
