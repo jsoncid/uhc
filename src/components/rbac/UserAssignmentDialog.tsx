@@ -8,6 +8,7 @@ import { userService } from '@/services/userService'
 import { Database } from '@/lib/supabase'
 
 type Assignment = Database['public']['Tables']['assignment']['Row']
+type UserAssignment = Database['public']['Tables']['user_assignment']['Row']
 
 interface AuthUser {
   id: string
@@ -19,10 +20,12 @@ interface UserAssignmentDialogProps {
   isOpen: boolean
   onClose: () => void
   assignments: Assignment[]
+  userAssignments: UserAssignment[]
 }
 
-export const UserAssignmentDialog = ({ isOpen, onClose, assignments }: UserAssignmentDialogProps) => {
+export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignments }: UserAssignmentDialogProps) => {
   const [users, setUsers] = useState<AuthUser[]>([])
+  const [availableUsers, setAvailableUsers] = useState<AuthUser[]>([])
   const [formData, setFormData] = useState({
     user: '',
     assignment: ''
@@ -41,13 +44,22 @@ export const UserAssignmentDialog = ({ isOpen, onClose, assignments }: UserAssig
       })
       setError(null)
     }
-  }, [isOpen])
+  }, [isOpen, userAssignments])
 
   const fetchUsers = async () => {
     try {
       setIsLoadingUsers(true)
       const userData = await userService.getAllUsers()
       setUsers(userData)
+      
+      // Filter out users who already have an assignment
+      const usersWithAssignments = new Set(
+        userAssignments
+          .filter(ua => ua.is_active)
+          .map(ua => ua.user)
+      )
+      const filtered = userData.filter(user => !usersWithAssignments.has(user.id))
+      setAvailableUsers(filtered)
     } catch (err) {
       setError('Failed to fetch users')
       console.error('Error fetching users:', err)
@@ -113,11 +125,17 @@ export const UserAssignmentDialog = ({ isOpen, onClose, assignments }: UserAssig
                   <SelectValue placeholder={isLoadingUsers ? "Loading users..." : "Select a user"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.email || user.id}
-                    </SelectItem>
-                  ))}
+                  {availableUsers.length === 0 && !isLoadingUsers ? (
+                    <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                      All users already have assignments
+                    </div>
+                  ) : (
+                    availableUsers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.email || user.id}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

@@ -766,6 +766,7 @@ export const UserAssignmentList = () => {
         isOpen={isUserAssignmentDialogOpen}
         onClose={handleDialogClose}
         assignments={assignments}
+        userAssignments={userAssignments}
       />
 
       <UserRoleDialog
