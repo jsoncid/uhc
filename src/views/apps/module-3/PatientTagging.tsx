@@ -23,7 +23,6 @@ import {
   Trash2,
   Plus,
 } from 'lucide-react';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
 import PatientSearchPanel, { PatientSearchResultProfile } from './components/PatientSearchPanel';
 import PatientInfoCard from './components/PatientInfoCard';
@@ -45,12 +44,6 @@ const FACILITY_NAME_BY_CODE: Record<string, string> = {
   '0005027': 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL',
   '0005028': 'NASIPIT DISTRICT HOSPITAL',
 };
-
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient Tagging' },
-];
 
 const PatientTagging = () => {
   // Active tab
@@ -383,7 +376,6 @@ const PatientTagging = () => {
 
   return (
     <div className="space-y-6">
-      <BreadcrumbComp items={BCrumb} title="Patient Tagging" />
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
@@ -391,10 +383,10 @@ const PatientTagging = () => {
             <div className="p-2 bg-primary/10 rounded-lg">
               <Activity className="h-7 w-7 text-primary" />
             </div>
-            Patient Repository
+            Patient Tagging
           </h1>
           <p className="text-muted-foreground mt-2">
-            View patient medical records, link manually entered patients with hospital database, and manage patient connections.
+            Link manually entered patients with hospital database records and manage patient connections.
           </p>
         </div>
       </div>
