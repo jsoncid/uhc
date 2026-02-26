@@ -42,6 +42,7 @@ const SidebarContent: MenuItem[] = [
         icon: 'solar:users-group-rounded-linear',
         id: uniqueId(),
         url: '/module-3/patient-list',
+        module: PAGE_MODULES.MODULE_3_PATIENT_LIST,
       },
       {
         name: 'Patient Profiling',
@@ -56,6 +57,13 @@ const SidebarContent: MenuItem[] = [
         icon: 'solar:tag-linear',
         url: '/module-3/patient-tagging',
         module: PAGE_MODULES.MODULE_3_PATIENT_TAGGING,
+      },
+      {
+        name: 'Database Management',
+        id: uniqueId(),
+        icon: 'solar:database-linear',
+        url: '/module-3/database-management',
+        // module: PAGE_MODULES.MODULE_3_DATABASE_MANAGEMENT, // Temporarily commented for immediate access
       },
     ],
   },

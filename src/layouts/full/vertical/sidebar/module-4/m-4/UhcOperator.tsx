@@ -6,12 +6,13 @@ import { Card } from 'src/components/ui/card';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'src/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'src/components/ui/select';
 import {
   AlertCircle, History, X, QrCode, Search, Upload, FileText,
-  ChevronDown, ChevronRight, CheckCircle2, User, Building2, Heart,
+  ChevronDown, ChevronRight, ChevronLeft, CheckCircle2, User, Building2, Heart,
   Accessibility, ClipboardList, IdCard, Loader2, Eye, Calendar, Clock,
   Download, Printer, Save, Stethoscope, Camera, CameraOff, RefreshCw,
-  Lock, EyeOff, ShieldCheck, ShieldX, ArrowLeft, Tag,
+  Lock, EyeOff, ShieldCheck, ShieldX, ArrowLeft, Tag, FolderOpen,
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import QRCodeLib from 'qrcode';
@@ -28,7 +29,7 @@ const FOLDER_DOC_TYPES: Record<string, string[]> = {
   basic_identification: [
     'Birth Certificate', 'Barangay Certification', 'Barangay Clearance',
     'Certificate of Indigency', 'Valid ID', 'Government ID',
-    'Marriage Certificate (if applicable)', 'Others',
+    'Marriage Certificate (if applicable)', 'Other',
   ],
   philhealth: ['PhilHealth ID', 'PhilHealth Member Data Record (MDR)', 'Others'],
   senior_pwd: ['Senior Citizen ID', 'PWD ID', 'OSCA Booklet', 'Others'],
@@ -127,17 +128,29 @@ interface PendingPatientPin {
   hasPin: boolean;
 }
 
-
-
 // Folder Definitions
 const FOLDER_DEFS = [
-  { key: 'basic_identification',   label: 'Basic Identification',   description: 'Government-issued IDs, birth certificate, and personal identification documents.', color: 'light',   supabaseCategory: 'Basic Identification',   bucketFolder: 'Basic Identification',   icon: <IdCard        className="w-5 h-5" /> },
-  { key: 'philhealth',             label: 'PhilHealth',             description: 'PhilHealth membership documents, MDR, and contribution records.',                   color: 'green',   supabaseCategory: 'PhilHealth',             bucketFolder: 'PhilHealth',             icon: <Heart         className="w-5 h-5" /> },
-  { key: 'senior_pwd',             label: 'Senior / PWD',           description: 'Senior citizen ID, PWD ID, and OSCA booklet.',                                      color: 'emerald', supabaseCategory: 'Senior/PWD',             bucketFolder: 'Senior or PWD',          icon: <Accessibility className="w-5 h-5" /> },
-  { key: 'company_documents',      label: 'Company Employee',       description: 'Company ID, Certificate of Employment, and Incident Report.',                       color: 'teal',    supabaseCategory: 'Company Documents',      bucketFolder: 'Company Documents',      icon: <Building2     className="w-5 h-5" /> },
-  { key: 'medical_documents',      label: 'Medical Documents',      description: "Doctor's referral, laboratory results, X-ray, and medical certificates.",           color: 'sage',    supabaseCategory: 'Medical Documents',      bucketFolder: 'Medical Documents',      icon: <Stethoscope   className="w-5 h-5" /> },
-  { key: 'admission_requirements', label: 'Admission Requirements', description: 'Admission form, surgery consent, and promissory note.',                             color: 'forest',  supabaseCategory: 'Admission Requirements', bucketFolder: 'Admission Requirements', icon: <ClipboardList className="w-5 h-5" /> },
+  { key: 'basic_identification',   label: 'Basic Identification',   description: 'Government-issued IDs, birth certificate, and personal identification documents.', color: 'light',   supabaseCategory: 'Basic Identification',   bucketFolder: 'Documents Attached', icon: <IdCard        className="w-5 h-5" /> },
+  { key: 'philhealth',             label: 'PhilHealth',             description: 'PhilHealth membership documents, MDR, and contribution records.',                   color: 'green',   supabaseCategory: 'PhilHealth',             bucketFolder: 'Documents Attached', icon: <Heart         className="w-5 h-5" /> },
+  { key: 'senior_pwd',             label: 'Senior / PWD',           description: 'Senior citizen ID, PWD ID, and OSCA booklet.',                                      color: 'emerald', supabaseCategory: 'Senior/PWD',             bucketFolder: 'Documents Attached', icon: <Accessibility className="w-5 h-5" /> },
+  { key: 'company_documents',      label: 'Company Employee',       description: 'Company ID, Certificate of Employment, and Incident Report.',                       color: 'teal',    supabaseCategory: 'Company Documents',      bucketFolder: 'Documents Attached', icon: <Building2     className="w-5 h-5" /> },
+  { key: 'medical_documents',      label: 'Medical Documents',      description: "Doctor's referral, laboratory results, X-ray, and medical certificates.",           color: 'sage',    supabaseCategory: 'Medical Documents',      bucketFolder: 'Documents Attached', icon: <Stethoscope   className="w-5 h-5" /> },
+  { key: 'admission_requirements', label: 'Admission Requirements', description: 'Admission form, surgery consent, and promissory note.',                             color: 'forest',  supabaseCategory: 'Admission Requirements', bucketFolder: 'Documents Attached', icon: <ClipboardList className="w-5 h-5" /> },
 ];
+
+// Grouped doc types for unified upload modal (all 6 categories in one view)
+const ALL_DOC_TYPE_GROUPS = FOLDER_DEFS.map(f => ({
+  label: f.label,
+  folderKey: f.key,
+  icon: f.icon,
+  types: (FOLDER_DOC_TYPES[f.key] ?? []).filter(t => t !== 'Others'),
+}));
+
+// Reverse lookup: doc type label → folder key
+const DOC_TYPE_TO_FOLDER_KEY: Record<string, string> = {};
+Object.entries(FOLDER_DOC_TYPES).forEach(([key, types]) => {
+  types.forEach(t => { if (t !== 'Others') DOC_TYPE_TO_FOLDER_KEY[t] = key; });
+});
 
 type ColorKey = 'light' | 'green' | 'emerald' | 'teal' | 'sage' | 'forest' | 'gray';
 const COLOR_MAP: Record<ColorKey, { bg: string; border: string; text: string; badge: string }> = {
@@ -481,7 +494,7 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
       </div>
       <div className="flex items-center justify-end gap-3 px-6 py-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <Button variant="outline" onClick={onClose} className="flex gap-2"><X className="w-4 h-4" /> Close</Button>
-        <Button variant="outline" className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50"
+        {/* <Button variant="outline" className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50"
           onClick={() => {
             const iframe = document.createElement('iframe');
             iframe.style.display = 'none'; iframe.src = url;
@@ -489,7 +502,7 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
             iframe.onload = () => { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); };
           }}>
           <Printer className="w-4 h-4" /> Print
-        </Button>
+        </Button> */}
         <Button className="flex gap-2 bg-green-700 hover:bg-green-800"
           onClick={() => { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }}>
           <Download className="w-4 h-4" /> Download
@@ -872,7 +885,6 @@ const UhcOperator = () => {
   const [selectedPatient,  setSelectedPatient]  = useState<PatientProfile | null>(null);
   const [isSearching,      setIsSearching]      = useState(false);
   const [folders,         setFolders]         = useState<DocumentFolder[]>(FOLDER_DEFS.map((f, i) => ({ ...f, id: String(i + 1), files: [] })));
-  const [expandedFolder,  setExpandedFolder]  = useState<string | null>(null);
   const [generatedQr,     setGeneratedQr]     = useState<string | null>(null);
   const [qrDataUrl,       setQrDataUrl]       = useState<string | null>(null);
   const [isGenerating,    setIsGenerating]    = useState(false);
@@ -885,6 +897,7 @@ const UhcOperator = () => {
   const [customDocType,   setCustomDocType]   = useState('');
   const [isProcessing,    setIsProcessing]    = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const unifiedFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Reset Document Manager to initial state
   const resetDocumentManager = useCallback(() => {
@@ -893,7 +906,6 @@ const UhcOperator = () => {
     setSelectedPatient(null);
     setIsSearching(false);
     setFolders(FOLDER_DEFS.map((f, i) => ({ ...f, id: String(i + 1), files: [] })));
-    setExpandedFolder(null);
     setGeneratedQr(null);
     setQrDataUrl(null);
     setIsGenerating(false);
@@ -962,6 +974,8 @@ const UhcOperator = () => {
     profile_pic_url?: string | null;
   }[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [histPage,         setHistPage]         = useState(1);
+  const [histPageSize,     setHistPageSize]     = useState(10);
 
   // Scanner instance
   const SCANNER_DIV_ID = 'uhc-qr-camera-root';
@@ -1056,11 +1070,12 @@ const UhcOperator = () => {
             scanned_by_user,
             scanned_by_role
           `)
-          .order('created_at', { ascending: false })
-          .limit(50);
+          .order('created_at', { ascending: false });
+
+        const allRecords = data ?? [];
 
         // Fetch role descriptions
-        const roleIds = [...new Set((data ?? [])
+        const roleIds = [...new Set(allRecords
           .map((s: any) => s.scanned_by_role)
           .filter(Boolean))]
           .filter((id): id is string => typeof id === 'string');
@@ -1074,17 +1089,8 @@ const UhcOperator = () => {
           (roles ?? []).forEach((r: any) => { roleMap[r.id] = r.description; });
         }
 
-        // De-duplicate: keep only the latest entry per health_card
-        const seen = new Set<string>();
-        const unique = (data ?? []).filter((s: any) => {
-          const key = s.health_card;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-
-        // Fetch patient_profile IDs from health_card table
-        const healthCardIds = [...new Set(unique.map((s: any) => s.health_card).filter(Boolean))];
+        // Fetch patient_profile IDs from health_card table (unique health_card IDs only)
+        const healthCardIds = [...new Set(allRecords.map((s: any) => s.health_card).filter(Boolean))];
         let hcPatientMap: Record<string, string> = {};
         if (healthCardIds.length > 0) {
           const { data: hcRows } = await supabase
@@ -1102,7 +1108,6 @@ const UhcOperator = () => {
           const { data: allFiles } = await supabase.storage.from('card-attachments').list('Profile Picture', { limit: 1000 });
           if (allFiles && allFiles.length > 0) {
             for (const pid of patientIds) {
-              // Match file that starts with the patient ID (e.g. uuid.jpg, uuid.png)
               const match = allFiles.find((f) => f.name.startsWith(pid));
               if (match) {
                 const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(`Profile Picture/${match.name}`);
@@ -1110,14 +1115,13 @@ const UhcOperator = () => {
               }
             }
           }
-          // Fallback: for any patient IDs not found via list(), try common extensions directly
+          // Fallback: try common extensions directly for any not found via list()
           const EXTS = ['jpg', 'jpeg', 'png', 'webp'];
           for (const pid of patientIds) {
-            if (picMap[pid]) continue; // already found
+            if (picMap[pid]) continue;
             for (const ext of EXTS) {
               const path = `Profile Picture/${pid}.${ext}`;
               const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(path);
-              // Verify the file actually exists with a quick HEAD check
               try {
                 const resp = await fetch(pub.publicUrl, { method: 'HEAD' });
                 if (resp.ok) {
@@ -1129,8 +1133,8 @@ const UhcOperator = () => {
           }
         }
 
-        // Map into display-friendly shape
-        const mapped = unique.map((s: any) => {
+        // Map all records (no de-duplication), newest first
+        const mapped = allRecords.map((s: any) => {
           const patientProfileId = hcPatientMap[s.health_card] ?? null;
           return {
             ...s,
@@ -1520,20 +1524,27 @@ const UhcOperator = () => {
   }, []);
 
   // File handling
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>, folderKey: string) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>, folderKey?: string) => {
     const file = e.target.files?.[0];
     if (!file || !selectedPatient) return;
-    const folder = FOLDER_DEFS.find((f) => f.key === folderKey)!;
-    setPendingUpload({ file, folderKey, folderLabel: folder.label });
+    if (folderKey) {
+      const folder = FOLDER_DEFS.find((f) => f.key === folderKey)!;
+      setPendingUpload({ file, folderKey, folderLabel: folder.label });
+    } else {
+      setPendingUpload({ file, folderKey: '', folderLabel: 'Documents' });
+    }
     setSelectedDocType(''); setCustomDocType('');
-    if (fileInputRefs.current[folderKey]) fileInputRefs.current[folderKey]!.value = '';
+    if (folderKey && fileInputRefs.current[folderKey]) fileInputRefs.current[folderKey]!.value = '';
+    if (unifiedFileInputRef.current) unifiedFileInputRef.current.value = '';
   };
 
   const handleDocTypeConfirm = async () => {
     if (!pendingUpload || !selectedPatient) return;
     const label = selectedDocType === 'Others' && customDocType.trim() ? customDocType.trim() : selectedDocType;
     if (!label) return;
-    const { file, folderKey } = pendingUpload;
+    const { file } = pendingUpload;
+    // Determine folderKey from the selected doc type (reverse lookup)
+    const resolvedFolderKey = pendingUpload.folderKey || DOC_TYPE_TO_FOLDER_KEY[selectedDocType] || 'basic_identification';
     setIsProcessing(true);
     try {
       const isImg  = file.type.startsWith('image/');
@@ -1542,9 +1553,9 @@ const UhcOperator = () => {
       const ext    = isImg ? 'pdf' : (file.name.split('.').pop() ?? 'pdf');
       const nf: UploadedFile = {
         name: `${safe}.${ext}`, url: URL.createObjectURL(file), pdfUrl, type: file.type,
-        uploadedAt: new Date().toLocaleString(), saved: false, saving: false, folderKey, docType: label, localFile: file,
+        uploadedAt: new Date().toLocaleString(), saved: false, saving: false, folderKey: resolvedFolderKey, docType: label, localFile: file,
       };
-      setFolders((prev) => prev.map((f) => f.key === folderKey ? { ...f, files: [...f.files, nf] } : f));
+      setFolders((prev) => prev.map((f) => f.key === resolvedFolderKey ? { ...f, files: [...f.files, nf] } : f));
       setPendingUpload(null);
     } catch { setErrorMessage('Failed to process file.'); }
     finally { setIsProcessing(false); }
@@ -1606,9 +1617,9 @@ const UhcOperator = () => {
         hcId = nhc!.id;
       }
 
-      // Upload file to storage
+      // Upload file to storage - all files go to Documents Attached folder, organized by user ID
       const blob = await fetch(entry.pdfUrl).then((r) => r.blob());
-      const path = `${folder.bucketFolder}/${selectedPatient.id}_${Date.now()}_${entry.name}`;
+      const path = `Documents Attached/${selectedPatient.id}_${Date.now()}_${entry.name}`;
       const { error: ue } = await supabase.storage
         .from('card-attachments')
         .upload(path, blob, { contentType: 'application/pdf' });
@@ -1693,9 +1704,11 @@ const UhcOperator = () => {
   };
 
   const totalFiles    = folders.reduce((s, f) => s + f.files.length, 0);
-  const pendingFolder = pendingUpload ? FOLDER_DEFS.find((f) => f.key === pendingUpload.folderKey) : null;
-  const pendingColors = pendingFolder ? COLOR_MAP[pendingFolder.color as ColorKey] : COLOR_MAP.light;
-  const pendingOptions = pendingUpload ? (FOLDER_DOC_TYPES[pendingUpload.folderKey] ?? []) : [];
+  const allUploadedFiles = folders.flatMap((f) => f.files.map((file, idx) => ({ ...file, _folderKey: f.key, _fileIdx: idx, _folderLabel: f.label })));
+  const pendingColors = COLOR_MAP.green;
+  // When folderKey is set (from a specific folder), show only that folder's doc types; otherwise show all grouped
+  const pendingHasFolderKey = pendingUpload && pendingUpload.folderKey !== '';
+  const pendingOptions = pendingHasFolderKey ? (FOLDER_DOC_TYPES[pendingUpload!.folderKey] ?? []) : [];
 
   // Render
   return (
@@ -1703,6 +1716,7 @@ const UhcOperator = () => {
       <BreadcrumbComp title="Health Card Operator" items={BCrumb} />
       <div
         style={{
+          position: 'fixed',
           bottom: cameraActive ? 16 : -9999,
           right: cameraActive ? 16 : -9999,
           width: 'min(320px, calc(100vw - 32px))', zIndex: 9998, borderRadius: 16, overflow: 'hidden',
@@ -1756,7 +1770,7 @@ const UhcOperator = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className={`font-bold text-lg ${pendingColors.text}`}>Select Document Type</h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Category: <span className="font-semibold">{pendingUpload.folderLabel}</span></p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Choose the type that best describes this document</p>
                 </div>
                 <button onClick={handleDocTypeCancel} className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10"><X className="w-4 h-4 text-gray-500 dark:text-gray-400" /></button>
               </div>
@@ -1770,19 +1784,56 @@ const UhcOperator = () => {
             </div>
             <div className="px-6 py-5">
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-medium uppercase tracking-wide">What type of document is this?</p>
-              <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
-                {pendingOptions.map((option) => {
-                  const sel = selectedDocType === option;
-                  return (
-                    <button key={option} onClick={() => { setSelectedDocType(option); setCustomDocType(''); }}
-                      className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all text-sm font-medium flex items-center gap-3 ${sel ? `${pendingColors.bg} ${pendingColors.border} ${pendingColors.text}` : 'bg-gray-50 dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500'}`}>
-                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${sel ? pendingColors.border : 'border-gray-300'}`}>
-                        {sel && <span className={`w-2 h-2 rounded-full ${pendingColors.text.replace('text-', 'bg-')}`} />}
+              <div className="flex flex-col gap-1 max-h-80 overflow-y-auto pr-1">
+                {pendingHasFolderKey ? (
+                  /* If opened from a specific folder context, show only that folder's doc types */
+                  pendingOptions.map((option) => {
+                    const sel = selectedDocType === option;
+                    return (
+                      <button key={option} onClick={() => { setSelectedDocType(option); setCustomDocType(''); }}
+                        className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all text-sm font-medium flex items-center gap-3 ${sel ? `${pendingColors.bg} ${pendingColors.border} ${pendingColors.text}` : 'bg-gray-50 dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500'}`}>
+                        <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${sel ? pendingColors.border : 'border-gray-300'}`}>
+                          {sel && <span className={`w-2 h-2 rounded-full ${pendingColors.text.replace('text-', 'bg-')}`} />}
+                        </span>
+                        {option}
+                      </button>
+                    );
+                  })
+                ) : (
+                  /* Unified: show all doc types grouped by category */
+                  ALL_DOC_TYPE_GROUPS.map((group) => (
+                    <div key={group.folderKey} className="mb-2">
+                      <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        <span className="text-green-600">{group.icon}</span>
+                        {group.label}
+                      </div>
+                      {group.types.map((option) => {
+                        const sel = selectedDocType === option;
+                        return (
+                          <button key={option} onClick={() => { setSelectedDocType(option); setCustomDocType(''); }}
+                            className={`w-full text-left px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-medium flex items-center gap-3 mb-1 ${sel ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500'}`}>
+                            <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${sel ? 'border-green-200' : 'border-gray-300'}`}>
+                              {sel && <span className="w-2 h-2 rounded-full bg-green-700" />}
+                            </span>
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+                {/* Others option always available */}
+                {!pendingHasFolderKey && (
+                  <div className="mt-1 border-t pt-3 dark:border-gray-700">
+                    <button onClick={() => { setSelectedDocType('Others'); }}
+                      className={`w-full text-left px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-medium flex items-center gap-3 ${selectedDocType === 'Others' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500'}`}>
+                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${selectedDocType === 'Others' ? 'border-green-200' : 'border-gray-300'}`}>
+                        {selectedDocType === 'Others' && <span className="w-2 h-2 rounded-full bg-green-700" />}
                       </span>
-                      {option}
+                      Others
                     </button>
-                  );
-                })}
+                  </div>
+                )}
               </div>
               {selectedDocType === 'Others' && (
                 <Input className="mt-3 text-sm" placeholder="Specify document type…" value={customDocType} onChange={(e) => setCustomDocType(e.target.value)} autoFocus />
@@ -1830,8 +1881,7 @@ const UhcOperator = () => {
               {/* ── 1. Upload Documents ── */}
               <button
                 onClick={() => { setOperatorMode('documents'); setActiveTab('documents'); }}
-                className="group relative bg-white dark:bg-gray-800 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30 transition-all duration-200 text-left"
-              >
+                  className="group relative bg-white dark:bg-[#262626] rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30 transition-all duration-200 text-left">
                 {/* Top color accent bar */}
                 <div className="h-1.5 w-full bg-gradient-to-r from-green-400 to-emerald-500" />
 
@@ -1854,8 +1904,7 @@ const UhcOperator = () => {
               {/* ── 2. Scan QR Code ── */}
               <button
                 onClick={() => { setOperatorMode('scanner'); setActiveTab('scanner'); }}
-                className="group relative bg-white dark:bg-gray-800 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30 transition-all duration-200 text-left"
-              >
+                className="group relative bg-white dark:bg-[#262626] rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md dark:shadow-gray-900/30 transition-all duration-200 text-left">
                 <div className="h-1.5 w-full bg-gradient-to-r from-blue-400 to-indigo-500" />
 
                 <div className="flex items-start justify-between p-6 gap-4">
@@ -1923,15 +1972,7 @@ const UhcOperator = () => {
           <ArrowLeft className="w-4 h-4" /> Back to menu
         </button>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          {operatorMode === 'documents' ? (
-            <TabsList className="grid w-full grid-cols-1">
-              <TabsTrigger value="documents">Document Manager</TabsTrigger>
-            </TabsList>
-          ) : operatorMode === 'tagging' && !isBarangayOfficer ? (
-            <TabsList className="grid w-full grid-cols-1">
-              <TabsTrigger value="tagging">Member Tagging</TabsTrigger>
-            </TabsList>
-          ) : (
+          {operatorMode !== 'documents' && !(operatorMode === 'tagging' && !isBarangayOfficer) && (
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="scanner">QR Scanner</TabsTrigger>
               <TabsTrigger value="history">Scan History</TabsTrigger>
@@ -1957,9 +1998,8 @@ const UhcOperator = () => {
                     {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Search
                   </Button>
                   {(selectedPatient || searchResults.length > 0 || searchQuery) && (
-                    <Button variant="outline" onClick={resetDocumentManager} className="flex gap-2 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <RefreshCw className="w-4 h-4" /> Clear
-                    </Button>
+                  <Button variant="outline" onClick={resetDocumentManager} className="flex gap-2 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 hover:border-gray-400 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:border-gray-500 dark:hover:text-gray-200 transition-colors duration-200" >
+                    <RefreshCw className="w-4 h-4" /> Clear</Button>
                   )}
                 </div>
 
@@ -2104,108 +2144,90 @@ const UhcOperator = () => {
                 )}
               </Card>
 
-            <Card className="p-4 sm:p-6">
-                <h3 className="font-semibold text-base sm:text-lg mb-4 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-green-600" /> Document Folders
-                </h3>
-                {!selectedPatient ? (
-                  <div className="text-center py-10 text-gray-400 dark:text-gray-500">
-                    <User className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p>Search and select a patient to manage their documents.</p>
+            {selectedPatient && <Card className="p-4 sm:p-6">
+                {/* Section Header */}
+                <div className="flex items-center gap-3 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+                  <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
+                    <Upload className="w-5 h-5 text-green-600 dark:text-green-400" />
                   </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    {folders.map((folder) => {
-                      const colors = COLOR_MAP[folder.color as ColorKey];
-                      const isExp  = expandedFolder === folder.key;
-                      return (
-                        <div key={folder.key} className={`border rounded-xl overflow-hidden ${colors.border}`}>
-                          <button
-                            className={`w-full flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-3 sm:py-4 ${colors.bg} transition-colors hover:opacity-90`}
-                            onClick={() => setExpandedFolder(isExp ? null : folder.key)}
-                          >
-                            <span className={colors.text}>{folder.icon}</span>
-                            <div className="flex-1 text-left min-w-0">
-                              <p className={`font-semibold text-sm sm:text-base ${colors.text}`}>{folder.label}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 hidden sm:block">{folder.description}</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              {folder.files.length > 0 && (
-                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge}`}>
-                                  {folder.files.length} file{folder.files.length > 1 ? 's' : ''}
-                                </span>
-                              )}
-                              {isExp
-                                ? <ChevronDown className={`w-4 h-4 ${colors.text}`} />
-                                : <ChevronRight className={`w-4 h-4 ${colors.text}`} />}
-                            </div>
-                          </button>
-                          {isExp && (
-                            <div className="p-5 border-t dark:border-gray-700 bg-white dark:bg-gray-800">
-                              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 italic">
-                                Select a file — you will be asked to identify the document type. Files saved to <strong>{folder.bucketFolder}</strong>.
-                              </p>
-                              <div
-                                className={`border-2 border-dashed ${colors.border} rounded-lg p-6 flex flex-col items-center gap-3 cursor-pointer hover:opacity-80`}
-                                onClick={() => fileInputRefs.current[folder.key]?.click()}
-                              >
-                                <Upload className={`w-8 h-8 ${colors.text} opacity-60`} />
-                                <div className="text-center">
-                                  <p className={`font-medium text-sm ${colors.text}`}>Click to upload PDF or Image</p>
-                                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">PDF, JPG, PNG — images auto-converted to PDF</p>
+                  <div>
+                    <h3 className="font-bold text-base sm:text-lg text-gray-900 dark:text-gray-100 leading-tight">Add / Upload Documents</h3>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Attach documents to the selected member's health card</p>
+                  </div>
+                </div>
+                  <div className="space-y-4">
+                    {/* Single Upload Area */}
+                    <div
+                      className="border-2 border-dashed border-green-200 rounded-lg p-6 flex flex-col items-center gap-3 cursor-pointer hover:opacity-80 bg-green-50 dark:bg-green-900/20"
+                      onClick={() => unifiedFileInputRef.current?.click()}
+                    >
+                      <Upload className="w-8 h-8 text-green-600 opacity-60" />
+                      <div className="text-center">
+                        <p className="font-medium text-sm text-green-700">Click to upload PDF or Image</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">PDF, JPG, PNG</p>
+                        <p className="text-xs text-green-600 mt-1">All document types available after selection</p>
+                      </div>
+                      <input
+                        ref={unifiedFileInputRef}
+                        type="file" accept=".pdf,image/*" className="hidden"
+                        onChange={(e) => handleFileChange(e)}
+                      />
+                    </div>
+                    
+                    {/* Uploaded Files List */}
+                    {allUploadedFiles.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                          <FolderOpen className="w-4 h-4" />
+                          Uploaded Files ({allUploadedFiles.length})
+                        </h4>
+                        {allUploadedFiles.map((file, idx) => {
+                          const categoryColors = COLOR_MAP[FOLDER_DEFS.find(f => f.key === file._folderKey)?.color as ColorKey] || COLOR_MAP.gray;
+                          return (
+                            <div key={`${file._folderKey}-${idx}`} className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border ${file.saved ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-600'}`}>
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{file.docType}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${categoryColors.badge}`}>
+                                      {file._folderLabel}
+                                    </span>
+                                    <span className="text-xs text-gray-400 dark:text-gray-500">{file.uploadedAt}</span>
+                                  </div>
                                 </div>
-                                <input
-                                  ref={(el) => { fileInputRefs.current[folder.key] = el; }}
-                                  type="file" accept=".pdf,image/*" className="hidden"
-                                  onChange={(e) => handleFileChange(e, folder.key)}
-                                />
                               </div>
-                              {folder.files.length > 0 && (
-                                <div className="mt-4 flex flex-col gap-2">
-                                  {folder.files.map((file, idx) => (
-                                    <div key={idx} className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border ${file.saved ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-600'}`}>
-                                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{file.docType}</p>
-                                          <p className="text-xs text-gray-400 dark:text-gray-500">{file.uploadedAt}</p>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2 ml-7 sm:ml-0 flex-shrink-0">
-                                        {file.saved && (
-                                          <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">
-                                            <CheckCircle2 className="w-3 h-3" /> Saved
-                                          </span>
-                                        )}
-                                        <button onClick={() => setPreviewFile(file)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0">
-                                          <Eye className="w-4 h-4 text-gray-400 hover:text-green-600 dark:text-gray-500 dark:hover:text-green-400" />
-                                        </button>
-                                        {!file.saved && (
-                                          <Button size="sm" disabled={file.saving}
-                                            className="bg-green-700 hover:bg-green-800 text-white text-xs flex gap-1.5 px-3 min-w-[72px] flex-shrink-0"
-                                            onClick={() => handleSaveFile(folder.key, idx)}>
-                                            {file.saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                            {file.saving ? 'Saving…' : 'Save'}
-                                          </Button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {errorMessage && (
-                                <div className="mt-3 flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>{errorMessage}</p>
-                                </div>
-                              )}
+                              <div className="flex items-center gap-2 ml-7 sm:ml-0 flex-shrink-0">
+                                {file.saved && (
+                                  <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                                    <CheckCircle2 className="w-3 h-3" /> Saved
+                                  </span>
+                                )}
+                                <button onClick={() => setPreviewFile(file)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0">
+                                  <Eye className="w-4 h-4 text-gray-400 hover:text-green-600 dark:text-gray-500 dark:hover:text-green-400" />
+                                </button>
+                                {!file.saved && (
+                                  <Button size="sm" disabled={file.saving}
+                                    className="bg-green-700 hover:bg-green-800 text-white text-xs flex gap-1.5 px-3 min-w-[72px] flex-shrink-0"
+                                    onClick={() => handleSaveFile(file._folderKey, file._fileIdx)}>
+                                    {file.saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                    {file.saving ? 'Saving…' : 'Save'}
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    {errorMessage && (
+                      <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>{errorMessage}</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </Card>
+              </Card>}
             </div>
           </TabsContent>
 
@@ -2295,6 +2317,7 @@ const UhcOperator = () => {
                         qrDataUrl={scanQrDataUrl}
                         qrCodeValue={scanResult.qrValue}
                         profilePicUrl={scanProfilePicUrl}
+                        dateIssued={scanResult.dateIssued}
                       />
                     </div>
                   )}
@@ -2340,102 +2363,166 @@ const UhcOperator = () => {
 
           {/* ═══ HISTORY TAB ═══ */}
           <TabsContent value="history">
-            <Card className="p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                    <History className="w-5 h-5 text-green-600 dark:text-green-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base sm:text-lg text-gray-800 dark:text-gray-100">Scan History</h3>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">Recently scanned health cards</p>
-                  </div>
-                </div>
-                {dbScanHistory.length > 0 && (
-                  <span className="text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-full">
-                    {dbScanHistory.length} scan{dbScanHistory.length !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-
-              {isLoadingHistory ? (
-                <div className="flex flex-col items-center justify-center py-14 gap-3">
-                  <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
-                  <p className="text-sm text-gray-400 dark:text-gray-500">Loading history…</p>
-                </div>
-              ) : dbScanHistory.length > 0 ? (
-                <div className="space-y-3">
-                {dbScanHistory.map((scan) => {
-                  const roleName = scan.role_name || 'Unknown Role';
-                  const isBarangay = roleName.toLowerCase().includes('barangay');
-                  const roleColor = isBarangay
-                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
-                    : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800';
-
-                  return (
-                    <div
-                      key={scan.id}
-                      className="group relative bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl p-4 hover:shadow-md dark:hover:shadow-gray-900/40 hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-200"
-                    >
-                      {/* Left accent */}
-                      <div className="absolute left-0 top-3 bottom-3 w-1 rounded-full bg-gradient-to-b from-green-200 to-emerald-200 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-
-                      <div className="flex items-center gap-4">
-                        {/* Profile picture */}
-                        <img
-                          src={scan.profile_pic_url || defaultProfile}
-                          alt={scan.patient_name}
-                          className="w-11 h-11 rounded-xl object-cover flex-shrink-0 border-2 border-green-200 dark:border-green-800"
-                        />
-
-                        {/* Main info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-gray-800 dark:text-gray-100 truncate">{scan.patient_name}</p>
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${roleColor}`}>
-                              <ShieldCheck className="w-3 h-3" />
-                              {roleName}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1">
-                            <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
-                              <QrCode className="w-3 h-3 flex-shrink-0" />
-                              <span className="font-mono break-all">{scan.qr_code}</span>
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Timestamp */}
-                        <div className="flex-shrink-0 text-right hidden sm:block">
-                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5 justify-end">
-                            <Clock className="w-3.5 h-3.5" />
-                            {new Date(scan.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </p>
-                          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-                            {new Date(scan.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Mobile timestamp */}
-                      <div className="flex items-center gap-1.5 mt-2 sm:hidden text-xs text-gray-400 dark:text-gray-500">
-                        <Clock className="w-3 h-3" />
-                        {new Date(scan.created_at).toLocaleString()}
-                      </div>
+            {(() => {
+              const totalHistRecords = dbScanHistory.length;
+              const totalHistPages   = Math.max(1, Math.ceil(totalHistRecords / histPageSize));
+              const histSlice = dbScanHistory.slice((histPage - 1) * histPageSize, histPage * histPageSize);
+              return (
+              <Card className="p-4 sm:p-6">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                      <History className="w-5 h-5 text-green-600 dark:text-green-400" />
                     </div>
-                  );
-                })}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center py-16 gap-3">
-                  <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                    <History className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                    <div>
+                      <h3 className="font-bold text-base sm:text-lg text-gray-800 dark:text-gray-100">Scan History</h3>
+                    </div>
                   </div>
-                  <p className="font-semibold text-gray-500 dark:text-gray-400">No scan history yet</p>
-                  <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xs text-center">Use the QR Scanner tab to scan a member's health card. All scans will appear here.</p>
+                  {totalHistRecords > 0 && (
+                    <span className="text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-full">
+                      {totalHistRecords} scan{totalHistRecords !== 1 ? 's' : ''}
+                    </span>
+                  )}
                 </div>
-              )}
-            </Card>
+
+                {isLoadingHistory ? (
+                  <div className="flex flex-col items-center justify-center py-14 gap-3">
+                    <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+                    <p className="text-sm text-gray-400 dark:text-gray-500">Loading history…</p>
+                  </div>
+                ) : totalHistRecords > 0 ? (
+                  <>
+                    {/* Table */}
+                    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                            <th className="py-3 px-4 text-center font-semibold text-gray-600 dark:text-gray-300 w-10">No.</th>
+                            <th className="py-3 px-4 text-left font-semibold text-gray-600 dark:text-gray-300">Member</th>
+                            <th className="py-3 px-4 text-center font-semibold text-gray-600 dark:text-gray-300">Scanned By</th>
+                            <th className="py-3 px-4 text-right font-semibold text-gray-600 dark:text-gray-300">Date & Time</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                          {histSlice.map((scan, idx) => {
+                            const roleName   = scan.role_name || 'Unknown Role';
+                            const isBarangayR = roleName.toLowerCase().includes('barangay');
+                            const roleColor  = isBarangayR
+                              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                              : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800';
+                            const rowNum = (histPage - 1) * histPageSize + idx + 1;
+                            const dt = new Date(scan.created_at);
+
+                            return (
+                              <tr key={scan.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                {/* # */}
+                                <td className="py-3 px-4 text-center text-xs text-gray-400 dark:text-gray-500 font-mono">{rowNum}</td>
+                                {/* Member */}
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-3">
+                                    <img
+                                      src={scan.profile_pic_url || defaultProfile}
+                                      alt={scan.patient_name}
+                                      className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-gray-200 dark:border-gray-600"
+                                    />
+                                    <span className="font-semibold text-gray-800 dark:text-gray-100 whitespace-nowrap">{scan.patient_name}</span>
+                                  </div>
+                                </td>
+                                {/* Scanned By */}
+                                <td className="py-3 px-4 text-center">
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full ${roleColor}`}>
+                                    <ShieldCheck className="w-3 h-3" />
+                                    {roleName}
+                                  </span>
+                                </td>
+                                {/* Date & Time */}
+                                <td className="py-3 px-4 text-right">
+                                  <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                                    {dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  </p>
+                                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+                                    {dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                  </p>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination Footer */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                      {/* Left: rows per page */}
+                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <Select
+                          value={String(histPageSize)}
+                          onValueChange={(v) => { setHistPageSize(Number(v)); setHistPage(1); }}
+                        >
+                          <SelectTrigger size="sm" className="h-8 text-xs border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg min-w-[90px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[10, 25, 50, 100].map(n => (
+                              <SelectItem key={n} value={String(n)} className="text-xs">{n} rows</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="font-medium">{totalHistRecords} record{totalHistRecords !== 1 ? 's' : ''}</span>
+                      </div>
+
+                      {/* Center: page navigation */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setHistPage(1)}
+                          disabled={histPage === 1}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs"
+                          title="First page"
+                        >«</button>
+                        <button
+                          onClick={() => setHistPage(p => Math.max(1, p - 1))}
+                          disabled={histPage === 1}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <div className="flex items-center gap-1.5 px-3 h-8 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 font-medium">
+                          Page <span className="text-green-600 dark:text-green-400 font-bold mx-1">{histPage}</span> of <span className="mx-1">{totalHistPages}</span>
+                        </div>
+                        <button
+                          onClick={() => setHistPage(p => Math.min(totalHistPages, p + 1))}
+                          disabled={histPage === totalHistPages}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setHistPage(totalHistPages)}
+                          disabled={histPage === totalHistPages}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs"
+                          title="Last page"
+                        >»</button>
+                      </div>
+
+                      {/* Right: showing x-y of total */}
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        Showing {Math.min((histPage - 1) * histPageSize + 1, totalHistRecords)}–{Math.min(histPage * histPageSize, totalHistRecords)} of {totalHistRecords}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center py-16 gap-3">
+                    <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                      <History className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                    </div>
+                    <p className="font-semibold text-gray-500 dark:text-gray-400">No scan history yet</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xs text-center">Use the QR Scanner tab to scan a member's health card. All scans will appear here.</p>
+                  </div>
+                )}
+              </Card>
+            );
+            })()}
           </TabsContent>
 
         {/* ═══ MEMBER TAGGING ═══ */}

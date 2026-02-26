@@ -40,15 +40,19 @@ import {
   X,
   Loader2,
   Users,
+  Server,
 } from 'lucide-react';
 import patientService, { PatientProfileWithLocations as APIPatientProfile, Facility } from 'src/services/patientService';
 import psgcService, { PSGCRegion, PSGCEntity } from 'src/services/psgcService';
+import {
+  getPatientSearchBuckets,
+  getPatientSearchSummaries,
+  getPatientSearchTotalMatches,
+  PatientDatabaseSummary,
+} from './utils/patientSearchResultHelpers';
+import { mapFacilityList } from './utils/facilityHelpers';
 
 /* ------------------------------------------------------------------ */
-/*  Constants                                                          */
-/* ------------------------------------------------------------------ */
-
-
 
 interface PatientProfile {
   id: string;
@@ -151,13 +155,13 @@ function FormField({
   label,
   htmlFor,
   hint,
-  required,
   children,
 }: {
   label: string;
   htmlFor: string;
   hint?: string;
   required?: boolean;
+  isFilled?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -165,7 +169,6 @@ function FormField({
       <div className="flex items-center gap-1.5">
         <Label htmlFor={htmlFor} className="text-sm font-medium text-foreground">
           {label}
-          {required && <span className="text-error ml-0.5">*</span>}
         </Label>
         {hint && (
           <Tooltip>
@@ -197,9 +200,41 @@ function useProfileCompletion(profile: PatientProfile) {
   }, [profile]);
 }
 
+const capitalizeStatusLabel = (value?: string, fallback = 'Unknown'): string => {
+  if (!value) return fallback;
+  const parts = value.split(/[^a-zA-Z0-9]+/).filter(Boolean);
+  if (!parts.length) return fallback;
+  return parts
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+};
+
+const getStatusBadgeVariant = (status?: string): 'outline' | 'secondary' | 'success' | 'warning' | 'destructive' => {
+  if (!status) return 'outline';
+  const normalized = status.toLowerCase();
+  if (['ok', 'healthy', 'connected', 'available'].includes(normalized)) return 'success';
+  if (normalized.includes('warn') || normalized.includes('degrad')) return 'warning';
+  if (normalized.includes('error') || normalized.includes('down') || normalized.includes('failed') || normalized.includes('disconnected')) return 'destructive';
+  return 'secondary';
+};
+
+const formatUptime = (seconds?: number): string => {
+  if (seconds == null || Number.isNaN(seconds)) return '—';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const parts = [];
+  if (hrs) parts.push(`${hrs}h`);
+  if (mins) parts.push(`${mins}m`);
+  if (secs || !parts.length) parts.push(`${secs}s`);
+  return parts.join(' ');
+};
+
 /* ------------------------------------------------------------------ */
 /*  Main Component                                                     */
 /* ------------------------------------------------------------------ */
+
+type BackendConnectionStatus = 'unknown' | 'connected' | 'disconnected';
 
 const PatientProfiling = () => {
   const [patient, setPatient] = useState<PatientProfile>({ ...INITIAL_PROFILE });
@@ -216,7 +251,7 @@ const PatientProfiling = () => {
   const [searchResults, setSearchResults] = useState<APIPatientProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(null);
+  const [backendConnectionState, setBackendConnectionState] = useState<BackendConnectionStatus>('unknown');
 
   // Facilities state - loaded from MySQL database
   const [facilities, setFacilities] = useState<Facility[]>([]);
@@ -241,32 +276,27 @@ const PatientProfiling = () => {
 
   const completion = useProfileCompletion(patient);
 
-  // The only 2 supported facilities for patient linking/history
-  const SUPPORTED_FACILITIES: Facility[] = [
-    {
-      facility_code: '0005027',
-      facility_name: 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL',
-      patient_count: 17468,
-      database: 'adnph_ihomis_plus',
-    },
-    {
-      facility_code: '0005028',
-      facility_name: 'NASIPIT DISTRICT HOSPITAL',
-      patient_count: 17468,
-      database: 'ndh_ihomis_plus',
-    },
-  ];
-
   const loadFacilities = async () => {
     setIsLoadingFacilities(true);
     setFacilityLoadError(null);
     try {
-      // Use only the 2 supported facilities instead of loading all
-      setFacilities(SUPPORTED_FACILITIES);
+      const response = await patientService.getFacilities();
+      if (!response.success) {
+        throw new Error(response.message || 'Unable to load repository metadata');
+      }
+
+      const normalized = mapFacilityList(response)
+        .filter((facility) => (facility.patient_count ?? 0) > 0);
+      if (!normalized.length) {
+        setFacilityLoadError('No repository databases with patient records were returned from module3.db_informations.');
+        setFacilities([]);
+      } else {
+        setFacilities(normalized);
+      }
     } catch (error) {
-      console.warn(`Failed to load facilities:`, error);
+      console.warn('Failed to load facilities:', error);
       setFacilities([]);
-      setFacilityLoadError('Failed to load facilities');
+      setFacilityLoadError(error instanceof Error ? error.message : 'Failed to load facilities');
     } finally {
       setIsLoadingFacilities(false);
     }
@@ -279,14 +309,16 @@ const PatientProfiling = () => {
         // Check connection
         const health = await patientService.checkHealth();
         const connected = health.status === 'ok' && health.databases?.mysql === 'connected';
-        setIsBackendConnected(connected);
+        setBackendConnectionState(connected ? 'connected' : 'disconnected');
       } catch (error) {
         console.error('Initialization error:', error);
-        setIsBackendConnected(false);
+        setBackendConnectionState('disconnected');
       }
     };
     initialize();
   }, []);
+
+  const repositoryAvailable = backendConnectionState !== 'disconnected';
 
   // Use effect to load regions
   useEffect(() => {
@@ -493,7 +525,11 @@ const PatientProfiling = () => {
     setSearchError(null);
     setFacilities([]);
     setFacilityLoadError(null);
-    void loadFacilities();
+    if (repositoryAvailable) {
+      void loadFacilities();
+    } else {
+      setFacilityLoadError('Repository database is not available right now.');
+    }
     setIsRepositoryModalOpen(true);
   };
 
@@ -531,18 +567,15 @@ const PatientProfiling = () => {
       setIsSearching(false);
 
       if (result.success) {
-        // Backend returns database1 and database2 structure
-        // Extract data based on selected database
-        let patients: APIPatientProfile[] = [];
-
-        if (result.database1 && modalFacilityDatabase === result.database1.name) {
-          patients = result.database1.data;
-        } else if (result.database2 && modalFacilityDatabase === result.database2.name) {
-          patients = result.database2.data;
-        } else if (result.data) {
-          // Fallback: if backend returns old structure with flat data array
-          patients = result.data;
-        }
+        const buckets = getPatientSearchBuckets(result);
+        const selectedBucket = buckets.find((bucket) => {
+          const matchesDbName = bucket.metadata.db_name === modalFacilityDatabase;
+          const matchesFacility = selectedFacility
+            ? bucket.metadata.description?.toLowerCase() === selectedFacility.facility_name.toLowerCase()
+            : false;
+          return matchesDbName || matchesFacility;
+        });
+        const patients = selectedBucket?.data ?? [];
 
         setSearchResults(patients);
 
@@ -757,7 +790,7 @@ const PatientProfiling = () => {
           />
           <Separator className="my-5" />
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <FormField label="First Name" htmlFor="first-name" required>
+            <FormField label="First Name" htmlFor="first-name" required isFilled={!!patient.first_name}>
               <Input
                 id="first-name"
                 value={patient.first_name}
@@ -775,7 +808,7 @@ const PatientProfiling = () => {
               />
             </FormField>
 
-            <FormField label="Last Name" htmlFor="last-name" required>
+            <FormField label="Last Name" htmlFor="last-name" required isFilled={!!patient.last_name}>
               <Input
                 id="last-name"
                 value={patient.last_name}
@@ -804,7 +837,7 @@ const PatientProfiling = () => {
           />
           <Separator className="my-5" />
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <FormField label="Sex" htmlFor="sex" required>
+            <FormField label="Sex" htmlFor="sex" required isFilled={!!patient.sex}>
               <Select value={patient.sex} onValueChange={updateSex}>
                 <SelectTrigger className="w-full" id="sex">
                   <SelectValue placeholder="Select sex" />
@@ -826,7 +859,7 @@ const PatientProfiling = () => {
               </Select>
             </FormField>
 
-            <FormField label="Birth Date" htmlFor="birth-date" required>
+            <FormField label="Birth Date" htmlFor="birth-date" required isFilled={!!patient.birth_date}>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                 <Input
@@ -852,7 +885,7 @@ const PatientProfiling = () => {
 
           {/* Region and Province */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <FormField label="Region" htmlFor="region" required>
+            <FormField label="Region" htmlFor="region" required isFilled={!!selectedRegionCode}>
               <Select value={selectedRegionCode} onValueChange={handleRegionChange}>
                 <SelectTrigger id="region" className="w-full">
                   <SelectValue placeholder={isLoadingRegions ? "Loading regions..." : "Select Region"} />
@@ -889,7 +922,7 @@ const PatientProfiling = () => {
 
           {/* City and Barangay */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <FormField label="City / Municipality" htmlFor="city" required>
+            <FormField label="City / Municipality" htmlFor="city" required isFilled={!!selectedCityCode}>
               <Select
                 value={selectedCityCode}
                 onValueChange={handleCityChange}
@@ -908,7 +941,7 @@ const PatientProfiling = () => {
               </Select>
             </FormField>
 
-            <FormField label="Barangay" htmlFor="barangay" required>
+            <FormField label="Barangay" htmlFor="barangay" required isFilled={!!selectedBrgyCode}>
               <Select
                 value={selectedBrgyCode}
                 onValueChange={handleBrgyChange}
@@ -1031,12 +1064,20 @@ const PatientProfiling = () => {
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     <span className="ml-2 text-sm text-muted-foreground">Loading facilities...</span>
                   </div>
+                ) : !repositoryAvailable ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Database className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Repository unavailable</p>
+                    <p className="text-xs mt-1">
+                      Backend server is currently offline. Please check the connection.
+                    </p>
+                  </div>
                 ) : facilities.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Database className="h-12 w-12 mx-auto mb-3 opacity-50" />
                     <p className="text-sm">No facilities found</p>
                     <p className="text-xs mt-1">
-                      {isBackendConnected === false
+                      {backendConnectionState !== 'connected'
                         ? 'Backend server is offline'
                         : 'Check database connection'}
                     </p>
@@ -1068,7 +1109,7 @@ const PatientProfiling = () => {
                                 variant={facility.database === 'adnph_ihomis_plus' ? 'secondary' : 'warning'}
                                 className="text-[9px] px-1.5 py-0 shrink-0"
                               >
-                                {facility.database === 'adnph_ihomis_plus' ? 'Primary' : 'NDH'}
+                                {facility.database === 'adnph_ihomis_plus' ? 'ADNPH' : 'NDH'}
                               </Badge>
                             </div>
                             <p className="text-xs text-muted-foreground">

@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, AlertCircle, Loader2, Download, X,
   Printer, CheckCircle2, RefreshCw, ArchiveX, CreditCard, Lock,
   KeyRound, ShieldCheck, EyeOff, ShieldAlert, ShieldX, User,
-  Camera, Upload, ImagePlus, SwitchCamera, CircleDot,
+  Camera, Upload, ImagePlus, SwitchCamera, CircleDot, ExternalLink,
 } from 'lucide-react';
 import { supabase } from 'src/lib/supabase';
 import Threads from 'src/components/ui/Threads';
@@ -109,6 +109,8 @@ interface DocumentAttachment {
   category: string;
   status: boolean;
   archived?: boolean;
+  created_at?: string | null;
+  archived_at?: string | null;
 }
 
 // Folder Definitions
@@ -189,7 +191,8 @@ const computeAge = (dateStr?: string | null): string => {
 };
 
 // Replaces the leading UUID + timestamp in a storage filename with the patient's last name
-const displayFileName = (url: string, patient?: PatientProfile | null): string => {
+const displayFileName = (url: string | null | undefined, patient?: PatientProfile | null): string => {
+  if (!url) return 'Document';
   const raw = url.split('/').pop() ?? 'Document';
   if (!patient) return raw;
   // Storage filenames follow: <uuid>_<timestamp>_<label>.<ext>
@@ -212,24 +215,45 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
           <X className="w-4 h-4 text-gray-500" />
         </button>
       </div>
-      <div className="flex-1 overflow-hidden">
-        <iframe src={url} title={name} className="w-full h-full border-0" />
+      <div className="flex-1 overflow-hidden relative">
+        <object
+          data={url}
+          type="application/pdf"
+          className="w-full h-full"
+        >
+          {/* Fallback for browsers that block inline PDF rendering */}
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500 p-8">
+            <FileText className="w-16 h-16 opacity-30" />
+            <p className="text-sm font-medium text-center">Your browser could not display this PDF inline.</p>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-700 text-white text-sm rounded-lg hover:bg-green-800 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" /> Open PDF in New Tab
+            </a>
+          </div>
+        </object>
       </div>
-      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
-        <Button variant="outline" onClick={onClose} className="flex gap-2"><X className="w-4 h-4" /> Close</Button>
-        <Button variant="outline" className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50"
-          onClick={() => {
-            const iframe = document.querySelector<HTMLIFrameElement>(`iframe[title="${name}"]`);
-            if (iframe?.contentWindow) { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
-            else window.print();
-          }}>
-          <Printer className="w-4 h-4" /> Print
-        </Button>
-        <Button className="flex gap-2 bg-green-700 hover:bg-green-800"
-          onClick={() => { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }}>
-          <Download className="w-4 h-4" /> Download
-        </Button>
-      </div>
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+          <Button variant="outline" onClick={onClose} className="flex gap-2">
+            <X className="w-4 h-4" /> Close
+          </Button>
+          <Button
+            variant="outline"
+            className="flex gap-2 border-green-500 text-green-600 "
+            onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+          >
+            <ExternalLink className="w-4 h-4" /> Open in New Tab
+          </Button>
+          {/* <Button
+            className="flex gap-2 bg-green-600 hover:bg-green-700 text-white shadow-sm"
+            onClick={() => { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }}
+          >
+            <Download className="w-4 h-4" /> Download
+          </Button> */}
+        </div>
     </div>
   </div>
 );
@@ -253,7 +277,7 @@ const ArchiveConfirmModal = ({ doc, patient, onConfirm, onCancel }: {
       </div>
       <div className="px-6 py-5">
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-2">
-          <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
+          <img src={filePdfIcon} alt="PDF" className="w-6 h-6 object-contain flex-shrink-0" />
           <div className="min-w-0">
             <p className="text-sm text-gray-700 truncate font-medium">{displayFileName(doc.attachment, patient)}</p>
             <p className="text-xs text-gray-400">{doc.category}</p>
@@ -265,6 +289,42 @@ const ArchiveConfirmModal = ({ doc, patient, onConfirm, onCancel }: {
         <Button variant="outline" onClick={onCancel} className="flex gap-2"><X className="w-4 h-4" /> Cancel</Button>
         <Button onClick={onConfirm} className="flex gap-2 bg-amber-600 hover:bg-amber-700 text-white">
           <Archive className="w-4 h-4" /> Archive
+        </Button>
+      </div>
+    </div>
+  </div>
+);
+
+// Restore Confirm Modal
+const RestoreConfirmModal = ({ doc, patient, onConfirm, onCancel }: {
+  doc: DocumentAttachment; patient?: PatientProfile | null; onConfirm: () => void; onCancel: () => void;
+}) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div className="px-6 py-5 bg-green-50 border-b border-green-200">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+            <ArchiveRestore className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-green-900">Restore Document?</h2>
+          </div>
+        </div>
+      </div>
+      <div className="px-6 py-5">
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-2">
+          <img src={filePdfIcon} alt="PDF" className="w-6 h-6 object-contain flex-shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm text-gray-700 truncate font-medium">{displayFileName(doc.attachment, patient)}</p>
+            <p className="text-xs text-gray-400">{doc.category}</p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 mt-3">The document will be visible again in your Documents tab after restoring.</p>
+      </div>
+      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+        <Button variant="outline" onClick={onCancel} className="flex gap-2"><X className="w-4 h-4" /> Cancel</Button>
+        <Button onClick={onConfirm} className="flex gap-2 bg-green-600 hover:bg-green-700 text-white">
+          <ArchiveRestore className="w-4 h-4" /> Restore
         </Button>
       </div>
     </div>
@@ -1010,8 +1070,7 @@ const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
   onDownload: () => void; isCapturing: boolean;
 }) => (
   <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4">
-    <div className="bg-white dark:bg-gray-900 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-green-700 bg-gradient-to-r from-green-800 to-green-900 flex-shrink-0">
+  <div className="bg-white dark:bg-[#1e1e1e] rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col">      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-green-700 bg-gradient-to-r from-green-800 to-green-900 flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
             <Printer className="w-4 h-4 text-white" />
@@ -1027,8 +1086,8 @@ const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
       </div>
 
       {/* Card preview - scrollable */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 dark:from-gray-800 dark:via-gray-850 dark:to-gray-800 relative">
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage:'radial-gradient(circle,#d1d5db 1px,transparent 1px)',backgroundSize:'20px 20px' }} />
+    <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 dark:from-[#262626] dark:via-[#222] dark:to-[#262626] relative">        
+      <div className="absolute inset-0 opacity-20" style={{ backgroundImage:'radial-gradient(circle,#d1d5db 1px,transparent 1px)',backgroundSize:'20px 20px' }} />
         <div className="relative z-10 flex justify-center px-4 sm:px-8 py-6 sm:py-8">
           <div style={{ filter:'drop-shadow(0 12px 32px rgba(0,0,0,0.25))' }} className="w-full max-w-md sm:max-w-lg">
             <img
@@ -1041,15 +1100,8 @@ const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
       </div>
 
       {/* Footer */}
-      <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex-shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 dark:border-[#333] bg-gray-50 dark:bg-[#262626]/80 flex-shrink-0">        
         <div className="flex flex-col gap-3">
-          {/* Print tips */}
-          <div className="flex items-start gap-2">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-              Select <strong>Landscape</strong> orientation, margins to <strong>None</strong>. Ask for <strong>CR80 laminated ID</strong> printing.
-            </p>
-          </div>
           {/* Action buttons */}
           <div className="flex gap-2 flex-wrap justify-end">
             <Button variant="outline" onClick={onClose} className="flex gap-1.5 text-xs sm:text-sm h-8 sm:h-9 px-3">
@@ -1118,6 +1170,7 @@ const UhcMember = () => {
   const [filterQuery,    setFilterQuery]    = useState('');
   const [previewDoc,     setPreviewDoc]     = useState<DocumentAttachment | null>(null);
   const [archiveTarget,  setArchiveTarget]  = useState<DocumentAttachment | null>(null);
+  const [restoreTarget,  setRestoreTarget]  = useState<DocumentAttachment | null>(null);
 
   // PIN (module4.health_card.pin) 
   const [hasPin,       setHasPin]       = useState(false);
@@ -1752,7 +1805,7 @@ const UhcMember = () => {
       const { data: attachments, error: attachErr } = await supabase
         .schema('module4')               // ← module4 for attachments
         .from('card_attachment')
-        .select('id, attachment, status, card_category:card_category(id, description)')
+        .select('id, created_at, attachment, status, card_category:card_category(id, description)')
         .eq('health_card', card.id)      // FK to module4.health_card.id
         .eq('status', true);
 
@@ -1766,9 +1819,18 @@ const UhcMember = () => {
         if (stored) archivedIds = JSON.parse(stored);
       } catch { /* ignore parse errors */ }
 
+      // Load archived timestamps from localStorage
+      let tsMap: Record<string, string> = {};
+      try {
+        const tsKey = `uhc_archived_ts_${patient.id}`;
+        const tsStored = localStorage.getItem(tsKey);
+        if (tsStored) tsMap = JSON.parse(tsStored);
+      } catch { /* ignore */ }
+
       const docs: DocumentAttachment[] = (attachments ?? []).map((a: any) => {
         const cat = Array.isArray(a.card_category) ? a.card_category[0] : a.card_category;
-        return { id: a.id, attachment: a.attachment, status: a.status, category: cat?.description ?? 'Uncategorized', archived: archivedIds.includes(a.id) };
+        const isArchived = archivedIds.includes(a.id);
+        return { id: a.id, created_at: a.created_at, attachment: a.attachment, status: a.status, category: cat?.description ?? 'Uncategorized', archived: isArchived, archived_at: isArchived ? (tsMap[a.id] ?? null) : null };
       });
       setDocuments(docs);
 
@@ -2154,11 +2216,17 @@ const UhcMember = () => {
   const handleArchive  = () => {
     if (!archiveTarget || !selectedPatient) return;
     const archivedKey = `uhc_archived_docs_${selectedPatient.id}`;
+    const tsKey = `uhc_archived_ts_${selectedPatient.id}`;
+    const now = new Date().toISOString();
     setDocuments((prev) => {
-      const updated = prev.map((d) => d.id === archiveTarget.id ? { ...d, archived: true } : d);
+      const updated = prev.map((d) => d.id === archiveTarget.id ? { ...d, archived: true, archived_at: now } : d);
       // Persist archived IDs
       const archivedIds = updated.filter((d) => d.archived).map((d) => d.id);
       try { localStorage.setItem(archivedKey, JSON.stringify(archivedIds)); } catch { /* ignore */ }
+      // Persist archived timestamps
+      const tsMap: Record<string, string> = {};
+      updated.filter((d) => d.archived && d.archived_at).forEach((d) => { tsMap[d.id] = d.archived_at!; });
+      try { localStorage.setItem(tsKey, JSON.stringify(tsMap)); } catch { /* ignore */ }
       return updated;
     });
     setArchiveTarget(null);
@@ -2166,11 +2234,16 @@ const UhcMember = () => {
   const handleRestore = (id: string) => {
     if (!selectedPatient) return;
     const archivedKey = `uhc_archived_docs_${selectedPatient.id}`;
+    const tsKey = `uhc_archived_ts_${selectedPatient.id}`;
     setDocuments((prev) => {
-      const updated = prev.map((d) => d.id === id ? { ...d, archived: false } : d);
+      const updated = prev.map((d) => d.id === id ? { ...d, archived: false, archived_at: null } : d);
       // Update persisted archived IDs
       const archivedIds = updated.filter((d) => d.archived).map((d) => d.id);
       try { localStorage.setItem(archivedKey, JSON.stringify(archivedIds)); } catch { /* ignore */ }
+      // Update persisted timestamps
+      const tsMap: Record<string, string> = {};
+      updated.filter((d) => d.archived && d.archived_at).forEach((d) => { tsMap[d.id] = d.archived_at!; });
+      try { localStorage.setItem(tsKey, JSON.stringify(tsMap)); } catch { /* ignore */ }
       return updated;
     });
   };
@@ -2208,6 +2281,14 @@ const UhcMember = () => {
       {archiveTarget && (
         <ArchiveConfirmModal doc={archiveTarget} patient={selectedPatient} onConfirm={handleArchive} onCancel={() => setArchiveTarget(null)} />
       )}
+      {restoreTarget && (
+        <RestoreConfirmModal
+          doc={restoreTarget}
+          patient={selectedPatient}
+          onConfirm={() => { handleRestore(restoreTarget.id); setRestoreTarget(null); }}
+          onCancel={() => setRestoreTarget(null)}
+        />
+      )}
       {pinModalMode && (
         <PinModal
           mode={pinModalMode}
@@ -2243,10 +2324,10 @@ const UhcMember = () => {
 
       {/* ══ Camera Capture Modal ══ */}
       {showCamera && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700">
+       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-[#1e1e1e] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-[#333]">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-[#333]">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
                   <Camera className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -2256,7 +2337,7 @@ const UhcMember = () => {
                   <p className="text-[11px] text-gray-400 dark:text-gray-500">Position your face in the frame</p>
                 </div>
               </div>
-              <button onClick={closeCamera} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              <button onClick={closeCamera} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2a2a2a] transition-colors">
                 <X className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               </button>
             </div>
@@ -2305,13 +2386,13 @@ const UhcMember = () => {
             </div>
 
             {/* Controls */}
-            <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700">
+              <div className="px-5 py-4 border-t border-gray-100 dark:border-[#333]">
               {cameraError ? null : capturedImage ? (
                 /* Captured — Use / Retake */
                 <div className="flex items-center gap-3">
                   <button
                     onClick={retakePhoto}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#333] text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-[#2a2a2a] transition-colors"
                   >
                     <RefreshCw className="w-4 h-4" /> Retake
                   </button>
@@ -2328,10 +2409,10 @@ const UhcMember = () => {
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center justify-center gap-4">
+               <div className="flex items-center justify-center gap-4">
                   <button
                     onClick={switchCamera}
-                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-[#262626] flex items-center justify-center hover:bg-gray-200 dark:hover:bg-[#333] transition-colors"
                     title="Switch camera"
                   >
                     <SwitchCamera className="w-5 h-5 text-gray-600 dark:text-gray-300" />
@@ -2346,9 +2427,10 @@ const UhcMember = () => {
                   </button>
                   <button
                     onClick={closeCamera}
-                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-[#262626] flex items-center justify-center hover:bg-gray-200 dark:hover:bg-[#333] transition-colors"
                     title="Cancel"
                   >
+
                     <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                   </button>
                 </div>
@@ -2360,7 +2442,7 @@ const UhcMember = () => {
 
       <div className="flex flex-col gap-4 sm:gap-6">
         {/* ── Search / Profile ── */}
-        <Card className="p-4 sm:p-6 dark:bg-gray-900 dark:border-gray-700">
+        <Card className="p-4 sm:p-6 dark:bg-[#1e1e1e] dark:border-[#333]">
           {isAutoLoading ? (
             /* Loading state while checking for tagged patient */
             <div className="flex flex-col items-center justify-center py-8 gap-3">
@@ -2409,8 +2491,8 @@ const UhcMember = () => {
                         onChange={handleProfilePicUpload}
                       />
                       {/* Small camera badge */}
-                      <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-green-600 dark:bg-green-500 flex items-center justify-center shadow-md border-2 border-white dark:border-gray-800">
-                        <Camera className="w-3.5 h-3.5 text-white" />
+                      <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-green-600 dark:bg-green-500 flex items-center justify-center shadow-md border-2 border-white dark:border-[#1e1e1e]">                       
+                         <Camera className="w-3.5 h-3.5 text-white" />
                       </div>
                     </div>
                     {/* Action buttons */}
@@ -2448,22 +2530,22 @@ const UhcMember = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">My Health Profile</p>
 
                     {/* Info grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-[#262626]/60 border border-gray-100 dark:border-[#333]">
                         <User className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                         <div className="min-w-0">
                           <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Sex</p>
                           <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{selectedPatient.sex}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-[#262626]/60 border border-gray-100 dark:border-[#333]">
                         <IdCard className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                         <div className="min-w-0">
                           <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Date of Birth</p>
                           <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{formatDate(selectedPatient.birth_date)} ({computeAge(selectedPatient.birth_date)})</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 sm:col-span-2">
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-[#262626]/60 border border-gray-100 dark:border-[#333] sm:col-span-2">
                         <Building2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                         <div className="min-w-0 overflow-hidden">
                           <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Address</p>
@@ -2473,8 +2555,8 @@ const UhcMember = () => {
                     </div>
 
                     {/* Document stats */}
-                    <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
-                      <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400">
+                    <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 dark:border-[#333]">                    
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400">
                         <CheckCircle2 className="w-3.5 h-3.5" />{totalActive} active documents
                       </span>
                       {totalArchived > 0 && (
@@ -2558,81 +2640,105 @@ const UhcMember = () => {
                     <p className="text-sm">Loading your documents…</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {FOLDER_DEFS.map((folder) => {
-                      const colors   = COLOR_MAP[folder.color as ColorKey];
-                      const docs     = getDocsForFolder(folder.key, false);
-                      const allCount = documents.filter((d) => docMatchesFolder(d.category, folder.key) && !d.archived).length;
-                      // Auto-expand folders that have search matches; otherwise use manual toggle
-                      const isExp    = filterQuery
-                        ? filterMatchedFolderKeys.includes(folder.key)
-                        : expandedFolder === folder.key;
-                      return (
-                        <div key={folder.key} className={`border rounded-xl overflow-hidden ${colors.border}`}>
-                          <button
-                            className={`w-full flex items-center gap-4 px-5 py-4 ${colors.bg} transition-colors hover:opacity-90`}
-                            onClick={() => setExpandedFolder(isExp ? null : folder.key)}
-                          >
-                            <span className={colors.text}>{folder.icon}</span>
-                            <div className="flex-1 text-left">
-                              <p className={`font-semibold ${colors.text}`}>{folder.label}</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              {allCount > 0 && (
-                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge}`}>
-                                  {allCount} file{allCount > 1 ? 's' : ''}
-                                </span>
-                              )}
-                              {isExp ? <ChevronDown className={`w-4 h-4 ${colors.text}`} /> : <ChevronRight className={`w-4 h-4 ${colors.text}`} />}
-                            </div>
-                          </button>
-                          {isExp && (
-                            <div className="p-4 border-t bg-white">
-                              {docs.length === 0 ? (
-                                <div className="text-center py-8 text-gray-400">
-                                  <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                                  <p className="text-sm">No documents in this folder yet.</p>
-                                  <p className="text-xs mt-1">Your health center operator will upload documents here.</p>
-                                </div>
-                              ) : (
-                                <div className="flex flex-col gap-2">
-                                  {docs.map((doc) => (
-                                    <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
-                                          <p className="text-xs text-gray-400">{doc.category}</p>
-                                        </div>
-                                      </div>
-                                      <div className="flex gap-2 ml-7 sm:ml-0 flex-shrink-0">
-                                        <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700 hover:border-green-300 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
-                                          <Eye className="w-3.5 h-3.5" /> View
-                                        </Button>
-                                        <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 flex-shrink-0" onClick={() => setArchiveTarget(doc)}>
-                                          <Archive className="w-3.5 h-3.5" /> Archive
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div> 
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* No results message when filter is active */}
-                    {filterQuery && totalFilterMatches === 0 && (
-                      <div className="text-center py-10 text-gray-400">
-                        <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                        <p className="font-medium text-gray-500">No documents found</p>
-                        <p className="text-sm mt-1">No documents matching "<span className="font-semibold text-gray-600">{filterQuery}</span>" were found.</p>
-                        <Button size="sm" variant="outline" onClick={() => setFilterQuery('')} className="mt-4 flex gap-1.5 text-xs mx-auto">
-                          <RefreshCw className="w-3.5 h-3.5" /> Clear search
-                        </Button>
+                  <div className="overflow-x-auto">
+                    {documents.filter(d => !d.archived && (!filterQuery || 
+                      d.attachment.toLowerCase().includes(filterQuery.toLowerCase()) || 
+                      d.category.toLowerCase().includes(filterQuery.toLowerCase())
+                    )).length === 0 ? (
+                      <div className="text-center py-12">
+                        {filterQuery ? (
+                          <div className="text-gray-400">
+                            <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                            <p className="font-medium text-gray-500">No documents found</p>
+                            <p className="text-sm mt-1">No documents matching "<span className="font-semibold text-gray-600">{filterQuery}</span>" were found.</p>
+                            <Button size="sm" variant="outline" onClick={() => setFilterQuery('')} className="mt-4 flex gap-1.5 text-xs mx-auto">
+                              <RefreshCw className="w-3.5 h-3.5" /> Clear search
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="text-gray-400">
+                            <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                            <p className="font-medium text-gray-500">No documents yet</p>
+                            <p className="text-sm mt-1">Your health center operator will upload documents here.</p>
+                          </div>
+                        )}
                       </div>
+                    ) : (
+                      <table className="w-full border-collapse">
+                        <thead>
+                        <tr className="border-b border-gray-200 dark:border-[#333]">
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-[#262626]">Date Attached</th>
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-[#262626]">Category</th>
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-[#262626]">File Name</th>
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-[#262626] w-32">Actions</th>
+                      </tr>
+                        </thead>
+                        <tbody>
+                          {documents
+                            .filter(d => !d.archived && (!filterQuery || 
+                              d.attachment.toLowerCase().includes(filterQuery.toLowerCase()) || 
+                              d.category.toLowerCase().includes(filterQuery.toLowerCase())
+                            ))
+                            .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()) // Sort by most recent first
+                            .map((doc) => {
+                              const rawDate = doc.created_at ? new Date(doc.created_at) : null;
+                              const attachmentDate = rawDate
+                                ? rawDate.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+                                : 'N/A';
+                              const attachmentTime = rawDate
+                                ? rawDate.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true })
+                                : '';
+
+                              return (
+                                  <tr key={doc.id} className="border-b border-gray-100 dark:border-[#333] hover:bg-gray-50 dark:hover:bg-[#2a2a2a] transition-colors">
+                                  <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 text-center">
+                                    <div>{attachmentDate}</div>
+                                    {attachmentTime && <div className="text-xs text-gray-400 dark:text-gray-500">{attachmentTime}</div>}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center justify-center gap-2">
+                                      {FOLDER_DEFS.find(f => docMatchesFolder(doc.category, f.key)) && (
+                                        <span className="text-green-600 dark:text-green-400 ">
+                                          {FOLDER_DEFS.find(f => docMatchesFolder(doc.category, f.key))?.icon}
+                                        </span>
+                                      )}
+                                      <span className="text-sm text-gray-700 dark:text-gray-300">{doc.category}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center justify-center gap-3">
+                                      <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
+                                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200  truncate max-w-xs">
+                                        {displayFileName(doc.attachment, selectedPatient)}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex gap-2 justify-center">
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 hover:border-green-400 hover:scale-105 hover:shadow-md active:scale-95 transition-all duration-200 flex-shrink-0" 
+                                        onClick={() => setPreviewDoc(doc)}
+                                      >
+                                        <Eye className="w-3.5 h-3.5" /> View
+                                      </Button>
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 hover:border-amber-400 hover:scale-105 hover:shadow-md active:scale-95 transition-all duration-200 flex-shrink-0" 
+                                        onClick={() => setArchiveTarget(doc)}
+                                      >
+                                        <Archive className="w-3.5 h-3.5" /> Archive
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          }
+                        </tbody>
+                      </table>
                     )}
                   </div>
                 )}
@@ -2674,7 +2780,7 @@ const UhcMember = () => {
                   </Card>
                   <Card className="p-3 sm:p-6">
                     <div className="overflow-x-auto flex justify-center">
-                      <HealthIdCard patient={selectedPatient!} qrDataUrl={qrDataUrl} qrCodeValue={qrCodeValue} cardRef={cardRef} profilePicUrl={profilePicUrl} />
+                      <HealthIdCard patient={selectedPatient!} qrDataUrl={qrDataUrl} qrCodeValue={qrCodeValue} cardRef={cardRef} profilePicUrl={profilePicUrl} dateIssued={cardDateIssued} />
                     </div>
                   </Card>
                 </div>
@@ -2709,75 +2815,115 @@ const UhcMember = () => {
                     <p className="text-sm">Documents you archive will appear here.</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {FOLDER_DEFS.map((folder) => {
-                      const archivedDocs = documents.filter((d) => docMatchesFolder(d.category, folder.key) && d.archived);
-                      if (!archivedDocs.length) return null;
-                      const colors = COLOR_MAP[folder.color as ColorKey];
-                      return (
-                        <div key={folder.key} className={`border rounded-xl overflow-hidden ${colors.border}`}>
-                          <div className={`flex items-center gap-3 px-5 py-3 ${colors.bg}`}>
-                            <span className={colors.text}>{folder.icon}</span>
-                            <p className={`font-semibold text-sm ${colors.text}`}>{folder.label}</p>
-                            <span className={`ml-auto text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge}`}>{archivedDocs.length}</span>
-                          </div>
-                          <div className="p-3 sm:p-4 bg-white border-t flex flex-col gap-2">
-                            {archivedDocs.map((doc) => (
-                              <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                  <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
-                                    <p className="text-xs text-gray-400">{doc.category}</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">Date Archived</th>
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">Category</th>
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">File Name</th>
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50 w-44">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {documents
+                          .filter(d => d.archived)
+                          .sort((a, b) => new Date(b.archived_at ?? b.id).getTime() - new Date(a.archived_at ?? a.id).getTime())
+                          .map((doc) => {
+                            const rawArchived = doc.archived_at ? new Date(doc.archived_at) : null;
+                            const archivedDate = rawArchived
+                              ? rawArchived.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+                              : 'N/A';
+                            const archivedTime = rawArchived
+                              ? rawArchived.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true })
+                              : '';
+
+                            return (
+                              <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                <td className="py-3 px-4 text-center">
+                                  <div className="text-sm text-gray-600">{archivedDate}</div>
+                                  {archivedTime && <div className="text-xs text-gray-400">{archivedTime}</div>}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center justify-center gap-2">
+                                    {FOLDER_DEFS.find(f => docMatchesFolder(doc.category, f.key)) && (
+                                      <span className="text-green-600">
+                                        {FOLDER_DEFS.find(f => docMatchesFolder(doc.category, f.key))?.icon}
+                                      </span>
+                                    )}
+                                    <span className="text-sm text-gray-700">{doc.category}</span>
                                   </div>
-                                  <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0 sm:hidden">Archived</span>
-                                </div>
-                                <div className="flex items-center gap-2 ml-7 sm:ml-0 flex-shrink-0">
-                                  <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:inline">Archived</span>
-                                  <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700 hover:border-green-300 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
-                                    <Eye className="w-3.5 h-3.5" /> View
-                                  </Button>
-                                  <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 flex-shrink-0" onClick={() => handleRestore(doc.id)}>
-                                    <ArchiveRestore className="w-3.5 h-3.5" /> Restore
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center justify-center gap-3">
+                                    <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium text-gray-800 truncate max-w-xs">
+                                        {displayFileName(doc.attachment, selectedPatient)}
+                                      </span>
+                                      <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0">
+                                        Archived
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex gap-2 justify-center">
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline" 
+                                      className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 hover:border-green-400 hover:scale-105 hover:shadow-md active:scale-95 transition-all duration-200 flex-shrink-0" 
+                                      onClick={() => setPreviewDoc(doc)}
+                                    >
+                                      <Eye className="w-3.5 h-3.5" /> View
+                                    </Button>
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline" 
+                                      className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 hover:border-amber-400 hover:scale-105 hover:shadow-md active:scale-95 transition-all duration-200 flex-shrink-0" 
+                                      onClick={() => setRestoreTarget(doc)}
+                                    >
+                                      <ArchiveRestore className="w-3.5 h-3.5" /> Restore
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        }
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </Card>
             </TabsContent>
 
             {/* ════ PIN TAB ════ */}
-            <TabsContent value="pin">
+           <TabsContent value="pin">
               <Card className="p-4 sm:p-6">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-                    <Lock className="w-5 h-5 text-green-700" />
+                  <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
+                    <Lock className="w-5 h-5 text-green-700 dark:text-green-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-base sm:text-lg text-gray-900">My Security PIN</h3>
-                    <p className="text-xs text-gray-400">Your 4-digit PIN protects your health records from unauthorized access.</p>
+                    <h3 className="font-semibold text-base sm:text-lg text-gray-900 dark:text-gray-100">My Security PIN</h3>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">Your 4-digit PIN protects your health records from unauthorized access.</p>
                   </div>
                 </div>
 
                 {/* Success */}
                 {pinSuccess && (
-                  <div className="mb-5 flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-                    <ShieldCheck className="w-5 h-5 text-green-600 flex-shrink-0" />
-                    <p className="text-sm text-green-700 font-medium">{pinSuccess}</p>
+                  <div className="mb-5 flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                    <ShieldCheck className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                    <p className="text-sm text-green-700 dark:text-green-400 font-medium">{pinSuccess}</p>
                   </div>
                 )}
 
                 {/* No health card yet — still show the card but disable the button */}
                 {!healthCardId && (
-                  <div className="mb-5 flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                    <p className="text-sm text-amber-700">
+                  <div className="mb-5 flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                    <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    <p className="text-sm text-amber-700 dark:text-amber-400">
                       Your health card record is being set up. Once ready, you can set your PIN here. This usually happens automatically when you search your name.
                     </p>
                   </div>
@@ -2785,20 +2931,20 @@ const UhcMember = () => {
 
                 {/* PIN status block */}
                 <div className={`rounded-2xl border-2 p-4 sm:p-6 mb-5 ${
-                  hasPin ? 'border-green-200 bg-green-50' : 'border-dashed border-gray-200 bg-gray-50'
+                  hasPin ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border-dashed border-gray-200 dark:border-[#333] bg-gray-50 dark:bg-[#262626]'
                 }`}>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3 sm:gap-4">
-                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${hasPin ? 'bg-green-100' : 'bg-gray-100'}`}>
+                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${hasPin ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-[#333]'}`}>
                         {hasPin
                           ? <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-green-600" />
                           : <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7 text-gray-400" />}
                       </div>
                       <div>
-                        <p className={`font-bold text-sm sm:text-base ${hasPin ? 'text-green-800' : 'text-gray-600'}`}>
+                        <p className={`font-bold text-sm sm:text-base ${hasPin ? 'text-green-800 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
                           {hasPin ? 'PIN is Active' : 'No PIN Set'}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5 max-w-xs leading-relaxed">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 max-w-xs leading-relaxed">
                           {hasPin
                             ? 'Your records are protected. Give your PIN to the operator only when you are present.'
                             : 'Set a PIN so operators must ask for it before accessing your records.'}
@@ -2811,8 +2957,8 @@ const UhcMember = () => {
                       <Button
                         onClick={() => { setPinError(''); setPinModalMode(hasPin ? 'change' : 'set'); }}
                         className={hasPin
-                          ? 'flex gap-2 border border-green-300 text-green-700 bg-white hover:bg-green-50'
-                          : 'flex gap-2 bg-green-700 hover:bg-green-800 text-white'}
+                          ? 'flex gap-2 border border-green-300 text-green-700 bg-white hover:bg-green-50 hover:text-green-700'
+                          : 'flex gap-2 bg-green-700 hover:bg-green-800 text-green-50 hover:text-green-50'}
                         variant={hasPin ? 'outline' : 'default'}
                       >
                         <KeyRound className="w-4 h-4" />
@@ -2827,8 +2973,8 @@ const UhcMember = () => {
                 </div>
 
                 {/* How it works */}
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-5">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">How the PIN works</p>
+                <div className="rounded-xl border border-gray-100 dark:border-[#333] bg-gray-50 dark:bg-[#262626] p-5">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">How the PIN works</p>
                   <div className="flex flex-col gap-3">
                     {[
                       { icon: <Lock        className="w-4 h-4 text-green-600" />, text: 'You set a 4-digit PIN that only you know.' },
@@ -2837,10 +2983,10 @@ const UhcMember = () => {
                       { icon: <ShieldAlert className="w-4 h-4 text-red-500" />,   text: 'Never share your PIN over phone, text, or with anyone outside the health center.' },
                     ].map((item, i) => (
                       <div key={i} className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-7 h-7 rounded-lg bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#333] flex items-center justify-center flex-shrink-0 mt-0.5">
                           {item.icon}
                         </div>
-                        <p className="text-sm text-gray-600 leading-relaxed">{item.text}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{item.text}</p>
                       </div>
                     ))}
                   </div>

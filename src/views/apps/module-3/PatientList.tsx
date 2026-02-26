@@ -31,11 +31,17 @@ import {
   History as HistoryIcon,
   Info,
   LinkIcon,
+  FileText,
 } from 'lucide-react';
 import patientService, { PatientProfile, PatientHistory } from 'src/services/patientService';
 import { getFacilityName } from 'src/utils/facilityMapping';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientInfoCard from './components/PatientInfoCard';
+import { PatientPDFModal } from './components/PatientPDFModal';
+
+/* ------------------------------------------------------------------ */
+/*  Constants                                                          */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -43,13 +49,13 @@ import PatientInfoCard from './components/PatientInfoCard';
 
 const PatientList = () => {
   const navigate = useNavigate();
-  
+
   // State
   const [patients, setPatients] = useState<PatientProfile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -62,6 +68,9 @@ const PatientList = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+
+  const selectedPatientHpercode = selectedPatient?.patient_repository?.[0]?.hpercode;
 
   /* ------------------------------------------------------------------ */
   /*  Effects                                                           */
@@ -70,6 +79,10 @@ const PatientList = () => {
   useEffect(() => {
     loadPatients();
   }, [currentPage]);
+
+  useEffect(() => {
+    setIsRecordModalOpen(false);
+  }, [selectedPatient?.id]);
 
   /* ------------------------------------------------------------------ */
   /*  Handlers                                                          */
@@ -126,15 +139,21 @@ const PatientList = () => {
 
   const handleSelectPatient = async (patient: any) => {
     setSelectedPatient(patient);
-    
+
     // Check if patient is linked (has hpercode from patient_repository)
     const hpercode = patient.patient_repository?.[0]?.hpercode;
-    
+
     if (hpercode) {
       await loadPatientHistory(hpercode);
     } else {
       setPatientHistory([]);
     }
+    const params = new URLSearchParams();
+    params.set('tab', 'view');
+    if (hpercode) {
+      params.set('hpercode', hpercode);
+    }
+    navigate(`/module-3/patient-tagging?${params.toString()}`);
   };
 
   const loadPatientHistory = async (hpercode: string) => {
@@ -159,10 +178,16 @@ const PatientList = () => {
     setSelectedPatient(null);
     setPatientHistory([]);
     setTypeFilter('all');
+    setIsRecordModalOpen(false);
   };
 
   const handleViewPatient = (patientId: string) => {
     navigate(`/module-3/patient-details?id=${patientId}`);
+  };
+
+  const handleOpenPatientRecords = () => {
+    if (!selectedPatientHpercode) return;
+    setIsRecordModalOpen(true);
   };
 
   const formatDate = (dateString: string) => {
@@ -179,10 +204,10 @@ const PatientList = () => {
     const sexUpper = sex.toUpperCase();
     const isMale = sexUpper === 'M' || sexUpper === 'MALE';
     const isFemale = sexUpper === 'F' || sexUpper === 'FEMALE';
-    
+
     return (
-      <Badge 
-        variant={isMale ? 'default' : isFemale ? 'secondary' : 'outline'} 
+      <Badge
+        variant={isMale ? 'default' : isFemale ? 'secondary' : 'outline'}
         className="text-xs font-medium"
       >
         {isMale ? 'male' : isFemale ? 'female' : sex}
@@ -197,12 +222,12 @@ const PatientList = () => {
       const city = patient.brgy.city_municipality.description || '';
       const province = patient.brgy.city_municipality.province?.description || '';
       const region = patient.brgy.city_municipality.province?.region?.description || '';
-      
+
       // Build location string from most specific to general
       const parts = [brgy, city, province, region].filter(Boolean);
       return parts.length > 0 ? parts.join(', ') : 'N/A';
     }
-    
+
     // Fallback to manual text fields
     const parts = [
       patient.brgy_name,
@@ -210,7 +235,7 @@ const PatientList = () => {
       patient.province_name,
       patient.region_name
     ].filter(Boolean);
-    
+
     return parts.length > 0 ? parts.join(', ') : 'N/A';
   };
 
@@ -222,7 +247,7 @@ const PatientList = () => {
 
   // Filtered history based on type filter
   const filteredHistory = patientHistory.filter(item => {
-    const matchesType = typeFilter === 'all' || 
+    const matchesType = typeFilter === 'all' ||
       (typeFilter === 'admission' && item.admdate && !item.disdate) ||
       (typeFilter === 'discharge' && item.disdate);
     return matchesType;
@@ -233,13 +258,13 @@ const PatientList = () => {
     const totalVisits = patientHistory.length;
     const admissions = patientHistory.filter(h => h.admdate && !h.disdate).length;
     const discharges = patientHistory.filter(h => h.disdate).length;
-    
-    const recentVisit = patientHistory.length > 0 
+
+    const recentVisit = patientHistory.length > 0
       ? patientHistory.sort((a, b) => {
-          const dateA = new Date(a.encounter_date || a.admdate || '');
-          const dateB = new Date(b.encounter_date || b.admdate || '');
-          return dateB.getTime() - dateA.getTime();
-        })[0]
+        const dateA = new Date(a.encounter_date || a.admdate || '');
+        const dateB = new Date(b.encounter_date || b.admdate || '');
+        return dateB.getTime() - dateA.getTime();
+      })[0]
       : null;
 
     return {
@@ -253,6 +278,7 @@ const PatientList = () => {
   // Helper to convert Supabase patient to the format expected by PatientInfoCard
   const getPatientInfoForCard = (patient: any) => {
     return {
+      id: patient.id,
       hpercode: patient.patient_repository?.[0]?.hpercode || patient.id,
       first_name: patient.first_name,
       middle_name: patient.middle_name,
@@ -267,6 +293,8 @@ const PatientList = () => {
       province_name: patient.brgy?.city_municipality?.province?.description || patient.province_name,
       region_name: patient.brgy?.city_municipality?.province?.region?.description || patient.region_name,
       street: patient.street,
+      created_at: patient.created_at,
+      brgy: patient.brgy,
     };
   };
 
@@ -283,10 +311,10 @@ const PatientList = () => {
             <div className="p-2 bg-primary/10 rounded-lg">
               <Users className="h-7 w-7 text-primary" />
             </div>
-            Patient Repository
+            Patient List
           </h1>
           <p className="text-muted-foreground mt-2">
-            Manage and view all patient records in the system
+            View and manage all patient records in the system
           </p>
         </div>
         <Badge variant="outline" className="text-base px-4 py-2 font-semibold">
@@ -309,8 +337,8 @@ const PatientList = () => {
                 className="pl-11 h-11 text-base"
               />
             </div>
-            <Button 
-              onClick={handleSearch} 
+            <Button
+              onClick={handleSearch}
               disabled={isSearching}
               size="lg"
               className="px-6"
@@ -328,8 +356,8 @@ const PatientList = () => {
               )}
             </Button>
             {searchTerm && (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={handleReset}
                 size="lg"
                 className="px-6"
@@ -411,17 +439,16 @@ const PatientList = () => {
                   </TableHeader>
                   <TableBody>
                     {patients.map((patient, index) => (
-                      <TableRow 
+                      <TableRow
                         key={patient.id}
-                        className={`cursor-pointer hover:bg-muted/50 transition-all duration-200 group border-b ${
-                          selectedPatient?.id === patient.id ? 'bg-primary/10 hover:bg-primary/15' : ''
-                        }`}
+                        className={`cursor-pointer hover:bg-muted/50 transition-all duration-200 group border-b ${selectedPatient?.id === patient.id ? 'bg-primary/10 hover:bg-primary/15' : ''
+                          }`}
                         onClick={() => handleSelectPatient(patient)}
                       >
                         <TableCell className="py-4">
                           <div className="flex items-start gap-2 max-w-[200px]">
                             <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1 group-hover:text-primary transition-colors" />
-                            <span className="text-sm font-medium text-foreground break-words leading-relaxed">
+                            <span className="text-sm font-medium text-foreground leading-relaxed block whitespace-normal break-words">
                               {getFacility(patient)}
                             </span>
                           </div>
@@ -448,7 +475,7 @@ const PatientList = () => {
                         <TableCell className="py-4">
                           <div className="flex items-start gap-2 max-w-[300px]">
                             <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
-                            <span className="text-sm text-muted-foreground break-words leading-relaxed">
+                            <span className="text-sm text-muted-foreground leading-relaxed block whitespace-normal break-words">
                               {getLocationString(patient)}
                             </span>
                           </div>
@@ -498,7 +525,7 @@ const PatientList = () => {
       {selectedPatient && (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Header with Close Button */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-lg">
                 <HistoryIcon className="h-6 w-6 text-primary" />
@@ -541,7 +568,19 @@ const PatientList = () => {
               </div>
 
               {/* Patient History */}
-              <div className="col-span-12 lg:col-span-8">
+              <div className="col-span-12 lg:col-span-8 space-y-3">
+                <div className="flex items-center justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenPatientRecords}
+                    disabled={!selectedPatientHpercode}
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    View Records
+                  </Button>
+                </div>
                 <PatientHistoryTabs
                   history={filteredHistory}
                   isLoading={isLoadingHistory}
@@ -549,12 +588,30 @@ const PatientList = () => {
                   onViewModeChange={setViewMode}
                   typeFilter={typeFilter}
                   onTypeFilterChange={setTypeFilter}
+                  rightActions={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenPatientRecords}
+                      disabled={!selectedPatientHpercode}
+                      className="flex items-center gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      View Records
+                    </Button>
+                  }
                 />
               </div>
             </div>
           )}
         </div>
       )}
+      <PatientPDFModal
+        isOpen={isRecordModalOpen}
+        onClose={() => setIsRecordModalOpen(false)}
+        patient={selectedPatient}
+        hpercode={selectedPatientHpercode}
+      />
     </div>
   );
 };
