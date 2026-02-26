@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, AlertCircle, Loader2, Download, X,
   Printer, CheckCircle2, RefreshCw, ArchiveX, CreditCard, Lock,
   KeyRound, ShieldCheck, EyeOff, ShieldAlert, ShieldX, User,
-  Camera, Upload, ImagePlus, SwitchCamera, CircleDot,
+  Camera, Upload, ImagePlus, SwitchCamera, CircleDot, ExternalLink,
 } from 'lucide-react';
 import { supabase } from 'src/lib/supabase';
 import Threads from 'src/components/ui/Threads';
@@ -109,6 +109,8 @@ interface DocumentAttachment {
   category: string;
   status: boolean;
   archived?: boolean;
+  created_at?: string | null;
+  archived_at?: string | null;
 }
 
 // Folder Definitions
@@ -189,7 +191,8 @@ const computeAge = (dateStr?: string | null): string => {
 };
 
 // Replaces the leading UUID + timestamp in a storage filename with the patient's last name
-const displayFileName = (url: string, patient?: PatientProfile | null): string => {
+const displayFileName = (url: string | null | undefined, patient?: PatientProfile | null): string => {
+  if (!url) return 'Document';
   const raw = url.split('/').pop() ?? 'Document';
   if (!patient) return raw;
   // Storage filenames follow: <uuid>_<timestamp>_<label>.<ext>
@@ -212,24 +215,45 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
           <X className="w-4 h-4 text-gray-500" />
         </button>
       </div>
-      <div className="flex-1 overflow-hidden">
-        <iframe src={url} title={name} className="w-full h-full border-0" />
+      <div className="flex-1 overflow-hidden relative">
+        <object
+          data={url}
+          type="application/pdf"
+          className="w-full h-full"
+        >
+          {/* Fallback for browsers that block inline PDF rendering */}
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500 p-8">
+            <FileText className="w-16 h-16 opacity-30" />
+            <p className="text-sm font-medium text-center">Your browser could not display this PDF inline.</p>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-700 text-white text-sm rounded-lg hover:bg-green-800 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" /> Open PDF in New Tab
+            </a>
+          </div>
+        </object>
       </div>
-      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
-        <Button variant="outline" onClick={onClose} className="flex gap-2"><X className="w-4 h-4" /> Close</Button>
-        <Button variant="outline" className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50"
-          onClick={() => {
-            const iframe = document.querySelector<HTMLIFrameElement>(`iframe[title="${name}"]`);
-            if (iframe?.contentWindow) { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
-            else window.print();
-          }}>
-          <Printer className="w-4 h-4" /> Print
-        </Button>
-        <Button className="flex gap-2 bg-green-700 hover:bg-green-800"
-          onClick={() => { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }}>
-          <Download className="w-4 h-4" /> Download
-        </Button>
-      </div>
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+          <Button variant="outline" onClick={onClose} className="flex gap-2">
+            <X className="w-4 h-4" /> Close
+          </Button>
+          <Button
+            variant="outline"
+            className="flex gap-2 border-green-500 text-green-600 "
+            onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+          >
+            <ExternalLink className="w-4 h-4" /> Open in New Tab
+          </Button>
+          <Button
+            className="flex gap-2 bg-green-600 hover:bg-green-700 text-white shadow-sm"
+            onClick={() => { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }}
+          >
+            <Download className="w-4 h-4" /> Download
+          </Button>
+        </div>
     </div>
   </div>
 );
@@ -253,7 +277,7 @@ const ArchiveConfirmModal = ({ doc, patient, onConfirm, onCancel }: {
       </div>
       <div className="px-6 py-5">
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-2">
-          <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
+          <img src={filePdfIcon} alt="PDF" className="w-6 h-6 object-contain flex-shrink-0" />
           <div className="min-w-0">
             <p className="text-sm text-gray-700 truncate font-medium">{displayFileName(doc.attachment, patient)}</p>
             <p className="text-xs text-gray-400">{doc.category}</p>
@@ -265,6 +289,42 @@ const ArchiveConfirmModal = ({ doc, patient, onConfirm, onCancel }: {
         <Button variant="outline" onClick={onCancel} className="flex gap-2"><X className="w-4 h-4" /> Cancel</Button>
         <Button onClick={onConfirm} className="flex gap-2 bg-amber-600 hover:bg-amber-700 text-white">
           <Archive className="w-4 h-4" /> Archive
+        </Button>
+      </div>
+    </div>
+  </div>
+);
+
+// Restore Confirm Modal
+const RestoreConfirmModal = ({ doc, patient, onConfirm, onCancel }: {
+  doc: DocumentAttachment; patient?: PatientProfile | null; onConfirm: () => void; onCancel: () => void;
+}) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div className="px-6 py-5 bg-green-50 border-b border-green-200">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+            <ArchiveRestore className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-green-900">Restore Document?</h2>
+          </div>
+        </div>
+      </div>
+      <div className="px-6 py-5">
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-2">
+          <img src={filePdfIcon} alt="PDF" className="w-6 h-6 object-contain flex-shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm text-gray-700 truncate font-medium">{displayFileName(doc.attachment, patient)}</p>
+            <p className="text-xs text-gray-400">{doc.category}</p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 mt-3">The document will be visible again in your Documents tab after restoring.</p>
+      </div>
+      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+        <Button variant="outline" onClick={onCancel} className="flex gap-2"><X className="w-4 h-4" /> Cancel</Button>
+        <Button onClick={onConfirm} className="flex gap-2 bg-green-600 hover:bg-green-700 text-white">
+          <ArchiveRestore className="w-4 h-4" /> Restore
         </Button>
       </div>
     </div>
@@ -1043,13 +1103,6 @@ const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
       {/* Footer */}
       <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex-shrink-0">
         <div className="flex flex-col gap-3">
-          {/* Print tips */}
-          <div className="flex items-start gap-2">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-              Select <strong>Landscape</strong> orientation, margins to <strong>None</strong>. Ask for <strong>CR80 laminated ID</strong> printing.
-            </p>
-          </div>
           {/* Action buttons */}
           <div className="flex gap-2 flex-wrap justify-end">
             <Button variant="outline" onClick={onClose} className="flex gap-1.5 text-xs sm:text-sm h-8 sm:h-9 px-3">
@@ -1118,6 +1171,7 @@ const UhcMember = () => {
   const [filterQuery,    setFilterQuery]    = useState('');
   const [previewDoc,     setPreviewDoc]     = useState<DocumentAttachment | null>(null);
   const [archiveTarget,  setArchiveTarget]  = useState<DocumentAttachment | null>(null);
+  const [restoreTarget,  setRestoreTarget]  = useState<DocumentAttachment | null>(null);
 
   // PIN (module4.health_card.pin) 
   const [hasPin,       setHasPin]       = useState(false);
@@ -1752,7 +1806,7 @@ const UhcMember = () => {
       const { data: attachments, error: attachErr } = await supabase
         .schema('module4')               // ← module4 for attachments
         .from('card_attachment')
-        .select('id, attachment, status, card_category:card_category(id, description)')
+        .select('id, created_at, attachment, status, card_category:card_category(id, description)')
         .eq('health_card', card.id)      // FK to module4.health_card.id
         .eq('status', true);
 
@@ -1766,9 +1820,18 @@ const UhcMember = () => {
         if (stored) archivedIds = JSON.parse(stored);
       } catch { /* ignore parse errors */ }
 
+      // Load archived timestamps from localStorage
+      let tsMap: Record<string, string> = {};
+      try {
+        const tsKey = `uhc_archived_ts_${patient.id}`;
+        const tsStored = localStorage.getItem(tsKey);
+        if (tsStored) tsMap = JSON.parse(tsStored);
+      } catch { /* ignore */ }
+
       const docs: DocumentAttachment[] = (attachments ?? []).map((a: any) => {
         const cat = Array.isArray(a.card_category) ? a.card_category[0] : a.card_category;
-        return { id: a.id, attachment: a.attachment, status: a.status, category: cat?.description ?? 'Uncategorized', archived: archivedIds.includes(a.id) };
+        const isArchived = archivedIds.includes(a.id);
+        return { id: a.id, created_at: a.created_at, attachment: a.attachment, status: a.status, category: cat?.description ?? 'Uncategorized', archived: isArchived, archived_at: isArchived ? (tsMap[a.id] ?? null) : null };
       });
       setDocuments(docs);
 
@@ -2154,11 +2217,17 @@ const UhcMember = () => {
   const handleArchive  = () => {
     if (!archiveTarget || !selectedPatient) return;
     const archivedKey = `uhc_archived_docs_${selectedPatient.id}`;
+    const tsKey = `uhc_archived_ts_${selectedPatient.id}`;
+    const now = new Date().toISOString();
     setDocuments((prev) => {
-      const updated = prev.map((d) => d.id === archiveTarget.id ? { ...d, archived: true } : d);
+      const updated = prev.map((d) => d.id === archiveTarget.id ? { ...d, archived: true, archived_at: now } : d);
       // Persist archived IDs
       const archivedIds = updated.filter((d) => d.archived).map((d) => d.id);
       try { localStorage.setItem(archivedKey, JSON.stringify(archivedIds)); } catch { /* ignore */ }
+      // Persist archived timestamps
+      const tsMap: Record<string, string> = {};
+      updated.filter((d) => d.archived && d.archived_at).forEach((d) => { tsMap[d.id] = d.archived_at!; });
+      try { localStorage.setItem(tsKey, JSON.stringify(tsMap)); } catch { /* ignore */ }
       return updated;
     });
     setArchiveTarget(null);
@@ -2166,11 +2235,16 @@ const UhcMember = () => {
   const handleRestore = (id: string) => {
     if (!selectedPatient) return;
     const archivedKey = `uhc_archived_docs_${selectedPatient.id}`;
+    const tsKey = `uhc_archived_ts_${selectedPatient.id}`;
     setDocuments((prev) => {
-      const updated = prev.map((d) => d.id === id ? { ...d, archived: false } : d);
+      const updated = prev.map((d) => d.id === id ? { ...d, archived: false, archived_at: null } : d);
       // Update persisted archived IDs
       const archivedIds = updated.filter((d) => d.archived).map((d) => d.id);
       try { localStorage.setItem(archivedKey, JSON.stringify(archivedIds)); } catch { /* ignore */ }
+      // Update persisted timestamps
+      const tsMap: Record<string, string> = {};
+      updated.filter((d) => d.archived && d.archived_at).forEach((d) => { tsMap[d.id] = d.archived_at!; });
+      try { localStorage.setItem(tsKey, JSON.stringify(tsMap)); } catch { /* ignore */ }
       return updated;
     });
   };
@@ -2207,6 +2281,14 @@ const UhcMember = () => {
       )}
       {archiveTarget && (
         <ArchiveConfirmModal doc={archiveTarget} patient={selectedPatient} onConfirm={handleArchive} onCancel={() => setArchiveTarget(null)} />
+      )}
+      {restoreTarget && (
+        <RestoreConfirmModal
+          doc={restoreTarget}
+          patient={selectedPatient}
+          onConfirm={() => { handleRestore(restoreTarget.id); setRestoreTarget(null); }}
+          onCancel={() => setRestoreTarget(null)}
+        />
       )}
       {pinModalMode && (
         <PinModal
@@ -2558,81 +2640,105 @@ const UhcMember = () => {
                     <p className="text-sm">Loading your documents…</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {FOLDER_DEFS.map((folder) => {
-                      const colors   = COLOR_MAP[folder.color as ColorKey];
-                      const docs     = getDocsForFolder(folder.key, false);
-                      const allCount = documents.filter((d) => docMatchesFolder(d.category, folder.key) && !d.archived).length;
-                      // Auto-expand folders that have search matches; otherwise use manual toggle
-                      const isExp    = filterQuery
-                        ? filterMatchedFolderKeys.includes(folder.key)
-                        : expandedFolder === folder.key;
-                      return (
-                        <div key={folder.key} className={`border rounded-xl overflow-hidden ${colors.border}`}>
-                          <button
-                            className={`w-full flex items-center gap-4 px-5 py-4 ${colors.bg} transition-colors hover:opacity-90`}
-                            onClick={() => setExpandedFolder(isExp ? null : folder.key)}
-                          >
-                            <span className={colors.text}>{folder.icon}</span>
-                            <div className="flex-1 text-left">
-                              <p className={`font-semibold ${colors.text}`}>{folder.label}</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              {allCount > 0 && (
-                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge}`}>
-                                  {allCount} file{allCount > 1 ? 's' : ''}
-                                </span>
-                              )}
-                              {isExp ? <ChevronDown className={`w-4 h-4 ${colors.text}`} /> : <ChevronRight className={`w-4 h-4 ${colors.text}`} />}
-                            </div>
-                          </button>
-                          {isExp && (
-                            <div className="p-4 border-t bg-white">
-                              {docs.length === 0 ? (
-                                <div className="text-center py-8 text-gray-400">
-                                  <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                                  <p className="text-sm">No documents in this folder yet.</p>
-                                  <p className="text-xs mt-1">Your health center operator will upload documents here.</p>
-                                </div>
-                              ) : (
-                                <div className="flex flex-col gap-2">
-                                  {docs.map((doc) => (
-                                    <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
-                                          <p className="text-xs text-gray-400">{doc.category}</p>
-                                        </div>
-                                      </div>
-                                      <div className="flex gap-2 ml-7 sm:ml-0 flex-shrink-0">
-                                        <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700 hover:border-green-300 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
-                                          <Eye className="w-3.5 h-3.5" /> View
-                                        </Button>
-                                        <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 flex-shrink-0" onClick={() => setArchiveTarget(doc)}>
-                                          <Archive className="w-3.5 h-3.5" /> Archive
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div> 
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* No results message when filter is active */}
-                    {filterQuery && totalFilterMatches === 0 && (
-                      <div className="text-center py-10 text-gray-400">
-                        <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                        <p className="font-medium text-gray-500">No documents found</p>
-                        <p className="text-sm mt-1">No documents matching "<span className="font-semibold text-gray-600">{filterQuery}</span>" were found.</p>
-                        <Button size="sm" variant="outline" onClick={() => setFilterQuery('')} className="mt-4 flex gap-1.5 text-xs mx-auto">
-                          <RefreshCw className="w-3.5 h-3.5" /> Clear search
-                        </Button>
+                  <div className="overflow-x-auto">
+                    {documents.filter(d => !d.archived && (!filterQuery || 
+                      d.attachment.toLowerCase().includes(filterQuery.toLowerCase()) || 
+                      d.category.toLowerCase().includes(filterQuery.toLowerCase())
+                    )).length === 0 ? (
+                      <div className="text-center py-12">
+                        {filterQuery ? (
+                          <div className="text-gray-400">
+                            <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                            <p className="font-medium text-gray-500">No documents found</p>
+                            <p className="text-sm mt-1">No documents matching "<span className="font-semibold text-gray-600">{filterQuery}</span>" were found.</p>
+                            <Button size="sm" variant="outline" onClick={() => setFilterQuery('')} className="mt-4 flex gap-1.5 text-xs mx-auto">
+                              <RefreshCw className="w-3.5 h-3.5" /> Clear search
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="text-gray-400">
+                            <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                            <p className="font-medium text-gray-500">No documents yet</p>
+                            <p className="text-sm mt-1">Your health center operator will upload documents here.</p>
+                          </div>
+                        )}
                       </div>
+                    ) : (
+                      <table className="w-full border-collapse">
+                        <thead>
+                        <tr className="border-b border-gray-200">
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">Date Attached</th>
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">Category</th>
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">File Name</th>
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50 w-32">Actions</th>
+                      </tr>
+                        </thead>
+                        <tbody>
+                          {documents
+                            .filter(d => !d.archived && (!filterQuery || 
+                              d.attachment.toLowerCase().includes(filterQuery.toLowerCase()) || 
+                              d.category.toLowerCase().includes(filterQuery.toLowerCase())
+                            ))
+                            .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()) // Sort by most recent first
+                            .map((doc) => {
+                              const rawDate = doc.created_at ? new Date(doc.created_at) : null;
+                              const attachmentDate = rawDate
+                                ? rawDate.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+                                : 'N/A';
+                              const attachmentTime = rawDate
+                                ? rawDate.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true })
+                                : '';
+
+                              return (
+                                <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                  <td className="py-3 px-4 text-sm text-gray-600 text-center">
+                                    <div>{attachmentDate}</div>
+                                    {attachmentTime && <div className="text-xs text-gray-400">{attachmentTime}</div>}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center justify-center gap-2">
+                                      {FOLDER_DEFS.find(f => docMatchesFolder(doc.category, f.key)) && (
+                                        <span className="text-green-600">
+                                          {FOLDER_DEFS.find(f => docMatchesFolder(doc.category, f.key))?.icon}
+                                        </span>
+                                      )}
+                                      <span className="text-sm text-gray-700">{doc.category}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center justify-center gap-3">
+                                      <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
+                                      <span className="text-sm font-medium text-gray-800 truncate max-w-xs">
+                                        {displayFileName(doc.attachment, selectedPatient)}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex gap-2 justify-center">
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 hover:border-green-400 hover:scale-105 hover:shadow-md active:scale-95 transition-all duration-200 flex-shrink-0" 
+                                        onClick={() => setPreviewDoc(doc)}
+                                      >
+                                        <Eye className="w-3.5 h-3.5" /> View
+                                      </Button>
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 hover:border-amber-400 hover:scale-105 hover:shadow-md active:scale-95 transition-all duration-200 flex-shrink-0" 
+                                        onClick={() => setArchiveTarget(doc)}
+                                      >
+                                        <Archive className="w-3.5 h-3.5" /> Archive
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          }
+                        </tbody>
+                      </table>
                     )}
                   </div>
                 )}
@@ -2674,7 +2780,7 @@ const UhcMember = () => {
                   </Card>
                   <Card className="p-3 sm:p-6">
                     <div className="overflow-x-auto flex justify-center">
-                      <HealthIdCard patient={selectedPatient!} qrDataUrl={qrDataUrl} qrCodeValue={qrCodeValue} cardRef={cardRef} profilePicUrl={profilePicUrl} />
+                      <HealthIdCard patient={selectedPatient!} qrDataUrl={qrDataUrl} qrCodeValue={qrCodeValue} cardRef={cardRef} profilePicUrl={profilePicUrl} dateIssued={cardDateIssued} />
                     </div>
                   </Card>
                 </div>
@@ -2709,44 +2815,84 @@ const UhcMember = () => {
                     <p className="text-sm">Documents you archive will appear here.</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {FOLDER_DEFS.map((folder) => {
-                      const archivedDocs = documents.filter((d) => docMatchesFolder(d.category, folder.key) && d.archived);
-                      if (!archivedDocs.length) return null;
-                      const colors = COLOR_MAP[folder.color as ColorKey];
-                      return (
-                        <div key={folder.key} className={`border rounded-xl overflow-hidden ${colors.border}`}>
-                          <div className={`flex items-center gap-3 px-5 py-3 ${colors.bg}`}>
-                            <span className={colors.text}>{folder.icon}</span>
-                            <p className={`font-semibold text-sm ${colors.text}`}>{folder.label}</p>
-                            <span className={`ml-auto text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge}`}>{archivedDocs.length}</span>
-                          </div>
-                          <div className="p-3 sm:p-4 bg-white border-t flex flex-col gap-2">
-                            {archivedDocs.map((doc) => (
-                              <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                  <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
-                                    <p className="text-xs text-gray-400">{doc.category}</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">Date Archived</th>
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">Category</th>
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">File Name</th>
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50 w-44">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {documents
+                          .filter(d => d.archived)
+                          .sort((a, b) => new Date(b.archived_at ?? b.id).getTime() - new Date(a.archived_at ?? a.id).getTime())
+                          .map((doc) => {
+                            const rawArchived = doc.archived_at ? new Date(doc.archived_at) : null;
+                            const archivedDate = rawArchived
+                              ? rawArchived.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+                              : 'N/A';
+                            const archivedTime = rawArchived
+                              ? rawArchived.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true })
+                              : '';
+
+                            return (
+                              <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                <td className="py-3 px-4 text-center">
+                                  <div className="text-sm text-gray-600">{archivedDate}</div>
+                                  {archivedTime && <div className="text-xs text-gray-400">{archivedTime}</div>}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center justify-center gap-2">
+                                    {FOLDER_DEFS.find(f => docMatchesFolder(doc.category, f.key)) && (
+                                      <span className="text-green-600">
+                                        {FOLDER_DEFS.find(f => docMatchesFolder(doc.category, f.key))?.icon}
+                                      </span>
+                                    )}
+                                    <span className="text-sm text-gray-700">{doc.category}</span>
                                   </div>
-                                  <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0 sm:hidden">Archived</span>
-                                </div>
-                                <div className="flex items-center gap-2 ml-7 sm:ml-0 flex-shrink-0">
-                                  <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:inline">Archived</span>
-                                  <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700 hover:border-green-300 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
-                                    <Eye className="w-3.5 h-3.5" /> View
-                                  </Button>
-                                  <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 flex-shrink-0" onClick={() => handleRestore(doc.id)}>
-                                    <ArchiveRestore className="w-3.5 h-3.5" /> Restore
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center justify-center gap-3">
+                                    <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium text-gray-800 truncate max-w-xs">
+                                        {displayFileName(doc.attachment, selectedPatient)}
+                                      </span>
+                                      <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0">
+                                        Archived
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex gap-2 justify-center">
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline" 
+                                      className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 hover:border-green-400 hover:scale-105 hover:shadow-md active:scale-95 transition-all duration-200 flex-shrink-0" 
+                                      onClick={() => setPreviewDoc(doc)}
+                                    >
+                                      <Eye className="w-3.5 h-3.5" /> View
+                                    </Button>
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline" 
+                                      className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 hover:border-amber-400 hover:scale-105 hover:shadow-md active:scale-95 transition-all duration-200 flex-shrink-0" 
+                                      onClick={() => setRestoreTarget(doc)}
+                                    >
+                                      <ArchiveRestore className="w-3.5 h-3.5" /> Restore
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        }
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </Card>
