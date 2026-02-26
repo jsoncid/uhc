@@ -13,12 +13,6 @@ import { Separator } from 'src/components/ui/separator';
 import { Input } from 'src/components/ui/input';
 import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from 'src/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'src/components/ui/dialog';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -72,9 +66,7 @@ const ReferralDetail = () => {
     addOutgoingVaccination,
     deleteOutgoingVaccination,
     updateOutgoingVaccinationAttachment,
-    updateReferralStatus,
     updateReferralInfo,
-    statuses,
   } = useContext<ReferralContextType>(ReferralContext);
 
   // Live context first (active), then check deactivated
@@ -277,34 +269,11 @@ const ReferralDetail = () => {
                     Mark as In Transit
                   </Button>
                 )}
-                {/* Override Status — allows admins to manually correct the workflow state */}
                 {canEdit && (
                   <Button variant="outline" size="sm" onClick={() => setShowEditPanel(true)}>
                     <Icon icon="solar:pen-bold-duotone" height={15} className="mr-1.5" />
                     Edit Clinical Info
                   </Button>
-                )}
-                {referral.status !== false && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Icon icon="solar:pen-bold-duotone" height={15} className="mr-1.5" />
-                        Override Status
-                        <Icon icon="solar:alt-arrow-down-bold" height={14} className="ml-1.5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[160px]">
-                      {statuses.map((s) => (
-                        <DropdownMenuItem
-                          key={s.id}
-                          onClick={() => id && updateReferralStatus(id, s.id)}
-                          disabled={referral.latest_status?.id === s.id}
-                        >
-                          {s.description}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 )}
                 <Button variant="outline" size="sm" onClick={() => navigate('/module-2/referrals')}>
                   <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
@@ -776,7 +745,9 @@ const ReferralDetail = () => {
                 <div className="w-8 h-8 rounded-lg bg-green-600 dark:bg-green-500 flex items-center justify-center flex-shrink-0">
                   <Icon icon="solar:history-bold-duotone" height={18} className="text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-green-900 dark:text-green-100">Referral History</h3>
+                <h3 className="text-lg font-bold text-green-900 dark:text-green-100">
+                  Referral History
+                </h3>
               </div>
               <div className="relative">
                 {history.map((h, idx) => (
@@ -797,17 +768,25 @@ const ReferralDetail = () => {
                             variant="outline"
                             className={`text-xs font-semibold px-2.5 py-1 ${STATUS_STYLES[h.status_description ?? ''] ?? 'bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200 border-green-300 dark:border-green-600'} ${h.is_active ? '' : 'opacity-70'}`}
                           >
-                            <Icon 
+                            <Icon
                               icon={
-                                h.status_description === 'Pending' ? 'solar:clock-circle-bold-duotone' :
-                                h.status_description === 'Seen' ? 'solar:eye-bold-duotone' :
-                                h.status_description === 'Accepted' ? 'solar:check-circle-bold-duotone' :
-                                h.status_description === 'In Transit' ? 'solar:routing-bold-duotone' :
-                                h.status_description === 'Arrived' ? 'solar:home-bold-duotone' :
-                                h.status_description === 'Admitted' ? 'solar:hospital-bold-duotone' :
-                                h.status_description === 'Discharged' ? 'solar:exit-bold-duotone' :
-                                h.status_description === 'Declined' ? 'solar:close-circle-bold-duotone' :
-                                'solar:info-circle-bold-duotone'
+                                h.status_description === 'Pending'
+                                  ? 'solar:clock-circle-bold-duotone'
+                                  : h.status_description === 'Seen'
+                                    ? 'solar:eye-bold-duotone'
+                                    : h.status_description === 'Accepted'
+                                      ? 'solar:check-circle-bold-duotone'
+                                      : h.status_description === 'In Transit'
+                                        ? 'solar:routing-bold-duotone'
+                                        : h.status_description === 'Arrived'
+                                          ? 'solar:home-bold-duotone'
+                                          : h.status_description === 'Admitted'
+                                            ? 'solar:hospital-bold-duotone'
+                                            : h.status_description === 'Discharged'
+                                              ? 'solar:exit-bold-duotone'
+                                              : h.status_description === 'Declined'
+                                                ? 'solar:close-circle-bold-duotone'
+                                                : 'solar:info-circle-bold-duotone'
                               }
                               height={12}
                               className="mr-1"
@@ -828,41 +807,46 @@ const ReferralDetail = () => {
                               height={13}
                               className="flex-shrink-0"
                             />
-                            <span className="max-w-[90px] truncate">
-                              {h.email}
-                            </span>
+                            <span className="max-w-[90px] truncate">{h.email}</span>
                           </div>
                         )}
                       </div>
                       {(() => {
-                        const receiverSide = new Set([
-                          'Seen',
-                          'Accepted',
-                          'Declined',
-                          'Arrived',
-                          'Admitted',
-                          'Discharged',
-                        ]);
+                        const patientAtReceiver = new Set(['Arrived', 'Admitted', 'Discharged']);
                         const facility =
                           h.to_assignment_name ??
-                          (receiverSide.has(h.status_description ?? '')
+                          (patientAtReceiver.has(h.status_description ?? '')
                             ? (referral.to_assignment_name ?? referral.from_assignment_name)
                             : referral.from_assignment_name);
                         return facility ? (
                           <div className="flex items-center gap-2 mb-1">
-                            <Icon icon="solar:buildings-2-bold-duotone" height={14} className="text-green-700 dark:text-green-300 flex-shrink-0" />
-                            <p className="text-sm font-semibold text-green-900 dark:text-green-100">{facility}</p>
+                            <Icon
+                              icon="solar:buildings-2-bold-duotone"
+                              height={14}
+                              className="text-green-700 dark:text-green-300 flex-shrink-0"
+                            />
+                            <p className="text-sm font-semibold text-green-900 dark:text-green-100">
+                              {facility}
+                            </p>
                           </div>
                         ) : null;
                       })()}
                       {h.details && (
                         <div className="flex items-start gap-2 mb-1">
-                          <Icon icon="solar:notes-bold-duotone" height={14} className="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                          <Icon
+                            icon="solar:notes-bold-duotone"
+                            height={14}
+                            className="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5"
+                          />
                           <p className="text-xs text-green-700 dark:text-green-300">{h.details}</p>
                         </div>
                       )}
                       <div className="flex items-center gap-2 mt-2">
-                        <Icon icon="solar:calendar-bold-duotone" height={12} className="text-green-500 dark:text-green-400 flex-shrink-0" />
+                        <Icon
+                          icon="solar:calendar-bold-duotone"
+                          height={12}
+                          className="text-green-500 dark:text-green-400 flex-shrink-0"
+                        />
                         <p className="text-xs text-green-600 dark:text-green-400 font-medium">
                           {format(new Date(h.created_at), 'MMM dd, yyyy · h:mm a')}
                         </p>

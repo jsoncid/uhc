@@ -29,6 +29,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from 'src/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from 'src/components/ui/dropdown-menu';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
@@ -520,6 +526,38 @@ const IncomingReferralDetail = () => {
                   Edit Clinical Info
                 </Button>
               )}
+              {/* Receiving facility status control — only Arrived / Admitted / Discharged */}
+              {referral.status !== false &&
+                ['Accepted', 'In Transit', 'Arrived', 'Admitted'].includes(statusDesc ?? '') && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Icon
+                          icon="solar:transfer-horizontal-bold-duotone"
+                          height={15}
+                          className="mr-1.5"
+                        />
+                        Update Status
+                        <Icon icon="solar:alt-arrow-down-bold" height={14} className="ml-1.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[160px]">
+                      {(['Arrived', 'Admitted', 'Discharged'] as const).map((label) => {
+                        const s = statuses.find((st) => st.description === label);
+                        if (!s) return null;
+                        return (
+                          <DropdownMenuItem
+                            key={s.id}
+                            onClick={() => id && updateIncomingStatus(id, s.id)}
+                            disabled={referral.latest_status?.id === s.id}
+                          >
+                            {label}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               <Button variant="outline" size="sm" onClick={() => navigate('/module-2/referrals')}>
                 <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
                 Back
@@ -1045,17 +1083,10 @@ const IncomingReferralDetail = () => {
                       )}
                     </div>
                     {(() => {
-                      const receiverSide = new Set([
-                        'Seen',
-                        'Accepted',
-                        'Declined',
-                        'Arrived',
-                        'Admitted',
-                        'Discharged',
-                      ]);
+                      const patientAtReceiver = new Set(['Arrived', 'Admitted', 'Discharged']);
                       const facility =
                         h.to_assignment_name ??
-                        (receiverSide.has(h.status_description ?? '')
+                        (patientAtReceiver.has(h.status_description ?? '')
                           ? (referral.to_assignment_name ?? referral.from_assignment_name)
                           : referral.from_assignment_name);
                       return facility ? <p className="text-sm font-medium">{facility}</p> : null;
