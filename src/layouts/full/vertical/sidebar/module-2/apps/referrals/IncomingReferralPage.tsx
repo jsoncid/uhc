@@ -397,7 +397,7 @@ const PendingTab = ({
               </TableRow>
             ) : (
               visible.map((r) => (
-                <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                <TableRow key={r.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
                   <TableCell>
                     <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                   </TableCell>
@@ -558,7 +558,7 @@ const ActiveTab = ({
               </TableRow>
             ) : (
               visible.map((r) => (
-                <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                <TableRow key={r.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
                   <TableCell>
                     <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                   </TableCell>
@@ -744,7 +744,7 @@ const DeclinedTab = ({
               </TableRow>
             ) : (
               visible.map((r) => (
-                <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                <TableRow key={r.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
                   <TableCell>
                     <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                   </TableCell>
@@ -878,7 +878,7 @@ const DischargedTab = ({
                   (h) => h.status_description === 'Discharged',
                 );
                 return (
-                  <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                  <TableRow key={r.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
                     <TableCell>
                       <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                     </TableCell>

@@ -526,7 +526,7 @@ const AllHistoryTab = ({
               ) : (
                 <>
                   {visible.map((r) => (
-                    <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                    <TableRow key={r.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div>
@@ -659,7 +659,7 @@ const DeactivatedTab = ({
               ) : (
                 <>
                   {visible.map((r) => (
-                    <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                    <TableRow key={r.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>

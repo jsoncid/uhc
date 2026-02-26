@@ -515,7 +515,7 @@ const ReferralListing = () => {
               </TableRow>
             ) : (
               visible.map((referral: ReferralType) => (
-                <TableRow key={referral.id} className="hover:bg-muted/20 transition-colors">
+                <TableRow key={referral.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{referral.patient_name ?? '—'}</span>
