@@ -52,6 +52,7 @@ const PermissionsContext = createContext<PermissionsContextValue | undefined>(un
 
 export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
   const user = useAuthStore((s) => s.user);
+  const isAuthLoading = useAuthStore((s) => s.isLoading);
 
   const [permissions, setPermissions] = useState<ModulePermission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,12 +122,15 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (user) {
       fetchPermissions();
-    } else {
+    } else if (!isAuthLoading) {
+      // Only clear permissions if auth is done loading and user is actually null
+      // (i.e., user signed out). Don't clear during initial auth loading.
       setPermissions([]);
       setLoading(false);
       setError(null);
     }
-  }, [user, fetchPermissions]);
+    // If isAuthLoading is true and user is null, keep loading: true (initial state)
+  }, [user, isAuthLoading, fetchPermissions]);
 
   // Re-fetch permissions when the browser tab regains focus.
   // This picks up admin changes (e.g. role_module_access edits) without
