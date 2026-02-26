@@ -1,3 +1,6 @@
+# Windows reserved device names
+nul
+
 # Logs
 logs
 *.log

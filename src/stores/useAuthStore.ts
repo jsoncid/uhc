@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { AuthCodeService } from '../services/authCodeService';
+import { userService } from '../services/userService';
 
 interface AuthState {
   user: User | null;
@@ -15,7 +17,7 @@ interface AuthState {
   signUp: (
     email: string,
     password: string,
-    options?: { data?: { [key: string]: any }; assignmentId?: string },
+    options?: { data?: { [key: string]: any }; assignmentId?: string; roleId?: string },
   ) => Promise<boolean>;
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
@@ -220,6 +222,19 @@ export const useAuthStore = create<AuthState>((set, get) => {
             throw insertStatusError;
           }
 
+          // Assign Member role to the user
+          if (options?.roleId) {
+            try {
+              await userService.createUserRole({
+                user: data.user.id,
+                role: options.roleId,
+              });
+            } catch (roleError) {
+              console.error('Error assigning role:', roleError);
+              throw roleError;
+            }
+          }
+
           // Persist selected assignment from registration
           if (options?.assignmentId) {
             const { error: insertAssignmentError } = await supabase
@@ -261,6 +276,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
       try {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
+        
+        // Clear all localStorage data related to auth/session using AuthCodeService
+        AuthCodeService.clearAllSessionData();
+        
         set({
           user: null,
           userModuleId: null,

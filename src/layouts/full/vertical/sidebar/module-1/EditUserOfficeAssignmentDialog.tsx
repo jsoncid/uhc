@@ -39,11 +39,16 @@ export const EditUserOfficeAssignmentDialog = ({
   const { offices } = useOfficeStore();
 
   const [selectedOffice, setSelectedOffice] = useState<string>('');
+  const [selectedWindow, setSelectedWindow] = useState<string>('');
   const [localError, setLocalError] = useState<string | null>(null);
+
+  // Windows available for the currently selected office
+  const availableWindows = offices.find((o) => o.id === selectedOffice)?.windows ?? [];
 
   useEffect(() => {
     if (isOpen && assignment) {
       setSelectedOffice(assignment.office);
+      setSelectedWindow(assignment.window || '');
       clearError();
       setLocalError(null);
     }
@@ -63,13 +68,13 @@ export const EditUserOfficeAssignmentDialog = ({
       return;
     }
 
-    if (selectedOffice === assignment.office) {
-      setLocalError('Please select a different office');
+    if (selectedOffice === assignment.office && (selectedWindow || null) === (assignment.window || null)) {
+      setLocalError('No changes detected');
       return;
     }
 
     try {
-      await updateUserOfficeAssignment(assignment.id, selectedOffice);
+      await updateUserOfficeAssignment(assignment.id, selectedOffice, selectedWindow || null);
       onSuccess();
       onClose();
     } catch (err) {
@@ -79,9 +84,16 @@ export const EditUserOfficeAssignmentDialog = ({
 
   const handleClose = () => {
     setSelectedOffice('');
+    setSelectedWindow('');
     setLocalError(null);
     clearError();
     onClose();
+  };
+
+  // Reset window when office changes
+  const handleOfficeChange = (value: string) => {
+    setSelectedOffice(value);
+    setSelectedWindow('');
   };
 
   return (
@@ -114,8 +126,15 @@ export const EditUserOfficeAssignmentDialog = ({
             </div>
 
             <div className="grid gap-2">
+              <Label>Current Window</Label>
+              <div className="px-3 py-2 bg-muted rounded-md text-sm">
+                {assignment?.window_description || <span className="text-muted-foreground">None</span>}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
               <Label htmlFor="office">New Office</Label>
-              <Select value={selectedOffice} onValueChange={setSelectedOffice}>
+              <Select value={selectedOffice} onValueChange={handleOfficeChange}>
                 <SelectTrigger id="office">
                   <SelectValue placeholder="Select a new office" />
                 </SelectTrigger>
@@ -134,6 +153,26 @@ export const EditUserOfficeAssignmentDialog = ({
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="window">New Window <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Select
+                value={selectedWindow}
+                onValueChange={setSelectedWindow}
+                disabled={!selectedOffice || availableWindows.length === 0}
+              >
+                <SelectTrigger id="window">
+                  <SelectValue placeholder={!selectedOffice ? 'Select an office first' : availableWindows.length === 0 ? 'No windows available' : 'Select a window'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableWindows.map((window) => (
+                    <SelectItem key={window.id} value={window.id}>
+                      {window.description || 'Unnamed Window'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <DialogFooter>
@@ -142,7 +181,7 @@ export const EditUserOfficeAssignmentDialog = ({
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || offices.length === 0 || selectedOffice === assignment?.office}
+              disabled={isLoading || offices.length === 0 || (selectedOffice === assignment?.office && (selectedWindow || null) === (assignment?.window || null))}
             >
               {isLoading ? 'Saving...' : 'Save Changes'}
             </Button>

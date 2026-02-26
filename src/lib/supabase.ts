@@ -456,16 +456,43 @@ export type Database = {
           is_active?: boolean;
         };
         Update: {
-          id?: string;
-          created_at?: string;
-          office?: string;
-          queue?: string;
-          priority?: string;
-          status?: string;
-          window?: string | null;
-          is_active?: boolean;
-        };
-      };
-    };
-  };
-};
+          id?: string
+          created_at?: string
+          office?: string
+          queue?: string
+          priority?: string
+          status?: string
+          window?: string | null
+          is_active?: boolean
+        }
+      }
+    }
+  }
+  module5: {
+    Tables: {
+      scribble_text: {
+        Row: {
+          id: string
+          created_at: string
+          user_id: string
+          input_uuid: string
+          content: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          user_id: string
+          input_uuid: string
+          content?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          user_id?: string
+          input_uuid?: string
+          content?: string | null
+        }
+      }
+    }
+  }
+}
