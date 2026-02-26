@@ -321,3 +321,8 @@ body {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* Fix date input calendar icon visibility in dark mode */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}

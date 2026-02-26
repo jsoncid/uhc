@@ -66,17 +66,43 @@ const ReferralFilter = () => {
       activeBg: 'bg-lightinfo',
     },
     {
+      key: 'Arrived',
+      label: 'Arrived',
+      value: count('Arrived'),
+      pct: pct(count('Arrived')),
+      icon: 'solar:hospital-bold-duotone',
+      color: 'primary',
+      text: 'text-primary',
+      iconBg: 'bg-lightprimary',
+      bar: 'bg-primary',
+      accent: 'border-t-primary',
+      activeBg: 'bg-lightprimary',
+    },
+    {
+      key: 'Admitted',
+      label: 'Admitted',
+      value: count('Admitted'),
+      pct: pct(count('Admitted')),
+      icon: 'solar:bed-bold-duotone',
+      color: 'purple',
+      text: 'text-purple-600 dark:text-purple-400',
+      iconBg: 'bg-purple-100 dark:bg-purple-900/30',
+      bar: 'bg-purple-500',
+      accent: 'border-t-purple-500',
+      activeBg: 'bg-purple-100 dark:bg-purple-900/30',
+    },
+    {
       key: 'Discharged',
       label: 'Discharged',
       value: count('Discharged'),
       pct: pct(count('Discharged')),
       icon: 'solar:exit-bold-duotone',
-      color: 'secondary',
-      text: 'text-secondary',
-      iconBg: 'bg-lightsecondary',
-      bar: 'bg-secondary',
-      accent: 'border-t-secondary',
-      activeBg: 'bg-lightsecondary',
+      color: 'slate',
+      text: 'text-slate-500',
+      iconBg: 'bg-slate-100 dark:bg-slate-800',
+      bar: 'bg-slate-400',
+      accent: 'border-t-slate-400',
+      activeBg: 'bg-slate-100 dark:bg-slate-800',
     },
     {
       key: 'Declined',
@@ -94,7 +120,7 @@ const ReferralFilter = () => {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
       {cards.map((card) => {
         const isActive = filter === card.key;
         return (

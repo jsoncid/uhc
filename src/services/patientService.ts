@@ -246,7 +246,7 @@ class PatientService {
    */
   async searchPatients(
     name: string,
-    options?: { facility?: string; database?: string; limit?: number }
+    options?: { facility?: string; database?: string; limit?: number },
   ): Promise<PatientSearchResult> {
     try {
       const params = new URLSearchParams({ name });
@@ -372,8 +372,8 @@ class PatientService {
   /**
    * Check backend health
    */
-  async checkHealth(): Promise<{ 
-    status: string; 
+  async checkHealth(): Promise<{
+    status: string;
     databases?: { postgres?: string; mysql?: string };
     timestamp?: string;
     uptime?: number;
@@ -428,7 +428,7 @@ class PatientService {
         region: locationData.region_name,
         province: locationData.province_name,
         city: locationData.city_name,
-        brgy: locationData.brgy_name
+        brgy: locationData.brgy_name,
       });
 
       // Step 1: Find or create Region
@@ -479,9 +479,9 @@ class PatientService {
           const { data: newProvince, error } = await supabase
             .schema('module3')
             .from('province')
-            .insert({ 
+            .insert({
               description: locationData.province_name,
-              region: regionId
+              region: regionId,
             })
             .select('id')
             .single();
@@ -513,9 +513,9 @@ class PatientService {
           const { data: newCity, error } = await supabase
             .schema('module3')
             .from('city_municipality')
-            .insert({ 
+            .insert({
               description: locationData.city_name,
-              province: provinceId
+              province: provinceId,
             })
             .select('id')
             .single();
@@ -553,7 +553,7 @@ class PatientService {
             .from('brgy')
             .insert({
               description: locationData.brgy_name,
-              city_municipality: cityId
+              city_municipality: cityId,
             })
             .select('id')
             .single();
@@ -586,26 +586,24 @@ class PatientService {
    * Save patient profile to Supabase
    * Also creates/updates patient_repository record if hpercode is provided
    */
-  async saveToSupabase(
-    patientData: {
-      id?: string;
-      created_at?: string;
-      first_name: string;
-      middle_name?: string;
-      last_name: string;
-      ext_name?: string;
-      sex: string;
-      birth_date: string;
-      brgy?: string;
-      brgy_name?: string;
-      street?: string;
-      city_name?: string;
-      province_name?: string;
-      region_name?: string;
-      hpercode?: string;
-      facility_code?: string;
-    }
-  ): Promise<{ success: boolean; data?: PatientProfileDB['Row']; message?: string }> {
+  async saveToSupabase(patientData: {
+    id?: string;
+    created_at?: string;
+    first_name: string;
+    middle_name?: string;
+    last_name: string;
+    ext_name?: string;
+    sex: string;
+    birth_date: string;
+    brgy?: string;
+    brgy_name?: string;
+    street?: string;
+    city_name?: string;
+    province_name?: string;
+    region_name?: string;
+    hpercode?: string;
+    facility_code?: string;
+  }): Promise<{ success: boolean; data?: PatientProfileDB['Row']; message?: string }> {
     try {
       // Helper function to convert empty strings to undefined
       const cleanValue = (value: string | undefined) => {
@@ -621,7 +619,9 @@ class PatientService {
       // Check if patient ID is a valid UUID
       const patientIdToUse = isValidUuid(patientData.id) ? patientData.id : undefined;
       if (patientData.id && !patientIdToUse) {
-        console.log(`Patient ID "${patientData.id}" is not a valid UUID. Supabase will generate a new one.`);
+        console.log(
+          `Patient ID "${patientData.id}" is not a valid UUID. Supabase will generate a new one.`,
+        );
       }
 
       // Check if brgy is a valid UUID, if not, try to find/create one
@@ -650,7 +650,7 @@ class PatientService {
           province_name: patientData.province_name,
           region_name: patientData.region_name,
         });
-        
+
         if (result) {
           locationIds = result;
         }
@@ -677,7 +677,7 @@ class PatientService {
 
       // Check if patient already exists (by UUID if provided, or by name combination)
       let existingPatient = null;
-      
+
       if (patientIdToUse) {
         console.log('Checking if patient exists by UUID:', patientIdToUse);
         const { data: checkById, error: checkError } = await supabase
@@ -686,11 +686,11 @@ class PatientService {
           .select('*')
           .eq('id', patientIdToUse)
           .maybeSingle();
-        
+
         if (checkError) {
           console.error('Error checking patient by ID:', checkError);
         }
-        
+
         existingPatient = checkById;
         if (existingPatient) {
           console.log('Found existing patient by UUID:', existingPatient.id);
@@ -698,7 +698,12 @@ class PatientService {
       }
 
       // If no UUID match, check by name and birth date combination
-      if (!existingPatient && patientData.first_name && patientData.last_name && patientData.birth_date) {
+      if (
+        !existingPatient &&
+        patientData.first_name &&
+        patientData.last_name &&
+        patientData.birth_date
+      ) {
         console.log('Checking if patient exists by name and birth date');
         const { data: checkByName, error: checkError } = await supabase
           .schema('module3')
@@ -708,11 +713,11 @@ class PatientService {
           .eq('last_name', patientData.last_name.trim())
           .eq('birth_date', patientData.birth_date)
           .maybeSingle();
-        
+
         if (checkError) {
           console.error('Error checking patient by name:', checkError);
         }
-        
+
         existingPatient = checkByName;
         if (existingPatient) {
           console.log('Found existing patient by name/birthdate:', existingPatient.id);
@@ -733,18 +738,18 @@ class PatientService {
         if (error) {
           console.error('Error updating patient in Supabase:');
           console.error('Full error object:', error);
-          
+
           const err = error as any;
           const errorCode = error.code || err.error_code || err?.error?.code;
           const errorMessage = error.message || err.msg || err?.error?.message || 'Unknown error';
           const errorDetails = error.details || err.detail || err?.error?.details;
           const errorHint = error.hint || err?.error?.hint;
-          
+
           console.error('Error code:', errorCode);
           console.error('Error message:', errorMessage);
           console.error('Error details:', errorDetails);
           console.error('Error hint:', errorHint);
-          
+
           let errorMsg = `Failed to update patient: ${errorMessage}`;
           if (errorCode === '42P01') {
             errorMsg += ' - Table does not exist. Please run the SQL schema file first.';
@@ -755,7 +760,7 @@ class PatientService {
         }
 
         console.log('Patient updated successfully:', data);
-        
+
         // If hpercode is provided, create/update patient_repository record
         if (patientData.hpercode && data.id) {
           await this.savePatientRepository({
@@ -764,7 +769,7 @@ class PatientService {
             facility_code: patientData.facility_code,
           });
         }
-        
+
         return {
           success: true,
           data,
@@ -773,7 +778,7 @@ class PatientService {
       } else {
         console.log('Patient does not exist, inserting new patient');
         console.log('Insert payload:', JSON.stringify(supabaseData, null, 2));
-        
+
         // Insert new patient
         const { data, error } = await supabase
           .schema('module3')
@@ -787,20 +792,20 @@ class PatientService {
           console.error('Full error object:', error);
           console.error('Error type:', typeof error);
           console.error('Error keys:', Object.keys(error));
-          
+
           // Try different ways to access error properties
           const err = error as any;
           const errorCode = error.code || err.error_code || err?.error?.code;
           const errorMessage = error.message || err.msg || err?.error?.message || 'Unknown error';
           const errorDetails = error.details || err.detail || err?.error?.details;
           const errorHint = error.hint || err?.error?.hint;
-          
+
           console.error('Error code:', errorCode);
           console.error('Error message:', errorMessage);
           console.error('Error details:', errorDetails);
           console.error('Error hint:', errorHint);
           console.error('Data being inserted:', JSON.stringify(supabaseData, null, 2));
-          
+
           // Provide helpful error message
           let errorMsg = `Failed to insert patient: ${errorMessage}`;
           if (errorCode === '42P01') {
@@ -814,7 +819,7 @@ class PatientService {
         }
 
         console.log('Patient inserted successfully:', data);
-        
+
         // If hpercode is provided, create/update patient_repository record
         if (patientData.hpercode && data.id) {
           await this.savePatientRepository({
@@ -823,7 +828,7 @@ class PatientService {
             facility_code: patientData.facility_code,
           });
         }
-        
+
         return {
           success: true,
           data,
@@ -851,7 +856,7 @@ class PatientService {
   }): Promise<void> {
     try {
       console.log('Saving patient repository record:', data);
-      
+
       // Check if a record with this exact patient_profile + hpercode combination exists
       const { data: existingRepo } = await supabase
         .schema('module3')
@@ -906,7 +911,7 @@ class PatientService {
    */
   async searchSupabasePatients(
     search: string,
-    options?: { limit?: number }
+    options?: { limit?: number },
   ): Promise<{
     success: boolean;
     data: any[];
@@ -916,13 +921,14 @@ class PatientService {
     try {
       const limit = options?.limit || 100;
       const searchTerm = search.trim().toLowerCase();
-      
+
       // Query with joins to get location hierarchy and facility info
       // Only get patients that DON'T have an hpercode yet (not linked to MySQL)
       const { data, error } = await supabase
         .schema('module3')
         .from('patient_profile')
-        .select(`
+        .select(
+          `
           *,
           brgy:brgy(
             id,
@@ -946,7 +952,9 @@ class PatientService {
             hpercode,
             status
           )
-        `, { count: 'exact' })
+        `,
+          { count: 'exact' },
+        )
         .order('created_at', { ascending: false })
         .limit(limit * 3); // Fetch more since we'll filter out linked patients
 
@@ -963,7 +971,8 @@ class PatientService {
       // First filter: Only include patients WITHOUT hpercode (not linked yet)
       const unlinkedPatients = (data || []).filter((patient: any) => {
         // Check if patient has no repository entry OR repository has no hpercode
-        const hasNoRepository = !patient.patient_repository || patient.patient_repository.length === 0;
+        const hasNoRepository =
+          !patient.patient_repository || patient.patient_repository.length === 0;
         const hasNoHpercode = patient.patient_repository?.[0]?.hpercode == null;
         return hasNoRepository || hasNoHpercode;
       });
@@ -975,20 +984,22 @@ class PatientService {
         const middleName = patient.middle_name?.toLowerCase() || '';
         const lastName = patient.last_name?.toLowerCase() || '';
         const fullName = `${firstName} ${middleName} ${lastName}`.trim();
-        
+
         // Search in location hierarchy
         const brgyDesc = patient.brgy?.description?.toLowerCase() || '';
         const brgyName = patient.brgy_name?.toLowerCase() || '';
         const cityDesc = patient.brgy?.city_municipality?.description?.toLowerCase() || '';
         const cityName = patient.city_name?.toLowerCase() || '';
-        const provinceDesc = patient.brgy?.city_municipality?.province?.description?.toLowerCase() || '';
+        const provinceDesc =
+          patient.brgy?.city_municipality?.province?.description?.toLowerCase() || '';
         const provinceName = patient.province_name?.toLowerCase() || '';
-        const regionDesc = patient.brgy?.city_municipality?.province?.region?.description?.toLowerCase() || '';
+        const regionDesc =
+          patient.brgy?.city_municipality?.province?.region?.description?.toLowerCase() || '';
         const regionName = patient.region_name?.toLowerCase() || '';
-        
+
         // Search in facility
         const facilityCode = patient.patient_repository?.[0]?.facility_code?.toLowerCase() || '';
-        
+
         // Check if search term matches any field
         return (
           firstName.includes(searchTerm) ||
@@ -1010,7 +1021,9 @@ class PatientService {
       // Trim to requested limit
       const limitedData = filteredData.slice(0, limit);
 
-      console.log(`Found ${unlinkedPatients.length} unlinked patients, ${filteredData.length} matching search, returning ${limitedData.length}`);
+      console.log(
+        `Found ${unlinkedPatients.length} unlinked patients, ${filteredData.length} matching search, returning ${limitedData.length}`,
+      );
 
       return {
         success: true,
@@ -1032,7 +1045,10 @@ class PatientService {
    * Get all patients from Supabase (paginated)
    * Includes location hierarchy and facility information
    */
-  async getSupabasePatients(page = 1, limit = 20): Promise<{
+  async getSupabasePatients(
+    page = 1,
+    limit = 20,
+  ): Promise<{
     success: boolean;
     data: any[];
     pagination: {
@@ -1051,7 +1067,8 @@ class PatientService {
       const { data, error, count } = await supabase
         .schema('module3')
         .from('patient_profile')
-        .select(`
+        .select(
+          `
           *,
           brgy:brgy(
             id,
@@ -1075,7 +1092,9 @@ class PatientService {
             hpercode,
             status
           )
-        `, { count: 'exact' })
+        `,
+          { count: 'exact' },
+        )
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -1120,7 +1139,7 @@ class PatientService {
   async linkPatientToMySQL(
     patientProfileId: string,
     hpercode: string,
-    facilityCode?: string
+    facilityCode?: string,
   ): Promise<{
     success: boolean;
     message?: string;
@@ -1230,7 +1249,10 @@ class PatientService {
   /**
    * Add patient tag to MySQL
    */
-  async addPatientTag(hpercode: string, tag: Omit<PatientTag, 'id' | 'created_at' | 'patient_id' | 'hpercode'>): Promise<{
+  async addPatientTag(
+    hpercode: string,
+    tag: Omit<PatientTag, 'id' | 'created_at' | 'patient_id' | 'hpercode'>,
+  ): Promise<{
     success: boolean;
     data?: PatientTag;
     message?: string;
@@ -1267,17 +1289,23 @@ class PatientService {
   /**
    * Remove patient tag from MySQL
    */
-  async removePatientTag(hpercode: string, tagId: string): Promise<{
+  async removePatientTag(
+    hpercode: string,
+    tagId: string,
+  ): Promise<{
     success: boolean;
     message?: string;
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/${encodeURIComponent(hpercode)}/tags/${encodeURIComponent(tagId)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `${this.baseUrl}/${encodeURIComponent(hpercode)}/tags/${encodeURIComponent(tagId)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -1300,13 +1328,16 @@ class PatientService {
   /**
    * Get patient history from MySQL (hadmlog table)
    */
-  async getPatientHistory(hpercode: string, options?: {
-    limit?: number;
-    offset?: number;
-    startDate?: string;
-    endDate?: string;
-    database?: string;
-  }): Promise<PatientHistoryResult> {
+  async getPatientHistory(
+    hpercode: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+      startDate?: string;
+      endDate?: string;
+      database?: string;
+    },
+  ): Promise<PatientHistoryResult> {
     try {
       const params = new URLSearchParams();
       if (options?.limit) params.append('limit', String(options.limit));
@@ -1317,7 +1348,7 @@ class PatientService {
 
       const queryString = params.toString();
       const url = `${this.baseUrl}/history/${encodeURIComponent(hpercode)}${queryString ? `?${queryString}` : ''}`;
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -1331,27 +1362,27 @@ class PatientService {
       }
 
       const result = await response.json();
-      
+
       // Helper to map database name to friendly facility name
       const getFacilityNameFromDb = (dbName: string): string => {
         if (dbName === 'adnph_ihomis_plus') return 'Agusan del Norte Provincial Hospital';
         if (dbName === 'ndh_ihomis_plus') return 'Nasipit District Hospital';
         return dbName;
       };
-      
+
       // API returns database1 and database2 structure
       // Combine data from both databases, or use specific database if requested
       let historyData: PatientHistory[] = [];
-      
+
       // Helper to tag records with source
       const tagRecords = (records: PatientHistory[], dbName: string): PatientHistory[] => {
-        return records.map(record => ({
+        return records.map((record) => ({
           ...record,
           source_database: dbName,
           source_facility_name: getFacilityNameFromDb(dbName),
         }));
       };
-      
+
       if (options?.database) {
         // If specific database requested, try to match
         if (result.database1?.name === options.database) {
@@ -1372,12 +1403,12 @@ class PatientService {
           ...tagRecords(result.database2?.data || [], result.database2?.name || 'database2'),
         ];
       }
-      
+
       // Also support legacy flat data structure
       if (historyData.length === 0 && result.data) {
         historyData = result.data;
       }
-      
+
       return {
         success: true,
         data: historyData,
@@ -1396,7 +1427,10 @@ class PatientService {
   /**
    * Add patient history record to MySQL
    */
-  async addPatientHistory(hpercode: string, history: Omit<PatientHistory, 'id' | 'created_at' | 'patient_id' | 'hpercode'>): Promise<{
+  async addPatientHistory(
+    hpercode: string,
+    history: Omit<PatientHistory, 'id' | 'created_at' | 'patient_id' | 'hpercode'>,
+  ): Promise<{
     success: boolean;
     data?: PatientHistory;
     message?: string;
@@ -1513,7 +1547,11 @@ class PatientService {
    * Search locations by name
    * Useful for autocomplete/typeahead functionality
    */
-  async searchLocations(type: 'region' | 'province' | 'city' | 'brgy', searchTerm: string, parentId?: string): Promise<{
+  async searchLocations(
+    type: 'region' | 'province' | 'city' | 'brgy',
+    searchTerm: string,
+    parentId?: string,
+  ): Promise<{
     success: boolean;
     data: Array<{ id: string; description: string }>;
     message?: string;
@@ -1561,6 +1599,53 @@ class PatientService {
         data: [],
         message: error instanceof Error ? error.message : 'Failed to search locations',
       };
+    }
+  }
+
+  /**
+   * Fetch resolved address fields for a patient by their UUID (module3.patient_profile).
+   * Returns { street, brgy_name, city_name, province_name, region_name } or null.
+   */
+  async getPatientAddressById(patientId: string | null | undefined): Promise<{
+    street: string | null;
+    brgy_name: string | null;
+    city_name: string | null;
+    province_name: string | null;
+    region_name: string | null;
+  } | null> {
+    if (!patientId) return null;
+    try {
+      const { data, error } = await supabase
+        .schema('module3')
+        .from('patient_profile')
+        .select(
+          `
+          street,
+          brgy:brgy(
+            description,
+            city_municipality:city_municipality(
+              description,
+              province:province(
+                description,
+                region:region(description)
+              )
+            )
+          )
+        `,
+        )
+        .eq('id', patientId)
+        .maybeSingle();
+      if (error || !data) return null;
+      const b = data.brgy as any;
+      return {
+        street: data.street ?? null,
+        brgy_name: b?.description ?? null,
+        city_name: b?.city_municipality?.description ?? null,
+        province_name: b?.city_municipality?.province?.description ?? null,
+        region_name: b?.city_municipality?.province?.region?.description ?? null,
+      };
+    } catch {
+      return null;
     }
   }
 }
