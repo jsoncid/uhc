@@ -1117,7 +1117,7 @@ const PatientProfiling = () => {
                                 variant={facility.database === 'adnph_ihomis_plus' ? 'secondary' : 'warning'}
                                 className="text-[9px] px-1.5 py-0 shrink-0"
                               >
-                                {facility.database === 'adnph_ihomis_plus' ? 'Primary' : 'NDH'}
+                                {facility.database === 'adnph_ihomis_plus' ? 'ADNPH' : 'NDH'}
                               </Badge>
                             </div>
                             <p className="text-xs text-muted-foreground">
