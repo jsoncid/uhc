@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Trash2, Users, UserCheck, Edit, Filter, ArrowUpDown } from 'lucide-react'
+import { Plus, Search, Trash2, Users, UserCheck, Edit, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -652,54 +652,58 @@ export const UserAssignmentList = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col gap-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <Search className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <div className="relative flex-1 min-w-[250px]">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search user assignments..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-sm"
+                    className="pl-9"
                   />
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Filter by assignment" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Assignments</SelectItem>
-                        {assignments.map((assignment) => (
-                          <SelectItem key={assignment.id} value={assignment.id}>
-                            {assignment.description || assignment.id}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                    <Select value={assignmentSortBy} onValueChange={setAssignmentSortBy}>
-                      <SelectTrigger className="w-[150px]">
-                        <SelectValue placeholder="Sort by" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="user">User</SelectItem>
-                        <SelectItem value="assignment">Assignment</SelectItem>
-                        <SelectItem value="created_at">Date Created</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setAssignmentSortOrder(assignmentSortOrder === 'asc' ? 'desc' : 'asc')}
-                    >
-                      {assignmentSortOrder === 'asc' ? '↑' : '↓'}
-                    </Button>
-                  </div>
-                </div>
+                <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Filter by assignment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Assignments</SelectItem>
+                    {assignments.map((assignment) => (
+                      <SelectItem key={assignment.id} value={assignment.id}>
+                        {assignment.description || assignment.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={assignmentSortBy} onValueChange={setAssignmentSortBy}>
+                  <SelectTrigger className="w-[150px]">
+                    <ArrowUpDown className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="assignment">Assignment</SelectItem>
+                    <SelectItem value="created_at">Date Created</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAssignmentSortOrder(assignmentSortOrder === 'asc' ? 'desc' : 'asc')}
+                >
+                  {assignmentSortOrder === 'asc' ? (
+                    <>
+                      <ArrowUp className="h-4 w-4 mr-1" />
+                      Asc
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDown className="h-4 w-4 mr-1" />
+                      Desc
+                    </>
+                  )}
+                </Button>
               </div>
 
               {error && (
@@ -780,38 +784,44 @@ export const UserAssignmentList = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col gap-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <Search className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <div className="relative flex-1 min-w-[250px]">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search user roles..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-sm"
+                    className="pl-9"
                   />
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                    <Select value={roleSortBy} onValueChange={setRoleSortBy}>
-                      <SelectTrigger className="w-[150px]">
-                        <SelectValue placeholder="Sort by" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="email">User</SelectItem>
-                        <SelectItem value="roles">Role Count</SelectItem>
-                        <SelectItem value="created_at">Date Created</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setRoleSortOrder(roleSortOrder === 'asc' ? 'desc' : 'asc')}
-                    >
-                      {roleSortOrder === 'asc' ? '↑' : '↓'}
-                    </Button>
-                  </div>
-                </div>
+                <Select value={roleSortBy} onValueChange={setRoleSortBy}>
+                  <SelectTrigger className="w-[150px]">
+                    <ArrowUpDown className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">User</SelectItem>
+                    <SelectItem value="roles">Role Count</SelectItem>
+                    <SelectItem value="created_at">Date Created</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRoleSortOrder(roleSortOrder === 'asc' ? 'desc' : 'asc')}
+                >
+                  {roleSortOrder === 'asc' ? (
+                    <>
+                      <ArrowUp className="h-4 w-4 mr-1" />
+                      Asc
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDown className="h-4 w-4 mr-1" />
+                      Desc
+                    </>
+                  )}
+                </Button>
               </div>
 
               {error && (
@@ -933,10 +943,20 @@ export const UserAssignmentList = () => {
                   </Select>
                   <Button
                     variant="outline"
-                    size="icon"
+                    size="sm"
                     onClick={() => setRoleModuleSortOrder(roleModuleSortOrder === 'asc' ? 'desc' : 'asc')}
                   >
-                    <ArrowUpDown className="h-4 w-4" />
+                    {roleModuleSortOrder === 'asc' ? (
+                      <>
+                        <ArrowUp className="h-4 w-4 mr-1" />
+                        Asc
+                      </>
+                    ) : (
+                      <>
+                        <ArrowDown className="h-4 w-4 mr-1" />
+                        Desc
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -1083,51 +1103,55 @@ export const UserAssignmentList = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col gap-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <Search className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <div className="relative flex-1 min-w-[250px]">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search users..."
                     value={userSearchTerm}
                     onChange={(e) => setUserSearchTerm(e.target.value)}
-                    className="max-w-sm"
+                    className="pl-9"
                   />
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <Select value={userStatusFilter} onValueChange={setUserStatusFilter}>
-                      <SelectTrigger className="w-[150px]">
-                        <SelectValue placeholder="Filter by status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Users</SelectItem>
-                        <SelectItem value="active">Active Only</SelectItem>
-                        <SelectItem value="inactive">Inactive Only</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                    <Select value={userSortBy} onValueChange={setUserSortBy}>
-                      <SelectTrigger className="w-[150px]">
-                        <SelectValue placeholder="Sort by" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="email">Email</SelectItem>
-                        <SelectItem value="name">Name</SelectItem>
-                        <SelectItem value="status">Status</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setUserSortOrder(userSortOrder === 'asc' ? 'desc' : 'asc')}
-                    >
-                      {userSortOrder === 'asc' ? '↑' : '↓'}
-                    </Button>
-                  </div>
-                </div>
+                <Select value={userStatusFilter} onValueChange={setUserStatusFilter}>
+                  <SelectTrigger className="w-[150px]">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    <SelectItem value="active">Active Only</SelectItem>
+                    <SelectItem value="inactive">Inactive Only</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={userSortBy} onValueChange={setUserSortBy}>
+                  <SelectTrigger className="w-[150px]">
+                    <ArrowUpDown className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUserSortOrder(userSortOrder === 'asc' ? 'desc' : 'asc')}
+                >
+                  {userSortOrder === 'asc' ? (
+                    <>
+                      <ArrowUp className="h-4 w-4 mr-1" />
+                      Asc
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDown className="h-4 w-4 mr-1" />
+                      Desc
+                    </>
+                  )}
+                </Button>
               </div>
 
               {userListError && (
