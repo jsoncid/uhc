@@ -265,20 +265,24 @@ export const UserAssignmentList = () => {
     }
   }
 
-  const handleEditUserRole = (userRole: UserRole) => {
+  const handleEditUserRole = (userId: string, userEmail?: string) => {
     // Get all roles for this user
-    const userRolesForUser = userRoles.filter(ur => ur.user === userRole.user)
+    const userRolesForUser = userRoles.filter(ur => ur.user === userId)
     setEditingUserRole({
-      id: userRole.user,
-      email: userRole.users?.email
+      id: userId,
+      email: userEmail
     })
     setEditingUserRoles(userRolesForUser)
     setIsUserRoleDialogOpen(true)
   }
 
-  const handleDeleteUserRole = (userRole: UserRole) => {
-    setDeleteUserRoleTarget(userRole)
-    setIsDeleteUserRoleOpen(true)
+  const handleDeleteUserRole = (userId: string, userEmail?: string) => {
+    // Find the first role for this user to display in confirmation
+    const firstRole = userRoles.find(ur => ur.user === userId)
+    if (firstRole) {
+      setDeleteUserRoleTarget(firstRole)
+      setIsDeleteUserRoleOpen(true)
+    }
   }
 
   const closeDeleteUserRoleDialog = () => {
@@ -290,12 +294,14 @@ export const UserAssignmentList = () => {
     if (!deleteUserRoleTarget) return
     try {
       setIsDeletingUserRole(true)
-      await userService.deleteUserRole(deleteUserRoleTarget.id)
+      // Delete all roles for this user
+      const userRolesToDelete = userRoles.filter(ur => ur.user === deleteUserRoleTarget.user)
+      await Promise.all(userRolesToDelete.map(ur => userService.deleteUserRole(ur.id)))
       await fetchData()
       closeDeleteUserRoleDialog()
     } catch (err) {
-      setError('Failed to delete user role')
-      console.error('Error deleting user role:', err)
+      setError('Failed to delete user roles')
+      console.error('Error deleting user roles:', err)
     } finally {
       setIsDeletingUserRole(false)
     }
@@ -351,6 +357,32 @@ export const UserAssignmentList = () => {
            roleDesc.includes(lowerSearchTerm) ||
            roleId.includes(lowerSearchTerm)
   })
+
+  // Group user roles by user
+  const groupedUserRoles = filteredUserRoles.reduce((acc, userRole) => {
+    const userId = userRole.user
+    if (!acc[userId]) {
+      acc[userId] = {
+        user: userId,
+        email: userRole.users?.email,
+        roles: [],
+        created_at: userRole.created_at
+      }
+    }
+    acc[userId].roles.push({
+      id: userRole.id,
+      roleId: userRole.role,
+      description: userRole.roleData?.description || userRole.role,
+      created_at: userRole.created_at
+    })
+    // Use the earliest created_at date
+    if (userRole.created_at < acc[userId].created_at) {
+      acc[userId].created_at = userRole.created_at
+    }
+    return acc
+  }, {} as Record<string, { user: string; email?: string; roles: Array<{ id: string; roleId: string; description: string; created_at: string }>; created_at: string }>)
+
+  const groupedUserRolesArray = Object.values(groupedUserRoles)
 
   const filteredUsers = usersWithStatus.filter((user) => {
     if (!userSearchTerm) return true
@@ -536,43 +568,49 @@ export const UserAssignmentList = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>User</TableHead>
-                      <TableHead>Role</TableHead>
+                      <TableHead>Roles</TableHead>
                       <TableHead>Created At</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUserRoles.length === 0 ? (
+                    {groupedUserRolesArray.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                           {searchTerm ? 'No user roles match your search' : 'No user roles found'}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredUserRoles.map((userRole) => (
-                        <TableRow key={userRole.id}>
+                      groupedUserRolesArray.map((groupedRole) => (
+                        <TableRow key={groupedRole.user}>
                           <TableCell className="font-medium">
-                            {userRole.users?.email || userRole.user}
+                            {groupedRole.email || groupedRole.user}
                           </TableCell>
                           <TableCell>
-                            {userRole.roleData?.description || userRole.role}
+                            <div className="flex flex-wrap gap-1.5">
+                              {groupedRole.roles.map((role) => (
+                                <Badge key={role.id} variant="secondary">
+                                  {role.description}
+                                </Badge>
+                              ))}
+                            </div>
                           </TableCell>
                           <TableCell>
-                            {new Date(userRole.created_at).toLocaleDateString()}
+                            {new Date(groupedRole.created_at).toLocaleDateString()}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleEditUserRole(userRole)}
+                                onClick={() => handleEditUserRole(groupedRole.user, groupedRole.email)}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleDeleteUserRole(userRole)}
+                                onClick={() => handleDeleteUserRole(groupedRole.user, groupedRole.email)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -858,9 +896,11 @@ export const UserAssignmentList = () => {
       <Dialog open={isDeleteUserRoleOpen} onOpenChange={closeDeleteUserRoleDialog}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
-            <DialogTitle>Delete User Role</DialogTitle>
+            <DialogTitle>Delete User Roles</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove this user role assignment? This action cannot be undone.
+              Are you sure you want to remove all role assignments for {deleteUserRoleTarget?.users?.email || 'this user'}? 
+              This will delete {userRoles.filter(ur => ur.user === deleteUserRoleTarget?.user).length} role(s). 
+              This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -868,7 +908,7 @@ export const UserAssignmentList = () => {
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmDeleteUserRole} disabled={isDeletingUserRole}>
-              {isDeletingUserRole ? 'Deleting...' : 'Delete'}
+              {isDeletingUserRole ? 'Deleting...' : 'Delete All Roles'}
             </Button>
           </DialogFooter>
         </DialogContent>
