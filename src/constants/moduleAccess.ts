@@ -19,6 +19,7 @@ export const PAGE_MODULE_IDS = {
   // Module 3 - Patient Repository pages
   module3_PatientProfiling: env['VITE_Module3-PatientProfiling'],
   module3_PatientTagging: env['VITE_Module3-PatientTagging'],
+  module3_DatabaseManagement: env['VITE_Module3-DatabaseManagement'],
 
   // Module 4 - Health Card pages
   module4_HealthCardHolder: env['VITE_Module4-HealthCardHolder'],
@@ -49,6 +50,7 @@ export const PAGE_MODULES = {
   MODULE_3_PATIENT_LIST: 'Module 3 - Patient List',
   MODULE_3_PATIENT_PROFILING: 'Module 3 - Patient Profiling',
   MODULE_3_PATIENT_TAGGING: 'Module 3 - Patient Tagging',
+  MODULE_3_DATABASE_MANAGEMENT: 'Module 3 - Database Management',
 
   // Module 4 - Health Card pages
   MODULE_4_HEALTH_CARD_HOLDER: 'Module 4 - Health Card Holder',

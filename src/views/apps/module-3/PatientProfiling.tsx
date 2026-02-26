@@ -51,14 +51,8 @@ import {
   PatientDatabaseSummary,
 } from './utils/patientSearchResultHelpers';
 import { mapFacilityList } from './utils/facilityHelpers';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 
 /* ------------------------------------------------------------------ */
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient Profiling' },
-];
 
 interface PatientProfile {
   id: string;
@@ -161,13 +155,13 @@ function FormField({
   label,
   htmlFor,
   hint,
-  required,
   children,
 }: {
   label: string;
   htmlFor: string;
   hint?: string;
   required?: boolean;
+  isFilled?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -175,7 +169,6 @@ function FormField({
       <div className="flex items-center gap-1.5">
         <Label htmlFor={htmlFor} className="text-sm font-medium text-foreground">
           {label}
-          {required && <span className="text-error ml-0.5">*</span>}
         </Label>
         {hint && (
           <Tooltip>
@@ -647,7 +640,6 @@ const PatientProfiling = () => {
 
   return (
     <>
-      <BreadcrumbComp items={BCrumb} title="Patient Profiling" />
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
@@ -798,7 +790,7 @@ const PatientProfiling = () => {
           />
           <Separator className="my-5" />
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <FormField label="First Name" htmlFor="first-name" required>
+            <FormField label="First Name" htmlFor="first-name" required isFilled={!!patient.first_name}>
               <Input
                 id="first-name"
                 value={patient.first_name}
@@ -816,7 +808,7 @@ const PatientProfiling = () => {
               />
             </FormField>
 
-            <FormField label="Last Name" htmlFor="last-name" required>
+            <FormField label="Last Name" htmlFor="last-name" required isFilled={!!patient.last_name}>
               <Input
                 id="last-name"
                 value={patient.last_name}
@@ -845,7 +837,7 @@ const PatientProfiling = () => {
           />
           <Separator className="my-5" />
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <FormField label="Sex" htmlFor="sex" required>
+            <FormField label="Sex" htmlFor="sex" required isFilled={!!patient.sex}>
               <Select value={patient.sex} onValueChange={updateSex}>
                 <SelectTrigger className="w-full" id="sex">
                   <SelectValue placeholder="Select sex" />
@@ -867,7 +859,7 @@ const PatientProfiling = () => {
               </Select>
             </FormField>
 
-            <FormField label="Birth Date" htmlFor="birth-date" required>
+            <FormField label="Birth Date" htmlFor="birth-date" required isFilled={!!patient.birth_date}>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
                 <Input
@@ -893,7 +885,7 @@ const PatientProfiling = () => {
 
           {/* Region and Province */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <FormField label="Region" htmlFor="region" required>
+            <FormField label="Region" htmlFor="region" required isFilled={!!selectedRegionCode}>
               <Select value={selectedRegionCode} onValueChange={handleRegionChange}>
                 <SelectTrigger id="region" className="w-full">
                   <SelectValue placeholder={isLoadingRegions ? "Loading regions..." : "Select Region"} />
@@ -930,7 +922,7 @@ const PatientProfiling = () => {
 
           {/* City and Barangay */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <FormField label="City / Municipality" htmlFor="city" required>
+            <FormField label="City / Municipality" htmlFor="city" required isFilled={!!selectedCityCode}>
               <Select
                 value={selectedCityCode}
                 onValueChange={handleCityChange}
@@ -949,7 +941,7 @@ const PatientProfiling = () => {
               </Select>
             </FormField>
 
-            <FormField label="Barangay" htmlFor="barangay" required>
+            <FormField label="Barangay" htmlFor="barangay" required isFilled={!!selectedBrgyCode}>
               <Select
                 value={selectedBrgyCode}
                 onValueChange={handleBrgyChange}
