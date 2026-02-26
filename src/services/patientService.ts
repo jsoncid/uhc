@@ -44,12 +44,32 @@ export interface PatientProfileWithLocations extends PatientProfile {
   region_name?: string;
 }
 
+export interface SearchPagination {
+  page?: number;
+  limit?: number;
+  total?: number;
+  totalPages?: number;
+}
+
+export interface PatientSearchDatabase {
+  metadata?: {
+    db_name: string;
+    description?: string;
+  };
+  name?: string;
+  description?: string;
+  data: PatientProfile[];
+  pagination?: SearchPagination;
+}
+
 export interface PatientSearchResult {
   success: boolean;
   data?: PatientProfile[]; // Legacy flat structure
   count?: number;
   message?: string;
-  // New structure: backend returns both databases
+  pagination?: SearchPagination;
+  databases?: PatientSearchDatabase[];
+  // Backwards compatibility: older backend keys
   database1?: {
     name: string;
     data: PatientProfile[];
@@ -81,26 +101,21 @@ export interface PaginatedPatientResult {
   message?: string;
 }
 
+export interface FacilityBucket {
+  name: string;
+  data: {
+    facility_code: string;
+    facility_name: string;
+    patient_count: number;
+  }[];
+  count?: number;
+}
+
 export interface FacilityListResult {
   success: boolean;
-  database1: {
-    name: string;
-    data: {
-      facility_code: string;
-      facility_name: string;
-      patient_count: number;
-    }[];
-    count: number;
-  };
-  database2: {
-    name: string;
-    data: {
-      facility_code: string;
-      facility_name: string;
-      patient_count: number;
-    }[];
-    count: number;
-  };
+  databases?: FacilityBucket[];
+  database1?: FacilityBucket;
+  database2?: FacilityBucket;
   message?: string;
 }
 
@@ -232,6 +247,25 @@ export interface PatientHistoryResult {
     offset: number;
     hasMore: boolean;
   };
+}
+
+export interface HealthPool {
+  host: string;
+  port: number;
+  status: string;
+  error?: string | null;
+}
+
+export interface HealthResponse {
+  status: string;
+  databases?: {
+    mysql?: string;
+    postgres?: string;
+    [key: string]: string | undefined;
+  };
+  timestamp?: string;
+  uptime?: number;
+  mysql_pools?: HealthPool[];
 }
 
 class PatientService {
@@ -372,12 +406,7 @@ class PatientService {
   /**
    * Check backend health
    */
-  async checkHealth(): Promise<{
-    status: string;
-    databases?: { postgres?: string; mysql?: string };
-    timestamp?: string;
-    uptime?: number;
-  }> {
+  async checkHealth(): Promise<HealthResponse> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/health`, {
         method: 'GET',
@@ -390,12 +419,14 @@ class PatientService {
         throw new Error(`Health check failed: ${response.status}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      return data as HealthResponse;
     } catch (error) {
       console.error('Health check error:', error);
       return {
         status: 'error',
         databases: {},
+        mysql_pools: [],
       };
     }
   }
@@ -1362,49 +1393,38 @@ class PatientService {
       }
 
       const result = await response.json();
-
-      // Helper to map database name to friendly facility name
-      const getFacilityNameFromDb = (dbName: string): string => {
-        if (dbName === 'adnph_ihomis_plus') return 'Agusan del Norte Provincial Hospital';
-        if (dbName === 'ndh_ihomis_plus') return 'Nasipit District Hospital';
-        return dbName;
+      
+      const databases = result.databases || [];
+      const getFacilityNameFromMetadata = (metadata?: { db_name: string; description?: string }) => {
+        if (!metadata) return undefined;
+        if (metadata.description) return metadata.description;
+        if (metadata.db_name) return metadata.db_name;
+        return undefined;
       };
 
-      // API returns database1 and database2 structure
-      // Combine data from both databases, or use specific database if requested
-      let historyData: PatientHistory[] = [];
-
-      // Helper to tag records with source
-      const tagRecords = (records: PatientHistory[], dbName: string): PatientHistory[] => {
+      const tagRecords = (records: PatientHistory[], metadata?: { db_name: string; description?: string }): PatientHistory[] => {
+        const dbName = metadata?.db_name || 'unknown';
+        const facilityName = getFacilityNameFromMetadata(metadata);
         return records.map((record) => ({
           ...record,
           source_database: dbName,
-          source_facility_name: getFacilityNameFromDb(dbName),
+          source_facility_name: facilityName,
         }));
       };
 
+      let historyData: PatientHistory[] = [];
+
       if (options?.database) {
-        // If specific database requested, try to match
-        if (result.database1?.name === options.database) {
-          historyData = tagRecords(result.database1?.data || [], result.database1.name);
-        } else if (result.database2?.name === options.database) {
-          historyData = tagRecords(result.database2?.data || [], result.database2.name);
+        const targeted = databases.find((db: any) => db.metadata?.db_name === options.database);
+        if (targeted) {
+          historyData = tagRecords(targeted.data || [], targeted.metadata);
         } else {
-          // Fallback: check both databases
-          historyData = [
-            ...tagRecords(result.database1?.data || [], result.database1?.name || 'database1'),
-            ...tagRecords(result.database2?.data || [], result.database2?.name || 'database2'),
-          ];
+          historyData = databases.flatMap((db: any) => tagRecords(db.data || [], db.metadata));
         }
       } else {
-        // No specific database, combine both
-        historyData = [
-          ...tagRecords(result.database1?.data || [], result.database1?.name || 'database1'),
-          ...tagRecords(result.database2?.data || [], result.database2?.name || 'database2'),
-        ];
+        historyData = databases.flatMap((db: any) => tagRecords(db.data || [], db.metadata));
       }
 
-      // Also support legacy flat data structure
       if (historyData.length === 0 && result.data) {
         historyData = result.data;
       }
