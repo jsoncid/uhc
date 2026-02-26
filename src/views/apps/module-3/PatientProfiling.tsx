@@ -51,14 +51,8 @@ import {
   PatientDatabaseSummary,
 } from './utils/patientSearchResultHelpers';
 import { mapFacilityList } from './utils/facilityHelpers';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 
 /* ------------------------------------------------------------------ */
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient Profiling' },
-];
 
 interface PatientProfile {
   id: string;
@@ -646,7 +640,6 @@ const PatientProfiling = () => {
 
   return (
     <>
-      <BreadcrumbComp items={BCrumb} title="Patient Profiling" />
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">

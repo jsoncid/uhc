@@ -32,7 +32,6 @@ import {
   Info,
   LinkIcon,
 } from 'lucide-react';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import patientService, { PatientProfile, PatientHistory } from 'src/services/patientService';
 import { getFacilityName } from 'src/utils/facilityMapping';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
@@ -41,12 +40,6 @@ import PatientInfoCard from './components/PatientInfoCard';
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
-
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient List' },
-];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -289,7 +282,6 @@ const PatientList = () => {
 
   return (
     <div className="space-y-6">
-      <BreadcrumbComp items={BCrumb} title="Patient List" />
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
