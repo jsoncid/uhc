@@ -20,9 +20,10 @@ interface RoleModuleAccessDialogProps {
   onClose: () => void
   role?: Role | null
   access?: RoleModuleAccess | null
+  existingModules?: string[]
 }
 
-export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleModuleAccessDialogProps) => {
+export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access, existingModules = [] }: RoleModuleAccessDialogProps) => {
   const [modules, setModules] = useState<Module[]>([])
   const [formData, setFormData] = useState({
     module: '',
@@ -235,6 +236,9 @@ export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleMo
                   ) : (
                     modules
                       .filter(module => {
+                        // Filter out modules already assigned to this role (only in create mode)
+                        if (!access && existingModules.includes(module.id)) return false
+                        
                         if (!moduleSearchTerm) return true
                         const searchLower = moduleSearchTerm.toLowerCase()
                         return (
@@ -256,6 +260,9 @@ export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleMo
                       ))
                   )}
                   {modules.filter(module => {
+                    // Filter out modules already assigned to this role (only in create mode)
+                    if (!access && existingModules.includes(module.id)) return false
+                    
                     if (!moduleSearchTerm) return true
                     const searchLower = moduleSearchTerm.toLowerCase()
                     return (

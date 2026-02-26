@@ -1315,6 +1315,7 @@ export const UserAssignmentList = () => {
         onClose={handleDialogClose}
         role={selectedRole}
         access={selectedAccess}
+        existingModules={selectedRole ? roleModuleAccess.filter(rma => rma.role === selectedRole.id).map(rma => rma.module) : []}
       />
     </div>
   )
