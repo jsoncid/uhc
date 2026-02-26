@@ -12,7 +12,6 @@
 
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from 'src/components/ui/card';
-import { Button } from 'src/components/ui/button';
 import { Alert, AlertDescription } from 'src/components/ui/alert';
 import {
   Dialog,
@@ -23,14 +22,11 @@ import {
 import {
   Database,
   Info,
-  ArrowLeft,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 import { DatabaseConnectionForm, DatabaseList } from 'src/components/apps/database';
 
 const DatabaseManagement = () => {
-  const navigate = useNavigate();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showAddDialog, setShowAddDialog] = useState(false);
 
@@ -49,17 +45,6 @@ const DatabaseManagement = () => {
     <div className="container mx-auto py-8 px-6 max-w-7xl">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-4 mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(-1)}
-            className="gap-1.5 hover:bg-accent transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
-          </Button>
-        </div>
         <div className="flex items-center gap-4">
           <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
             <Database className="h-9 w-9 text-primary" />
