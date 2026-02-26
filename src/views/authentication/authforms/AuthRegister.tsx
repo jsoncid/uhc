@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Button } from "src/components/ui/button";
@@ -71,7 +72,7 @@ const AuthRegister = () => {
       return;
     }
 
-    if (!memberRoleId) {
+    if (userType === 'member' && !memberRoleId) {
       console.error('Member role not available');
       return;
     }
@@ -82,7 +83,7 @@ const AuthRegister = () => {
         user_type: userType
       },
       assignmentId: selectedAssignment || undefined,
-      roleId: memberRoleId
+      roleId: userType === 'member' ? memberRoleId ?? undefined : undefined
     });
     
     // Check the store state after signUp completes

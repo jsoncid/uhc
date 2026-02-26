@@ -11,6 +11,7 @@ export interface ChildItem {
   badge?: boolean;
   badgeType?: string;
   isPro?: boolean;
+  module?: string;
 }
 
 export interface MenuItem {
@@ -30,6 +31,7 @@ export interface MenuItem {
 }
 
 import { uniqueId } from 'lodash';
+import { PAGE_MODULES } from 'src/constants/moduleAccess';
 
 //RESTRICTION: This is to prevent unauthorized users from even seeing the menu items of modules they don't have access to.
 
@@ -56,11 +58,13 @@ const SidebarContent: MenuItem[] = [
         icon: 'solar:server-linear',
         id: uniqueId(),
         url: '/module-5/table',
+        module: PAGE_MODULES.MODULE_5_OCR,
       },  
       {
         name: 'Blogs',
         id: uniqueId(),
         icon: 'solar:sort-by-alphabet-linear',
+        module: PAGE_MODULES.MODULE_5_OCR,
         children: [
           {
             id: uniqueId(),

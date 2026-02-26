@@ -38,7 +38,7 @@ const SidebarContent: MenuItem[] = [
     heading: 'Module 4 - HEALTH CARD',
     children: [
       {
-        name: 'Health Card Holder',
+        name: 'My Health Card',
         icon: 'line-md:account-small',
         id: uniqueId(),
         url: '/module-4/member',

@@ -12,10 +12,68 @@ import {
   ChevronDown, ChevronRight, AlertCircle, Loader2, Download, X,
   Printer, CheckCircle2, RefreshCw, ArchiveX, CreditCard, Lock,
   KeyRound, ShieldCheck, EyeOff, ShieldAlert, ShieldX, User,
+  Camera, Upload, ImagePlus, SwitchCamera, CircleDot,
 } from 'lucide-react';
 import { supabase } from 'src/lib/supabase';
+import Threads from 'src/components/ui/Threads';
+import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
+import darkLogo from 'src/assets/images/logos/uhc-logo.png';
+import adnSeal from 'src/assets/images/logos/adn-seal.png';
+import defaultProfile from 'src/assets/images/profile/default_profile.jpg';
+import filePdfIcon from 'src/assets/images/file_pdf.png';
 
-// ─── QR Code data-url generator ───────────────────────────────────────────────
+// Offscreen Threads renderer (single frame capture for print)
+const _vtxSrc = `
+attribute vec2 position;
+attribute vec2 uv;
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = vec4(position, 0.0, 1.0); }
+`;
+const _frgSrc = `
+precision highp float;
+uniform float iTime; uniform vec3 iResolution; uniform vec3 uColor;
+uniform float uAmplitude; uniform float uDistance; uniform vec2 uMouse;
+#define PI 3.1415926538
+const int u_line_count = 40;
+const float u_line_width = 7.0;
+const float u_line_blur = 10.0;
+float Perlin2D(vec2 P){vec2 Pi=floor(P);vec4 Pf=P.xyxy-vec4(Pi,Pi+1.0);vec4 Pt=vec4(Pi.xy,Pi.xy+1.0);Pt=Pt-floor(Pt*(1.0/71.0))*71.0;Pt+=vec2(26.0,161.0).xyxy;Pt*=Pt;Pt=Pt.xzxz*Pt.yyww;vec4 hx=fract(Pt*(1.0/951.135664));vec4 hy=fract(Pt*(1.0/642.949883));vec4 gx=hx-0.49999;vec4 gy=hy-0.49999;vec4 gr=inversesqrt(gx*gx+gy*gy)*(gx*Pf.xzxz+gy*Pf.yyww);gr*=1.4142135623730950;vec2 bl=Pf.xy*Pf.xy*Pf.xy*(Pf.xy*(Pf.xy*6.0-15.0)+10.0);vec4 b2=vec4(bl,vec2(1.0-bl));return dot(gr,b2.zxzx*b2.wwyy);}
+float pixel(float c,vec2 r){return(1.0/max(r.x,r.y))*c;}
+float lineFn(vec2 st,float w,float perc,float off,vec2 mo,float t,float amp,float dist){
+float so=perc*0.4;float sp=0.1+so;
+float an=smoothstep(sp,0.7,st.x)*0.5*amp*(1.0+(mo.y-0.5)*0.2);
+float ts=t/10.0+(mo.x-0.5)*1.0;
+float bl=smoothstep(sp,sp+0.05,st.x)*perc;
+float xn=mix(Perlin2D(vec2(ts,st.x+perc)*2.5),Perlin2D(vec2(ts,st.x+ts)*3.5)/1.5,st.x*0.3);
+float y=0.5+(perc-0.5)*dist+xn/2.0*an;
+float ls=smoothstep(y+(w/2.0)+(u_line_blur*pixel(1.0,iResolution.xy)*bl),y,st.y);
+float le=smoothstep(y,y-(w/2.0)-(u_line_blur*pixel(1.0,iResolution.xy)*bl),st.y);
+return clamp((ls-le)*(1.0-smoothstep(0.0,1.0,pow(perc,0.3))),0.0,1.0);}
+void mainImage(out vec4 f,in vec2 fc){
+vec2 uv=fc/iResolution.xy;float s=1.0;
+for(int i=0;i<u_line_count;i++){float p=float(i)/float(u_line_count);s*=(1.0-lineFn(uv,u_line_width*pixel(1.0,iResolution.xy)*(1.0-p),p,(PI*1.0)*p,uMouse,iTime,uAmplitude,uDistance));}
+float c=1.0-s;f=vec4(uColor*c,c);}
+void main(){mainImage(gl_FragColor,gl_FragCoord.xy);}
+`;
+const renderThreadsFrame = (w: number, h: number): HTMLCanvasElement | null => {
+  try {
+    const r = new Renderer({ width: w, height: h, alpha: true });
+    const gl = r.gl; gl.clearColor(0,0,0,0); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    const g = new Triangle(gl);
+    const p = new Program(gl, { vertex: _vtxSrc, fragment: _frgSrc, uniforms: {
+      iTime:{value:2.5}, iResolution:{value:new Color(w,h,w/h)},
+      uColor:{value:new Color(0.18,0.72,0.36)}, uAmplitude:{value:1.4},
+      uDistance:{value:0}, uMouse:{value:new Float32Array([0.5,0.5])},
+    }});
+    const m = new Mesh(gl, { geometry: g, program: p });
+    r.render({ scene: m });
+    return gl.canvas as HTMLCanvasElement;
+  } catch { return null; }
+};
+
+import { useAuthStore } from 'src/stores/useAuthStore';
+
+// QR Code data-url generator
 const generateQrDataUrl = (text: string): Promise<string> =>
   new Promise((resolve, reject) => {
     import('qrcode').then((mod) => {
@@ -28,7 +86,7 @@ const generateQrDataUrl = (text: string): Promise<string> =>
     }).catch(reject);
   });
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types
 interface RegionRecord           { id?: string; description?: string | null; }
 interface ProvinceRecord         { id?: string; description?: string | null; region?: RegionRecord | null; }
 interface CityMunicipalityRecord { id?: string; description?: string | null; province?: ProvinceRecord | null; }
@@ -53,19 +111,19 @@ interface DocumentAttachment {
   archived?: boolean;
 }
 
-// ─── Folder Definitions ───────────────────────────────────────────────────────
+// Folder Definitions
 const FOLDER_DEFS = [
-  { key: 'basic_identification',   label: 'Basic Identification',   supabaseCategory: 'Basic Identification',   color: 'blue',   icon: <IdCard        className="w-5 h-5" /> },
-  { key: 'philhealth',             label: 'PhilHealth',             supabaseCategory: 'PhilHealth',             color: 'red',    icon: <Heart         className="w-5 h-5" /> },
-  { key: 'senior_pwd',             label: 'Senior / PWD',           supabaseCategory: 'Senior/PWD',             color: 'purple', icon: <Accessibility className="w-5 h-5" /> },
-  { key: 'company_documents',      label: 'Company Employee',       supabaseCategory: 'Company Documents',      color: 'amber',  icon: <Building2     className="w-5 h-5" /> },
-  { key: 'medical_documents',      label: 'Medical Documents',      supabaseCategory: 'Medical Documents',      color: 'green',  icon: <Stethoscope   className="w-5 h-5" /> },
-  { key: 'admission_requirements', label: 'Admission Requirements', supabaseCategory: 'Admission Requirements', color: 'teal',   icon: <ClipboardList className="w-5 h-5" /> },
+  { key: 'basic_identification',   label: 'Basic Identification',   supabaseCategory: 'Basic Identification',   color: 'light',   icon: <IdCard        className="w-5 h-5" /> },
+  { key: 'philhealth',             label: 'PhilHealth',             supabaseCategory: 'PhilHealth',             color: 'green',   icon: <Heart         className="w-5 h-5" /> },
+  { key: 'senior_pwd',             label: 'Senior / PWD',           supabaseCategory: 'Senior/PWD',             color: 'emerald', icon: <Accessibility className="w-5 h-5" /> },
+  { key: 'company_documents',      label: 'Company Employee',       supabaseCategory: 'Company Documents',      color: 'teal',    icon: <Building2     className="w-5 h-5" /> },
+  { key: 'medical_documents',      label: 'Medical Documents',      supabaseCategory: 'Medical Documents',      color: 'sage',    icon: <Stethoscope   className="w-5 h-5" /> },
+  { key: 'admission_requirements', label: 'Admission Requirements', supabaseCategory: 'Admission Requirements', color: 'forest',  icon: <ClipboardList className="w-5 h-5" /> },
 ];
 
 // Maps each folder key to the specific doc-type labels the operator can choose.
 // A document's card_category may be stored as the specific type (e.g. "Valid ID")
-// OR as the broad folder category (e.g. "Basic Identification"). We match both.
+// OR as the broad folder category (e.g. "Basic Identification").
 const FOLDER_DOC_TYPES: Record<string, string[]> = {
   basic_identification: [
     'Basic Identification', 'Birth Certificate', 'Barangay Certification', 'Barangay Clearance',
@@ -86,18 +144,18 @@ const docMatchesFolder = (docCategory: string, folderKey: string): boolean => {
   return types.some((t) => t.toLowerCase() === docCategory.toLowerCase());
 };
 
-type ColorKey = 'blue' | 'red' | 'purple' | 'amber' | 'green' | 'teal' | 'gray';
+type ColorKey = 'light' | 'green' | 'emerald' | 'teal' | 'sage' | 'forest' | 'gray';
 const COLOR_MAP: Record<ColorKey, { bg: string; border: string; text: string; badge: string }> = {
-  blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   badge: 'bg-blue-100 text-blue-700'    },
-  red:    { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    badge: 'bg-red-100 text-red-700'      },
-  purple: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700' },
-  amber:  { bg: 'bg-amber-50',  border: 'border-amber-200',  text: 'text-amber-700',  badge: 'bg-amber-100 text-amber-700'  },
-  green:  { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  badge: 'bg-green-100 text-green-700'  },
-  teal:   { bg: 'bg-teal-50',   border: 'border-teal-200',   text: 'text-teal-700',   badge: 'bg-teal-100 text-teal-700'   },
-  gray:   { bg: 'bg-gray-50',   border: 'border-gray-200',   text: 'text-gray-700',   badge: 'bg-gray-100 text-gray-700'   },
+  light:   { bg: 'bg-green-50',   border: 'border-green-200',   text: 'text-green-600',   badge: 'bg-green-100 text-green-600'     },
+  green:   { bg: 'bg-green-50',   border: 'border-green-200',   text: 'text-green-700',   badge: 'bg-green-100 text-green-700'     },
+  emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+  teal:    { bg: 'bg-teal-50',    border: 'border-teal-200',    text: 'text-teal-700',    badge: 'bg-teal-100 text-teal-700'       },
+  sage:    { bg: 'bg-green-100',  border: 'border-green-300',   text: 'text-green-800',   badge: 'bg-green-200 text-green-800'     },
+  forest:  { bg: 'bg-emerald-100',border: 'border-emerald-300', text: 'text-emerald-800', badge: 'bg-emerald-200 text-emerald-800' },
+  gray:    { bg: 'bg-gray-50',    border: 'border-gray-200',    text: 'text-gray-700',    badge: 'bg-gray-100 text-gray-700'       },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Helpers
 const fullName = (p: PatientProfile) =>
   [p.first_name, p.middle_name, p.last_name, p.ext_name].filter(Boolean).join(' ');
 
@@ -139,9 +197,9 @@ const displayFileName = (url: string, patient?: PatientProfile | null): string =
   return raw.replace(prefixRe, `${patient.first_name}_${patient.last_name}_`);
 };
 
-const BCrumb = [{ to: '/', title: 'Home' }, { title: 'My Health Card' }];
+const BCrumb = [{ to: '/', title: 'Home' }];
 
-// ─── PDF Preview Modal ────────────────────────────────────────────────────────
+// PDF Preview Modal
 const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; onClose: () => void }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] overflow-hidden flex flex-col">
@@ -176,9 +234,9 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
   </div>
 );
 
-// ─── Archive Confirm Modal ────────────────────────────────────────────────────
-const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
-  doc: DocumentAttachment; onConfirm: () => void; onCancel: () => void;
+// Archive Confirm Modal
+const ArchiveConfirmModal = ({ doc, patient, onConfirm, onCancel }: {
+  doc: DocumentAttachment; patient?: PatientProfile | null; onConfirm: () => void; onCancel: () => void;
 }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
@@ -196,7 +254,10 @@ const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
       <div className="px-6 py-5">
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-2">
           <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
-          <p className="text-sm text-gray-700 truncate font-medium">{displayFileName(doc.attachment)}</p>
+          <div className="min-w-0">
+            <p className="text-sm text-gray-700 truncate font-medium">{displayFileName(doc.attachment, patient)}</p>
+            <p className="text-xs text-gray-400">{doc.category}</p>
+          </div>
         </div>
         <p className="text-xs text-gray-400 mt-3">Documents cannot be permanently deleted. Contact your health center if removal is needed.</p>
       </div>
@@ -210,17 +271,23 @@ const ArchiveConfirmModal = ({ doc, onConfirm, onCancel }: {
   </div>
 );
 
-// ─── Health ID Card visual (Flip Card) ────────────────────────────────────────
-const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl }: {
+// Health ID Card visual (Flip Card)
+const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl, dateIssued: dateIssuedProp }: {
   patient: PatientProfile; qrDataUrl: string; qrCodeValue: string;
   cardRef?: React.RefObject<HTMLDivElement | null>;
   profilePicUrl?: string | null;
+  dateIssued?: string | null;
 }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const lastName = patient.last_name?.toUpperCase() || 'N/A';
   const givenNames = [patient.first_name, patient.middle_name].filter(Boolean).join(' ').toUpperCase();
   const sex = patient.sex?.toUpperCase() || 'N/A';
-  const dateIssued = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+  const dateIssued = (dateIssuedProp ? new Date(dateIssuedProp) : new Date()).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+
+   // Watermark Logo Component
+  const WatermarkLogo = () => (
+    <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'grayscale(100%) brightness(0.4)' }} />
+  );
 
   // Watermark SVG Component
   const WatermarkSVG = () => (
@@ -260,36 +327,24 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
     </svg>
   );
 
-  // Card Background Component with patterns and blobs
-  const CardBackground = () => (
+ const CardBackground = () => (
     <>
-      {/* Base background */}
-      <div style={{ position: 'absolute', inset: 0, background: '#eef6ee' }} />
-      {/* Pattern overlay */}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #e8f5e9 0%, #eef6ee 40%, #e0f2e1 100%)' }} />
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.18, zIndex: 0, pointerEvents: 'none' }}>
+        <Threads color={[0.18, 0.72, 0.36]} amplitude={1.4} distance={0} enableMouseInteraction={false} />
+      </div>
       <div style={{ 
-        position: 'absolute', inset: 0, opacity: 0.09,
-        backgroundImage: `
-          repeating-radial-gradient(ellipse at 30% 40%, transparent 0, transparent 8px, rgba(0,120,50,0.5) 9px, transparent 10px),
-          repeating-radial-gradient(ellipse at 70% 60%, transparent 0, transparent 12px, rgba(0,100,40,0.4) 13px, transparent 14px),
-          repeating-linear-gradient(60deg, transparent 0, transparent 18px, rgba(0,120,50,0.15) 19px, transparent 20px)
-        `
-      }} />
-      {/* Security grid */}
-      <div style={{ 
-        position: 'absolute', inset: 0, opacity: 0.037,
+        position: 'absolute', inset: 0, opacity: 0.03, zIndex: 0,
         backgroundImage: `
           repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px),
           repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,80,30,1) 3px, rgba(0,80,30,1) 4px)
         `
       }} />
-      {/* Blobs */}
-      <div style={{ position: 'absolute', width: 300, height: 230, background: '#2d8a50', top: -55, left: 15, opacity: 0.17, borderRadius: '50%', filter: 'blur(46px)' }} />
-      <div style={{ position: 'absolute', width: 260, height: 210, background: '#c8a018', top: 55, right: -15, opacity: 0.07, borderRadius: '50%', filter: 'blur(46px)' }} />
-      <div style={{ position: 'absolute', width: 230, height: 190, background: '#1a6b3a', bottom: -28, right: 80, opacity: 0.13, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 300, height: 230, background: '#2d8a50', top: -55, left: 15, opacity: 0.10, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 260, height: 210, background: '#c8a018', top: 55, right: -15, opacity: 0.05, borderRadius: '50%', filter: 'blur(46px)' }} />
+      <div style={{ position: 'absolute', width: 230, height: 190, background: '#1a6b3a', bottom: -28, right: 80, opacity: 0.08, borderRadius: '50%', filter: 'blur(46px)' }} />
     </>
   );
-
-  // Gold border strips
   const GoldBorders = () => (
     <>
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 5, background: 'linear-gradient(90deg, #7a5c10, #c8a018, #f0d44a, #c8a018, #7a5c10)', zIndex: 2 }} />
@@ -307,34 +362,25 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
       <CardBackground />
       <GoldBorders />
       
-      {/* Watermark */}
-      <div style={{ position: 'absolute', right: '12%', top: '50%', transform: 'translateY(-50%)', width: 220, height: 220, opacity: 0.055, zIndex: 1, pointerEvents: 'none' }}>
-        <WatermarkSVG />
+      <div style={{ position: 'absolute', right: '8%', top: '50%', transform: 'translateY(-50%)', width: 260, height: 260, opacity: 0.06, zIndex: 1, pointerEvents: 'none' }}>
+        <img src={darkLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
       </div>
 
       {/* Front content */}
       <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '10px 20px 10px' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 8, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
-          {/* Profile Pic or UHC Seal */}
-          {profilePicUrl ? (
-            <img src={profilePicUrl} alt="Profile" style={{ width: 50, height: 50, flexShrink: 0, borderRadius: '50%', border: '2px solid #c8a018', objectFit: 'cover' }} />
-          ) : (
-            <div style={{ width: 50, height: 50, flexShrink: 0, background: 'radial-gradient(circle at 35% 35%, #fef9c3, #fbbf24 60%, #d97706)', borderRadius: '50%', border: '2px solid #c8a018', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 10, fontWeight: 900, color: '#14532d', letterSpacing: '0.05em' }}>UHC</div>
-                <div style={{ width: 28, height: 1, background: '#166534', margin: '1px auto' }} />
-                <div style={{ fontSize: 8, fontWeight: 700, color: '#166534' }}>2026</div>
-              </div>
-            </div>
-          )}
+          {/* ADN Seal */}
+          <img src={adnSeal} alt="ADN Seal" style={{ width: 50, height: 50, flexShrink: 0, borderRadius: '50%', objectFit: 'contain' }} />
           {/* Title */}
           <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontFamily: '"Cinzel", serif', fontSize: 9, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas</div>
-            <div style={{ fontFamily: '"Noto Serif", serif', fontSize: 7.5, color: '#2d6b40', letterSpacing: 1, fontStyle: 'italic' }}>Republic of the Philippines</div>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 13, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.2 }}>AGUSAN DEL NORTE</div>
             <div style={{ fontFamily: '"Cinzel", serif', fontSize: 17, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.1 }}>UNIVERSAL HEALTH CARE</div>
             <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 9, fontWeight: 600, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
           </div>
+          {/* UHC Logo */}
+          <img src={darkLogo} alt="UHC Logo" style={{ width: 55, height: 55, flexShrink: 0, objectFit: 'contain' }} />
         </div>
 
         {/* ID Row */}
@@ -354,10 +400,7 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'linear-gradient(160deg, #fef9c3 0%, #fde68a 50%, #f59e0b 100%)'
             }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ width: 60, height: 65, background: '#c4c4c4', borderRadius: '50% 50% 8px 8px' }} />
-                <div style={{ width: 80, height: 40, background: '#c4c4c4', borderRadius: '8px 8px 50% 50%', marginTop: -10 }} />
-              </div>
+              <img src={profilePicUrl || defaultProfile} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
             <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 600, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase', flexShrink: 0 }}>Card Holder</div>
           </div>
@@ -407,7 +450,9 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid rgba(0,100,40,0.13)', flexShrink: 0, marginTop: 6 }}>
           <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, fontWeight: 500, color: '#1a6b3a', letterSpacing: 1.5, textTransform: 'uppercase' }}>DOH — UHC Act R.A. 11223</div>
           <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 10, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>DATE ISSUED: {dateIssued}</div>
-          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 19, fontWeight: 700, color: '#1a6b3a', letterSpacing: 2, textShadow: '1px 1px 0 rgba(200,160,24,0.3)' }}>PHL</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontFamily: '"Cinzel", serif', fontSize: 19, fontWeight: 700, color: '#1a6b3a', letterSpacing: 2, textShadow: '1px 1px 0 rgba(200,160,24,0.3)' }}>PHL</div>
+          </div>
         </div>
       </div>
     </div>
@@ -428,17 +473,18 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(135deg, #1a1a1a, #2d2d2d, #1a1a1a)', opacity: 0.88, zIndex: 5 }} />
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(180deg, rgba(255,255,255,0.07), transparent)', zIndex: 6 }} />
 
-      {/* Watermark centered */}
-      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 220, height: 220, opacity: 0.045, zIndex: 1, pointerEvents: 'none' }}>
-        <WatermarkSVG />
+        {/* Watermark Logo centered */}
+      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 200, height: 200, opacity: 0.05, zIndex: 1, pointerEvents: 'none' }}>
+        <WatermarkLogo />
       </div>
 
       {/* Back content */}
       <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', padding: '42px 24px 10px', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ paddingBottom: 7, borderBottom: '1.5px solid rgba(0,100,40,0.25)', flexShrink: 0 }}>
-          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 8, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas · Republic of the Philippines</div>
-          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 15, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>UNIVERSAL HEALTH CARE</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 8, fontWeight: 600, letterSpacing: 2, color: '#0d4422' }}>Republika ng Pilipinas</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 11, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5, lineHeight: 1.2 }}>AGUSAN DEL NORTE</div>
+          <div style={{ fontFamily: '"Cinzel", serif', fontSize: 14, fontWeight: 700, color: '#0a3318', letterSpacing: 1.5 }}>UNIVERSAL HEALTH CARE</div>
           <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 8, color: '#1a6b3a', letterSpacing: 3 }}>Member Identification Card</div>
         </div>
 
@@ -456,7 +502,6 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
             </div>
             <div style={{ fontFamily: '"Cinzel", serif', fontSize: 10.5, fontWeight: 700, color: '#0a3318', letterSpacing: 4, textAlign: 'center' }}>Scan to Verify</div>
             <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 7.5, color: '#2d6b40', letterSpacing: 1.5, textAlign: 'center' }}>UHC Member Verification Portal</div>
-            <div style={{ fontFamily: '"Rajdhani", sans-serif', fontSize: 6.5, color: 'rgba(0,60,20,0.38)', letterSpacing: 0.8, textAlign: 'center' }}>{qrCodeValue}</div>
           </div>
         </div>
 
@@ -471,37 +516,45 @@ const HealthIdCard = ({ patient, qrDataUrl, qrCodeValue, cardRef, profilePicUrl 
   );
 
   return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {/* Card container with 3D perspective */}
-      <div ref={cardRef} style={{ width: 700, height: 420, perspective: '1000px' }}>
-        <div style={{
-          width: '100%', height: '100%', position: 'relative',
-          transformStyle: 'preserve-3d', transition: 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1)',
-          transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-        }}>
-          <FrontSide />
-          <BackSide />
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+          {/* Card container with 3D perspective — scales down on mobile */}
+          <div style={{ width: '100%', maxWidth: 700, aspectRatio: '700 / 420', perspective: '1000px' }}>
+            <div ref={cardRef} style={{ width: 700, height: 420, transformOrigin: 'top left', transform: 'scale(var(--card-scale, 1))' }}>
+              <style>{`
+                @media (max-width: 740px) {
+                  [data-health-card-inner] { --card-scale: calc(min(100vw - 48px, 700px) / 700) !important; }
+                }
+              `}</style>
+              <div data-health-card-inner style={{
+                width: '100%', height: '100%', position: 'relative',
+                transformStyle: 'preserve-3d', transition: 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1)',
+                transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                ['--card-scale' as any]: typeof window !== 'undefined' && window.innerWidth < 740 ? Math.min((window.innerWidth - 48) / 700, 1) : '1',
+              }}>
+                <FrontSide />
+                <BackSide />
+              </div>
+            </div>
+          </div>
+          {/* Flip text link */}
+          <button
+            onClick={() => setIsFlipped(!isFlipped)}
+            style={{
+              marginTop: 16, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
+              fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 14, fontWeight: 500,
+              color: '#16a34a', letterSpacing: 0.3, transition: 'all 0.2s ease',
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.color = '#15803d'; e.currentTarget.style.textDecoration = 'underline'; }}
+            onMouseOut={(e) => { e.currentTarget.style.color = '#16a34a'; e.currentTarget.style.textDecoration = 'none'; }}
+          >
+            {isFlipped ? '← Show Front' : 'Show Backside →'}
+          </button>
         </div>
-      </div>
-      {/* Flip text link */}
-      <button
-        onClick={() => setIsFlipped(!isFlipped)}
-        style={{
-          marginTop: 16, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
-          fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 14, fontWeight: 500,
-          color: '#2563eb', letterSpacing: 0.3, transition: 'all 0.2s ease',
-        }}
-        onMouseOver={(e) => { e.currentTarget.style.color = '#1d4ed8'; e.currentTarget.style.textDecoration = 'underline'; }}
-        onMouseOut={(e) => { e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.textDecoration = 'none'; }}
-      >
-        {isFlipped ? '← Show Front' : 'Show Backside →'}
-      </button>
-    </div>
-  );
-};
+      );
+    };
 
 
-// ─── Member PIN Gate Modal ────────────────────────────────────────────────────
+// Member PIN Gate Modal
 // Shown after patient search selection:
 //   hasPin=true  → user must enter their PIN to access records
 //   hasPin=false → user must set a PIN before proceeding
@@ -523,7 +576,7 @@ const MemberPinGateModal = ({
   const [isLocked,     setIsLocked]     = useState(false);
   const [shakeKey,     setShakeKey]     = useState(0);
 
-  // --- Set PIN states ---
+  // Set PIN states
   const [setPinStep,    setSetPinStep]    = useState<'new' | 'confirm'>('new');
   const [newPin,        setNewPin]        = useState('');
   const [confirmPin,    setConfirmPin]    = useState('');
@@ -537,7 +590,7 @@ const MemberPinGateModal = ({
     prevStatus.current = status;
   }, [status]);
 
-  // ── Keyboard support ──
+  // Keyboard support
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!hasPin) {
@@ -555,7 +608,7 @@ const MemberPinGateModal = ({
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  // ── Verify PIN handler ──
+  // Verify PIN handler
   const handleDigit = (d: string) => {
     if (entered.length >= 4 || status === 'checking' || isLocked || status === 'verified') return;
     const next = entered + d;
@@ -586,7 +639,7 @@ const MemberPinGateModal = ({
   };
   const handleBack = () => { if (status !== 'checking' && !isLocked) setEntered((p) => p.slice(0, -1)); };
 
-  // ── Set PIN handler ──
+  // Set PIN handler
   const setPinActiveVal = setPinStep === 'new' ? newPin : confirmPin;
   const setPinSetActive = setPinStep === 'new' ? setNewPin : setConfirmPin;
   const handleSetDigit = (d: string) => { if (setPinActiveVal.length < 4 && !isSavingPin) setPinSetActive(setPinActiveVal + d); };
@@ -610,7 +663,7 @@ const MemberPinGateModal = ({
     }
   };
 
-  // ══ No PIN → Force set PIN ══
+  // No PIN → Force set PIN
   if (!hasPin) {
     const stepLabel = setPinStep === 'new' ? 'Choose Your PIN' : 'Confirm PIN';
     const stepHint  = setPinStep === 'new'
@@ -691,7 +744,7 @@ const MemberPinGateModal = ({
     );
   }
 
-  // ══ Has PIN → Verify PIN ══
+  // Has PIN → Verify PIN
   const headerGradient = status === 'verified' ? 'from-green-600 to-green-800'
     : isLocked ? 'from-red-700 to-red-900' : 'from-green-700 to-green-900';
   const headerTitle = status === 'verified' ? 'Access Granted'
@@ -791,9 +844,7 @@ const MemberPinGateModal = ({
   );
 };
 
-// ─── PIN Modal ────────────────────────────────────────────────────────────────
-// mode='set'    → 2 steps: new → confirm
-// mode='change' → 3 steps: old → new → confirm
+// PIN Modal
 const PinModal = ({ mode, onConfirm, onCancel, isLoading, error }: {
   mode: 'set' | 'change';
   onConfirm: (newPin: string, oldPin?: string) => void;
@@ -814,7 +865,7 @@ const PinModal = ({ mode, onConfirm, onCancel, isLoading, error }: {
   const handleDigit = (d: string) => { if (activeVal.length < 4) setActive(activeVal + d); };
   const handleBack  = () => setActive(activeVal.slice(0, -1));
 
-  // ── Keyboard support ──
+  // Keyboard support for PIN entry
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (/^[0-9]$/.test(e.key)) { handleDigit(e.key); e.preventDefault(); }
@@ -855,7 +906,6 @@ const PinModal = ({ mode, onConfirm, onCancel, isLoading, error }: {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
-        {/* Header */}
         <div className="bg-gradient-to-br from-green-700 to-green-900 px-7 py-6 flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
             <Lock className="w-6 h-6 text-white" />
@@ -954,87 +1004,114 @@ const PinModal = ({ mode, onConfirm, onCancel, isLoading, error }: {
   );
 };
 
-// ─── Print Modal ──────────────────────────────────────────────────────────────
+// Print Modal
 const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
   imgUrl: string; patientName: string; onClose: () => void;
   onDownload: () => void; isCapturing: boolean;
 }) => (
-  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-7 py-5 border-b bg-gradient-to-r from-gray-800 to-gray-900">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
-            <Printer className="w-5 h-5 text-white" />
+  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4">
+    <div className="bg-white dark:bg-gray-900 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-green-700 bg-gradient-to-r from-green-800 to-green-900 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
+            <Printer className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h2 className="font-bold text-white text-lg leading-none">Print Health ID Card</h2>
-            <p className="text-gray-400 text-xs mt-1">{patientName}</p>
+            <h2 className="font-bold text-white text-sm sm:text-base leading-none">Print Health ID Card</h2>
+            <p className="text-green-200 text-[11px] mt-0.5">{patientName}</p>
           </div>
         </div>
-        <button onClick={onClose} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-          <X className="w-5 h-5 text-white" />
+        <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
+          <X className="w-4 h-4 text-white" />
         </button>
       </div>
-      <div className="flex justify-center items-center bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 px-10 py-10 relative overflow-auto">
-        <div className="absolute inset-0 opacity-30" style={{ backgroundImage:'radial-gradient(circle,#d1d5db 1px,transparent 1px)',backgroundSize:'24px 24px' }} />
-        <div className="relative z-10" style={{ filter:'drop-shadow(0 20px 40px rgba(0,0,0,0.3))',minWidth:'fit-content' }}>
-          <img src={imgUrl} alt="Health Card Print Preview" style={{ width:'100%',maxWidth:780,height:'auto',borderRadius:12,display:'block' }} />
+
+      {/* Card preview - scrollable */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 dark:from-gray-800 dark:via-gray-850 dark:to-gray-800 relative">
+        <div className="absolute inset-0 opacity-20" style={{ backgroundImage:'radial-gradient(circle,#d1d5db 1px,transparent 1px)',backgroundSize:'20px 20px' }} />
+        <div className="relative z-10 flex justify-center px-4 sm:px-8 py-6 sm:py-8">
+          <div style={{ filter:'drop-shadow(0 12px 32px rgba(0,0,0,0.25))' }} className="w-full max-w-md sm:max-w-lg">
+            <img
+              src={imgUrl}
+              alt="Health Card Print Preview"
+              className="w-full h-auto rounded-lg sm:rounded-xl block"
+            />
+          </div>
         </div>
       </div>
-      <div className="px-7 py-5 border-t bg-gray-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-            <p className="text-xs font-semibold text-gray-600">Print Tips</p>
+
+      {/* Footer */}
+      <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex-shrink-0">
+        <div className="flex flex-col gap-3">
+          {/* Print tips */}
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+              Select <strong>Landscape</strong> orientation, margins to <strong>None</strong>. Ask for <strong>CR80 laminated ID</strong> printing.
+            </p>
           </div>
-          <p className="text-xs text-gray-500 leading-relaxed max-w-sm ml-6">
-            Select <strong>Landscape</strong> orientation, margins to <strong>None</strong>. Ask for <strong>CR80 laminated ID</strong> printing.
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap flex-shrink-0">
-          <Button variant="outline" onClick={onClose} className="flex gap-2 text-sm"><X className="w-4 h-4" /> Close</Button>
-          <Button
-            onClick={() => {
-              const w = window.open('', '_blank');
-              if (!w) return;
-              w.document.write(`<!DOCTYPE html><html><head><style>*{margin:0;padding:0;box-sizing:border-box;}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fff;}img{max-width:100%;height:auto;display:block;}@page{size:landscape;margin:0;}@media print{body{background:transparent;}}</style></head><body><img src="${imgUrl}" /></body></html>`);
-              w.document.close();
-              w.onload = () => { w.focus(); w.print(); w.close(); };
-            }}
-            className="flex gap-2 text-sm bg-gray-800 hover:bg-gray-900 text-white"
-          >
-            <Printer className="w-4 h-4" /> Send to Printer
-          </Button>
-          <Button onClick={onDownload} disabled={isCapturing} className="flex gap-2 text-sm bg-green-700 hover:bg-green-800 text-white">
-            {isCapturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download Instead
-          </Button>
+          {/* Action buttons */}
+          <div className="flex gap-2 flex-wrap justify-end">
+            <Button variant="outline" onClick={onClose} className="flex gap-1.5 text-xs sm:text-sm h-8 sm:h-9 px-3">
+              <X className="w-3.5 h-3.5" /> Close
+            </Button>
+            <Button
+              onClick={() => {
+                const w = window.open('', '_blank');
+                if (!w) return;
+                w.document.write(`<!DOCTYPE html><html><head><style>*{margin:0;padding:0;box-sizing:border-box;}body{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#fff;padding:10px;}img{max-width:100%;max-height:95vh;height:auto;display:block;object-fit:contain;}@page{size:portrait;margin:5mm;}@media print{body{background:transparent;padding:0;}}</style></head><body><img src="${imgUrl}" /></body></html>`);
+                w.document.close();
+                w.onload = () => { w.focus(); w.print(); w.close(); };
+              }}
+              className="flex gap-1.5 text-xs sm:text-sm h-8 sm:h-9 px-3 bg-gray-800 hover:bg-gray-900 text-white"
+            >
+              <Printer className="w-3.5 h-3.5" /> Send to Printer
+            </Button>
+            <Button onClick={onDownload} disabled={isCapturing} className="flex gap-1.5 text-xs sm:text-sm h-8 sm:h-9 px-3 bg-green-700 hover:bg-green-800 text-white">
+              {isCapturing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Download
+            </Button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
-// ══════════════════════════════════════════════════════════════════════════════
 const UhcMember = () => {
-  // ── Search / patient selection ─────────────────────────────────────────────
-  const [searchQuery,     setSearchQuery]     = useState('');
-  const [searchResults,   setSearchResults]   = useState<PatientProfile[]>([]);
+  // Patient selection
   const [selectedPatient, setSelectedPatient] = useState<PatientProfile | null>(null);
-  const [isSearching,     setIsSearching]     = useState(false);
   const [errorMessage,    setErrorMessage]    = useState('');
 
-  // ── Profile picture ─────────────────────────────────────────────────────────
-  const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
+  // Tagged-member guard
+  // When a member is tagged to a patient (via MemberTagging), only their own
+  // profile is accessible. Manual search for other patients is blocked.
+  const [taggedPatientId, setTaggedPatientId] = useState<string | null>(null);
+  const [isAutoLoading,   setIsAutoLoading]   = useState(true);
 
-  // ── module4 health card data ───────────────────────────────────────────────
-  const [healthCardId, setHealthCardId] = useState<string | null>(null);
-  const [qrCodeValue,  setQrCodeValue]  = useState<string | null>(null);
-  const [qrDataUrl,    setQrDataUrl]    = useState<string | null>(null);
-  const [isLoadingQr,  setIsLoadingQr]  = useState(false);
+  // Profile picture
+  const [profilePicUrl,   setProfilePicUrl]   = useState<string | null>(null);
+  const [isUploadingPic,  setIsUploadingPic]  = useState(false);
+  const [profilePicError, setProfilePicError] = useState('');
+  const profilePicInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Documents (module4.card_attachment) ───────────────────────────────────
+  // Camera capture
+  const [showCamera,      setShowCamera]      = useState(false);
+  const [cameraStream,    setCameraStream]    = useState<MediaStream | null>(null);
+  const [cameraError,     setCameraError]     = useState('');
+  const [facingMode,      setFacingMode]      = useState<'user' | 'environment'>('user');
+  const [capturedImage,   setCapturedImage]   = useState<string | null>(null);
+  const videoRef   = useRef<HTMLVideoElement>(null);
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
+
+  // module4 health card data 
+  const [healthCardId,   setHealthCardId]   = useState<string | null>(null);
+  const [cardDateIssued, setCardDateIssued] = useState<string | null>(null);
+  const [qrCodeValue,    setQrCodeValue]    = useState<string | null>(null);
+  const [qrDataUrl,      setQrDataUrl]      = useState<string | null>(null);
+  const [isLoadingQr,    setIsLoadingQr]    = useState(false);
+
+  // Documents (module4.card_attachment)
   const [documents,      setDocuments]      = useState<DocumentAttachment[]>([]);
   const [isLoadingDocs,  setIsLoadingDocs]  = useState(false);
   const [expandedFolder, setExpandedFolder] = useState<string | null>(null);
@@ -1042,31 +1119,30 @@ const UhcMember = () => {
   const [previewDoc,     setPreviewDoc]     = useState<DocumentAttachment | null>(null);
   const [archiveTarget,  setArchiveTarget]  = useState<DocumentAttachment | null>(null);
 
-  // ── PIN (module4.health_card.pin) ──────────────────────────────────────────
+  // PIN (module4.health_card.pin) 
   const [hasPin,       setHasPin]       = useState(false);
   const [pinModalMode, setPinModalMode] = useState<'set' | 'change' | null>(null);
   const [isPinLoading, setIsPinLoading] = useState(false);
   const [pinError,     setPinError]     = useState('');
   const [pinSuccess,   setPinSuccess]   = useState('');
 
-  // ── PIN gate (on patient select) ──────────────────────────────────────────
+  // PIN gate (on patient select)
   const [pendingPatient,  setPendingPatient]  = useState<PatientProfile | null>(null);
-  const [pendingCardId,   setPendingCardId]   = useState<string | null>(null);
+  const [pendingCardId,                 ]   = useState<string | null>(null);
   const [pendingHasPin,   setPendingHasPin]   = useState(false);
   const [showPinGate,     setShowPinGate]     = useState(false);
-  const [isCheckingPin,   setIsCheckingPin]   = useState(false);
 
-  // ── Card download / print ──────────────────────────────────────────────────
+  // Card download / print
   const [isCapturing,   setIsCapturing]   = useState(false);
   const [printModalImg, setPrintModalImg] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // ── Active tab ─────────────────────────────────────────────────────────────
+  // Active tab
   const [activeTab, setActiveTab] = useState('documents');
 
-  // ─── Canvas card builder (dual format - front & back) ─────────────────────
+  // Canvas card builder (dual format - front & back)
   const buildCardCanvas = useCallback(async (
-    patient: PatientProfile, qrUrl: string, qrValue: string, picUrl?: string | null,
+    patient: PatientProfile, qrUrl: string, qrValue: string, picUrl?: string | null, issuedDate?: string | null,
   ): Promise<HTMLCanvasElement> => {
     const SCALE = 3, W = 700, H = 420;
     const LABEL_H = 30, GAP = 20;
@@ -1076,6 +1152,7 @@ const UhcMember = () => {
     const ctx = canvas.getContext('2d')!;
     ctx.scale(SCALE, SCALE);
 
+    // Rounded-rectangle path helper
     const rr = (x: number, y: number, w: number, h: number, r: number) => {
       ctx.beginPath();
       ctx.moveTo(x + r, y);
@@ -1090,23 +1167,50 @@ const UhcMember = () => {
       ctx.closePath();
     };
 
-    // Helper: draw card base (background, blobs, gold borders)
+    // Capture a single Threads frame for print background
+    let threadsFrame: HTMLCanvasElement | null = null;
+    try { threadsFrame = renderThreadsFrame(W, H); } catch {}
+
+    // Load logo image for watermarks
+    const logoImg = new Image();
+    logoImg.src = darkLogo;
+    await new Promise<void>((resolve) => { logoImg.onload = () => resolve(); logoImg.onerror = () => resolve(); });
+
     const drawCardBase = (offsetY: number) => {
       ctx.save();
       ctx.translate(0, offsetY);
       
-      // Card background
+      // Card background gradient
       rr(0, 0, W, H, 18);
-      ctx.fillStyle = '#eef6ee';
+      const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+      bgGrad.addColorStop(0, '#e8f5e9');
+      bgGrad.addColorStop(0.4, '#eef6ee');
+      bgGrad.addColorStop(1, '#e0f2e1');
+      ctx.fillStyle = bgGrad;
       ctx.fill();
 
-      // Clip for blobs
+      // Clip for overlays
       ctx.save();
       rr(0, 0, W, H, 18);
       ctx.clip();
+
+      // Threads animation frame overlay
+      if (threadsFrame) {
+        ctx.globalAlpha = 0.18;
+        ctx.drawImage(threadsFrame, 0, 0, W, H);
+        ctx.globalAlpha = 1;
+      }
+
+      // Security grid
+      ctx.globalAlpha = 0.03;
+      ctx.strokeStyle = 'rgba(0,80,30,1)';
+      ctx.lineWidth = 0.5;
+      for (let x = 0; x <= W; x += 4) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y <= H; y += 4) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      ctx.globalAlpha = 1;
       
-      // Blob 1 - greenish top left
-      ctx.globalAlpha = 0.12;
+      // Blob 1 - greenish top left (toned down)
+      ctx.globalAlpha = 0.10;
       ctx.fillStyle = '#2d8a50';
       ctx.beginPath();
       ctx.ellipse(165, 60, 150, 115, 0, 0, Math.PI * 2);
@@ -1119,8 +1223,8 @@ const UhcMember = () => {
       ctx.ellipse(W + 15, 160, 130, 105, 0, 0, Math.PI * 2);
       ctx.fill();
       
-      // Blob 3 - dark green bottom right
-      ctx.globalAlpha = 0.1;
+      // Blob 3 - dark green bottom right (toned down)
+      ctx.globalAlpha = 0.08;
       ctx.fillStyle = '#1a6b3a';
       ctx.beginPath();
       ctx.ellipse(W - 195, H + 28, 115, 95, 0, 0, Math.PI * 2);
@@ -1143,10 +1247,7 @@ const UhcMember = () => {
       ctx.restore();
     };
 
-    // ══════════════════════════════════════════════════════════════════════════
     // FRONT SIDE
-    // ══════════════════════════════════════════════════════════════════════════
-    
     // "FRONT" label
     ctx.fillStyle = '#0d4422';
     ctx.font = 'bold 14px sans-serif';
@@ -1170,69 +1271,53 @@ const UhcMember = () => {
     ctx.lineTo(W - 20, headerH);
     ctx.stroke();
 
-    // Profile pic circle or UHC seal
-    if (picUrl) {
-      await new Promise<void>((resolve) => {
-        const profImg = new Image();
-        profImg.crossOrigin = 'anonymous';
-        profImg.src = picUrl;
-        profImg.onload = () => {
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(40, 38, 25, 0, Math.PI * 2);
-          ctx.closePath();
-          ctx.clip();
-          ctx.drawImage(profImg, 15, 13, 50, 50);
-          ctx.restore();
-          // Gold border
-          ctx.strokeStyle = '#c8a018';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(40, 38, 25, 0, Math.PI * 2);
-          ctx.stroke();
-          resolve();
-        };
-        profImg.onerror = () => resolve();
-      });
-    } else {
-      // Fallback: gold gradient circle with "UHC / 2026" text
-      const cx = 40, cy = 38, r = 25;
-      const sealGrad = ctx.createRadialGradient(cx - 5, cy - 5, 2, cx, cy, r);
-      sealGrad.addColorStop(0, '#fef9c3');
-      sealGrad.addColorStop(0.6, '#fbbf24');
-      sealGrad.addColorStop(1, '#d97706');
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = sealGrad;
-      ctx.fill();
-      ctx.strokeStyle = '#c8a018';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.fillStyle = '#14532d';
-      ctx.fillText('UHC', cx, cy - 1);
-      ctx.fillStyle = '#166534';
-      ctx.fillRect(cx - 14, cy + 2, 28, 1);
-      ctx.font = 'bold 9px sans-serif';
-      ctx.fillText('2026', cx, cy + 12);
-    }
+    // ADN Seal (left) + UHC Logo (right) in header – preserve aspect ratios
+    const sealMaxH = 50;
+    const sealImg = new Image();
+    sealImg.src = adnSeal;
+    await new Promise<void>((resolve) => {
+      sealImg.onload = () => {
+        const ratio = sealImg.naturalWidth / sealImg.naturalHeight;
+        const sh = sealMaxH;
+        const sw = sh * ratio;
+        const sy = (headerH - sh) / 2;
+        ctx.drawImage(sealImg, 12, Math.max(4, sy), sw, sh);
+        resolve();
+      };
+      sealImg.onerror = () => resolve();
+    });
+    // Load UHC logo (right side) – larger for visibility, preserve aspect ratio
+    const uhcMaxH = 60;
+    const uhcImg = new Image();
+    uhcImg.src = darkLogo;
+    await new Promise<void>((resolve) => {
+      uhcImg.onload = () => {
+        const ratio = uhcImg.naturalWidth / uhcImg.naturalHeight;
+        const uh = uhcMaxH;
+        const uw = uh * ratio;
+        const ux = W - 8 - uw;
+        const uy = (headerH - uh) / 2;
+        ctx.drawImage(uhcImg, ux, Math.max(4, uy), uw, uh);
+        resolve();
+      };
+      uhcImg.onerror = () => resolve();
+    });
 
-    // Header titles (centered)
+    // Header titles (centered) – no "Republic of the Philippines"
     const titleX = W / 2;
     ctx.textAlign = 'center';
     ctx.font = '600 9px serif';
     ctx.fillStyle = '#0d4422';
-    ctx.fillText('Republika ng Pilipinas', titleX, 20);
-    ctx.font = 'italic 7.5px serif';
-    ctx.fillStyle = '#2d6b40';
-    ctx.fillText('Republic of the Philippines', titleX, 30);
-    ctx.font = 'bold 17px serif';
+    ctx.fillText('Republika ng Pilipinas', titleX, 18);
+    ctx.font = 'bold 12px serif';
     ctx.fillStyle = '#0a3318';
-    ctx.fillText('UNIVERSAL HEALTH CARE', titleX, 48);
+    ctx.fillText('AGUSAN DEL NORTE', titleX, 32);
+    ctx.font = 'bold 15px serif';
+    ctx.fillStyle = '#0a3318';
+    ctx.fillText('UNIVERSAL HEALTH CARE', titleX, 50);
     ctx.font = '600 9px sans-serif';
     ctx.fillStyle = '#1a6b3a';
-    ctx.fillText('Member Identification Card', titleX, 62);
+    ctx.fillText('Member Identification Card', titleX, 64);
 
     // UHC-ID row
     ctx.textAlign = 'left';
@@ -1251,23 +1336,17 @@ const UhcMember = () => {
     ctx.lineTo(W - 20, headerH + 26);
     ctx.stroke();
 
-    // Watermark seal (faint)
-    ctx.save();
-    ctx.globalAlpha = 0.055;
-    ctx.strokeStyle = '#0a3318';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(W - 180, H / 2, 100, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    ctx.arc(W - 180, H / 2, 87, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
+    // Watermark logo (faint)
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.06;
+      ctx.filter = 'grayscale(100%) brightness(0.4)';
+      ctx.drawImage(logoImg, W - 280, H / 2 - 100, 200, 200);
+      ctx.filter = 'none';
+      ctx.restore();
+    }
 
-    // Photo placeholder
+    // Photo placeholder with clean single gold border
     const photoX = 20, photoY = headerH + 36, photoW = 195, photoH = 210;
     const photoGrad = ctx.createLinearGradient(photoX, photoY, photoX + photoW, photoY + photoH);
     photoGrad.addColorStop(0, '#fef9c3');
@@ -1276,17 +1355,62 @@ const UhcMember = () => {
     rr(photoX, photoY, photoW, photoH, 8);
     ctx.fillStyle = photoGrad;
     ctx.fill();
+    // Single gold border
     ctx.strokeStyle = '#c8a018';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
     rr(photoX, photoY, photoW, photoH, 8);
     ctx.stroke();
-    // Person silhouette
-    ctx.fillStyle = '#c4c4c4';
-    ctx.beginPath();
-    ctx.ellipse(photoX + photoW / 2, photoY + 75, 30, 33, 0, 0, Math.PI * 2);
-    ctx.fill();
-    rr(photoX + photoW / 2 - 40, photoY + 115, 80, 45, 8);
-    ctx.fill();
+    // Profile picture or silhouette fallback
+    if (picUrl) {
+      await new Promise<void>((resolve) => {
+        const picImg = new Image();
+        picImg.crossOrigin = 'anonymous';
+        picImg.src = picUrl;
+        picImg.onload = () => {
+          ctx.save();
+          rr(photoX + 3, photoY + 3, photoW - 6, photoH - 6, 6);
+          ctx.clip();
+          // Cover-fit: fill the frame, crop excess
+          const imgRatio = picImg.width / picImg.height;
+          const frameRatio = (photoW - 6) / (photoH - 6);
+          let sx = 0, sy = 0, sw = picImg.width, sh = picImg.height;
+          if (imgRatio > frameRatio) {
+            sw = picImg.height * frameRatio;
+            sx = (picImg.width - sw) / 2;
+          } else {
+            sh = picImg.width / frameRatio;
+            // Bias toward top of image (face area)
+          }
+          ctx.drawImage(picImg, sx, sy, sw, sh, photoX + 3, photoY + 3, photoW - 6, photoH - 6);
+          ctx.restore();
+          resolve();
+        };
+        picImg.onerror = () => resolve();
+      });
+    } else {
+      // Default profile image fallback
+      await new Promise<void>((resolve) => {
+        const defImg = new Image();
+        defImg.crossOrigin = 'anonymous';
+        defImg.src = defaultProfile;
+        defImg.onload = () => {
+          ctx.save();
+          rr(photoX + 3, photoY + 3, photoW - 6, photoH - 6, 6);
+          ctx.clip();
+          const scale = Math.max((photoW - 6) / defImg.width, (photoH - 6) / defImg.height);
+          const sw = defImg.width * scale;
+          const sh = defImg.height * scale;
+          const sx = photoX + 3 + ((photoW - 6) - sw) / 2;
+          const sy = photoY + 3 + ((photoH - 6) - sh) / 2;
+          ctx.drawImage(defImg, sx, sy, sw, sh);
+          ctx.restore();
+          resolve();
+        };
+        defImg.onerror = () => resolve();
+      });
+    }
+
+
     // CARD HOLDER label
     ctx.fillStyle = '#1a6b3a';
     ctx.font = '600 7.5px sans-serif';
@@ -1384,7 +1508,7 @@ const UhcMember = () => {
     ctx.fillText('DOH — UHC Act R.A. 11223', 20, footerY + 22);
 
     // Date issued
-    const dateIssued = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+    const dateIssued = (issuedDate ? new Date(issuedDate) : new Date()).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
     ctx.fillStyle = '#0a3318';
     ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center';
@@ -1396,29 +1520,11 @@ const UhcMember = () => {
     ctx.textAlign = 'right';
     ctx.fillText('PHL', W - 60, footerY + 22);
 
-    // DOH-UHC badge (circular)
-    ctx.beginPath();
-    ctx.arc(W - 30, footerY + 16, 15, 0, Math.PI * 2);
-    const badgeGrad = ctx.createLinearGradient(W - 45, footerY + 1, W - 15, footerY + 31);
-    badgeGrad.addColorStop(0, '#1a6b3a');
-    badgeGrad.addColorStop(1, '#0d4422');
-    ctx.fillStyle = badgeGrad;
-    ctx.fill();
-    ctx.strokeStyle = '#c8a018';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.fillStyle = '#e8c830';
-    ctx.font = 'bold 6px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('DOH', W - 30, footerY + 14);
-    ctx.fillText('UHC', W - 30, footerY + 22);
+   
 
     ctx.restore(); // End front side translation
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // BACK SIDE
-    // ══════════════════════════════════════════════════════════════════════════
-    
+    // BACK SIDE 
     const backLabelY = LABEL_H + H + GAP;
     ctx.fillStyle = '#0d4422';
     ctx.font = 'bold 14px sans-serif';
@@ -1451,33 +1557,30 @@ const UhcMember = () => {
     ctx.fillRect(0, 0, W, 34);
     ctx.restore();
 
-    // Watermark seal (faint, centered)
-    ctx.save();
-    ctx.globalAlpha = 0.045;
-    ctx.strokeStyle = '#0a3318';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(W / 2, H / 2, 100, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    ctx.arc(W / 2, H / 2, 87, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
+    // Watermark logo (faint, centered)
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.05;
+      ctx.filter = 'grayscale(100%) brightness(0.4)';
+      ctx.drawImage(logoImg, W / 2 - 100, H / 2 - 100, 200, 200);
+      ctx.filter = 'none';
+      ctx.restore();
+    }
 
-    // Back header
+    // Back header – left-aligned to match UI
+    ctx.textAlign = 'left';
     ctx.fillStyle = '#0d4422';
     ctx.font = '600 8px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Republika ng Pilipinas · Republic of the Philippines', W / 2, 52);
+    ctx.fillText('Republika ng Pilipinas', 24, 50);
+    ctx.font = 'bold 11px serif';
     ctx.fillStyle = '#0a3318';
-    ctx.font = 'bold 15px serif';
-    ctx.fillText('UNIVERSAL HEALTH CARE', W / 2, 70);
+    ctx.fillText('AGUSAN DEL NORTE', 24, 63);
+    ctx.fillStyle = '#0a3318';
+    ctx.font = 'bold 14px serif';
+    ctx.fillText('UNIVERSAL HEALTH CARE', 24, 78);
     ctx.fillStyle = '#1a6b3a';
     ctx.font = '600 8px sans-serif';
-    ctx.fillText('Member Identification Card', W / 2, 84);
+    ctx.fillText('Member Identification Card', 24, 90);
 
     // Header border
     ctx.strokeStyle = 'rgba(0,100,40,0.25)';
@@ -1559,98 +1662,6 @@ const UhcMember = () => {
     return canvas;
   }, []);
 
-  // ─── Search: module3 — flat sequential fetches ────────────────────────────
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true); setErrorMessage(''); setSearchResults([]);
-    try {
-      // 1. Patient profiles from module3
-      const { data: profiles, error: profileError } = await supabase
-        .schema('module3').from('patient_profile')
-        .select('id, first_name, middle_name, last_name, ext_name, sex, birth_date, brgy')
-        .or(`first_name.ilike.%${searchQuery.trim()}%,last_name.ilike.%${searchQuery.trim()}%`)
-        .limit(10);
-      if (profileError) throw profileError;
-      if (!profiles || profiles.length === 0) { setErrorMessage('No patients found. Please check the name and try again.'); return; }
-
-      // 2. Brgy (module3)
-      const brgyIds = [...new Set(profiles.map((p: any) => p.brgy).filter(Boolean))];
-      let brgyMap: Record<string, any> = {};
-      if (brgyIds.length > 0) {
-        const { data: brgys } = await supabase.schema('module3').from('brgy')
-          .select('id, description, city_municipality').in('id', brgyIds);
-        const cityIds = [...new Set((brgys ?? []).map((b: any) => b.city_municipality).filter(Boolean))];
-        let cityMap: Record<string, any> = {};
-        if (cityIds.length > 0) {
-          const { data: cities } = await supabase.schema('module3').from('city_municipality')
-            .select('id, description, province').in('id', cityIds);
-          const provIds = [...new Set((cities ?? []).map((c: any) => c.province).filter(Boolean))];
-          let provMap: Record<string, any> = {};
-          if (provIds.length > 0) {
-            const { data: provinces } = await supabase.schema('module3').from('province')
-              .select('id, description, region').in('id', provIds);
-            const regionIds = [...new Set((provinces ?? []).map((p: any) => p.region).filter(Boolean))];
-            let regionMap: Record<string, any> = {};
-            if (regionIds.length > 0) {
-              const { data: regions } = await supabase.schema('module3').from('region')
-                .select('id, description').in('id', regionIds);
-              (regions ?? []).forEach((r: any) => { regionMap[r.id] = r; });
-            }
-            (provinces ?? []).forEach((p: any) => { provMap[p.id] = { ...p, region: regionMap[p.region] ?? null }; });
-          }
-          (cities ?? []).forEach((c: any) => { cityMap[c.id] = { ...c, province: provMap[c.province] ?? null }; });
-        }
-        (brgys ?? []).forEach((b: any) => { brgyMap[b.id] = { ...b, city_municipality: cityMap[b.city_municipality] ?? null }; });
-      }
-      const assembled: PatientProfile[] = profiles.map((p: any) => ({ ...p, brgy: brgyMap[p.brgy] ?? null }));
-      setSearchResults(assembled);
-    } catch (err) {
-      console.error('Search error:', err);
-      setErrorMessage('Failed to search patients. Please try again.');
-    } finally { setIsSearching(false); }
-  };
-
-  // ── Select patient: check PIN first before proceeding ──────────────────────
-  const selectPatient = async (p: PatientProfile) => {
-    setSearchResults([]);
-    setSearchQuery(`${p.first_name} ${p.last_name}`);
-    setErrorMessage('');
-    setIsCheckingPin(true);
-
-    try {
-      // Check if patient has a health_card and PIN in module4
-      let { data: card } = await supabase
-        .schema('module4').from('health_card')
-        .select('id, pin')
-        .eq('patient_profile', p.id)
-        .maybeSingle();
-
-      // Auto-create health_card if it doesn't exist
-      if (!card) {
-        const { data: newCard } = await supabase
-          .schema('module4').from('health_card')
-          .insert({ patient_profile: p.id })
-          .select('id, pin')
-          .single();
-        card = newCard;
-      }
-
-      const cardId = card?.id ?? null;
-      const cardHasPin = Boolean(card?.pin);
-
-      // Show PIN gate modal
-      setPendingPatient(p);
-      setPendingCardId(cardId);
-      setPendingHasPin(cardHasPin);
-      setShowPinGate(true);
-    } catch (err) {
-      console.error('PIN check error:', err);
-      setErrorMessage('Failed to check PIN status. Please try again.');
-    } finally {
-      setIsCheckingPin(false);
-    }
-  };
-
   // Called after PIN verified or set successfully
   const commitPatientSelect = useCallback(async (p: PatientProfile) => {
     setShowPinGate(false);
@@ -1661,6 +1672,7 @@ const UhcMember = () => {
     setQrDataUrl(null);
     setExpandedFolder(null);
     setHealthCardId(null);
+    setCardDateIssued(null);
     setHasPin(false);
     setPinSuccess('');
     setProfilePicUrl(null);
@@ -1670,10 +1682,9 @@ const UhcMember = () => {
   const closePinGate = useCallback(() => {
     setShowPinGate(false);
     setPendingPatient(null);
-    setSearchQuery('');
   }, []);
 
-  // ─── Load patient data ─────────────────────────────────────────────────────
+  // Load patient data
   // All health card data lives in module4.
   // patient.id (UUID from module3) is stored in module4.health_card.patient_profile.
   const loadPatientData = async (patient: PatientProfile) => {
@@ -1682,14 +1693,16 @@ const UhcMember = () => {
     setErrorMessage('');
     try {
       // Step 1: find existing health_card in module4
-      let { data: card, error: cardErr } = await supabase
+      // Use .limit(1) instead of .maybeSingle() — multiple cards may exist.
+      const { data: cards, error: cardErr } = await supabase
         .schema('module4')               // ← always module4 for health_card
         .from('health_card')
-        .select('id, qr_code, pin')
+        .select('id, qr_code, pin, created_at')
         .eq('patient_profile', patient.id) // patient.id = UUID from module3
-        .maybeSingle();                  // no error if row doesn't exist
+        .limit(1);
 
       if (cardErr) { console.error('health_card fetch error:', cardErr); throw cardErr; }
+      let card: { id: any; qr_code: any; pin: any; created_at?: string } | null = cards?.[0] ?? null;
 
       // Step 2: auto-create health_card row so member can set PIN immediately,
       // even before the operator has generated a QR code.
@@ -1698,18 +1711,18 @@ const UhcMember = () => {
           .schema('module4')
           .from('health_card')
           .insert({ patient_profile: patient.id }) // link to module3 patient UUID
-          .select('id, qr_code, pin')
+          .select('id, qr_code, pin, created_at')
           .single();
 
         if (insertErr) {
           // Race condition — try fetching again before giving up
           console.warn('health_card auto-create failed, retrying:', insertErr.message);
-          const { data: retry } = await supabase
+          const { data: retryCards } = await supabase
             .schema('module4').from('health_card')
-            .select('id, qr_code, pin')
+            .select('id, qr_code, pin, created_at')
             .eq('patient_profile', patient.id)
-            .maybeSingle();
-          card = retry;
+            .limit(1);
+          card = retryCards?.[0] ?? null;
         } else {
           card = newCard;
         }
@@ -1724,6 +1737,7 @@ const UhcMember = () => {
 
       // Step 3: populate state from health_card row
       setHealthCardId(card.id);
+      setCardDateIssued(card.created_at ?? null);
       // hasPin = true only if pin column is a non-empty string (not null, not '')
       setHasPin(typeof card.pin === 'string' && card.pin.trim().length > 0);
 
@@ -1744,18 +1758,26 @@ const UhcMember = () => {
 
       if (attachErr) { console.error('card_attachment fetch error:', attachErr); throw attachErr; }
 
+      // Read persisted archived IDs from localStorage
+      const archivedKey = `uhc_archived_docs_${patient.id}`;
+      let archivedIds: string[] = [];
+      try {
+        const stored = localStorage.getItem(archivedKey);
+        if (stored) archivedIds = JSON.parse(stored);
+      } catch { /* ignore parse errors */ }
+
       const docs: DocumentAttachment[] = (attachments ?? []).map((a: any) => {
         const cat = Array.isArray(a.card_category) ? a.card_category[0] : a.card_category;
-        return { id: a.id, attachment: a.attachment, status: a.status, category: cat?.description ?? 'Uncategorized', archived: false };
+        return { id: a.id, attachment: a.attachment, status: a.status, category: cat?.description ?? 'Uncategorized', archived: archivedIds.includes(a.id) };
       });
       setDocuments(docs);
 
-      // Step 5: load profile picture from card-user-picture bucket
+      // Step 5: load profile picture from card-attachments/Profile Picture/ bucket
       try {
-        const { data: picFiles } = await supabase.storage.from('card-user-picture').list('', { search: patient.id });
+        const { data: picFiles } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: patient.id });
         const picMatch = picFiles?.find((f) => f.name.startsWith(patient.id));
         if (picMatch) {
-          const { data: pub } = supabase.storage.from('card-user-picture').getPublicUrl(picMatch.name);
+          const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(`Profile Picture/${picMatch.name}`);
           setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
         }
       } catch { /* profile pic is optional */ }
@@ -1765,6 +1787,291 @@ const UhcMember = () => {
       setIsLoadingQr(false);
     } finally { setIsLoadingDocs(false); }
   };
+
+  // Camera functions
+  const openCamera = async () => {
+    setProfilePicError('');
+    setCameraError('');
+    setCapturedImage(null);
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode, width: { ideal: 640 }, height: { ideal: 640 } },
+        audio: false,
+      });
+      setCameraStream(stream);
+      // Attach stream to video element once it mounts
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      }, 100);
+    } catch (err: any) {
+      console.error('Camera access error:', err);
+      setCameraError(
+        err.name === 'NotAllowedError'
+          ? 'Camera access denied. Please allow camera permissions in your browser settings.'
+          : err.name === 'NotFoundError'
+          ? 'No camera found on this device.'
+          : 'Could not access camera. Please try uploading a photo instead.'
+      );
+    }
+  };
+
+  const stopCamera = useCallback(() => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((t) => t.stop());
+      setCameraStream(null);
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, [cameraStream]);
+
+  const closeCamera = useCallback(() => {
+    stopCamera();
+    setShowCamera(false);
+    setCameraError('');
+    setCapturedImage(null);
+  }, [stopCamera]);
+
+  const switchCamera = async () => {
+    stopCamera();
+    const next = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(next);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: next, width: { ideal: 640 }, height: { ideal: 640 } },
+        audio: false,
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+    } catch (err: any) {
+      setCameraError('Could not switch camera.');
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    // Ensure the video has actual dimensions (stream is live)
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setCameraError('Camera not ready yet. Please wait a moment and try again.');
+      return;
+    }
+    // Square crop from center
+    const size = Math.min(video.videoWidth, video.videoHeight);
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const sx = (video.videoWidth - size) / 2;
+    const sy = (video.videoHeight - size) / 2;
+    ctx.drawImage(video, sx, sy, size, size, 0, 0, size, size);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    if (!dataUrl || dataUrl === 'data:,') {
+      setCameraError('Failed to capture photo. Please try again.');
+      return;
+    }
+    setCapturedImage(dataUrl);
+    stopCamera();
+  };
+
+  const retakePhoto = async () => {
+    setCapturedImage(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode, width: { ideal: 640 }, height: { ideal: 640 } },
+        audio: false,
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+    } catch (err: any) {
+      setCameraError('Could not restart camera.');
+    }
+  };
+
+  const useCapturedPhoto = async () => {
+    if (!capturedImage || !selectedPatient) return;
+    setIsUploadingPic(true);
+    setProfilePicError('');
+    try {
+      // Convert data URL to Blob reliably (fetch-based approach can fail on some browsers)
+      const parts = capturedImage.split(',');
+      const mime = parts[0].match(/:(.*?);/)?.[1] ?? 'image/jpeg';
+      const bstr = atob(parts[1]);
+      const u8arr = new Uint8Array(bstr.length);
+      for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+      const blob = new Blob([u8arr], { type: mime });
+
+      const pid = selectedPatient.id;
+      const path = `Profile Picture/${pid}_${Date.now()}.jpg`;
+
+      // Remove ALL existing profile pictures for this patient (any extension)
+      const { data: existing } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: pid });
+      const toRemove = (existing ?? []).filter((f) => f.name.startsWith(pid)).map((f) => `Profile Picture/${f.name}`);
+      if (toRemove.length > 0) await supabase.storage.from('card-attachments').remove(toRemove);
+
+      // Upload new photo with unique name to bypass CDN cache
+      const { error: upErr } = await supabase.storage
+        .from('card-attachments')
+        .upload(path, blob, { contentType: 'image/jpeg' });
+      if (upErr) throw upErr;
+
+      const { data: pub } = supabase.storage
+        .from('card-attachments')
+        .getPublicUrl(path);
+      setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
+      closeCamera();
+    } catch (err: any) {
+      console.error('Camera upload error:', err);
+      setProfilePicError(err.message ?? 'Upload failed. Please try again.');
+    } finally {
+      setIsUploadingPic(false);
+    }
+  };
+
+  // Clean up camera stream on unmount
+  useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      cameraStream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [cameraStream]);
+
+  // Upload profile picture to card-attachments bucket (Profile Picture folder)
+  const handleProfilePicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedPatient) return;
+    if (!file.type.startsWith('image/')) { setProfilePicError('Please select an image file (JPG, PNG, etc.).'); return; }
+    if (file.size > 5 * 1024 * 1024) { setProfilePicError('File size must be under 5 MB.'); return; }
+    setIsUploadingPic(true);
+    setProfilePicError('');
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const pid = selectedPatient.id;
+      const path = `Profile Picture/${pid}_${Date.now()}.${ext}`;
+
+      // Remove ALL existing profile pictures for this patient (any extension)
+      const { data: existing } = await supabase.storage.from('card-attachments').list('Profile Picture', { search: pid });
+      const toRemove = (existing ?? []).filter((f) => f.name.startsWith(pid)).map((f) => `Profile Picture/${f.name}`);
+      if (toRemove.length > 0) await supabase.storage.from('card-attachments').remove(toRemove);
+
+      // Upload new file with unique name to bypass CDN cache
+      const { error: upErr } = await supabase.storage.from('card-attachments').upload(path, file);
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('card-attachments').getPublicUrl(path);
+      setProfilePicUrl(pub.publicUrl + '?t=' + Date.now());
+    } catch (err: any) {
+      console.error('Profile pic upload error:', err);
+      setProfilePicError(err.message ?? 'Upload failed.');
+    } finally {
+      setIsUploadingPic(false);
+      // Reset the input so the same file can be re-selected
+      if (profilePicInputRef.current) profilePicInputRef.current.value = '';
+    }
+  };
+
+  // Auto-load tagged patient on mount
+  // If the logged-in user has been tagged to a patient profile (via MemberTagging),
+  // automatically load that patient so the member doesn't need to search.
+  const authUser = useAuthStore((s) => s.user);
+
+  useEffect(() => {
+    if (!authUser?.id) {
+      setIsAutoLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsAutoLoading(true);
+    (async () => {
+      try {
+        // 1. Find health_card linked to the logged-in user
+        //    Use .select() + limit(1) instead of .maybeSingle() because
+        //    multiple cards may exist (from old auto-create logic), which
+        //    causes .maybeSingle() to silently return null.
+        const { data: cards } = await supabase
+          .schema('module4')
+          .from('health_card')
+          .select('id, patient_profile')
+          .eq('user', authUser.id)
+          .not('patient_profile', 'is', null)
+          .limit(1);
+
+        const card = cards?.[0] ?? null;
+
+        if (cancelled) return;
+
+        if (!card?.patient_profile) {
+          // No tagged patient — member is not linked yet
+          setIsAutoLoading(false);
+          return;
+        }
+
+        // Mark this member as tagged (locks out search for other patients)
+        setTaggedPatientId(card.patient_profile);
+
+        // 2. Fetch the linked patient profile from module3 (with brgy/city joins)
+        const { data: profile } = await supabase
+          .schema('module3')
+          .from('patient_profile')
+          .select('id, first_name, middle_name, last_name, ext_name, sex, birth_date, brgy')
+          .eq('id', card.patient_profile)
+          .maybeSingle();
+
+        if (!profile || cancelled) return;
+
+        // 3. Resolve brgy → city → province → region (same logic as handleSearch)
+        let brgyData: any = null;
+        if (profile.brgy) {
+          const { data: brgy } = await supabase.schema('module3').from('brgy')
+            .select('id, description, city_municipality').eq('id', profile.brgy).maybeSingle();
+          if (brgy) {
+            brgyData = { ...brgy };
+            if (brgy.city_municipality) {
+              const { data: city } = await supabase.schema('module3').from('city_municipality')
+                .select('id, description, province').eq('id', brgy.city_municipality).maybeSingle();
+              if (city) {
+                brgyData.city_municipality = { ...city };
+                if (city.province) {
+                  const { data: prov } = await supabase.schema('module3').from('province')
+                    .select('id, description, region').eq('id', city.province).maybeSingle();
+                  if (prov) {
+                    brgyData.city_municipality.province = { ...prov };
+                    if (prov.region) {
+                      const { data: region } = await supabase.schema('module3').from('region')
+                        .select('id, description').eq('id', prov.region).maybeSingle();
+                      brgyData.city_municipality.province.region = region ?? null;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        const assembled: PatientProfile = { ...profile, brgy: brgyData };
+
+        if (!cancelled) {
+          // Skip PIN gate for the member's own profile — they already authenticated
+          setSelectedPatient(assembled);
+          await loadPatientData(assembled);
+        }
+      } catch (err) {
+        console.error('Auto-load tagged patient error:', err);
+      } finally {
+        if (!cancelled) setIsAutoLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [authUser?.id]);
 
   // ─── Save PIN ──────────────────────────────────────────────────────────────
   // Writes to module4.health_card.pin (varchar column).
@@ -1818,39 +2125,55 @@ const UhcMember = () => {
     } finally { setIsPinLoading(false); }
   };
 
-  // ─── Card download ─────────────────────────────────────────────────────────
+  // Card download
   const handleDownloadCard = useCallback(async () => {
     if (!selectedPatient || !qrDataUrl || !qrCodeValue) return;
     setIsCapturing(true);
     try {
-      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl);
+      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, cardDateIssued);
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
       a.download = `UHC_HealthCard_FrontBack_${selectedPatient.last_name}_${selectedPatient.first_name}.png`;
       a.click();
     } catch (e) { console.error('Download error:', e); }
     finally { setIsCapturing(false); }
-  }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, buildCardCanvas]);
+  }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, cardDateIssued, buildCardCanvas]);
 
-  // ─── Print card ────────────────────────────────────────────────────────────
+  // Print card
   const handlePrintCard = useCallback(async () => {
     if (!selectedPatient || !qrDataUrl || !qrCodeValue) return;
     setIsCapturing(true);
     try {
-      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl);
+      const canvas = await buildCardCanvas(selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, cardDateIssued);
       setPrintModalImg(canvas.toDataURL('image/png'));
     } catch (e) { console.error('Print error:', e); }
     finally { setIsCapturing(false); }
-  }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, buildCardCanvas]);
+  }, [selectedPatient, qrDataUrl, qrCodeValue, profilePicUrl, cardDateIssued, buildCardCanvas]);
 
-  // ─── Archive helpers ───────────────────────────────────────────────────────
+  // Archive helpers — persist to localStorage so archived state survives reloads
   const handleArchive  = () => {
-    if (!archiveTarget) return;
-    setDocuments((prev) => prev.map((d) => d.id === archiveTarget.id ? { ...d, archived: true } : d));
+    if (!archiveTarget || !selectedPatient) return;
+    const archivedKey = `uhc_archived_docs_${selectedPatient.id}`;
+    setDocuments((prev) => {
+      const updated = prev.map((d) => d.id === archiveTarget.id ? { ...d, archived: true } : d);
+      // Persist archived IDs
+      const archivedIds = updated.filter((d) => d.archived).map((d) => d.id);
+      try { localStorage.setItem(archivedKey, JSON.stringify(archivedIds)); } catch { /* ignore */ }
+      return updated;
+    });
     setArchiveTarget(null);
   };
-  const handleRestore = (id: string) =>
-    setDocuments((prev) => prev.map((d) => d.id === id ? { ...d, archived: false } : d));
+  const handleRestore = (id: string) => {
+    if (!selectedPatient) return;
+    const archivedKey = `uhc_archived_docs_${selectedPatient.id}`;
+    setDocuments((prev) => {
+      const updated = prev.map((d) => d.id === id ? { ...d, archived: false } : d);
+      // Update persisted archived IDs
+      const archivedIds = updated.filter((d) => d.archived).map((d) => d.id);
+      try { localStorage.setItem(archivedKey, JSON.stringify(archivedIds)); } catch { /* ignore */ }
+      return updated;
+    });
+  };
 
   const getDocsForFolder = (folderKey: string, archived = false) =>
     documents.filter((d) =>
@@ -1869,7 +2192,7 @@ const UhcMember = () => {
     ? filterMatchedFolderKeys.reduce((sum, key) => sum + getDocsForFolder(key, false).length, 0)
     : 0;
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  // Render
   return (
     <>
       <BreadcrumbComp title="My Health Card" items={BCrumb} />
@@ -1883,7 +2206,7 @@ const UhcMember = () => {
         />
       )}
       {archiveTarget && (
-        <ArchiveConfirmModal doc={archiveTarget} onConfirm={handleArchive} onCancel={() => setArchiveTarget(null)} />
+        <ArchiveConfirmModal doc={archiveTarget} patient={selectedPatient} onConfirm={handleArchive} onCancel={() => setArchiveTarget(null)} />
       )}
       {pinModalMode && (
         <PinModal
@@ -1918,113 +2241,311 @@ const UhcMember = () => {
         />
       )}
 
-      <div className="flex flex-col gap-6">
-
-        {/* ── Search ── */}
-        <Card className="p-6">
-          <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
-            <Search className="w-5 h-5 text-green-600" /> Find My Records
-          </h3>
-          <p className="text-xs text-gray-400 mb-2">Search by your first or last name to view your profile and documents.</p>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter your name…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="flex-1"
-            />
-            <Button onClick={handleSearch} disabled={isSearching} className="flex gap-2 bg-green-700 hover:bg-green-800">
-              {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Search
-            </Button>
-          </div>
-
-          {/* Search results */}
-          {searchResults.length > 0 && (
-            <div className="mt-3 border rounded-lg overflow-hidden divide-y shadow-sm">
-              {searchResults.map((p) => (
-                <button key={p.id} onClick={() => selectPatient(p)}
-                  disabled={isCheckingPin}
-                  className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors flex items-center gap-3 disabled:opacity-60">
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-xs flex-shrink-0">
-                    {p.first_name[0]}{p.last_name[0]}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{fullName(p)}</p>
-                    <p className="text-xs text-gray-500">{p.sex} · DOB: {formatDate(p.birth_date)} · {getFullAddress(p.brgy)}</p>
-                  </div>
-                  {isCheckingPin
-                    ? <Loader2 className="w-4 h-4 text-green-600 animate-spin flex-shrink-0" />
-                    : <Lock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                  }
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Error */}
-          {errorMessage && !selectedPatient && (
-            <div className="mt-3 flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>{errorMessage}</p>
-            </div>
-          )}
-
-          {/* Selected patient banner */}
-          {selectedPatient && (
-            <div className="mt-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-3">
-                {profilePicUrl ? (
-                  <img src={profilePicUrl} alt="Profile" className="w-10 h-10 rounded-full object-cover border-2 border-green-300" />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
-                    {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
-                  </div>
-                )}
+      {/* ══ Camera Capture Modal ══ */}
+      {showCamera && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                  <Camera className="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
                 <div>
-                  <p className="font-semibold text-green-900">{fullName(selectedPatient)}</p>
-                  <p className="text-xs text-green-600">
-                    {selectedPatient.sex} · {formatDate(selectedPatient.birth_date)} · {computeAge(selectedPatient.birth_date)} · {getFullAddress(selectedPatient.brgy)}
-                  </p>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Take Profile Photo</h3>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">Position your face in the frame</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 text-xs font-medium">
-                <span className="flex items-center gap-1 text-green-700"><CheckCircle2 className="w-3.5 h-3.5" />{totalActive} active documents</span>
-                {totalArchived > 0 && <span className="flex items-center gap-1 text-amber-600"><Archive className="w-3.5 h-3.5" />{totalArchived} archived</span>}
-              </div>
+              <button onClick={closeCamera} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <X className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+              </button>
             </div>
+
+            {/* Camera view */}
+            <div className="relative bg-black aspect-square">
+              {cameraError ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+                  <div className="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <AlertCircle className="w-7 h-7 text-red-500 dark:text-red-400" />
+                  </div>
+                  <p className="text-sm text-white/80 leading-relaxed">{cameraError}</p>
+                  <button
+                    onClick={() => { closeCamera(); profilePicInputRef.current?.click(); }}
+                    className="mt-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" /> Upload Photo Instead
+                  </button>
+                </div>
+              ) : capturedImage ? (
+                <img src={capturedImage} alt="Captured" className="w-full h-full object-cover" />
+              ) : (
+                <>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                    style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+                  />
+                  {/* Circular guide overlay */}
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div className="w-[70%] h-[70%] rounded-full border-2 border-white/30 shadow-[0_0_0_9999px_rgba(0,0,0,0.3)]" />
+                  </div>
+                  {/* Loading indicator when stream not yet ready */}
+                  {!cameraStream && !cameraError && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 text-white animate-spin" />
+                    </div>
+                  )}
+                </>
+              )}
+              {/* Hidden canvas for capture */}
+              <canvas ref={canvasRef} className="hidden" />
+            </div>
+
+            {/* Controls */}
+            <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700">
+              {cameraError ? null : capturedImage ? (
+                /* Captured — Use / Retake */
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={retakePhoto}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" /> Retake
+                  </button>
+                  <button
+                    onClick={useCapturedPhoto}
+                    disabled={isUploadingPic}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-60 transition-colors"
+                  >
+                    {isUploadingPic ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+                    ) : (
+                      <><CheckCircle2 className="w-4 h-4" /> Use Photo</>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    onClick={switchCamera}
+                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    title="Switch camera"
+                  >
+                    <SwitchCamera className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  </button>
+                  <button
+                    onClick={capturePhoto}
+                    disabled={!cameraStream}
+                    className="w-16 h-16 rounded-full bg-white border-4 border-green-500 flex items-center justify-center hover:border-green-600 disabled:opacity-40 transition-all active:scale-95 shadow-lg"
+                    title="Capture photo"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-green-500 hover:bg-green-600 transition-colors" />
+                  </button>
+                  <button
+                    onClick={closeCamera}
+                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    title="Cancel"
+                  >
+                    <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-4 sm:gap-6">
+        {/* ── Search / Profile ── */}
+        <Card className="p-4 sm:p-6 dark:bg-gray-900 dark:border-gray-700">
+          {isAutoLoading ? (
+            /* Loading state while checking for tagged patient */
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <Loader2 className="w-8 h-8 text-green-600 dark:text-green-400 animate-spin" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading your profile…</p>
+            </div>
+          ) : taggedPatientId ? (
+            /* ── Tagged member: elegant profile with picture upload ── */
+            <>
+              {selectedPatient ? (
+                <div className="flex flex-col items-center sm:items-start sm:flex-row gap-6">
+                  {/* ── Profile Picture Section ── */}
+                  <div className="flex flex-col items-center gap-3 sm:min-w-[180px]">
+                    {/* Large profile picture with camera overlay */}
+                    <div className="relative group">
+                      <div className="w-28 h-28 rounded-2xl overflow-hidden ring-4 ring-green-100 dark:ring-green-900/40 shadow-lg">
+                        <img
+                          src={profilePicUrl || defaultProfile}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      {/* Hover overlay */}
+                      <button
+                        onClick={() => profilePicInputRef.current?.click()}
+                        className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col items-center justify-center cursor-pointer gap-1"
+                        title="Upload profile picture"
+                      >
+                        <Camera className="w-6 h-6 text-white drop-shadow" />
+                        <span className="text-[10px] font-semibold text-white drop-shadow">
+                          {profilePicUrl ? 'Change' : 'Upload'}
+                        </span>
+                      </button>
+                      {/* Uploading spinner */}
+                      {isUploadingPic && (
+                        <div className="absolute inset-0 rounded-2xl bg-black/50 flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 text-white animate-spin" />
+                        </div>
+                      )}
+                      {/* Hidden file input */}
+                      <input
+                        ref={profilePicInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleProfilePicUpload}
+                      />
+                      {/* Small camera badge */}
+                      <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-green-600 dark:bg-green-500 flex items-center justify-center shadow-md border-2 border-white dark:border-gray-800">
+                        <Camera className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    </div>
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={openCamera}
+                        className="text-xs font-medium text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 flex items-center gap-1.5 transition-colors px-3 py-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        Take Photo
+                      </button>
+                      <span className="text-gray-300 dark:text-gray-600 text-xs">|</span>
+                      <button
+                        onClick={() => profilePicInputRef.current?.click()}
+                        className="text-xs font-medium text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 flex items-center gap-1.5 transition-colors px-3 py-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        Upload
+                      </button>
+                    </div>
+                    {profilePicError && (
+                      <p className="text-[11px] text-red-500 dark:text-red-400 text-center max-w-[180px]">{profilePicError}</p>
+                    )}
+                  </div>
+
+                    <div className="flex-1 min-w-0 text-center sm:text-left">
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
+                      <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-gray-100 truncate">
+                        {fullName(selectedPatient)}
+                      </h3>
+                      <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-[10px] font-semibold uppercase tracking-wide">
+                        Member
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">My Health Profile</p>
+
+                    {/* Info grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                        <User className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Sex</p>
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{selectedPatient.sex}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                        <IdCard className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Date of Birth</p>
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{formatDate(selectedPatient.birth_date)} ({computeAge(selectedPatient.birth_date)})</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 sm:col-span-2">
+                        <Building2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                        <div className="min-w-0 overflow-hidden">
+                          <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Address</p>
+                          <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200 break-words">{getFullAddress(selectedPatient.brgy)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Document stats */}
+                    <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                      <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" />{totalActive} active documents
+                      </span>
+                      {totalArchived > 0 && (
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                          <Archive className="w-3.5 h-3.5" />{totalArchived} archived
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Loading / error when patient not yet loaded */
+                <>
+                  <h3 className="font-semibold text-lg mb-1 flex items-center gap-2 dark:text-gray-100">
+                    <User className="w-5 h-5 text-green-600 dark:text-green-400" /> My Profile
+                  </h3>
+                  {errorMessage && (
+                    <div className="mt-3 flex gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>{errorMessage}</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+            /* ── Not tagged: show message instead of open search ── */
+            <>
+              <h3 className="font-semibold text-lg mb-1 flex items-center gap-2 dark:text-gray-100">
+                <Search className="w-5 h-5 text-green-600 dark:text-green-400" /> Find My Records
+              </h3>
+              <div className="mt-3 flex gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-300 text-sm">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" />
+                <div>
+                  <p className="font-semibold">Account Not Linked</p>
+                  <p className="mt-1">Your account has not been linked to a patient profile yet. Please contact a Health Card Operator to tag your account to your patient record.</p>
+                </div>
+              </div>
+            </>
           )}
         </Card>
 
         {/* ── Tabs (patient selected) ── */}
-        {selectedPatient && (
+          {selectedPatient && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="documents">My Documents</TabsTrigger>
-              <TabsTrigger value="qrcode">My Health Card</TabsTrigger>
-              <TabsTrigger value="archive">
+            <TabsList className="grid w-full grid-cols-4 h-auto">
+              <TabsTrigger value="documents" className="text-xs sm:text-sm px-1 sm:px-3 py-2">Documents</TabsTrigger>
+              <TabsTrigger value="qrcode" className="text-xs sm:text-sm px-1 sm:px-3 py-2"><span className="hidden sm:inline">Health Card</span><span className="sm:hidden">Card</span></TabsTrigger>
+              <TabsTrigger value="archive" className="text-xs sm:text-sm px-1 sm:px-3 py-2">
                 Archive
                 {totalArchived > 0 && (
-                  <span className="ml-1.5 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{totalArchived}</span>
+                  <span className="ml-1 sm:ml-1.5 bg-amber-500 text-white text-[8px] sm:text-[9px] font-bold px-1 sm:px-1.5 py-0.5 rounded-full">{totalArchived}</span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="pin" className="flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5" /> My PIN
+              <TabsTrigger value="pin" className="flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm px-1 sm:px-3 py-2">
+                <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> <span className="hidden sm:inline">My</span> PIN
                 {hasPin && <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />}
               </TabsTrigger>
             </TabsList>
 
             {/* ════ DOCUMENTS ════ */}
             <TabsContent value="documents">
-              <Card className="p-6">
-                <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-                  <h3 className="font-semibold text-lg flex items-center gap-2">
+              <Card className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                  <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                     <FileText className="w-5 h-5 text-green-600" /> My Documents
                   </h3>
-                  <div className="flex gap-2 items-center">
+                  <div className="flex gap-2 items-center w-full sm:w-auto">
                     <Input placeholder="Search documents…" value={filterQuery}
-                      onChange={(e) => setFilterQuery(e.target.value)} className="w-48 text-sm" />
+                      onChange={(e) => setFilterQuery(e.target.value)} className="flex-1 sm:w-48 text-sm" />
                     {filterQuery && (
-                      <Button size="sm" variant="outline" onClick={() => setFilterQuery('')} className="flex gap-1 text-xs">
+                      <Button size="sm" variant="outline" onClick={() => setFilterQuery('')} className="flex gap-1 text-xs flex-shrink-0">
                         <RefreshCw className="w-3.5 h-3.5" /> Clear
                       </Button>
                     )}
@@ -2076,21 +2597,25 @@ const UhcMember = () => {
                               ) : (
                                 <div className="flex flex-col gap-2">
                                   {docs.map((doc) => (
-                                    <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                                      <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
-                                        <p className="text-xs text-gray-400">{doc.category}</p>
+                                    <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
+                                          <p className="text-xs text-gray-400">{doc.category}</p>
+                                        </div>
                                       </div>
-                                      <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 text-green-700 hover:bg-green-50 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
-                                        <Eye className="w-3.5 h-3.5" /> View
-                                      </Button>
-                                      <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 flex-shrink-0" onClick={() => setArchiveTarget(doc)}>
-                                        <Archive className="w-3.5 h-3.5" /> Archive
-                                      </Button>
+                                      <div className="flex gap-2 ml-7 sm:ml-0 flex-shrink-0">
+                                        <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700 hover:border-green-300 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
+                                          <Eye className="w-3.5 h-3.5" /> View
+                                        </Button>
+                                        <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 flex-shrink-0" onClick={() => setArchiveTarget(doc)}>
+                                          <Archive className="w-3.5 h-3.5" /> Archive
+                                        </Button>
+                                      </div>
                                     </div>
                                   ))}
-                                </div>
+                                </div> 
                               )}
                             </div>
                           )}
@@ -2115,9 +2640,9 @@ const UhcMember = () => {
             </TabsContent>
 
             {/* ════ HEALTH CARD ════ */}
-            <TabsContent value="qrcode">
+         <TabsContent value="qrcode">
               {isLoadingQr ? (
-                <Card className="p-6">
+                <Card className="p-4 sm:p-6">
                   <div className="flex flex-col items-center py-12 gap-3 text-gray-400">
                     <Loader2 className="w-8 h-8 animate-spin text-green-600" />
                     <p className="text-sm">Loading your health card…</p>
@@ -2125,29 +2650,29 @@ const UhcMember = () => {
                 </Card>
               ) : qrDataUrl && qrCodeValue ? (
                 <div className="flex flex-col gap-4">
-                  <Card className="p-5">
-                    <div className="flex items-start justify-between flex-wrap gap-4">
+                  <Card className="p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                       <div>
-                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                        <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                           <CreditCard className="w-5 h-5 text-green-600" /> My Health ID Card
                         </h3>
                         <p className="text-xs text-gray-400 mt-1 max-w-sm">Download or print your card and bring it to a print shop for a physical ID.</p>
                       </div>
                       <div className="flex gap-2 flex-wrap">
-                        <Button variant="outline" onClick={handlePrintCard} disabled={isCapturing} className="flex gap-2 border-gray-300 text-gray-700 hover:bg-gray-50">
-                          {isCapturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />} Print Card
+                        <Button variant="outline" onClick={handlePrintCard} disabled={isCapturing} className="flex gap-2 border-green-300 text-green-700 hover:bg-green-50 hover:text-green-800 text-xs sm:text-sm">
+                          {isCapturing ? (<Loader2 className="w-4 h-4 animate-spin text-green-700" />) : (<Printer className="w-4 h-4 text-green-700" />)}<span className="hidden sm:inline">Print</span> Card
                         </Button>
-                        <Button onClick={handleDownloadCard} disabled={isCapturing} className="flex gap-2 bg-green-700 hover:bg-green-800 text-white">
-                          {isCapturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download Card
+                        <Button onClick={handleDownloadCard} disabled={isCapturing} className="flex gap-2 bg-green-700 hover:bg-green-800 text-white text-xs sm:text-sm">
+                          {isCapturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download<span className="hidden sm:inline"> Card</span>
                         </Button>
                         <a href={qrDataUrl} download={`QR_${selectedPatient?.last_name}_${selectedPatient?.first_name}.png`}
-                          className="inline-flex items-center gap-2 text-sm border border-blue-300 text-blue-700 hover:bg-blue-50 rounded-md px-3 py-2 transition-colors font-medium">
+                          className="inline-flex items-center gap-2 text-xs sm:text-sm border border-green-300 text-green-700 hover:bg-green-50 rounded-md px-3 py-2 transition-colors font-medium">
                           <QrCode className="w-4 h-4" /> QR Only
                         </a>
                       </div>
                     </div>
                   </Card>
-                  <Card className="p-6">
+                  <Card className="p-3 sm:p-6">
                     <div className="overflow-x-auto flex justify-center">
                       <HealthIdCard patient={selectedPatient!} qrDataUrl={qrDataUrl} qrCodeValue={qrCodeValue} cardRef={cardRef} profilePicUrl={profilePicUrl} />
                     </div>
@@ -2165,10 +2690,10 @@ const UhcMember = () => {
             </TabsContent>
 
             {/* ════ ARCHIVE ════ */}
-            <TabsContent value="archive">
-              <Card className="p-6">
+           <TabsContent value="archive">
+              <Card className="p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                     <Archive className="w-5 h-5 text-amber-600" /> Archived Documents
                   </h3>
                   <span className="text-xs text-gray-400">{totalArchived} archived</span>
@@ -2196,21 +2721,26 @@ const UhcMember = () => {
                             <p className={`font-semibold text-sm ${colors.text}`}>{folder.label}</p>
                             <span className={`ml-auto text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge}`}>{archivedDocs.length}</span>
                           </div>
-                          <div className="p-4 bg-white border-t flex flex-col gap-2">
+                          <div className="p-3 sm:p-4 bg-white border-t flex flex-col gap-2">
                             {archivedDocs.map((doc) => (
-                              <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg border border-amber-100 bg-amber-50">
-                                <FileText className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-700 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
-                                  <p className="text-xs text-gray-400">{doc.category}</p>
+                              <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-800 truncate">{displayFileName(doc.attachment, selectedPatient)}</p>
+                                    <p className="text-xs text-gray-400">{doc.category}</p>
+                                  </div>
+                                  <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0 sm:hidden">Archived</span>
                                 </div>
-                                <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0">Archived</span>
-                                <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 text-green-700 hover:bg-green-50 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
-                                  <Eye className="w-3.5 h-3.5" /> View
-                                </Button>
-                                <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-blue-300 text-blue-700 hover:bg-blue-50 flex-shrink-0" onClick={() => handleRestore(doc.id)}>
-                                  <ArchiveRestore className="w-3.5 h-3.5" /> Restore
-                                </Button>
+                                <div className="flex items-center gap-2 ml-7 sm:ml-0 flex-shrink-0">
+                                  <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:inline">Archived</span>
+                                  <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-green-300 bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700 hover:border-green-300 flex-shrink-0" onClick={() => setPreviewDoc(doc)}>
+                                    <Eye className="w-3.5 h-3.5" /> View
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="flex gap-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 flex-shrink-0" onClick={() => handleRestore(doc.id)}>
+                                    <ArchiveRestore className="w-3.5 h-3.5" /> Restore
+                                  </Button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -2224,13 +2754,13 @@ const UhcMember = () => {
 
             {/* ════ PIN TAB ════ */}
             <TabsContent value="pin">
-              <Card className="p-6">
+              <Card className="p-4 sm:p-6">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
                     <Lock className="w-5 h-5 text-green-700" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg text-gray-900">My Security PIN</h3>
+                    <h3 className="font-semibold text-base sm:text-lg text-gray-900">My Security PIN</h3>
                     <p className="text-xs text-gray-400">Your 4-digit PIN protects your health records from unauthorized access.</p>
                   </div>
                 </div>
@@ -2254,18 +2784,18 @@ const UhcMember = () => {
                 )}
 
                 {/* PIN status block */}
-                <div className={`rounded-2xl border-2 p-6 mb-5 ${
+                <div className={`rounded-2xl border-2 p-4 sm:p-6 mb-5 ${
                   hasPin ? 'border-green-200 bg-green-50' : 'border-dashed border-gray-200 bg-gray-50'
                 }`}>
-                  <div className="flex items-center justify-between flex-wrap gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${hasPin ? 'bg-green-100' : 'bg-gray-100'}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${hasPin ? 'bg-green-100' : 'bg-gray-100'}`}>
                         {hasPin
-                          ? <ShieldCheck className="w-7 h-7 text-green-600" />
-                          : <ShieldAlert className="w-7 h-7 text-gray-400" />}
+                          ? <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-green-600" />
+                          : <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7 text-gray-400" />}
                       </div>
                       <div>
-                        <p className={`font-bold text-base ${hasPin ? 'text-green-800' : 'text-gray-600'}`}>
+                        <p className={`font-bold text-sm sm:text-base ${hasPin ? 'text-green-800' : 'text-gray-600'}`}>
                           {hasPin ? 'PIN is Active' : 'No PIN Set'}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5 max-w-xs leading-relaxed">
@@ -2324,7 +2854,6 @@ const UhcMember = () => {
         {!selectedPatient && (
           <div className="flex flex-col items-center py-16 text-gray-400 gap-3">
             <IdCard className="w-16 h-16 opacity-20" />
-            <p className="font-medium text-gray-500">Search your name to view your health card</p>
             <p className="text-sm">Your documents, QR code, and printable health ID card will appear here.</p>
           </div>
         )}
