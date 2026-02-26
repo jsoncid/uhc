@@ -21,21 +21,34 @@ interface UserAssignmentDialogProps {
   onClose: () => void
   assignments: Assignment[]
   userAssignments: UserAssignment[]
+  editingAssignment?: UserAssignment | null
 }
 
-export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignments }: UserAssignmentDialogProps) => {
+export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignments, editingAssignment }: UserAssignmentDialogProps) => {
   const [users, setUsers] = useState<AuthUser[]>([])
   const [availableUsers, setAvailableUsers] = useState<AuthUser[]>([])
   const [formData, setFormData] = useState({
     user: '',
     assignment: ''
   })
+  const isEditMode = !!editingAssignment
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingUsers, setIsLoadingUsers] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
+      if (editingAssignment) {
+        setFormData({
+          user: editingAssignment.user,
+          assignment: editingAssignment.assignment
+        })
+      } else {
+        setFormData({
+          user: '',
+          assignment: ''
+        })
+      }
       fetchUsers()
     } else {
       setFormData({
@@ -44,7 +57,7 @@ export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignm
       })
       setError(null)
     }
-  }, [isOpen, userAssignments])
+  }, [isOpen, userAssignments, editingAssignment])
 
   const fetchUsers = async () => {
     try {
@@ -55,10 +68,19 @@ export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignm
       // Filter out users who already have an assignment
       const usersWithAssignments = new Set(
         userAssignments
-          .filter(ua => ua.is_active)
+          .filter(ua => ua.is_active && ua.id !== editingAssignment?.id) // Exclude current editing assignment
           .map(ua => ua.user)
       )
       const filtered = userData.filter(user => !usersWithAssignments.has(user.id))
+      
+      // In edit mode, ensure the current user is included
+      if (isEditMode && editingAssignment) {
+        const currentUser = userData.find(u => u.id === editingAssignment.user)
+        if (currentUser && !filtered.find(u => u.id === currentUser.id)) {
+          filtered.unshift(currentUser)
+        }
+      }
+      
       setAvailableUsers(filtered)
     } catch (err) {
       setError('Failed to fetch users')
@@ -80,14 +102,20 @@ export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignm
     setError(null)
 
     try {
-      await roleService.createUserAssignment({
-        user: formData.user,
-        assignment: formData.assignment
-      })
+      if (isEditMode && editingAssignment) {
+        await roleService.updateUserAssignment(editingAssignment.id, {
+          assignment: formData.assignment
+        })
+      } else {
+        await roleService.createUserAssignment({
+          user: formData.user,
+          assignment: formData.assignment
+        })
+      }
       onClose()
     } catch (err) {
-      setError('Failed to create user assignment')
-      console.error('Error creating user assignment:', err)
+      setError(isEditMode ? 'Failed to update user assignment' : 'Failed to create user assignment')
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} user assignment:`, err)
     } finally {
       setIsLoading(false)
     }
@@ -103,7 +131,7 @@ export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignm
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Assign User to Facility  </DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit User Assignment' : 'Assign User to Facility'}</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit}>
@@ -119,7 +147,7 @@ export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignm
               <Select
                 value={formData.user}
                 onValueChange={(value) => setFormData({ ...formData, user: value })}
-                disabled={isLoadingUsers}
+                disabled={isLoadingUsers || isEditMode}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={isLoadingUsers ? "Loading users..." : "Select a user"} />
@@ -165,7 +193,7 @@ export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignm
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Assigning...' : 'Assign User'}
+              {isLoading ? (isEditMode ? 'Updating...' : 'Assigning...') : (isEditMode ? 'Update Assignment' : 'Assign User')}
             </Button>
           </DialogFooter>
         </form>

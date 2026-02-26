@@ -307,6 +307,27 @@ export const roleService = {
     }
   },
 
+  async updateUserAssignment(id: string, assignmentData: UserAssignment['Update']): Promise<UserAssignment['Row']> {
+    try {
+      const { data, error } = await supabase
+        .from('user_assignment')
+        .update(assignmentData)
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error updating user assignment:', error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in updateUserAssignment:', error)
+      throw error
+    }
+  },
+
   async deleteUserAssignment(id: string): Promise<void> {
     try {
       const { error } = await supabase

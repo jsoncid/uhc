@@ -70,6 +70,7 @@ export const UserAssignmentList = () => {
   const [deleteUserRoleTarget, setDeleteUserRoleTarget] = useState<UserRole | null>(null)
   const [isDeleteUserRoleOpen, setIsDeleteUserRoleOpen] = useState(false)
   const [isDeletingUserRole, setIsDeletingUserRole] = useState(false)
+  const [editingUserAssignment, setEditingUserAssignment] = useState<UserAssignment | null>(null)
 
   const fetchData = async () => {
     try {
@@ -197,6 +198,11 @@ export const UserAssignmentList = () => {
     }
   }, [roles])
 
+  const handleEditUserAssignment = (assignment: UserAssignment) => {
+    setEditingUserAssignment(assignment)
+    setIsUserAssignmentDialogOpen(true)
+  }
+
   const handleDeleteUserAssignment = (assignment: UserAssignment) => {
     setDeleteUserAssignmentTarget(assignment)
     setIsDeleteUserAssignmentOpen(true)
@@ -293,6 +299,7 @@ export const UserAssignmentList = () => {
     setIsUserRoleDialogOpen(false)
     setSelectedRole(null)
     setSelectedAccess(null)
+    setEditingUserAssignment(null)
     fetchUserAssignments()
     fetchRoleModuleAccess()
     fetchData() // Refresh user roles data
@@ -451,13 +458,22 @@ export const UserAssignmentList = () => {
                             {new Date(assignment.created_at).toLocaleDateString()}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteUserAssignment(assignment)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditUserAssignment(assignment)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteUserAssignment(assignment)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -767,6 +783,7 @@ export const UserAssignmentList = () => {
         onClose={handleDialogClose}
         assignments={assignments}
         userAssignments={userAssignments}
+        editingAssignment={editingUserAssignment}
       />
 
       <UserRoleDialog
