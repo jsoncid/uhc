@@ -132,7 +132,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     userRoleId: null,
     userAssignmentId: null,
     userAssignmentName: null,
-    isLoading: false,
+    isLoading: true, // Start as true to prevent flash of login page
     error: null,
     sessionExpiry: null,
 

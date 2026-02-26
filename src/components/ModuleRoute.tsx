@@ -30,7 +30,13 @@ export const ModuleRoute = ({
   children,
 }: ModuleRouteProps) => {
   const user = useAuthStore((s) => s.user);
+  const isAuthLoading = useAuthStore((s) => s.isLoading);
   const { checkAccess, loading } = usePermissions();
+
+  // Wait for auth initialization before deciding to redirect
+  if (isAuthLoading) {
+    return null;
+  }
 
   // Not authenticated → login
   if (!user) {
