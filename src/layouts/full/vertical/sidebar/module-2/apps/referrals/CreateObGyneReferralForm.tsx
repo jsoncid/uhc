@@ -1,9 +1,14 @@
-import { useState, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router';
 import { Icon } from '@iconify/react';
 import { ReferralContext, ReferralContextType } from '../../context/ReferralContext';
 import { ReferralType, ReferralInfo } from '../../types/referral';
-import { StatusData } from '../../data/referral-data';
+import { supabaseM3 } from 'src/lib/supabase';
+import { useAuthStore } from 'src/stores/useAuthStore';
+import { patientService } from 'src/services/patientService';
+import { assignmentService } from 'src/services/assignmentService';
+
+import { Database } from 'src/lib/supabase';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
@@ -11,62 +16,20 @@ import { Label } from 'src/components/ui/label';
 import { Textarea } from 'src/components/ui/textarea';
 import { Separator } from 'src/components/ui/separator';
 import { Badge } from 'src/components/ui/badge';
-
-// ── Mock patient registry (simulates module3.patient_profile lookup) ──────────
-const MOCK_PATIENT_DB: Record<
-  string,
-  {
-    id: string;
-    name: string;
-    age: number;
-    sex: string;
-    birth_date: string;
-    complete_address: string;
-    referring_facility: string;
-    facility_address: string;
-  }
-> = {
-  'pp-0001': {
-    id: 'pp-0001',
-    name: 'Juan dela Cruz',
-    age: 45,
-    sex: 'Male',
-    birth_date: '1979-03-15',
-    complete_address: '123 Rizal St., Diliman, Quezon City',
-    referring_facility: 'Quezon City General Hospital',
-    facility_address: 'Seminary Rd., Diliman, Quezon City',
-  },
-  'pp-0002': {
-    id: 'pp-0002',
-    name: 'Maria Santos',
-    age: 32,
-    sex: 'Female',
-    birth_date: '1992-07-22',
-    complete_address: '456 Mabini Ave., Pasig City',
-    referring_facility: 'Pasig General Hospital',
-    facility_address: 'Caruncho Ave., San Nicolas, Pasig City',
-  },
-  'pp-0003': {
-    id: 'pp-0003',
-    name: 'Pedro Reyes',
-    age: 58,
-    sex: 'Male',
-    birth_date: '1966-11-05',
-    complete_address: '789 Luna Rd., Marikina City',
-    referring_facility: 'Marikina Valley Medical Center',
-    facility_address: 'J.P. Rizal St., Marikina City',
-  },
-  'pp-0004': {
-    id: 'pp-0004',
-    name: 'Ana Torres',
-    age: 27,
-    sex: 'Female',
-    birth_date: '1997-01-30',
-    complete_address: '321 Bonifacio St., Mandaluyong City',
-    referring_facility: 'Mandaluyong City Medical Center',
-    facility_address: 'Maysilo Circle, Mandaluyong City',
-  },
-};
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from 'src/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'src/components/ui/select';
 
 // ── Section title helper ──────────────────────────────────────────────────────
 const SectionTitle = ({ icon, title }: { icon: string; title: string }) => (
@@ -89,17 +52,34 @@ const AutoField = ({ label, value }: { label: string; value: string }) => (
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+type AssignmentRow = Database['public']['Tables']['assignment']['Row'];
+type PatientRow = Database['module3']['Tables']['patient_profile']['Row'];
+
 const CreateObGyneReferralForm = () => {
   const { addReferral }: ReferralContextType = useContext(ReferralContext);
   const navigate = useNavigate();
+  const { userAssignmentId, userAssignmentName } = useAuthStore();
 
-  // ── Patient ID lookup ─────────────────────────────────────────────────────
-  const [patientIdInput, setPatientIdInput] = useState('');
-  const [patientIdError, setPatientIdError] = useState('');
+  // ── Assignment dropdown ───────────────────────────────────────────────────
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
+  const [toAssignmentId, setToAssignmentId] = useState('');
+  const [toAssignmentName, setToAssignmentName] = useState('');
+
+  useEffect(() => {
+    assignmentService
+      .getAllAssignments()
+      .then((rows) => setAssignments(rows.filter((a) => a.id !== userAssignmentId)))
+      .catch(console.error);
+  }, [userAssignmentId]);
+
+  // ── Patient picker ────────────────────────────────────────────────────────
   const [confirmedPatientId, setConfirmedPatientId] = useState('');
+  const [patientPickerOpen, setPatientPickerOpen] = useState(false);
+  const [patientList, setPatientList] = useState<PatientRow[]>([]);
+  const [patientListLoading, setPatientListLoading] = useState(false);
+  const [patientSearch, setPatientSearch] = useState('');
 
   // ── Auto-filled patient details (locked after confirm) ───────────────────
-  const [referringFacility, setReferringFacility] = useState('');
   const [facilityAddress, setFacilityAddress] = useState('');
   const [patientName, setPatientName] = useState('');
   const [age, setAge] = useState('');
@@ -128,10 +108,78 @@ const CreateObGyneReferralForm = () => {
   const [vision, setVision] = useState('');
   const [motor, setMotor] = useState('');
   const [medications, setMedications] = useState('');
-  const [referringTo, setReferringTo] = useState('');
   const [referringDoctor, setReferringDoctor] = useState('');
   const [contactNo, setContactNo] = useState('');
-  const [vaccinations, setVaccinations] = useState([{ description: '', date: '' }]);
+  // ── Diagnostics state ─────────────────────────────────────────────────────
+  const [diagRows, setDiagRows] = useState<
+    { id: string; diagnostics: string; date: string; attachments: string[] }[]
+  >([]);
+  const [diagForm, setDiagForm] = useState({ diagnostics: '', date: '' });
+  const [showDiagForm, setShowDiagForm] = useState(false);
+  const addDiagRow = () => {
+    if (!diagForm.diagnostics.trim()) return;
+    setDiagRows((p) => [...p, { id: `diag-${Date.now()}`, ...diagForm, attachments: [] }]);
+    setDiagForm({ diagnostics: '', date: '' });
+    setShowDiagForm(false);
+  };
+  const removeDiagRow = (id: string) => setDiagRows((p) => p.filter((d) => d.id !== id));
+  const handleDiagFileChange = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const b64 = ev.target?.result as string;
+        setDiagRows((p) =>
+          p.map((d) => (d.id === id ? { ...d, attachments: [...d.attachments, b64] } : d)),
+        );
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+  const removeDiagAttachment = (id: string, idx: number) =>
+    setDiagRows((p) =>
+      p.map((d) =>
+        d.id === id ? { ...d, attachments: d.attachments.filter((_, i) => i !== idx) } : d,
+      ),
+    );
+
+  // ── Vaccination state ──────────────────────────────────────────────────────
+  const [vacRows, setVacRows] = useState<
+    { id: string; description: string; date: string; attachments: string[] }[]
+  >([]);
+  const [vacForm, setVacForm] = useState({ description: '', date: '' });
+  const [showVacForm, setShowVacForm] = useState(false);
+  const addVacRow = () => {
+    if (!vacForm.description.trim()) return;
+    setVacRows((p) => [...p, { id: `vac-${Date.now()}`, ...vacForm, attachments: [] }]);
+    setVacForm({ description: '', date: '' });
+    setShowVacForm(false);
+  };
+  const removeVacRow = (id: string) => setVacRows((p) => p.filter((v) => v.id !== id));
+  const handleVacFileChange = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const b64 = ev.target?.result as string;
+        setVacRows((p) =>
+          p.map((v) => (v.id === id ? { ...v, attachments: [...v.attachments, b64] } : v)),
+        );
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+  const removeVacAttachment = (id: string, idx: number) =>
+    setVacRows((p) =>
+      p.map((v) =>
+        v.id === id ? { ...v, attachments: v.attachments.filter((_, i) => i !== idx) } : v,
+      ),
+    );
+
+  // ── Preview state ──────────────────────────────────────────────────────────
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // ── OB/GYNE fields ────────────────────────────────────────────────────────
   // Obstetric History
@@ -168,40 +216,55 @@ const CreateObGyneReferralForm = () => {
   const [xray, setXray] = useState('');
   const [otherDiagnostics, setOtherDiagnostics] = useState('');
 
-  // ── Vaccination helpers ───────────────────────────────────────────────────
-  const addVaccinationRow = () => setVaccinations((p) => [...p, { description: '', date: '' }]);
-  const removeVaccinationRow = (i: number) => setVaccinations((p) => p.filter((_, x) => x !== i));
-  const updateVaccination = (i: number, field: 'description' | 'date', val: string) =>
-    setVaccinations((p) => p.map((v, x) => (x === i ? { ...v, [field]: val } : v)));
+  // ── Patient picker handlers ───────────────────────────────────────────────
+  const openPatientPicker = async () => {
+    setPatientPickerOpen(true);
+    setPatientSearch('');
+    setPatientListLoading(true);
+    try {
+      const { data } = await supabaseM3
+        .from('patient_profile')
+        .select('id, first_name, middle_name, last_name, sex, birth_date')
+        .order('last_name', { ascending: true });
+      setPatientList((data as PatientRow[]) ?? []);
+    } finally {
+      setPatientListLoading(false);
+    }
+  };
 
-  // ── Patient ID confirm ────────────────────────────────────────────────────
-  const handleConfirmPatient = () => {
-    const trimmed = patientIdInput.trim();
-    if (!trimmed) {
-      setPatientIdError('Please enter a Patient ID.');
-      return;
+  const selectPatient = async (p: PatientRow) => {
+    const fullName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ');
+    const birthYear = p.birth_date ? new Date(p.birth_date).getFullYear() : null;
+    const computedAge = birthYear ? new Date().getFullYear() - birthYear : '';
+    setConfirmedPatientId(p.id);
+    setPatientName(fullName);
+    setAge(String(computedAge));
+    setSex(p.sex ?? '');
+    setBirthDate(p.birth_date ?? '');
+    setPatientPickerOpen(false);
+
+    // Fetch resolved address via patientService
+    const addrResult = await patientService.getPatientAddressById(p.id);
+    if (addrResult) {
+      const parts = [
+        addrResult.street,
+        addrResult.brgy_name,
+        addrResult.city_name,
+        addrResult.province_name,
+        addrResult.region_name,
+      ].filter(Boolean);
+      const addr = parts.join(', ');
+      const brgyPart = [addrResult.street, addrResult.brgy_name].filter(Boolean).join(', ');
+      setFacilityAddress(brgyPart);
+      setCompleteAddress(addr);
+    } else {
+      setFacilityAddress('');
+      setCompleteAddress('');
     }
-    const found = MOCK_PATIENT_DB[trimmed];
-    if (!found) {
-      setPatientIdError(`No patient found with ID "${trimmed}". Try pp-0001 to pp-0004.`);
-      return;
-    }
-    setPatientIdError('');
-    setConfirmedPatientId(found.id);
-    setReferringFacility(found.referring_facility);
-    setFacilityAddress(found.facility_address);
-    setPatientName(found.name);
-    setAge(String(found.age));
-    setSex(found.sex);
-    setBirthDate(found.birth_date);
-    setCompleteAddress(found.complete_address);
   };
 
   const handleClearPatient = () => {
-    setPatientIdInput('');
-    setPatientIdError('');
     setConfirmedPatientId('');
-    setReferringFacility('');
     setFacilityAddress('');
     setPatientName('');
     setAge('');
@@ -211,7 +274,7 @@ const CreateObGyneReferralForm = () => {
   };
 
   // ── Submit ────────────────────────────────────────────────────────────────
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!confirmedPatientId) {
       alert('Please confirm a Patient ID first.');
@@ -279,17 +342,24 @@ const CreateObGyneReferralForm = () => {
       lab_result: labResult || null,
       xray: xray || null,
       other_diagnostics: otherDiagnostics || null,
-      diagnostics: [],
-      vaccinations: vaccinations
-        .filter((v) => v.description)
-        .map((v, i) => ({
-          id: `vac-${Date.now()}-${i}`,
-          created_at: now,
-          referral_info: infoId,
-          description: v.description,
-          date: v.date || null,
-          status: true,
-        })),
+      diagnostics: diagRows.map((d, i) => ({
+        id: `diag-${Date.now()}-${i}`,
+        created_at: now,
+        referral_info: infoId,
+        diagnostics: d.diagnostics,
+        date: d.date || null,
+        attachments: d.attachments,
+        status: true,
+      })),
+      vaccinations: vacRows.map((v, i) => ({
+        id: `vac-${Date.now()}-${i}`,
+        created_at: now,
+        referral_info: infoId,
+        description: v.description,
+        date: v.date || null,
+        attachments: v.attachments,
+        status: true,
+      })),
     };
 
     const newReferral: ReferralType = {
@@ -298,16 +368,16 @@ const CreateObGyneReferralForm = () => {
       status: true,
       patient_profile: confirmedPatientId,
       patient_name: patientName,
-      from_assignment: null,
-      from_assignment_name: referringFacility || undefined,
-      to_assignment: null,
-      to_assignment_name: referringTo || undefined,
-      latest_status: StatusData.find((s) => s.description === 'Pending'),
+      from_assignment: userAssignmentId,
+      from_assignment_name: userAssignmentName || undefined,
+      to_assignment: toAssignmentId || null,
+      to_assignment_name: toAssignmentName || undefined,
+      latest_status: undefined,
       referral_info: newInfo,
       history: [],
     };
 
-    addReferral(newReferral);
+    await addReferral(newReferral);
     navigate('/module-2/referrals');
   };
 
@@ -333,11 +403,17 @@ const CreateObGyneReferralForm = () => {
     setEye('');
     setVision('');
     setMotor('');
-    setReferringTo('');
+    setToAssignmentId('');
+    setToAssignmentName('');
     setMedications('');
     setReferringDoctor('');
     setContactNo('');
-    setVaccinations([{ description: '', date: '' }]);
+    setDiagRows([]);
+    setVacRows([]);
+    setDiagForm({ diagnostics: '', date: '' });
+    setVacForm({ description: '', date: '' });
+    setShowDiagForm(false);
+    setShowVacForm(false);
     // OB/GYNE
     setGravida('');
     setParity('');
@@ -368,6 +444,12 @@ const CreateObGyneReferralForm = () => {
   };
 
   const patientConfirmed = !!confirmedPatientId;
+  const filteredPatients = patientList.filter((p) => {
+    if (!patientSearch.trim()) return true;
+    const q = patientSearch.toLowerCase();
+    const name = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').toLowerCase();
+    return name.includes(q);
+  });
 
   return (
     <form onSubmit={handleSubmit}>
@@ -395,47 +477,21 @@ const CreateObGyneReferralForm = () => {
                   className="mr-1"
                 />
                 {patientConfirmed
-                  ? `Patient Confirmed: ${confirmedPatientId}`
-                  : 'Auto-fill from Patient Profile'}
+                  ? `Patient Confirmed: ${patientName}`
+                  : 'Select a Patient to Auto-fill'}
               </Badge>
             </div>
 
-            {/* Patient ID lookup row */}
+            {/* Patient picker */}
             <div className="flex gap-3 items-end mb-6">
-              <div className="flex-1 max-w-xs">
-                <Label htmlFor="patientIdInput">
-                  Patient ID <span className="text-error">*</span>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="patientIdInput"
-                    value={patientIdInput}
-                    onChange={(e) => {
-                      setPatientIdInput(e.target.value);
-                      setPatientIdError('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleConfirmPatient();
-                      }
-                    }}
-                    placeholder="e.g. pp-0001"
-                    disabled={patientConfirmed}
-                    className={patientIdError ? 'border-error' : ''}
-                  />
-                  {patientIdError && (
-                    <p className="absolute top-full left-0 mt-1 text-xs text-error flex items-center gap-1 whitespace-nowrap">
-                      <Icon icon="solar:danger-circle-linear" height={12} />
-                      {patientIdError}
-                    </p>
-                  )}
-                </div>
-              </div>
               {!patientConfirmed ? (
-                <Button type="button" onClick={handleConfirmPatient}>
-                  <Icon icon="solar:magnifer-bold-duotone" height={15} className="mr-1.5" />
-                  Find &amp; Confirm Patient
+                <Button type="button" onClick={openPatientPicker}>
+                  <Icon
+                    icon="solar:users-group-rounded-bold-duotone"
+                    height={15}
+                    className="mr-1.5"
+                  />
+                  Select Patient
                 </Button>
               ) : (
                 <Button type="button" variant="outline" onClick={handleClearPatient}>
@@ -445,11 +501,82 @@ const CreateObGyneReferralForm = () => {
               )}
             </div>
 
+            {/* Patient picker dialog */}
+            <Dialog open={patientPickerOpen} onOpenChange={setPatientPickerOpen}>
+              <DialogContent className="max-w-xl">
+                <DialogHeader>
+                  <DialogTitle>Select Patient</DialogTitle>
+                  <DialogDescription>
+                    Choose a patient from the list. Their details will be auto-filled into the form.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="relative mb-2">
+                  <Icon
+                    icon="solar:magnifer-linear"
+                    height={15}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <Input
+                    placeholder="Search by name..."
+                    value={patientSearch}
+                    onChange={(e) => setPatientSearch(e.target.value)}
+                    className="pl-9"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-80 overflow-y-auto divide-y divide-border rounded-md border border-border">
+                  {patientListLoading ? (
+                    <div className="flex justify-center items-center py-10 gap-2 text-muted-foreground">
+                      <Icon
+                        icon="solar:spinner-bold-duotone"
+                        height={20}
+                        className="animate-spin"
+                      />
+                      <span className="text-sm">Loading patients...</span>
+                    </div>
+                  ) : filteredPatients.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                      <Icon icon="solar:user-cross-bold-duotone" height={28} className="mb-2" />
+                      <p className="text-sm">No patients found.</p>
+                    </div>
+                  ) : (
+                    filteredPatients.map((p) => {
+                      const name = [p.first_name, p.middle_name, p.last_name]
+                        .filter(Boolean)
+                        .join(' ');
+                      const birthYear = p.birth_date ? new Date(p.birth_date).getFullYear() : null;
+                      const rowAge = birthYear ? new Date().getFullYear() - birthYear : '—';
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => selectPatient(p)}
+                          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/50 transition-colors"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">{name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {p.sex} · Age {rowAge} · Born {p.birth_date}
+                            </p>
+                          </div>
+                          <Icon
+                            icon="solar:arrow-right-linear"
+                            height={14}
+                            className="text-muted-foreground"
+                          />
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {/* Auto-filled patient details */}
             {patientConfirmed ? (
               <div className="grid grid-cols-12 gap-4">
                 <div className="lg:col-span-6 col-span-12">
-                  <AutoField label="Referring Facility" value={referringFacility} />
+                  <AutoField label="Referring Facility" value={userAssignmentName || ''} />
                 </div>
                 <div className="lg:col-span-6 col-span-12">
                   <AutoField label="Address" value={facilityAddress} />
@@ -478,14 +605,8 @@ const CreateObGyneReferralForm = () => {
                   className="text-muted-foreground mx-auto mb-2"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Enter a Patient ID above and click <strong>Find &amp; Confirm Patient</strong> to
-                  auto-fill their details.
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Demo IDs: <code className="bg-muted px-1 rounded">pp-0001</code>,{' '}
-                  <code className="bg-muted px-1 rounded">pp-0002</code>,{' '}
-                  <code className="bg-muted px-1 rounded">pp-0003</code>,{' '}
-                  <code className="bg-muted px-1 rounded">pp-0004</code>
+                  Click <strong>Select Patient</strong> above to browse and choose a patient. Their
+                  details will be auto-filled into the form.
                 </p>
               </div>
             )}
@@ -505,12 +626,32 @@ const CreateObGyneReferralForm = () => {
                 <div className="grid grid-cols-12 gap-4">
                   <div className="col-span-12">
                     <Label htmlFor="referringTo">Referring To (Destination Facility)</Label>
-                    <Input
-                      id="referringTo"
-                      value={referringTo}
-                      onChange={(e) => setReferringTo(e.target.value)}
-                      placeholder="e.g. Philippine General Hospital, Lung Center of the Philippines..."
-                    />
+                    <Select
+                      value={toAssignmentId}
+                      onValueChange={(val) => {
+                        setToAssignmentId(val);
+                        setToAssignmentName(
+                          assignments.find((a) => a.id === val)?.description ?? '',
+                        );
+                      }}
+                    >
+                      <SelectTrigger id="referringTo">
+                        <SelectValue placeholder="Select destination facility..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {assignments.length === 0 ? (
+                          <SelectItem value="__none" disabled>
+                            No facilities available
+                          </SelectItem>
+                        ) : (
+                          assignments.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.description}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="col-span-12">
                     <Label htmlFor="reasonReferral">
@@ -572,7 +713,146 @@ const CreateObGyneReferralForm = () => {
               </CardBox>
             </div>
 
-            {/* ── Section 3: Vaccination Record ────────────────────────────── */}
+            {/* ── Section 3: Recent Diagnostic Tests ──────────────────────── */}
+            <div className="col-span-12">
+              <CardBox>
+                <div className="flex items-center justify-between mb-4">
+                  <SectionTitle
+                    icon="solar:test-tube-bold-duotone"
+                    title="Recent Diagnostic Tests"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDiagForm((v) => !v)}
+                  >
+                    <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
+                    Add
+                  </Button>
+                </div>
+                {showDiagForm && (
+                  <div className="mb-4 p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">
+                        Finding / Test Result <span className="text-error">*</span>
+                      </Label>
+                      <Textarea
+                        rows={2}
+                        placeholder="e.g. CBC — Hgb 110 g/L"
+                        className="text-sm resize-none"
+                        value={diagForm.diagnostics}
+                        onChange={(e) =>
+                          setDiagForm((f) => ({ ...f, diagnostics: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Date</Label>
+                      <Input
+                        type="date"
+                        className="h-8 text-sm"
+                        value={diagForm.date}
+                        onChange={(e) => setDiagForm((f) => ({ ...f, date: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setShowDiagForm(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={addDiagRow}
+                        disabled={!diagForm.diagnostics.trim()}
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  {diagRows.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">No diagnostics recorded.</p>
+                  ) : (
+                    diagRows.map((d) => (
+                      <div
+                        key={d.id}
+                        className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border border-border"
+                      >
+                        <div className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Icon
+                            icon="solar:document-text-bold-duotone"
+                            height={11}
+                            className="text-primary"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium leading-snug">{d.diagnostics}</p>
+                          {d.date && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{d.date}</p>
+                          )}
+                          {d.attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {d.attachments.map((url, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-medium text-primary"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewUrl(url)}
+                                    className="hover:underline"
+                                  >
+                                    {url.startsWith('data:image')
+                                      ? `Image ${idx + 1}`
+                                      : `PDF ${idx + 1}`}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeDiagAttachment(d.id, idx)}
+                                    className="ml-1 text-muted-foreground hover:text-destructive"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <label className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary cursor-pointer">
+                            <Icon icon="solar:paperclip-bold-duotone" height={11} />
+                            Attach file
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*,application/pdf"
+                              className="hidden"
+                              onChange={(e) => handleDiagFileChange(d.id, e)}
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeDiagRow(d.id)}
+                          className="text-muted-foreground hover:text-destructive mt-0.5 flex-shrink-0"
+                        >
+                          <Icon icon="solar:trash-bin-trash-bold-duotone" height={15} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardBox>
+            </div>
+
+            {/* ── Section 4: Vaccination Record with Dates ─────────────────── */}
             <div className="col-span-12">
               <CardBox>
                 <div className="flex items-center justify-between mb-4">
@@ -580,51 +860,136 @@ const CreateObGyneReferralForm = () => {
                     icon="solar:shield-check-bold-duotone"
                     title="Vaccination Record with Dates"
                   />
-                  <Button type="button" variant="outline" size="sm" onClick={addVaccinationRow}>
-                    <Icon icon="solar:add-circle-outline" height={15} className="mr-1.5" />
-                    Add Row
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowVacForm((v) => !v)}
+                  >
+                    <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
+                    Add
                   </Button>
                 </div>
-                <div className="flex flex-col gap-3">
-                  {vaccinations.map((vac, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-3 items-end">
-                      <div className="lg:col-span-7 col-span-12">
-                        <Label className="text-xs text-muted-foreground mb-1 block">
-                          Vaccine / Description
-                        </Label>
-                        <Input
-                          value={vac.description}
-                          onChange={(e) => updateVaccination(idx, 'description', e.target.value)}
-                          placeholder="e.g. COVID-19 – Pfizer (2 doses), Influenza..."
-                        />
-                      </div>
-                      <div className="lg:col-span-4 col-span-10">
-                        <Label className="text-xs text-muted-foreground mb-1 block">Date</Label>
-                        <Input
-                          type="date"
-                          value={vac.date}
-                          onChange={(e) => updateVaccination(idx, 'date', e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-1 flex items-end pb-0.5">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 text-error hover:bg-error/10"
-                          onClick={() => removeVaccinationRow(idx)}
-                          disabled={vaccinations.length === 1}
-                        >
-                          <Icon icon="solar:trash-bin-minimalistic-linear" height={15} />
-                        </Button>
-                      </div>
+                {showVacForm && (
+                  <div className="mb-4 p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">
+                        Vaccine / Description <span className="text-error">*</span>
+                      </Label>
+                      <Textarea
+                        rows={2}
+                        placeholder="e.g. COVID-19 Booster — Pfizer"
+                        className="text-sm resize-none"
+                        value={vacForm.description}
+                        onChange={(e) => setVacForm((f) => ({ ...f, description: e.target.value }))}
+                      />
                     </div>
-                  ))}
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Date</Label>
+                      <Input
+                        type="date"
+                        className="h-8 text-sm"
+                        value={vacForm.date}
+                        onChange={(e) => setVacForm((f) => ({ ...f, date: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setShowVacForm(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={addVacRow}
+                        disabled={!vacForm.description.trim()}
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  {vacRows.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">No vaccinations recorded.</p>
+                  ) : (
+                    vacRows.map((v) => (
+                      <div
+                        key={v.id}
+                        className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border border-border"
+                      >
+                        <div className="w-5 h-5 rounded-md bg-success/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Icon
+                            icon="solar:syringe-bold-duotone"
+                            height={11}
+                            className="text-success"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium leading-snug">{v.description}</p>
+                          {v.date && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{v.date}</p>
+                          )}
+                          {v.attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {v.attachments.map((url, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-medium text-primary"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewUrl(url)}
+                                    className="hover:underline"
+                                  >
+                                    {url.startsWith('data:image')
+                                      ? `Image ${idx + 1}`
+                                      : `PDF ${idx + 1}`}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeVacAttachment(v.id, idx)}
+                                    className="ml-1 text-muted-foreground hover:text-destructive"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <label className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary cursor-pointer">
+                            <Icon icon="solar:paperclip-bold-duotone" height={11} />
+                            Attach file
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*,application/pdf"
+                              className="hidden"
+                              onChange={(e) => handleVacFileChange(v.id, e)}
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeVacRow(v.id)}
+                          className="text-muted-foreground hover:text-destructive mt-0.5 flex-shrink-0"
+                        >
+                          <Icon icon="solar:trash-bin-trash-bold-duotone" height={15} />
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardBox>
             </div>
 
-            {/* ── Section 4: Chief Complaints / HPI / PE ───────────────────── */}
+            {/* ── Section 5: Chief Complaints / HPI / PE ───────────────────── */}
             <div className="lg:col-span-6 col-span-12">
               <CardBox className="h-full">
                 <SectionTitle icon="solar:notes-bold-duotone" title="Chief Complaints" />
@@ -762,23 +1127,9 @@ const CreateObGyneReferralForm = () => {
               </CardBox>
             </div>
 
-            {/* ── Section 6: Diagnostics & Medications ─────────────────────── */}
-            <div className="lg:col-span-6 col-span-12">
-              <CardBox className="h-full">
-                <SectionTitle icon="solar:test-tube-bold-duotone" title="Recent Diagnostic Tests" />
-                <Textarea
-                  readOnly
-                  className="text-muted-foreground text-sm bg-muted/30"
-                  placeholder="Recent diagnostic results will appear here after upload (e.g., CBC, ECG, X-Ray)."
-                  rows={4}
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  * Upload attachments via the referral detail page after creation.
-                </p>
-              </CardBox>
-            </div>
-            <div className="lg:col-span-6 col-span-12">
-              <CardBox className="h-full">
+            {/* ── Section 6: Medications ────────────────────────────────────── */}
+            <div className="col-span-12">
+              <CardBox>
                 <SectionTitle icon="solar:pill-bold-duotone" title="Medications" />
                 <Textarea
                   value={medications}
@@ -1172,6 +1523,32 @@ const CreateObGyneReferralForm = () => {
           </Button>
         </div>
       </div>
+      {/* Attachment preview dialog */}
+      {previewUrl && (
+        <Dialog open={!!previewUrl} onOpenChange={(v) => !v && setPreviewUrl(null)}>
+          <DialogContent className="max-w-2xl p-4">
+            <DialogHeader>
+              <DialogTitle>Preview</DialogTitle>
+            </DialogHeader>
+            <div className="flex justify-center">
+              {previewUrl.startsWith('data:image') ? (
+                <img
+                  src={previewUrl}
+                  alt="attachment"
+                  className="w-full rounded-lg object-contain max-h-[70vh]"
+                />
+              ) : (
+                <iframe
+                  src={previewUrl}
+                  title="Preview"
+                  className="w-full rounded-lg"
+                  style={{ height: '70vh' }}
+                />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </form>
   );
 };

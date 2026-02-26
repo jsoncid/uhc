@@ -39,9 +39,11 @@ export interface ReferralHistory {
   to_assignment: string | null; // uuid → assignment.id
   status: string | null; // uuid → module2.status.id
   is_active: boolean | null;
+  user?: string | null; // uuid → auth.users.id (who triggered this event)
   // Joined
   to_assignment_name?: string;
   status_description?: string;
+  email?: string | null; // email of the auth.users record who triggered this event
 }
 // ─── module2.referral_info ────────────────────────────────────────────────────
 export interface ReferralInfo {
@@ -112,7 +114,7 @@ export interface ReferralInfoDiagnostic {
   referral_info: string | null; // uuid → module2.referral_info.id
   diagnostics: string | null;
   date: string | null; // date
-  attachment: string | null;
+  attachments: string[]; // stored as JSON array in DB
   status: boolean | null;
 }
 
@@ -123,5 +125,6 @@ export interface ReferralInfoVaccination {
   referral_info: string | null; // uuid → module2.referral_info.id
   description: string | null;
   date: string | null; // date
+  attachments: string[]; // stored as JSON array in DB
   status: boolean | null;
 }

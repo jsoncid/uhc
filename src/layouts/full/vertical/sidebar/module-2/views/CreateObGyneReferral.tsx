@@ -1,6 +1,5 @@
 import { Link } from 'react-router';
 import CreateObGyneReferralForm from '../apps/referrals/CreateObGyneReferralForm';
-import { ReferralProvider } from '../context/ReferralContext';
 
 const BCrumb = [
   { to: '/', title: 'Home' },
@@ -40,9 +39,7 @@ const CreateObGyneReferral = () => {
           })}
         </ol>
       </div>
-      <ReferralProvider>
-        <CreateObGyneReferralForm />
-      </ReferralProvider>
+      <CreateObGyneReferralForm />
     </>
   );
 };

@@ -1,13 +1,16 @@
 import { useParams, useNavigate } from 'react-router';
 import { format } from 'date-fns';
 import { Icon } from '@iconify/react';
-import { useContext, useState } from 'react';
-import { getReferralById } from '../../data/referral-data';
+import { useContext, useEffect, useState } from 'react';
 import { ReferralContext, ReferralContextType } from '../../context/ReferralContext';
+import { assignmentService } from '@/services/assignmentService';
+import { patientService } from 'src/services/patientService';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Badge } from 'src/components/ui/badge';
 import { Separator } from 'src/components/ui/separator';
+import ReferralPrintDocument from './ReferralPrintDocument';
+import EditClinicalInfoPanel from './EditClinicalInfoPanel';
 import {
   Dialog,
   DialogContent,
@@ -19,9 +22,17 @@ import {
 import { Label } from 'src/components/ui/label';
 import { Input } from 'src/components/ui/input';
 import { Textarea } from 'src/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'src/components/ui/select';
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: 'bg-lightwarning text-warning',
+  Seen: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
   Accepted: 'bg-lightsuccess text-success',
   'In Transit': 'bg-lightinfo text-info',
   Discharged: 'bg-lightsecondary text-secondary',
@@ -137,10 +148,27 @@ const RejectDialog = ({
 }) => {
   const [reason, setReason] = useState('');
   const [redirectHospital, setRedirectHospital] = useState('');
+  const [assignments, setAssignments] = useState<{ id: string; description: string }[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      assignmentService.getAllAssignments().then((data) => {
+        setAssignments(
+          data
+            .filter((a) => a.description)
+            .map((a) => ({ id: a.id, description: a.description! }))
+            .sort((a, b) => a.description.localeCompare(b.description)),
+        );
+      });
+    } else {
+      setReason('');
+      setRedirectHospital('');
+    }
+  }, [open]);
 
   const handleConfirm = () => {
     if (reason.trim()) {
-      onConfirm(reason.trim(), redirectHospital.trim() || undefined);
+      onConfirm(reason.trim(), redirectHospital || undefined);
       setReason('');
       setRedirectHospital('');
       onClose();
@@ -163,7 +191,7 @@ const RejectDialog = ({
             hospital will be notified and updated immediately.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3 mt-2">
+        <div className="flex flex-col gap-4 mt-2">
           <div className="flex flex-col gap-1.5">
             <Label className="text-sm font-medium">
               Reason for Declining <span className="text-error">*</span>
@@ -177,20 +205,42 @@ const RejectDialog = ({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label className="text-sm font-medium">Redirect to Hospital (optional)</Label>
-            <div className="relative">
-              <Icon
-                icon="solar:buildings-2-bold-duotone"
-                height={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                placeholder="e.g. St. Luke's Medical Center"
-                className="pl-8"
-                value={redirectHospital}
-                onChange={(e) => setRedirectHospital(e.target.value)}
-              />
-            </div>
+            <Label className="text-sm font-medium">
+              Redirect to Facility{' '}
+              <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Select value={redirectHospital} onValueChange={setRedirectHospital}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select a facility to redirect to..." />
+              </SelectTrigger>
+              <SelectContent>
+                {assignments.map((a) => (
+                  <SelectItem key={a.id} value={a.description}>
+                    <div className="flex items-center gap-2">
+                      <Icon
+                        icon="solar:buildings-2-bold-duotone"
+                        height={14}
+                        className="text-muted-foreground flex-shrink-0"
+                      />
+                      {a.description}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {redirectHospital && (
+              <button
+                type="button"
+                className="self-start text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                onClick={() => setRedirectHospital('')}
+              >
+                <Icon icon="solar:close-circle-linear" height={13} />
+                Clear selection
+              </button>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Suggest a nearby facility so the referring hospital can re-route the patient.
+            </p>
           </div>
         </div>
         <DialogFooter className="gap-2 mt-4">
@@ -216,20 +266,161 @@ const RejectDialog = ({
 const IncomingReferralDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { acceptIncomingReferral, declineIncomingReferral, incomingReferrals } =
-    useContext<ReferralContextType>(ReferralContext);
+  const {
+    acceptIncomingReferral,
+    declineIncomingReferral,
+    incomingReferrals,
+    statuses,
+    updateIncomingStatus,
+    addDiagnostic,
+    deleteDiagnostic,
+    updateDiagnosticAttachment,
+    addVaccination,
+    deleteVaccination,
+    updateVaccinationAttachment,
+    updateReferralInfo,
+  } = useContext<ReferralContextType>(ReferralContext);
 
-  // Look up from live context first (reflects accept/reject state changes), fallback to data helper
-  const referral = incomingReferrals.find((r) => r.id === id) ?? getReferralById(id ?? '');
+  // Look up from live context (reflects accept/reject state changes)
+  const referral = incomingReferrals.find((r) => r.id === id);
   const info = referral?.referral_info;
-  const history = [...(referral?.history ?? [])].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  );
+  const history = [...(referral?.history ?? [])].sort((a, b) => {
+    const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    if (diff !== 0) return diff;
+    // Tiebreaker: active entry (most recent) always last
+    return (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
+  });
 
   const [showAccept, setShowAccept] = useState(false);
   const [showReject, setShowReject] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [showEditPanel, setShowEditPanel] = useState(false);
 
-  const isPending = referral?.latest_status?.description === 'Pending';
+  // ── Patient address
+  const [patientAddress, setPatientAddress] = useState<string | null>(null);
+  useEffect(() => {
+    patientService.getPatientAddressById(referral?.patient_profile ?? null).then((result) => {
+      if (!result) {
+        setPatientAddress(null);
+        return;
+      }
+      const parts = [
+        result.street,
+        result.brgy_name,
+        result.city_name,
+        result.province_name,
+        result.region_name,
+      ].filter(Boolean);
+      setPatientAddress(parts.join(', ') || null);
+    });
+  }, [referral?.patient_profile]);
+
+  // Editable only when the patient is already in the receiving facility (Admitted)
+  const statusDesc = referral?.latest_status?.description;
+  const canEditInfo = !!referral && ['Arrived', 'Admitted'].includes(statusDesc ?? '');
+
+  // Auto-mark as Seen when the receiving facility opens this referral
+  useEffect(() => {
+    if (!id || !referral) return;
+    if (referral.latest_status?.description !== 'Pending') return;
+    const seenStatus = statuses.find((s) => s.description === 'Seen');
+    if (seenStatus) updateIncomingStatus(id, seenStatus.id);
+  }, [id, referral?.id, referral?.latest_status?.description, statuses.length]);
+
+  // ── Diagnostic inline-add form state
+  const [diagForm, setDiagForm] = useState({ diagnostics: '', date: '' });
+  const [showDiagForm, setShowDiagForm] = useState(false);
+
+  // ── Vaccination inline-add form state
+  const [vacForm, setVacForm] = useState({ description: '', date: '' });
+  const [showVacForm, setShowVacForm] = useState(false);
+
+  // ── Attachment preview
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const handleAddDiagnostic = () => {
+    if (!diagForm.diagnostics.trim() || !id) return;
+    addDiagnostic(id, { diagnostics: diagForm.diagnostics.trim(), date: diagForm.date || null });
+    setDiagForm({ diagnostics: '', date: '' });
+    setShowDiagForm(false);
+  };
+
+  const handleDiagFileChange = (
+    diagId: string,
+    currentAttachments: string[],
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length || !id) return;
+    Promise.all(
+      files.map(
+        (f) =>
+          new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result as string);
+            r.readAsDataURL(f);
+          }),
+      ),
+    ).then((newUrls) =>
+      updateDiagnosticAttachment(diagId, id, [...currentAttachments, ...newUrls]),
+    );
+    e.target.value = '';
+  };
+
+  const handleRemoveDiagAttachment = (
+    diagId: string,
+    currentAttachments: string[],
+    idx: number,
+  ) => {
+    if (!id) return;
+    updateDiagnosticAttachment(
+      diagId,
+      id,
+      currentAttachments.filter((_, i) => i !== idx),
+    );
+  };
+
+  const handleAddVaccination = () => {
+    if (!vacForm.description.trim() || !id) return;
+    addVaccination(id, { description: vacForm.description.trim(), date: vacForm.date || null });
+    setVacForm({ description: '', date: '' });
+    setShowVacForm(false);
+  };
+
+  const handleVacFileChange = (
+    vacId: string,
+    currentAttachments: string[],
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length || !id) return;
+    Promise.all(
+      files.map(
+        (f) =>
+          new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result as string);
+            r.readAsDataURL(f);
+          }),
+      ),
+    ).then((newUrls) =>
+      updateVaccinationAttachment(vacId, id, [...currentAttachments, ...newUrls]),
+    );
+    e.target.value = '';
+  };
+
+  const handleRemoveVacAttachment = (vacId: string, currentAttachments: string[], idx: number) => {
+    if (!id) return;
+    updateVaccinationAttachment(
+      vacId,
+      id,
+      currentAttachments.filter((_, i) => i !== idx),
+    );
+  };
+
+  const isPending =
+    referral?.latest_status?.description === 'Pending' ||
+    referral?.latest_status?.description === 'Seen';
   const isDeclined = referral?.latest_status?.description === 'Declined';
 
   if (!referral) {
@@ -243,13 +434,13 @@ const IncomingReferralDetail = () => {
           />
           <p className="text-muted-foreground font-medium">Referral not found.</p>
           <Button
-            onClick={() => navigate('/module-2/referrals/incoming')}
+            onClick={() => navigate('/module-2/referrals')}
             variant="outline"
             size="sm"
             className="mt-2"
           >
             <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
-            Back to Incoming
+            Back to Referrals
           </Button>
         </div>
       </CardBox>
@@ -315,11 +506,21 @@ const IncomingReferralDetail = () => {
                   </Button>
                 </>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/module-2/referrals/incoming')}
-              >
+              <Button variant="outline" size="sm" onClick={() => setPrintOpen(true)}>
+                <Icon
+                  icon="solar:printer-minimalistic-bold-duotone"
+                  height={16}
+                  className="mr-1.5"
+                />
+                Print
+              </Button>
+              {canEditInfo && (
+                <Button variant="outline" size="sm" onClick={() => setShowEditPanel(true)}>
+                  <Icon icon="solar:pen-bold-duotone" height={15} className="mr-1.5" />
+                  Edit Clinical Info
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => navigate('/module-2/referrals')}>
                 <Icon icon="solar:arrow-left-linear" height={16} className="mr-1.5" />
                 Back
               </Button>
@@ -372,6 +573,27 @@ const IncomingReferralDetail = () => {
               )}
             </div>
           )}
+
+          {/* Discharge summary bar */}
+          {referral.latest_status?.description === 'Discharged' &&
+            (() => {
+              const dischargeEntry = history.find((h) => h.status_description === 'Discharged');
+              return dischargeEntry?.details ? (
+                <div className="mt-4 p-3 rounded-lg bg-lightsecondary border border-secondary/20 flex flex-col gap-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon
+                      icon="solar:hospital-bold-duotone"
+                      height={14}
+                      className="text-secondary flex-shrink-0"
+                    />
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                      Discharge Summary
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium text-secondary">{dischargeEntry.details}</p>
+                </div>
+              ) : null;
+            })()}
         </CardBox>
       </div>
 
@@ -410,6 +632,13 @@ const IncomingReferralDetail = () => {
                 label="Date Received"
                 value={format(new Date(referral.created_at), 'MMM dd, yyyy')}
                 icon="solar:calendar-bold-duotone"
+              />
+            </div>
+            <div className="col-span-12">
+              <Field
+                label="Patient Address"
+                value={patientAddress}
+                icon="solar:map-point-bold-duotone"
               />
             </div>
           </div>
@@ -774,10 +1003,9 @@ const IncomingReferralDetail = () => {
 
       {/* ── Right column ── */}
       <div className="lg:col-span-4 col-span-12 flex flex-col gap-6">
-        {/* Referral Journey timeline */}
         {history.length > 0 && (
           <CardBox>
-            <SectionTitle icon="solar:history-bold-duotone" title="Referral Journey" />
+            <SectionTitle icon="solar:history-bold-duotone" title="Referral History" />
             <div className="relative">
               {history.map((h, idx) => (
                 <div key={h.id} className="flex gap-x-3">
@@ -791,20 +1019,47 @@ const IncomingReferralDetail = () => {
                     </div>
                   </div>
                   <div className="grow pt-0.5 pb-5">
-                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${STATUS_STYLES[h.status_description ?? ''] ?? 'bg-lightprimary text-primary'} ${h.is_active ? '' : 'opacity-60'}`}
-                      >
-                        {h.status_description ?? '—'}
-                      </Badge>
-                      {h.is_active && (
-                        <span className="text-xs text-success font-medium">● Active</span>
+                    <div className="flex items-start justify-between gap-2 mb-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${STATUS_STYLES[h.status_description ?? ''] ?? 'bg-lightprimary text-primary'} ${h.is_active ? '' : 'opacity-60'}`}
+                        >
+                          {h.status_description ?? '—'}
+                        </Badge>
+                        {h.is_active && (
+                          <span className="text-xs text-success font-medium">● Active</span>
+                        )}
+                      </div>
+                      {h.email && (
+                        <div className="flex items-center gap-1 bg-lightprimary text-primary rounded-full px-2 py-0.5 flex-shrink-0">
+                          <Icon
+                            icon="solar:user-bold-duotone"
+                            height={12}
+                            className="flex-shrink-0"
+                          />
+                          <span className="text-xs font-medium max-w-[100px] truncate">
+                            {h.email}
+                          </span>
+                        </div>
                       )}
                     </div>
-                    {h.to_assignment_name && (
-                      <p className="text-sm font-medium">{h.to_assignment_name}</p>
-                    )}
+                    {(() => {
+                      const receiverSide = new Set([
+                        'Seen',
+                        'Accepted',
+                        'Declined',
+                        'Arrived',
+                        'Admitted',
+                        'Discharged',
+                      ]);
+                      const facility =
+                        h.to_assignment_name ??
+                        (receiverSide.has(h.status_description ?? '')
+                          ? (referral.to_assignment_name ?? referral.from_assignment_name)
+                          : referral.from_assignment_name);
+                      return facility ? <p className="text-sm font-medium">{facility}</p> : null;
+                    })()}
                     {h.details && (
                       <p className="text-xs text-muted-foreground mt-0.5">{h.details}</p>
                     )}
@@ -814,6 +1069,349 @@ const IncomingReferralDetail = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </CardBox>
+        )}
+
+        {/* Discharge notes — read from the Discharged history entry's details field */}
+        {(() => {
+          const dischargeEntry = [...(referral.history ?? [])]
+            .reverse()
+            .find((h) => h.status_description === 'Discharged' && h.details);
+          return dischargeEntry ? (
+            <CardBox>
+              <SectionTitle icon="solar:exit-bold-duotone" title="Discharge Notes" />
+              <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                {dischargeEntry.details}
+              </p>
+            </CardBox>
+          ) : null;
+        })()}
+
+        {/* ── Diagnostics CRUD ──────────────────────────────────────────────────────── */}
+        {info && (
+          <CardBox>
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Icon icon="solar:test-tube-bold-duotone" height={16} className="text-primary" />
+                </div>
+                <h3 className="text-base font-semibold">Diagnostics</h3>
+              </div>
+              {canEditInfo && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowDiagForm((v) => !v)}
+                >
+                  <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
+                  Add
+                </Button>
+              )}
+            </div>
+
+            {showDiagForm && (
+              <div className="mb-4 p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">
+                    Finding / Test Result <span className="text-error">*</span>
+                  </Label>
+                  <Textarea
+                    rows={2}
+                    placeholder="e.g. CBC — Hgb 110 g/L"
+                    className="text-sm resize-none"
+                    value={diagForm.diagnostics}
+                    onChange={(e) => setDiagForm((f) => ({ ...f, diagnostics: e.target.value }))}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">Date</Label>
+                  <Input
+                    type="date"
+                    className="h-8 text-sm"
+                    value={diagForm.date}
+                    onChange={(e) => setDiagForm((f) => ({ ...f, date: e.target.value }))}
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowDiagForm(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={handleAddDiagnostic}
+                    disabled={!diagForm.diagnostics.trim()}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              {(info.diagnostics ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No diagnostics recorded.</p>
+              ) : (
+                (info.diagnostics ?? []).map((d) => (
+                  <div
+                    key={d.id}
+                    className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border border-border"
+                  >
+                    <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Icon
+                        icon="solar:document-text-bold-duotone"
+                        height={13}
+                        className="text-primary"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-snug">{d.diagnostics}</p>
+                      {d.date && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {format(new Date(d.date), 'MMM dd, yyyy')}
+                        </p>
+                      )}
+                      {(d.attachments ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {(d.attachments ?? []).map((url, idx) => (
+                            <div
+                              key={idx}
+                              className="inline-flex items-center gap-1 bg-primary/10 rounded px-1.5 py-0.5 text-xs"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setPreviewUrl(url)}
+                                className="inline-flex items-center gap-0.5 text-primary hover:underline"
+                              >
+                                <Icon
+                                  icon={
+                                    url.startsWith('data:image')
+                                      ? 'solar:gallery-bold-duotone'
+                                      : 'solar:file-text-bold-duotone'
+                                  }
+                                  height={11}
+                                />
+                                {url.startsWith('data:image') ? 'Image' : 'PDF'} {idx + 1}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleRemoveDiagAttachment(d.id, d.attachments ?? [], idx)
+                                }
+                                className="text-muted-foreground hover:text-error leading-none"
+                                title="Remove"
+                              >
+                                <Icon icon="solar:close-circle-bold" height={11} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* File upload */}
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        multiple
+                        className="hidden"
+                        id={`att-${d.id}`}
+                        onChange={(e) => handleDiagFileChange(d.id, d.attachments ?? [], e)}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-primary"
+                        title="Upload attachment"
+                        onClick={() => document.getElementById(`att-${d.id}`)?.click()}
+                      >
+                        <Icon icon="solar:paperclip-bold" height={13} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-error"
+                        title="Delete"
+                        onClick={() => id && deleteDiagnostic(d.id, id)}
+                      >
+                        <Icon icon="solar:trash-bin-minimalistic-linear" height={13} />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardBox>
+        )}
+
+        {/* ── Vaccination CRUD ───────────────────────────────────────────────────────── */}
+        {info && (
+          <CardBox>
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-success/10 flex items-center justify-center flex-shrink-0">
+                  <Icon
+                    icon="solar:shield-check-bold-duotone"
+                    height={16}
+                    className="text-success"
+                  />
+                </div>
+                <h3 className="text-base font-semibold">Vaccination History</h3>
+              </div>
+              {canEditInfo && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowVacForm((v) => !v)}
+                >
+                  <Icon icon="solar:add-circle-linear" height={13} className="mr-1" />
+                  Add
+                </Button>
+              )}
+            </div>
+
+            {showVacForm && (
+              <div className="mb-4 p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">
+                    Vaccine / Description <span className="text-error">*</span>
+                  </Label>
+                  <Input
+                    placeholder="e.g. COVID-19 – Pfizer (2 doses)"
+                    className="h-8 text-sm"
+                    value={vacForm.description}
+                    onChange={(e) => setVacForm((f) => ({ ...f, description: e.target.value }))}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">Date</Label>
+                  <Input
+                    type="date"
+                    className="h-8 text-sm"
+                    value={vacForm.date}
+                    onChange={(e) => setVacForm((f) => ({ ...f, date: e.target.value }))}
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowVacForm(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={handleAddVaccination}
+                    disabled={!vacForm.description.trim()}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              {(info.vaccinations ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No vaccinations recorded.</p>
+              ) : (
+                (info.vaccinations ?? []).map((v) => (
+                  <div
+                    key={v.id}
+                    className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border border-border"
+                  >
+                    <div className="w-6 h-6 rounded-md bg-success/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Icon
+                        icon="solar:syringe-bold-duotone"
+                        height={13}
+                        className="text-success"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-snug">{v.description}</p>
+                      {v.date && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {format(new Date(v.date), 'MMM dd, yyyy')}
+                        </p>
+                      )}
+                      {(v.attachments ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {(v.attachments ?? []).map((url, idx) => (
+                            <div
+                              key={idx}
+                              className="inline-flex items-center gap-1 bg-success/10 rounded px-1.5 py-0.5 text-xs"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setPreviewUrl(url)}
+                                className="inline-flex items-center gap-0.5 text-success hover:underline"
+                              >
+                                <Icon
+                                  icon={
+                                    url.startsWith('data:image')
+                                      ? 'solar:gallery-bold-duotone'
+                                      : 'solar:file-text-bold-duotone'
+                                  }
+                                  height={11}
+                                />
+                                {url.startsWith('data:image') ? 'Image' : 'PDF'} {idx + 1}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleRemoveVacAttachment(v.id, v.attachments ?? [], idx)
+                                }
+                                className="text-muted-foreground hover:text-error leading-none"
+                                title="Remove"
+                              >
+                                <Icon icon="solar:close-circle-bold" height={11} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        multiple
+                        className="hidden"
+                        id={`vac-att-${v.id}`}
+                        onChange={(e) => handleVacFileChange(v.id, v.attachments ?? [], e)}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-success"
+                        title="Upload attachment"
+                        onClick={() => document.getElementById(`vac-att-${v.id}`)?.click()}
+                      >
+                        <Icon icon="solar:paperclip-bold" height={13} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-error flex-shrink-0"
+                        title="Delete"
+                        onClick={() => id && deleteVaccination(v.id, id)}
+                      >
+                        <Icon icon="solar:trash-bin-minimalistic-linear" height={13} />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </CardBox>
         )}
@@ -836,6 +1434,61 @@ const IncomingReferralDetail = () => {
           if (id) declineIncomingReferral(id, reason, redirectHospital);
         }}
       />
+
+      {/* Print Document */}
+      {printOpen && (
+        <ReferralPrintDocument referral={referral} onClose={() => setPrintOpen(false)} />
+      )}
+
+      {/* Edit Clinical Info Panel */}
+      <EditClinicalInfoPanel
+        open={showEditPanel}
+        referral={referral}
+        onClose={() => setShowEditPanel(false)}
+        onConfirm={(updated) => {
+          if (id) updateReferralInfo(id, updated);
+        }}
+        addDiag={(d) => id && addDiagnostic(id, d)}
+        deleteDiag={(diagId) => id && deleteDiagnostic(diagId, id)}
+        updateDiagAttachment={(diagId, atts) => id && updateDiagnosticAttachment(diagId, id, atts)}
+        addVac={(v) => id && addVaccination(id, v)}
+        deleteVac={(vacId) => id && deleteVaccination(vacId, id)}
+        updateVacAttachment={(vacId, atts) => id && updateVaccinationAttachment(vacId, id, atts)}
+      />
+
+      {/* Attachment Preview Dialog */}
+      <Dialog
+        open={!!previewUrl}
+        onOpenChange={(open) => {
+          if (!open) setPreviewUrl(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-3xl p-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b">
+            <DialogTitle className="flex items-center gap-2">
+              <Icon icon="solar:paperclip-bold" height={16} className="text-primary" />
+              Attachment Preview
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4">
+            {previewUrl &&
+              (previewUrl.startsWith('data:image') ? (
+                <img
+                  src={previewUrl}
+                  alt="Attachment"
+                  className="w-full rounded-lg object-contain max-h-[70vh]"
+                />
+              ) : (
+                <iframe
+                  src={previewUrl}
+                  title="Attachment Preview"
+                  className="w-full rounded-lg border"
+                  style={{ height: '70vh' }}
+                />
+              ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
