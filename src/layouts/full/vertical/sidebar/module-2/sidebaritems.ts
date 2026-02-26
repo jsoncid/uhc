@@ -45,13 +45,6 @@ const SidebarContent: MenuItem[] = [
         module: PAGE_MODULES.MODULE_2_REFERRAL_MANAGEMENT,
       },
       {
-        name: 'Incoming Referrals',
-        id: uniqueId(),
-        icon: 'solar:inbox-linear',
-        url: '/module-2/referrals/incoming',
-        module: PAGE_MODULES.MODULE_2_INCOMING_REFERRALS,
-      },
-      {
         name: 'Referral History',
         id: uniqueId(),
         icon: 'solar:history-2-bold',
