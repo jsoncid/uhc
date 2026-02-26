@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from 'src/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'src/components/ui/tabs';
+import { Button } from 'src/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'src/components/ui/select';
 import { Clock, FileText, Filter, History as HistoryIcon, Activity, CheckCircle2 } from 'lucide-react';
 import { PatientHistory } from 'src/services/patientService';
@@ -14,7 +15,9 @@ interface PatientHistoryTabsProps {
   onViewModeChange: (mode: 'timeline' | 'table') => void;
   typeFilter: string;
   onTypeFilterChange: (filter: string) => void;
-  rightActions?: React.ReactNode;
+  rightActions?: ReactNode;
+  onViewRecords?: () => void;
+  viewRecordsDisabled?: boolean;
 }
 
 const PatientHistoryTabs = ({
@@ -25,6 +28,8 @@ const PatientHistoryTabs = ({
   typeFilter,
   onTypeFilterChange,
   rightActions,
+  onViewRecords,
+  viewRecordsDisabled,
 }: PatientHistoryTabsProps) => {
   const uniqueTypes = [
     { value: 'admission', label: 'Admission' },
@@ -44,11 +49,20 @@ const PatientHistoryTabs = ({
               <CardDescription>Medical records and encounters</CardDescription>
             </div>
           </div>
-          {rightActions && (
-            <div className="flex items-center gap-2">
-              {rightActions}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {onViewRecords && (
+              <Button
+                size="sm"
+                className="flex items-center gap-2 bg-gradient-to-br from-primary to-primary/70 text-white"
+                onClick={onViewRecords}
+                disabled={viewRecordsDisabled}
+              >
+                <FileText className="h-4 w-4" />
+                View Records
+              </Button>
+            )}
+            {rightActions}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-4">

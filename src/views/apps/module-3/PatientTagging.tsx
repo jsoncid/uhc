@@ -68,6 +68,7 @@ const PatientTagging = () => {
     totalMatches: 0,
     databaseSummaries: [],
   });
+  const [pendingAutoSelectHpercode, setPendingAutoSelectHpercode] = useState<string | null>(null);
 
   // Supabase Search state (manually entered patients - unlinked)
   const [supabaseSearchTerm, setSupabaseSearchTerm] = useState('');
@@ -100,7 +101,6 @@ const PatientTagging = () => {
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const selectedPatientHpercode = selectedPatient?.hpercode;
-  const [pendingAutoSelectHpercode, setPendingAutoSelectHpercode] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const viewTabParam = searchParams.get('tab');
   const hpercodeParam = searchParams.get('hpercode');
@@ -958,18 +958,7 @@ const PatientTagging = () => {
 
               {/* Patient History */}
               <div className="col-span-12 lg:col-span-8 space-y-3">
-                <div className="flex items-center justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenPatientRecords}
-                    disabled={!selectedPatientHpercode}
-                    className="flex items-center gap-2"
-                  >
-                    <FileText className="h-4 w-4" />
-                    View Records
-                  </Button>
-                </div>
+                
                 <PatientHistoryTabs
                   history={filteredHistory}
                   isLoading={isLoadingHistory}
@@ -977,6 +966,8 @@ const PatientTagging = () => {
                   onViewModeChange={setViewMode}
                   typeFilter={typeFilter}
                   onTypeFilterChange={setTypeFilter}
+                  onViewRecords={handleOpenPatientRecords}
+                  viewRecordsDisabled={!selectedPatientHpercode}
                 />
               </div>
             </div>
