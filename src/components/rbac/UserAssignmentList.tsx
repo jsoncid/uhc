@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Trash2, Users, UserCheck, Edit } from 'lucide-react'
+import { Plus, Search, Trash2, Users, UserCheck, Edit, Filter, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -73,6 +74,18 @@ export const UserAssignmentList = () => {
   const [editingUserAssignment, setEditingUserAssignment] = useState<UserAssignment | null>(null)
   const [editingUserRole, setEditingUserRole] = useState<{ id: string; email?: string } | null>(null)
   const [editingUserRoles, setEditingUserRoles] = useState<UserRole[]>([])
+  
+  // Filter and sort states
+  const [userStatusFilter, setUserStatusFilter] = useState<string>('all')
+  const [userSortBy, setUserSortBy] = useState<string>('email')
+  const [userSortOrder, setUserSortOrder] = useState<'asc' | 'desc'>('asc')
+  
+  const [assignmentFilter, setAssignmentFilter] = useState<string>('all')
+  const [assignmentSortBy, setAssignmentSortBy] = useState<string>('created_at')
+  const [assignmentSortOrder, setAssignmentSortOrder] = useState<'asc' | 'desc'>('desc')
+  
+  const [roleSortBy, setRoleSortBy] = useState<string>('email')
+  const [roleSortOrder, setRoleSortOrder] = useState<'asc' | 'desc'>('asc')
 
   const fetchData = async () => {
     try {
@@ -327,21 +340,46 @@ export const UserAssignmentList = () => {
   }
 
   // Filter user assignments based on search term
-  const filteredUserAssignments = userAssignments.filter((assignment) => {
-    if (!searchTerm) return true
-    const lowerSearchTerm = searchTerm.toLowerCase()
-    const userEmail = assignment.users?.email?.toLowerCase() || ''
-    const userName = assignment.users?.username?.toLowerCase() || ''
-    const userId = assignment.user?.toLowerCase() || ''
-    const assignmentDesc = assignment.assignment?.description?.toLowerCase() || ''
-    const assignmentId = (typeof assignment.assignment === 'string' ? assignment.assignment : '')?.toLowerCase() || ''
-    
-    return userEmail.includes(lowerSearchTerm) || 
-           userName.includes(lowerSearchTerm) || 
-           userId.includes(lowerSearchTerm) ||
-           assignmentDesc.includes(lowerSearchTerm) ||
-           assignmentId.includes(lowerSearchTerm)
-  })
+  const filteredUserAssignments = userAssignments
+    .filter((assignment) => {
+      // Assignment filter
+      if (assignmentFilter !== 'all' && assignment.assignment !== assignmentFilter) {
+        return false
+      }
+      
+      // Search filter
+      if (!searchTerm) return true
+      const lowerSearchTerm = searchTerm.toLowerCase()
+      const userEmail = assignment.users?.email?.toLowerCase() || ''
+      const userName = assignment.users?.username?.toLowerCase() || ''
+      const userId = assignment.user?.toLowerCase() || ''
+      const assignmentDesc = assignment.assignment?.description?.toLowerCase() || ''
+      const assignmentId = (typeof assignment.assignment === 'string' ? assignment.assignment : '')?.toLowerCase() || ''
+      
+      return userEmail.includes(lowerSearchTerm) || 
+             userName.includes(lowerSearchTerm) || 
+             userId.includes(lowerSearchTerm) ||
+             assignmentDesc.includes(lowerSearchTerm) ||
+             assignmentId.includes(lowerSearchTerm)
+    })
+    .sort((a, b) => {
+      let aValue: any, bValue: any
+      
+      if (assignmentSortBy === 'user') {
+        aValue = (a.users?.email || a.user || '').toLowerCase()
+        bValue = (b.users?.email || b.user || '').toLowerCase()
+      } else if (assignmentSortBy === 'assignment') {
+        aValue = (a.assignment?.description || '').toLowerCase()
+        bValue = (b.assignment?.description || '').toLowerCase()
+      } else if (assignmentSortBy === 'created_at') {
+        aValue = new Date(a.created_at).getTime()
+        bValue = new Date(b.created_at).getTime()
+      }
+      
+      if (aValue < bValue) return assignmentSortOrder === 'asc' ? -1 : 1
+      if (aValue > bValue) return assignmentSortOrder === 'asc' ? 1 : -1
+      return 0
+    })
 
   // Filter user roles based on search term
   const filteredUserRoles = userRoles.filter((userRole) => {
@@ -383,14 +421,56 @@ export const UserAssignmentList = () => {
   }, {} as Record<string, { user: string; email?: string; roles: Array<{ id: string; roleId: string; description: string; created_at: string }>; created_at: string }>)
 
   const groupedUserRolesArray = Object.values(groupedUserRoles)
+    .sort((a, b) => {
+      let aValue: any, bValue: any
+      
+      if (roleSortBy === 'email') {
+        aValue = (a.email || a.user || '').toLowerCase()
+        bValue = (b.email || b.user || '').toLowerCase()
+      } else if (roleSortBy === 'roles') {
+        aValue = a.roles.length
+        bValue = b.roles.length
+      } else if (roleSortBy === 'created_at') {
+        aValue = new Date(a.created_at).getTime()
+        bValue = new Date(b.created_at).getTime()
+      }
+      
+      if (aValue < bValue) return roleSortOrder === 'asc' ? -1 : 1
+      if (aValue > bValue) return roleSortOrder === 'asc' ? 1 : -1
+      return 0
+    })
 
-  const filteredUsers = usersWithStatus.filter((user) => {
-    if (!userSearchTerm) return true
-    const lowerSearch = userSearchTerm.toLowerCase()
-    const name = user.name?.toLowerCase() || ''
-    const email = user.email.toLowerCase()
-    return name.includes(lowerSearch) || email.includes(lowerSearch)
-  })
+  const filteredUsers = usersWithStatus
+    .filter((user) => {
+      // Status filter
+      if (userStatusFilter === 'active' && !user.is_active) return false
+      if (userStatusFilter === 'inactive' && user.is_active) return false
+      
+      // Search filter
+      if (!userSearchTerm) return true
+      const lowerSearch = userSearchTerm.toLowerCase()
+      const name = user.name?.toLowerCase() || ''
+      const email = user.email.toLowerCase()
+      return name.includes(lowerSearch) || email.includes(lowerSearch)
+    })
+    .sort((a, b) => {
+      let aValue: any, bValue: any
+      
+      if (userSortBy === 'email') {
+        aValue = a.email.toLowerCase()
+        bValue = b.email.toLowerCase()
+      } else if (userSortBy === 'name') {
+        aValue = (a.name || '').toLowerCase()
+        bValue = (b.name || '').toLowerCase()
+      } else if (userSortBy === 'status') {
+        aValue = a.is_active ? 1 : 0
+        bValue = b.is_active ? 1 : 0
+      }
+      
+      if (aValue < bValue) return userSortOrder === 'asc' ? -1 : 1
+      if (aValue > bValue) return userSortOrder === 'asc' ? 1 : -1
+      return 0
+    })
 
   const totalUsers = usersWithStatus.length
   const activeUsers = usersWithStatus.filter((user) => user.is_active).length
@@ -459,14 +539,54 @@ export const UserAssignmentList = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center space-x-2 mb-4">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search user assignments..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-sm"
-                />
+              <div className="flex flex-col gap-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search user assignments..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Filter by assignment" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Assignments</SelectItem>
+                        {assignments.map((assignment) => (
+                          <SelectItem key={assignment.id} value={assignment.id}>
+                            {assignment.description || assignment.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                    <Select value={assignmentSortBy} onValueChange={setAssignmentSortBy}>
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Sort by" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="assignment">Assignment</SelectItem>
+                        <SelectItem value="created_at">Date Created</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setAssignmentSortOrder(assignmentSortOrder === 'asc' ? 'desc' : 'asc')}
+                    >
+                      {assignmentSortOrder === 'asc' ? '↑' : '↓'}
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {error && (
@@ -547,14 +667,38 @@ export const UserAssignmentList = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center space-x-2 mb-4">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search user roles..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-sm"
-                />
+              <div className="flex flex-col gap-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search user roles..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                    <Select value={roleSortBy} onValueChange={setRoleSortBy}>
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Sort by" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="email">User</SelectItem>
+                        <SelectItem value="roles">Role Count</SelectItem>
+                        <SelectItem value="created_at">Date Created</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRoleSortOrder(roleSortOrder === 'asc' ? 'desc' : 'asc')}
+                    >
+                      {roleSortOrder === 'asc' ? '↑' : '↓'}
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {error && (
@@ -765,8 +909,8 @@ export const UserAssignmentList = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                <div className="flex items-center space-x-2">
+              <div className="flex flex-col gap-4 mb-4">
+                <div className="flex items-center gap-2">
                   <Search className="h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search users..."
@@ -774,6 +918,41 @@ export const UserAssignmentList = () => {
                     onChange={(e) => setUserSearchTerm(e.target.value)}
                     className="max-w-sm"
                   />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    <Select value={userStatusFilter} onValueChange={setUserStatusFilter}>
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Filter by status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Users</SelectItem>
+                        <SelectItem value="active">Active Only</SelectItem>
+                        <SelectItem value="inactive">Inactive Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                    <Select value={userSortBy} onValueChange={setUserSortBy}>
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Sort by" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="email">Email</SelectItem>
+                        <SelectItem value="name">Name</SelectItem>
+                        <SelectItem value="status">Status</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setUserSortOrder(userSortOrder === 'asc' ? 'desc' : 'asc')}
+                    >
+                      {userSortOrder === 'asc' ? '↑' : '↓'}
+                    </Button>
+                  </div>
                 </div>
               </div>
 
