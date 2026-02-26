@@ -982,16 +982,16 @@ export const UserAssignmentList = () => {
                                       </div>
                                       <div className="flex gap-1">
                                         <Badge variant={module.is_insert ? 'default' : 'outline'} className="text-xs">
-                                          C
+                                          Create
                                         </Badge>
                                         <Badge variant={module.is_select ? 'default' : 'outline'} className="text-xs">
-                                          R
+                                          Read
                                         </Badge>
                                         <Badge variant={module.is_update ? 'default' : 'outline'} className="text-xs">
-                                          U
+                                          Update
                                         </Badge>
                                         <Badge variant={module.is_delete ? 'default' : 'outline'} className="text-xs">
-                                          D
+                                          Delete
                                         </Badge>
                                       </div>
                                       <div className="flex gap-1">
