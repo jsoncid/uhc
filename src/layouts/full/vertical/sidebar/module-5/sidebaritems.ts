@@ -11,6 +11,7 @@ export interface ChildItem {
   badge?: boolean;
   badgeType?: string;
   isPro?: boolean;
+  module?: string;
 }
 
 export interface MenuItem {
@@ -30,6 +31,7 @@ export interface MenuItem {
 }
 
 import { uniqueId } from 'lodash';
+import { PAGE_MODULES } from 'src/constants/moduleAccess';
 
 //RESTRICTION: This is to prevent unauthorized users from even seeing the menu items of modules they don't have access to.
 
@@ -49,14 +51,34 @@ import { uniqueId } from 'lodash';
 
 const SidebarContent: MenuItem[] = [
   {
-    heading: 'Module 5 - Note Taking App',
+    heading: 'Module 5 - OCR',
     children: [
       {
-        name: 'Documents',
-        icon: 'solar:document-text-linear',
+        name: 'Tables',
+        icon: 'solar:server-linear',
         id: uniqueId(),
-        url: '/module-5/live-documents',
-        isPro: false,
+        url: '/module-5/table',
+        module: PAGE_MODULES.MODULE_5_OCR,
+      },  
+      {
+        name: 'Blogs',
+        id: uniqueId(),
+        icon: 'solar:sort-by-alphabet-linear',
+        module: PAGE_MODULES.MODULE_5_OCR,
+        children: [
+          {
+            id: uniqueId(),
+            name: 'Blog Post',
+            url: '/module-5/apps/blog/post',
+            isPro: false,
+          },
+          {
+            id: uniqueId(),
+            name: 'Blog Detail',
+            url: '/module-5/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow',
+            isPro: false,
+          },
+        ],
       },
     ],
   },
