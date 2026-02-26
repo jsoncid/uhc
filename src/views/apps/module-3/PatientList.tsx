@@ -264,7 +264,6 @@ const PatientList = () => {
   // Helper to convert Supabase patient to the format expected by PatientInfoCard
   const getPatientInfoForCard = (patient: any) => {
     return {
-      id: patient.id,
       hpercode: patient.patient_repository?.[0]?.hpercode || patient.id,
       first_name: patient.first_name,
       middle_name: patient.middle_name,
