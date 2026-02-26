@@ -86,6 +86,11 @@ export const UserAssignmentList = () => {
   
   const [roleSortBy, setRoleSortBy] = useState<string>('email')
   const [roleSortOrder, setRoleSortOrder] = useState<'asc' | 'desc'>('asc')
+  
+  const [roleModuleSearchTerm, setRoleModuleSearchTerm] = useState('')
+  const [roleModuleRoleFilter, setRoleModuleRoleFilter] = useState<string>('all')
+  const [roleModuleSortBy, setRoleModuleSortBy] = useState<string>('role')
+  const [roleModuleSortOrder, setRoleModuleSortOrder] = useState<'asc' | 'desc'>('asc')
 
   const fetchData = async () => {
     try {
@@ -440,6 +445,44 @@ export const UserAssignmentList = () => {
       return 0
     })
 
+  // Filter and sort role module access
+  const filteredRoleModuleAccess = roleModuleAccess
+    .filter((access) => {
+      // Role filter
+      if (roleModuleRoleFilter !== 'all' && access.role !== roleModuleRoleFilter) {
+        return false
+      }
+      
+      // Search filter
+      if (!roleModuleSearchTerm) return true
+      const lowerSearchTerm = roleModuleSearchTerm.toLowerCase()
+      const roleDesc = ((access as any).roleDescription || access.role || '').toLowerCase()
+      const moduleDesc = ((access as any).moduleDescription || access.module || '').toLowerCase()
+      const description = (access.description || '').toLowerCase()
+      
+      return roleDesc.includes(lowerSearchTerm) || 
+             moduleDesc.includes(lowerSearchTerm) ||
+             description.includes(lowerSearchTerm)
+    })
+    .sort((a, b) => {
+      let aValue: any, bValue: any
+      
+      if (roleModuleSortBy === 'role') {
+        aValue = ((a as any).roleDescription || a.role || '').toLowerCase()
+        bValue = ((b as any).roleDescription || b.role || '').toLowerCase()
+      } else if (roleModuleSortBy === 'module') {
+        aValue = ((a as any).moduleDescription || a.module || '').toLowerCase()
+        bValue = ((b as any).moduleDescription || b.module || '').toLowerCase()
+      } else if (roleModuleSortBy === 'created_at') {
+        aValue = new Date(a.created_at).getTime()
+        bValue = new Date(b.created_at).getTime()
+      }
+      
+      if (aValue < bValue) return roleModuleSortOrder === 'asc' ? -1 : 1
+      if (aValue > bValue) return roleModuleSortOrder === 'asc' ? 1 : -1
+      return 0
+    })
+
   const filteredUsers = usersWithStatus
     .filter((user) => {
       // Status filter
@@ -781,6 +824,52 @@ export const UserAssignmentList = () => {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Search and Filter Controls */}
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search role module access..."
+                    value={roleModuleSearchTerm}
+                    onChange={(e) => setRoleModuleSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Select value={roleModuleRoleFilter} onValueChange={setRoleModuleRoleFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Filter by Role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      {roles.map((role) => (
+                        <SelectItem key={role.id} value={role.id}>
+                          {role.description || role.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={roleModuleSortBy} onValueChange={setRoleModuleSortBy}>
+                    <SelectTrigger className="w-[180px]">
+                      <ArrowUpDown className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="role">Role</SelectItem>
+                      <SelectItem value="module">Module</SelectItem>
+                      <SelectItem value="created_at">Date Created</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setRoleModuleSortOrder(roleModuleSortOrder === 'asc' ? 'desc' : 'asc')}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
               {error && (
                 <div className="bg-destructive/15 text-destructive px-4 py-2 rounded-md mb-4">
                   {error}
@@ -828,7 +917,9 @@ export const UserAssignmentList = () => {
 
                 {roleModuleAccess.length > 0 && (
                   <div className="mt-6">
-                    <h3 className="text-lg font-semibold mb-4">Current Role Module Access</h3>
+                    <h3 className="text-lg font-semibold mb-4">
+                      Current Role Module Access ({filteredRoleModuleAccess.length} of {roleModuleAccess.length})
+                    </h3>
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
@@ -844,7 +935,14 @@ export const UserAssignmentList = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {roleModuleAccess.map((access) => (
+                          {filteredRoleModuleAccess.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                                No role module access found matching your filters
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            filteredRoleModuleAccess.map((access) => (
                             <TableRow key={access.id}>
                               <TableCell className="font-medium">{(access as any).roleDescription || access.role}</TableCell>
                               <TableCell>{(access as any).moduleDescription || access.module}</TableCell>
@@ -888,7 +986,8 @@ export const UserAssignmentList = () => {
                                 </div>
                               </TableCell>
                             </TableRow>
-                          ))}
+                          ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
