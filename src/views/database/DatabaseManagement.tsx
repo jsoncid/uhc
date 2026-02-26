@@ -66,8 +66,8 @@ const DatabaseManagement = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold">Database Management</h1>
-            <p className="text-muted-foreground">
-              Configure and manage dynamic database connections for patient data
+            <p className="text-muted-foreground text-base">
+              Configure and manage connections to hospital database systems
             </p>
           </div>
         </div>
@@ -76,10 +76,13 @@ const DatabaseManagement = () => {
       {/* Info Alert */}
       <Alert className="mb-6">
         <Info className="h-4 w-4" />
-        <AlertDescription>
-          <strong>Dynamic Database Connections:</strong> Add database credentials through this UI.
-          Connections are stored securely in Supabase, not hardcoded. 
-          Use <strong>Test Connection</strong> before saving to verify credentials work.
+        <AlertDescription className="text-sm leading-relaxed">
+          <strong className="text-base">Dynamic Database Connections</strong>
+          <br />
+          <span className="block mt-1">
+            Add database credentials through this interface. All connections are stored securely in Supabase.
+            Always use <strong>Test Connection</strong> before saving to verify your credentials.
+          </span>
         </AlertDescription>
       </Alert>
 
@@ -109,29 +112,29 @@ const DatabaseManagement = () => {
       <Card className="mt-8">
         <CardHeader>
           <CardTitle className="text-lg">Quick Guide</CardTitle>
-          <CardDescription>How to use dynamic database connections</CardDescription>
+          <CardDescription className="text-sm">Learn how to add and manage database connections</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 rounded-lg bg-muted/50">
-              <h4 className="font-semibold mb-2">1. Add Database</h4>
-              <p className="text-sm text-muted-foreground">
-                Enter your database credentials (host, port, username, password, database name).
-                Select the system type (iHOMIS or iClinic).
+              <h4 className="font-semibold mb-2 text-base">1. Add Database</h4>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Click <strong>Add Database</strong> and enter your connection details: host, port, 
+                username, password, and database name. Choose your system type (iHOMIS or iClinic).
               </p>
             </div>
             <div className="p-4 rounded-lg bg-muted/50">
-              <h4 className="font-semibold mb-2">2. Test Connection</h4>
-              <p className="text-sm text-muted-foreground">
-                Click "Test Connection" to verify the credentials work before saving.
-                This ensures valid connections only.
+              <h4 className="font-semibold mb-2 text-base">2. Test Connection</h4>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Before saving, click <strong>Test Connection</strong> to verify your credentials 
+                are correct. This prevents invalid connections from being saved.
               </p>
             </div>
             <div className="p-4 rounded-lg bg-muted/50">
-              <h4 className="font-semibold mb-2">3. Manage & Use</h4>
-              <p className="text-sm text-muted-foreground">
-                Toggle databases active/inactive. Active databases are included in patient searches.
-                Use "Refresh Pools" after changes.
+              <h4 className="font-semibold mb-2 text-base">3. Manage Connections</h4>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Toggle connections on/off as needed. Only active databases are used in patient searches. 
+                Click <strong>Refresh Pools</strong> to apply changes.
               </p>
             </div>
           </div>

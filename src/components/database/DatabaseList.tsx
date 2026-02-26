@@ -237,8 +237,8 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
               <Database className="h-5 w-5" />
               Database Connections
             </CardTitle>
-            <CardDescription>
-              Manage dynamic database connections. {databases.length} database(s) configured.
+            <CardDescription className="text-sm">
+              View and manage all database connections. {databases.length} {databases.length === 1 ? 'database' : 'databases'} configured.
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -285,9 +285,9 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
         {!isLoading && databases.length === 0 && (
           <div className="text-center py-12">
             <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No databases configured</h3>
-            <p className="text-muted-foreground mb-4">
-              Add your first database connection to get started.
+            <h3 className="text-lg font-semibold mb-2">No Database Connections</h3>
+            <p className="text-muted-foreground text-sm mb-4">
+              Get started by adding your first hospital database connection.
             </p>
             {onAddNew && (
               <Button onClick={onAddNew}>
@@ -407,12 +407,12 @@ export function DatabaseList({ onAddNew, refreshTrigger }: DatabaseListProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              Confirm Delete
+              Delete Database Connection
             </DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete the database connection for{' '}
-              <strong>{selectedForDelete?.description || selectedForDelete?.db_name}</strong>?
-              This action cannot be undone.
+            <DialogDescription className="text-sm leading-relaxed">
+              Are you sure you want to delete <strong>{selectedForDelete?.description || selectedForDelete?.db_name}</strong>?
+              <br />
+              <span className="block mt-2 text-muted-foreground">This action cannot be undone.</span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
