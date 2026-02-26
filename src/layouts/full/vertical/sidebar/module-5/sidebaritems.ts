@@ -51,8 +51,15 @@ import { PAGE_MODULES } from 'src/constants/moduleAccess';
 
 const SidebarContent: MenuItem[] = [
   {
-    heading: 'Module 5 - OCR',
+    heading: 'Module 5',
     children: [
+      {
+        name: 'Mobile Notes Integration',
+        icon: 'solar:document-text-linear',
+        id: uniqueId(),
+        url: '/module-5/mobile-notes-integration',
+        module: PAGE_MODULES.MODULE_5_DOCUMENTS,
+      },
       {
         name: 'Tables',
         icon: 'solar:server-linear',
