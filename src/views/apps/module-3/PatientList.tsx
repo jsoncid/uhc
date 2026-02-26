@@ -289,10 +289,10 @@ const PatientList = () => {
             <div className="p-2 bg-primary/10 rounded-lg">
               <Users className="h-7 w-7 text-primary" />
             </div>
-            Patient Repository
+            Patient List
           </h1>
           <p className="text-muted-foreground mt-2">
-            Manage and view all patient records in the system
+            View and manage all patient records in the system
           </p>
         </div>
         <Badge variant="outline" className="text-base px-4 py-2 font-semibold">

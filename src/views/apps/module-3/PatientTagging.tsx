@@ -383,10 +383,10 @@ const PatientTagging = () => {
             <div className="p-2 bg-primary/10 rounded-lg">
               <Activity className="h-7 w-7 text-primary" />
             </div>
-            Patient Repository
+            Patient Tagging
           </h1>
           <p className="text-muted-foreground mt-2">
-            View patient medical records, link manually entered patients with hospital database, and manage patient connections.
+            Link manually entered patients with hospital database records and manage patient connections.
           </p>
         </div>
       </div>
