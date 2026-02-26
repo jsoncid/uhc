@@ -32,6 +32,7 @@ export interface ReferralType {
 
 // ─── module2.referral_history ─────────────────────────────────────────────────
 export interface ReferralHistory {
+  user_name: any;
   id: string; // uuid
   created_at: string;
   details: string | null;
