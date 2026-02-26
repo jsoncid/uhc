@@ -155,6 +155,7 @@ const PatientList = () => {
     } else {
       setPatientHistory([]);
     }
+    navigate(`/module-3/patient-tagging${hpercode ? `?hpercode=${encodeURIComponent(hpercode)}` : ''}`);
   };
 
   const loadPatientHistory = async (hpercode: string) => {
@@ -326,53 +327,51 @@ const PatientList = () => {
       </div>
 
       {/* Search and Filters Card */}
-      {isSearchVisible && (
-        <Card className="border-2">
-          <CardContent className="pt-6">
-            <div className="flex gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search by patient name, facility, or location..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  className="pl-11 h-11 text-base"
-                />
-              </div>
+      <Card className="border-2">
+        <CardContent className="pt-6">
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by patient name, facility, or location..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="pl-11 h-11 text-base"
+              />
+            </div>
+            <Button
+              onClick={handleSearch}
+              disabled={isSearching}
+              size="lg"
+              className="px-6"
+            >
+              {isSearching ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <Search className="mr-2 h-5 w-5" />
+                  Search
+                </>
+              )}
+            </Button>
+            {searchTerm && (
               <Button
-                onClick={handleSearch}
-                disabled={isSearching}
+                variant="outline"
+                onClick={handleReset}
                 size="lg"
                 className="px-6"
               >
-                {isSearching ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Searching...
-                  </>
-                ) : (
-                  <>
-                    <Search className="mr-2 h-5 w-5" />
-                    Search
-                  </>
-                )}
+                <RefreshCw className="mr-2 h-5 w-5" />
+                Clear
               </Button>
-              {searchTerm && (
-                <Button
-                  variant="outline"
-                  onClick={handleReset}
-                  size="lg"
-                  className="px-6"
-                >
-                  <RefreshCw className="mr-2 h-5 w-5" />
-                  Clear
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Patient List Card */}
       <Card className="border-2">
