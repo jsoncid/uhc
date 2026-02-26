@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { userService } from '@/services/userService';
+import { AuthCodeService } from '../services/authCodeService';
+import { userService } from '../services/userService';
 
 interface AuthState {
   user: User | null;
@@ -251,6 +252,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
       try {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
+        
+        // Clear all localStorage data related to auth/session using AuthCodeService
+        AuthCodeService.clearAllSessionData();
+        
         set({
           user: null,
           userModuleId: null,

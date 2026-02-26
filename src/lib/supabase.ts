@@ -459,4 +459,31 @@ export type Database = {
       }
     }
   }
+  module5: {
+    Tables: {
+      scribble_text: {
+        Row: {
+          id: string
+          created_at: string
+          user_id: string
+          input_uuid: string
+          content: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          user_id: string
+          input_uuid: string
+          content?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          user_id?: string
+          input_uuid?: string
+          content?: string | null
+        }
+      }
+    }
+  }
 }
