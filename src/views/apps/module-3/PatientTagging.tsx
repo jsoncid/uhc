@@ -23,12 +23,19 @@ import {
   Trash2,
   Plus,
 } from 'lucide-react';
+import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
 import PatientSearchPanel, { PatientSearchResultProfile } from './components/PatientSearchPanel';
 import PatientInfoCard from './components/PatientInfoCard';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientLinkingDialog from './components/PatientLinkingDialog';
 import { ConfirmDialog } from 'src/components/ui/confirm-dialog';
+import {
+  getPatientSearchBuckets,
+  getPatientSearchSummaries,
+  getPatientSearchTotalMatches,
+  PatientDatabaseSummary,
+} from './utils/patientSearchResultHelpers';
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -39,6 +46,12 @@ const FACILITY_NAME_BY_CODE: Record<string, string> = {
   '0005028': 'NASIPIT DISTRICT HOSPITAL',
 };
 
+const BCrumb = [
+  { to: '/', title: 'Home' },
+  { title: 'Module 3 - Patient Repository' },
+  { title: 'Patient Tagging' },
+];
+
 const PatientTagging = () => {
   // Active tab
   const [activeTab, setActiveTab] = useState<'view' | 'link' | 'linked'>('link');
@@ -48,6 +61,13 @@ const PatientTagging = () => {
   const [searchResults, setSearchResults] = useState<PatientSearchResultProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientSearchResultProfile | null>(null);
+  const [searchMeta, setSearchMeta] = useState<{
+    totalMatches: number;
+    databaseSummaries: PatientDatabaseSummary[];
+  }>({
+    totalMatches: 0,
+    databaseSummaries: [],
+  });
 
   // Supabase Search state (manually entered patients - unlinked)
   const [supabaseSearchTerm, setSupabaseSearchTerm] = useState('');
@@ -102,41 +122,28 @@ const PatientTagging = () => {
     try {
       const result = await patientService.searchPatients(searchTerm, { limit: 10 });
       if (result.success) {
-        const annotate = (
-          patients: PatientProfile[],
-          fallbackName: string,
-          sourceDatabase?: string,
-          forceFallback = false
-        ) =>
-          patients.map((patient) => ({
+        const buckets = getPatientSearchBuckets(result);
+        const combined: PatientSearchResultProfile[] = buckets.flatMap((bucket) => {
+          const displayName = bucket.metadata.description || bucket.metadata.db_name;
+          return bucket.data.map((patient) => ({
             ...patient,
-            facility_display_name: forceFallback
-              ? fallbackName
-              : FACILITY_NAME_BY_CODE[patient.facility_code || ''] || fallbackName,
-            sourceDatabase,
+            facility_display_name:
+              FACILITY_NAME_BY_CODE[patient.facility_code || ''] || displayName,
+            sourceDatabase: bucket.metadata.db_name,
           }));
-
-        const combined: PatientSearchResultProfile[] = [];
-        if (result.database1) {
-          const fallback = result.database1.name === 'adnph_ihomis_plus'
-            ? 'AGUSAN DEL NORTE PROVINCIAL HOSPITAL'
-            : result.database1.name;
-          combined.push(...annotate(result.database1.data, fallback, result.database1.name));
-        }
-        if (result.database2) {
-          const fallback = result.database2.name === 'ndh_ihomis_plus'
-            ? 'NASIPIT DISTRICT HOSPITAL'
-            : result.database2.name;
-          combined.push(...annotate(result.database2.data, fallback, result.database2.name, true));
-        }
-        if (!combined.length && result.data) {
-          combined.push(...annotate(result.data, 'Hospital Repository'));
-        }
+        });
 
         setSearchResults(combined);
+        setSearchMeta({
+          totalMatches: getPatientSearchTotalMatches(result, buckets),
+          databaseSummaries: getPatientSearchSummaries(buckets),
+        });
+      } else {
+        setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
       }
     } catch (error) {
       console.error('Error searching patients:', error);
+      setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
     } finally {
       setIsSearching(false);
     }
@@ -212,18 +219,18 @@ const PatientTagging = () => {
             (repo: any) => repo.hpercode != null && (repo.status === true || repo.status === null || repo.status === undefined)
           );
           if (!activeRepos || activeRepos.length === 0) return false;
-          
+
           // Search in name
           const firstName = patient.first_name?.toLowerCase() || '';
           const middleName = patient.middle_name?.toLowerCase() || '';
           const lastName = patient.last_name?.toLowerCase() || '';
           const fullName = `${firstName} ${middleName} ${lastName}`.trim();
-          
+
           // Search in any hpercode
           const hpercodeMatch = activeRepos.some(
             (repo: any) => repo.hpercode?.toLowerCase().includes(searchLower)
           );
-          
+
           return fullName.includes(searchLower) || hpercodeMatch;
         }).map((patient: any) => ({
           ...patient,
@@ -246,6 +253,7 @@ const PatientTagging = () => {
     setSelectedPatient(patient);
     setSearchResults([]);
     setSearchTerm('');
+    setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
 
     // Load patient history using hpercode
     if (patient.hpercode) {
@@ -375,6 +383,7 @@ const PatientTagging = () => {
 
   return (
     <div className="space-y-6">
+      <BreadcrumbComp items={BCrumb} title="Patient Tagging" />
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
@@ -417,7 +426,7 @@ const PatientTagging = () => {
           </Alert>
 
           {/* How it Works */}
-          <Card className="border-muted">
+          <Card className="border-2">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Info className="h-4 w-4" />
@@ -530,7 +539,7 @@ const PatientTagging = () => {
                     {supabaseSearchResults.map((patient) => (
                       <Card
                         key={patient.id}
-                        className="border-amber-200 bg-amber-50/50 border transition-all hover:shadow-md"
+                        className="border-2 bg-card transition-all hover:shadow-md"
                       >
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-3">
@@ -697,7 +706,7 @@ const PatientTagging = () => {
                     {linkedPatients.map((patient) => (
                       <Card
                         key={patient.id}
-                        className="border-green-200 bg-green-50/50 border-2 transition-all hover:shadow-md"
+                        className="border-2 bg-card transition-all hover:shadow-md"
                       >
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-3">
@@ -877,7 +886,13 @@ const PatientTagging = () => {
                 isSearching={isSearching}
                 searchResults={searchResults}
                 onSelectPatient={handleSelectPatient}
-                onClearResults={() => setSearchResults([])}
+                onClearResults={() => {
+                  setSearchResults([]);
+                  setSearchMeta({ totalMatches: 0, databaseSummaries: [] });
+                }}
+                totalMatches={searchMeta.totalMatches}
+                displayedCount={searchResults.length}
+                databaseSummaries={searchMeta.databaseSummaries}
               />
             </CardContent>
           </Card>

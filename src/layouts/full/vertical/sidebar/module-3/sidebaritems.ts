@@ -58,6 +58,12 @@ const SidebarContent: MenuItem[] = [
         url: '/module-3/patient-tagging',
         module: PAGE_MODULES.MODULE_3_PATIENT_TAGGING,
       },
+      {
+        name: 'Database Management',
+        id: uniqueId(),
+        icon: 'solar:database-linear',
+        url: '/module-3/database-management',
+      },
     ],
   },
   // {
