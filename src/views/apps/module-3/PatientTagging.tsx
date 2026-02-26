@@ -48,6 +48,10 @@ const FACILITY_NAME_BY_CODE: Record<string, string> = {
   '0005028': 'NASIPIT DISTRICT HOSPITAL',
 };
 
+const VALID_TAB_VALUES = ['view', 'link', 'linked'] as const;
+type TabValue = (typeof VALID_TAB_VALUES)[number];
+const isValidTab = (value?: string): value is TabValue => VALID_TAB_VALUES.includes(value as TabValue);
+
 const PatientTagging = () => {
   // Active tab
   const [activeTab, setActiveTab] = useState<'view' | 'link' | 'linked'>('link');
@@ -118,6 +122,13 @@ const PatientTagging = () => {
     }
   }, [selectedPatient]);
 
+  useEffect(() => {
+    if (!viewTabParam) return;
+    if (isValidTab(viewTabParam)) {
+      setActiveTab(viewTabParam);
+    }
+  }, [viewTabParam]);
+
   /* ------------------------------------------------------------------ */
   /*  Search Functions                                                  */
   /* ------------------------------------------------------------------ */
@@ -163,6 +174,15 @@ const PatientTagging = () => {
     setPendingAutoSelectHpercode(null);
     void executePatientSearch(query);
   };
+
+  useEffect(() => {
+    const hpercode = hpercodeParam?.trim();
+    if (!hpercode) return;
+    setActiveTab('view');
+    setSearchTerm(hpercode);
+    setPendingAutoSelectHpercode(hpercode);
+    void executePatientSearch(hpercode);
+  }, [executePatientSearch, hpercodeParam]);
 
   // Search Supabase patients (manually entered - unlinked)
   const handleSearchSupabase = async () => {
@@ -297,6 +317,15 @@ const PatientTagging = () => {
       await loadPatientHistory(patient.hpercode, patient.sourceDatabase);
     }
   }, [loadPatientHistory]);
+
+  useEffect(() => {
+    if (!pendingAutoSelectHpercode) return;
+    const match = searchResults.find((result) => result.hpercode === pendingAutoSelectHpercode);
+    if (!match) return;
+
+    void handleSelectPatient(match);
+    setPendingAutoSelectHpercode(null);
+  }, [pendingAutoSelectHpercode, searchResults, handleSelectPatient]);
 
   const handleOpenPatientRecords = () => {
     if (!selectedPatientHpercode) return;

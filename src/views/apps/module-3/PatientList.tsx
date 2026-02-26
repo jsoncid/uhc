@@ -148,7 +148,12 @@ const PatientList = () => {
     } else {
       setPatientHistory([]);
     }
-    navigate(`/module-3/patient-tagging${hpercode ? `?hpercode=${encodeURIComponent(hpercode)}` : ''}`);
+    const params = new URLSearchParams();
+    params.set('tab', 'view');
+    if (hpercode) {
+      params.set('hpercode', hpercode);
+    }
+    navigate(`/module-3/patient-tagging?${params.toString()}`);
   };
 
   const loadPatientHistory = async (hpercode: string) => {
@@ -273,6 +278,7 @@ const PatientList = () => {
   // Helper to convert Supabase patient to the format expected by PatientInfoCard
   const getPatientInfoForCard = (patient: any) => {
     return {
+      id: patient.id,
       hpercode: patient.patient_repository?.[0]?.hpercode || patient.id,
       first_name: patient.first_name,
       middle_name: patient.middle_name,

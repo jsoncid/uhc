@@ -1435,6 +1435,19 @@ class PatientService {
         historyData = result.data;
       }
 
+      const dedupeKey = (record: PatientHistory) =>
+        `${record.source_database ?? 'unknown'}-${record.enccode}-${record.admdate ?? record.encounter_date ?? ''}-${record.disdate ?? ''}`;
+      const dedupedHistory = Array.from(
+        historyData.reduce((map, record) => {
+          const key = dedupeKey(record);
+          if (!map.has(key)) {
+            map.set(key, record);
+          }
+          return map;
+        }, new Map<string, PatientHistory>()).values(),
+      );
+      historyData = dedupedHistory;
+
       return {
         success: true,
         data: historyData,
