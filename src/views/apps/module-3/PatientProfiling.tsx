@@ -1,10 +1,11 @@
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState, useRef } from 'react';
 import CardBox from 'src/components/shared/CardBox';
 import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
 import { Label } from 'src/components/ui/label';
 import { Badge } from 'src/components/ui/badge';
 import { Separator } from 'src/components/ui/separator';
+import { Card, CardContent } from 'src/components/ui/card';
 import {
   Tooltip,
   TooltipContent,
@@ -200,6 +201,112 @@ function useProfileCompletion(profile: PatientProfile) {
   }, [profile]);
 }
 
+/* ------------------------------------------------------------------ */
+/*  Helper: Calculate Age from Birth Date                              */
+/* ------------------------------------------------------------------ */
+
+const calculateAge = (birthDate: string): { years: number; months: number } | null => {
+  if (!birthDate) return null;
+  const today = new Date();
+  const birth = new Date(birthDate);
+  let years = today.getFullYear() - birth.getFullYear();
+  let months = today.getMonth() - birth.getMonth();
+  if (months < 0 || (months === 0 && today.getDate() < birth.getDate())) {
+    years--;
+    months += 12;
+  }
+  if (today.getDate() < birth.getDate()) {
+    months--;
+    if (months < 0) months += 12;
+  }
+  return { years, months };
+};
+
+/* ------------------------------------------------------------------ */
+/*  Helper: Section Navigation Item                                    */
+/* ------------------------------------------------------------------ */
+
+interface NavSection {
+  id: string;
+  icon: React.ElementType;
+  label: string;
+  isComplete: boolean;
+  isActive: boolean;
+}
+
+function SectionNavItem({ 
+  section, 
+  onClick 
+}: { 
+  section: NavSection; 
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200
+        ${section.isActive 
+          ? 'bg-primary text-primary-foreground shadow-sm' 
+          : 'hover:bg-muted/80 text-muted-foreground hover:text-foreground'
+        }
+      `}
+    >
+      <section.icon className={`h-4 w-4 ${section.isActive ? '' : section.isComplete ? 'text-green-600' : ''}`} />
+      <span className="text-sm font-medium flex-1">{section.label}</span>
+      {section.isComplete && !section.isActive && (
+        <CheckCircle2 className="h-4 w-4 text-green-600" />
+      )}
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Helper: Completion Ring                                            */
+/* ------------------------------------------------------------------ */
+
+function CompletionRing({ percentage, filled, total }: { percentage: number; filled: number; total: number }) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+      <div className="relative h-12 w-12">
+        <svg className="h-12 w-12 -rotate-90" viewBox="0 0 36 36">
+          <circle
+            cx="18"
+            cy="18"
+            r="14"
+            fill="none"
+            className="stroke-muted"
+            strokeWidth="3"
+          />
+          <circle
+            cx="18"
+            cy="18"
+            r="14"
+            fill="none"
+            className={`transition-all duration-700 ease-out ${
+              percentage >= 80 ? 'stroke-green-500' : percentage >= 50 ? 'stroke-amber-500' : 'stroke-primary'
+            }`}
+            strokeWidth="3"
+            strokeDasharray={`${percentage * 0.88} 100`}
+            strokeLinecap="round"
+          />
+        </svg>
+        <span className={`absolute inset-0 flex items-center justify-center text-xs font-bold ${
+          percentage >= 80 ? 'text-green-600' : percentage >= 50 ? 'text-amber-600' : 'text-primary'
+        }`}>
+          {percentage}%
+        </span>
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-foreground">Completion</p>
+        <p className="text-xs text-muted-foreground">
+          {filled} of {total} fields
+        </p>
+      </div>
+    </div>
+  );
+}
+
 const capitalizeStatusLabel = (value?: string, fallback = 'Unknown'): string => {
   if (!value) return fallback;
   const parts = value.split(/[^a-zA-Z0-9]+/).filter(Boolean);
@@ -247,6 +354,12 @@ const PatientProfiling = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [modalStep, setModalStep] = useState<1 | 2 | 3>(1);
 
+  // Section navigation state
+  const [activeSection, setActiveSection] = useState<'personal' | 'demographics' | 'location'>('personal');
+  const personalSectionRef = useRef<HTMLDivElement>(null);
+  const demographicsSectionRef = useRef<HTMLDivElement>(null);
+  const locationSectionRef = useRef<HTMLDivElement>(null);
+
   // Search state
   const [searchResults, setSearchResults] = useState<APIPatientProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -275,6 +388,49 @@ const PatientProfiling = () => {
   const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
 
   const completion = useProfileCompletion(patient);
+
+  // Section completion tracking
+  const sectionCompletion = useMemo(() => {
+    const personalFields = ['first_name', 'last_name', 'middle_name', 'ext_name'];
+    const demographicsFields = ['sex', 'birth_date'];
+    const locationFields = ['region_name', 'province_name', 'city_name', 'brgy_name', 'street'];
+
+    const checkFields = (fields: string[]) => {
+      const filled = fields.filter(f => (patient as any)[f]?.trim?.()?.length > 0).length;
+      return { filled, total: fields.length, isComplete: filled >= fields.filter(f => ['first_name', 'last_name', 'sex', 'birth_date', 'city_name', 'brgy_name'].includes(f)).length };
+    };
+
+    return {
+      personal: checkFields(personalFields),
+      demographics: checkFields(demographicsFields),
+      location: checkFields(locationFields),
+    };
+  }, [patient]);
+
+  // Section navigation
+  const sections: NavSection[] = [
+    { id: 'personal', icon: User, label: 'Personal Info', isComplete: sectionCompletion.personal.isComplete, isActive: activeSection === 'personal' },
+    { id: 'demographics', icon: Calendar, label: 'Demographics', isComplete: sectionCompletion.demographics.isComplete, isActive: activeSection === 'demographics' },
+    { id: 'location', icon: MapPin, label: 'Location', isComplete: sectionCompletion.location.isComplete, isActive: activeSection === 'location' },
+  ];
+
+  const scrollToSection = (sectionId: 'personal' | 'demographics' | 'location') => {
+    setActiveSection(sectionId);
+    const refs: Record<string, React.RefObject<HTMLDivElement | null>> = {
+      personal: personalSectionRef,
+      demographics: demographicsSectionRef,
+      location: locationSectionRef,
+    };
+    refs[sectionId]?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Calculate age display
+  const ageDisplay = useMemo(() => {
+    const age = calculateAge(patient.birth_date);
+    if (!age) return null;
+    if (age.years === 0) return `${age.months} month${age.months !== 1 ? 's' : ''} old`;
+    return `${age.years} year${age.years !== 1 ? 's' : ''} old`;
+  }, [patient.birth_date]);
 
   const loadFacilities = async () => {
     setIsLoadingFacilities(true);
@@ -640,6 +796,7 @@ const PatientProfiling = () => {
 
   return (
     <>
+      {/* Header Section */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
@@ -649,335 +806,353 @@ const PatientProfiling = () => {
             Patient Profiling
           </h1>
           <p className="text-muted-foreground mt-2">
-            Create and update detailed patient profiles, including personal information, demographics, and contact details.
+            Create and update detailed patient profiles
           </p>
         </div>
+
+        {/* Status Message (floating) */}
+        {statusMessage && (
+          <div className={`flex items-center gap-2 rounded-lg px-4 py-2 shadow-lg animate-in slide-in-from-top-2 ${
+            statusType === 'success' ? 'bg-green-50 border border-green-200 text-green-700' :
+            statusType === 'error' ? 'bg-red-50 border border-red-200 text-red-700' :
+            'bg-blue-50 border border-blue-200 text-blue-700'
+          }`}>
+            {statusType === 'success' ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+            ) : statusType === 'error' ? (
+              <AlertCircle className="h-4 w-4 shrink-0" />
+            ) : (
+              <Info className="h-4 w-4 shrink-0" />
+            )}
+            <span className="text-sm font-medium">{statusMessage}</span>
+            <button
+              onClick={() => setStatusMessage(null)}
+              className="ml-2 rounded-full p-1 hover:bg-black/5 transition-colors"
+              title="Dismiss"
+              aria-label="Dismiss notification"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* ── Top Action Bar ── */}
-      <CardBox className="p-4 mb-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          {/* Left: status & completion */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="relative h-10 w-10">
-                <svg className="h-10 w-10 -rotate-90" viewBox="0 0 36 36">
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="15"
-                    fill="none"
-                    className="stroke-muted"
-                    strokeWidth="3"
-                  />
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="15"
-                    fill="none"
-                    className="stroke-primary transition-all duration-500"
-                    strokeWidth="3"
-                    strokeDasharray={`${completion.pct * 0.94} 100`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-primary">
-                  {completion.pct}%
-                </span>
+      {/* ── Split-Pane Layout ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+        
+        {/* ── Sticky Side Navigation ── */}
+        <aside className="lg:sticky lg:top-6 h-fit space-y-4">
+          {/* Completion Ring */}
+          <Card>
+            <CardContent className="p-4">
+              <CompletionRing 
+                percentage={completion.pct} 
+                filled={completion.filled} 
+                total={completion.total} 
+              />
+            </CardContent>
+          </Card>
+
+          {/* Section Navigation */}
+          <Card>
+            <CardContent className="p-3 space-y-1">
+              {sections.map((section) => (
+                <SectionNavItem
+                  key={section.id}
+                  section={section}
+                  onClick={() => scrollToSection(section.id as 'personal' | 'demographics' | 'location')}
+                />
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Actions */}
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-3"
+                    onClick={openModal}
+                  >
+                    <Database className="h-4 w-4" />
+                    Get from Repository
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Look up patient data from hospital database</TooltipContent>
+              </Tooltip>
+
+              <Separator />
+
+              <div className="flex gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleReset}
+                      disabled={!isDirty}
+                      className="flex-1 gap-2"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Reset
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Clear all fields</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      onClick={handleSave}
+                      disabled={!isDirty || isSaving}
+                      className="flex-1 gap-2"
+                    >
+                      {isSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      {isSaving ? 'Saving…' : 'Save'}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Save patient profile</TooltipContent>
+                </Tooltip>
               </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">Profile Completion</p>
-                <p className="text-xs text-muted-foreground">
-                  {completion.filled} of {completion.total} fields filled
-                </p>
-              </div>
+
+              {isDirty && (
+                <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span>You have unsaved changes</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </aside>
+
+        {/* ── Main Form Area ── */}
+        <main>
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+            {/* ─── Section 1: Personal Information ─── */}
+            <div ref={personalSectionRef} id="personal-section">
+              <CardBox className="p-6">
+                <SectionHeader
+                  icon={User}
+                  title="Personal Information"
+                  description="Core identity details — name and name extension."
+                  badge={{ label: 'Required', variant: 'lightWarning' }}
+                />
+                <Separator className="my-5" />
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                  <FormField label="First Name" htmlFor="first-name" required isFilled={!!patient.first_name}>
+                    <Input
+                      id="first-name"
+                      value={patient.first_name}
+                      onChange={handleInputChange('first_name')}
+                      placeholder="Juan"
+                      className="capitalize"
+                    />
+                  </FormField>
+
+                  <FormField label="Middle Name" htmlFor="middle-name">
+                    <Input
+                      id="middle-name"
+                      value={patient.middle_name}
+                      onChange={handleInputChange('middle_name')}
+                      placeholder="Santos"
+                      className="capitalize"
+                    />
+                  </FormField>
+
+                  <FormField label="Last Name" htmlFor="last-name" required isFilled={!!patient.last_name}>
+                    <Input
+                      id="last-name"
+                      value={patient.last_name}
+                      onChange={handleInputChange('last_name')}
+                      placeholder="Dela Cruz"
+                      className="capitalize"
+                    />
+                  </FormField>
+
+                  <FormField label="Extension" htmlFor="ext-name" hint="Suffix such as Jr., Sr., III">
+                    <Input
+                      id="ext-name"
+                      value={patient.ext_name}
+                      onChange={handleInputChange('ext_name')}
+                      placeholder="Jr., III"
+                    />
+                  </FormField>
+                </div>
+              </CardBox>
             </div>
 
-            {statusMessage && (
-              <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${statusType === 'success' ? 'bg-lightsuccess text-success' :
-                statusType === 'error' ? 'bg-lighterror text-error' :
-                  'bg-lightinfo text-info'
-                }`}>
-                {statusType === 'success' ? (
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                ) : statusType === 'error' ? (
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                ) : (
-                  <Info className="h-4 w-4 shrink-0" />
-                )}
-                <span className="text-sm font-medium">{statusMessage}</span>
-                <button
-                  onClick={() => setStatusMessage(null)}
-                  className={`ml-1 rounded-full p-0.5 transition-colors ${statusType === 'success' ? 'hover:bg-success/10' :
-                    statusType === 'error' ? 'hover:bg-error/10' :
-                      'hover:bg-info/10'
-                    }`}
-                  title="Dismiss"
-                  aria-label="Dismiss notification"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Right: actions */}
-          <div className="flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={openModal}
-                  className="gap-2"
-                >
-                  <Database className="h-4 w-4" />
-                  <span className="hidden sm:inline">Get Repository</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Look up patient data from a facility repository</TooltipContent>
-            </Tooltip>
-
-            <Separator orientation="vertical" className="h-6 mx-1" />
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleReset}
-                  disabled={!isDirty}
-                  className="gap-2"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  <span className="hidden sm:inline">Reset</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Clear all fields and start fresh</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  onClick={handleSave}
-                  disabled={!isDirty || isSaving}
-                  className="gap-2"
-                >
-                  {isSaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  <span>{isSaving ? 'Saving…' : 'Save Profile'}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Save the patient profile</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-      </CardBox>
-
-      {/* ── Form Sections ── */}
-      <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
-        {/* ─── Section 1: Personal Information ─── */}
-        <CardBox className="p-6">
-          <SectionHeader
-            icon={User}
-            title="Personal Information"
-            description="Core identity details — name and name extension."
-            badge={{ label: 'Required', variant: 'lightWarning' }}
-          />
-          <Separator className="my-5" />
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <FormField label="First Name" htmlFor="first-name" required isFilled={!!patient.first_name}>
-              <Input
-                id="first-name"
-                value={patient.first_name}
-                onChange={handleInputChange('first_name')}
-                placeholder="Juan"
-              />
-            </FormField>
-
-            <FormField label="Middle Name" htmlFor="middle-name">
-              <Input
-                id="middle-name"
-                value={patient.middle_name}
-                onChange={handleInputChange('middle_name')}
-                placeholder="Santos"
-              />
-            </FormField>
-
-            <FormField label="Last Name" htmlFor="last-name" required isFilled={!!patient.last_name}>
-              <Input
-                id="last-name"
-                value={patient.last_name}
-                onChange={handleInputChange('last_name')}
-                placeholder="Dela Cruz"
-              />
-            </FormField>
-
-            <FormField label="Extension" htmlFor="ext-name" hint="Suffix such as Jr., Sr., III">
-              <Input
-                id="ext-name"
-                value={patient.ext_name}
-                onChange={handleInputChange('ext_name')}
-                placeholder="Jr., III"
-              />
-            </FormField>
-          </div>
-        </CardBox>
-
-        {/* ─── Section 3: Demographics ─── */}
-        <CardBox className="p-6">
-          <SectionHeader
-            icon={Calendar}
-            title="Demographics"
-            description="Biological and demographic information."
-          />
-          <Separator className="my-5" />
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <FormField label="Sex" htmlFor="sex" required isFilled={!!patient.sex}>
-              <Select value={patient.sex} onValueChange={updateSex}>
-                <SelectTrigger className="w-full" id="sex">
-                  <SelectValue placeholder="Select sex" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">
-                    <span className="flex items-center gap-2">♂ Male</span>
-                  </SelectItem>
-                  <SelectItem value="female">
-                    <span className="flex items-center gap-2">♀ Female</span>
-                  </SelectItem>
-                  <SelectItem value="other">
-                    <span className="flex items-center gap-2">⚧ Other</span>
-                  </SelectItem>
-                  <SelectItem value="unknown">
-                    <span className="flex items-center gap-2">— Unknown</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </FormField>
-
-            <FormField label="Birth Date" htmlFor="birth-date" required isFilled={!!patient.birth_date}>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="birth-date"
-                  type="date"
-                  value={patient.birth_date}
-                  onChange={handleInputChange('birth_date')}
-                  className="pl-10"
+            {/* ─── Section 2: Demographics ─── */}
+            <div ref={demographicsSectionRef} id="demographics-section">
+              <CardBox className="p-6">
+                <SectionHeader
+                  icon={Calendar}
+                  title="Demographics"
+                  description="Biological and demographic information."
                 />
-              </div>
-            </FormField>
-          </div>
-        </CardBox>
+                <Separator className="my-5" />
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <FormField label="Sex" htmlFor="sex" required isFilled={!!patient.sex}>
+                    <Select value={patient.sex} onValueChange={updateSex}>
+                      <SelectTrigger className="w-full" id="sex">
+                        <SelectValue placeholder="Select sex" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male">
+                          <span className="flex items-center gap-2">♂ Male</span>
+                        </SelectItem>
+                        <SelectItem value="female">
+                          <span className="flex items-center gap-2">♀ Female</span>
+                        </SelectItem>
+                        <SelectItem value="other">
+                          <span className="flex items-center gap-2">⚧ Other</span>
+                        </SelectItem>
+                        <SelectItem value="unknown">
+                          <span className="flex items-center gap-2">— Unknown</span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
 
-        {/* ─── Section 4: Location ─── */}
-        <CardBox className="p-6">
-          <SectionHeader
-            icon={MapPin}
-            title="Location"
-            description="Geographic assignment and barangay link using PSGC."
-          />
-          <Separator className="my-5" />
+                  <FormField label="Birth Date" htmlFor="birth-date" required isFilled={!!patient.birth_date}>
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                        <Input
+                          id="birth-date"
+                          type="date"
+                          value={patient.birth_date}
+                          onChange={handleInputChange('birth_date')}
+                          className="pl-10"
+                        />
+                      </div>
+                      {ageDisplay && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Badge variant="outline" className="text-xs font-normal">
+                            {ageDisplay}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  </FormField>
+                </div>
+              </CardBox>
+            </div>
 
-          {/* Region and Province */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <FormField label="Region" htmlFor="region" required isFilled={!!selectedRegionCode}>
-              <Select value={selectedRegionCode} onValueChange={handleRegionChange}>
-                <SelectTrigger id="region" className="w-full">
-                  <SelectValue placeholder={isLoadingRegions ? "Loading regions..." : "Select Region"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {regions.map((region) => (
-                    <SelectItem key={region.code} value={region.code}>
-                      {region.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-
-            <FormField label="Province" htmlFor="province">
-              <Select
-                value={selectedProvinceCode}
-                onValueChange={handleProvinceChange}
-                disabled={provinces.length === 0 && !isLoadingProvinces}
-              >
-                <SelectTrigger id="province" className="w-full">
-                  <SelectValue placeholder={isLoadingProvinces ? "Loading provinces..." : "Select Province"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {provinces.map((province) => (
-                    <SelectItem key={province.code} value={province.code}>
-                      {province.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-          </div>
-
-          {/* City and Barangay */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <FormField label="City / Municipality" htmlFor="city" required isFilled={!!selectedCityCode}>
-              <Select
-                value={selectedCityCode}
-                onValueChange={handleCityChange}
-                disabled={cities.length === 0 && !isLoadingCities}
-              >
-                <SelectTrigger id="city" className="w-full">
-                  <SelectValue placeholder={isLoadingCities ? "Loading cities..." : "Select City"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {cities.map((city) => (
-                    <SelectItem key={city.code} value={city.code}>
-                      {city.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-
-            <FormField label="Barangay" htmlFor="barangay" required isFilled={!!selectedBrgyCode}>
-              <Select
-                value={selectedBrgyCode}
-                onValueChange={handleBrgyChange}
-                disabled={barangays.length === 0 && !isLoadingBarangays}
-              >
-                <SelectTrigger id="barangay" className="w-full">
-                  <SelectValue placeholder={isLoadingBarangays ? "Loading barangays..." : "Select Barangay"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {barangays.map((brgy) => (
-                    <SelectItem key={brgy.code} value={brgy.code}>
-                      {brgy.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-          </div>
-
-          {/* Street Address */}
-          <div>
-            <FormField label="Street Address" htmlFor="street">
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                <Input
-                  id="street"
-                  value={patient.street || ''}
-                  onChange={handleInputChange('street')}
-                  placeholder="e.g. 123 Main St., Building A"
-                  className="pl-10"
+            {/* ─── Section 3: Location ─── */}
+            <div ref={locationSectionRef} id="location-section">
+              <CardBox className="p-6">
+                <SectionHeader
+                  icon={MapPin}
+                  title="Location"
+                  description="Geographic assignment and barangay link using PSGC."
                 />
-              </div>
-            </FormField>
-          </div>
-        </CardBox>
-      </form>
+                <Separator className="my-5" />
+
+                {/* Region and Province */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <FormField label="Region" htmlFor="region" required isFilled={!!selectedRegionCode}>
+                    <Select value={selectedRegionCode} onValueChange={handleRegionChange}>
+                      <SelectTrigger id="region" className="w-full">
+                        <SelectValue placeholder={isLoadingRegions ? "Loading regions..." : "Select Region"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {regions.map((region) => (
+                          <SelectItem key={region.code} value={region.code}>
+                            {region.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+
+                  <FormField label="Province" htmlFor="province">
+                    <Select
+                      value={selectedProvinceCode}
+                      onValueChange={handleProvinceChange}
+                      disabled={provinces.length === 0 && !isLoadingProvinces}
+                    >
+                      <SelectTrigger id="province" className="w-full">
+                        <SelectValue placeholder={isLoadingProvinces ? "Loading provinces..." : "Select Province"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {provinces.map((province) => (
+                          <SelectItem key={province.code} value={province.code}>
+                            {province.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                </div>
+
+                {/* City and Barangay */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <FormField label="City / Municipality" htmlFor="city" required isFilled={!!selectedCityCode}>
+                    <Select
+                      value={selectedCityCode}
+                      onValueChange={handleCityChange}
+                      disabled={cities.length === 0 && !isLoadingCities}
+                    >
+                      <SelectTrigger id="city" className="w-full">
+                        <SelectValue placeholder={isLoadingCities ? "Loading cities..." : "Select City"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cities.map((city) => (
+                          <SelectItem key={city.code} value={city.code}>
+                            {city.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+
+                  <FormField label="Barangay" htmlFor="barangay" required isFilled={!!selectedBrgyCode}>
+                    <Select
+                      value={selectedBrgyCode}
+                      onValueChange={handleBrgyChange}
+                      disabled={barangays.length === 0 && !isLoadingBarangays}
+                    >
+                      <SelectTrigger id="barangay" className="w-full">
+                        <SelectValue placeholder={isLoadingBarangays ? "Loading barangays..." : "Select Barangay"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {barangays.map((brgy) => (
+                          <SelectItem key={brgy.code} value={brgy.code}>
+                            {brgy.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                </div>
+
+                {/* Street Address */}
+                <div>
+                  <FormField label="Street Address" htmlFor="street">
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                      <Input
+                        id="street"
+                        value={patient.street || ''}
+                        onChange={handleInputChange('street')}
+                        placeholder="e.g. 123 Main St., Building A"
+                        className="pl-10"
+                      />
+                    </div>
+                  </FormField>
+                </div>
+              </CardBox>
+            </div>
+          </form>
+        </main>
+      </div>
 
       {/* ── Repository Lookup Modal ── */}
       <Dialog
