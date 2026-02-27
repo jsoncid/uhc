@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
+import darkLogo from 'src/assets/images/logos/dark-logo.svg';
+import lightLogo from 'src/assets/images/logos/light-logo.svg';
 import { useOfficeStore, Office } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -39,20 +41,30 @@ if (typeof window !== 'undefined') {
 function getFemaleVoice(): SpeechSynthesisVoice | null {
   const voices = cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();
 
-  const femaleKeywords = ['zira', 'samantha', 'google us english', 'hazel', 'susan', 'victoria', 'karen', 'female', 'woman'];
-  const maleKeywords   = ['david', 'mark', 'james', 'richard', 'male', 'man'];
+  const femaleKeywords = [
+    'zira',
+    'samantha',
+    'google us english',
+    'hazel',
+    'susan',
+    'victoria',
+    'karen',
+    'female',
+    'woman',
+  ];
+  const maleKeywords = ['david', 'mark', 'james', 'richard', 'male', 'man'];
 
-  const englishVoices = voices.filter(v => v.lang.toLowerCase().startsWith('en'));
+  const englishVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
 
   // Priority 1: explicitly female-named voice
-  const explicit = englishVoices.find(v =>
-    femaleKeywords.some(k => v.name.toLowerCase().includes(k))
+  const explicit = englishVoices.find((v) =>
+    femaleKeywords.some((k) => v.name.toLowerCase().includes(k)),
   );
   if (explicit) return explicit;
 
   // Priority 2: english voice with no male indicators
-  const likely = englishVoices.find(v =>
-    !maleKeywords.some(k => v.name.toLowerCase().includes(k))
+  const likely = englishVoices.find(
+    (v) => !maleKeywords.some((k) => v.name.toLowerCase().includes(k)),
   );
   if (likely) return likely;
 
@@ -71,7 +83,7 @@ function speakRepeat(text: string, times: number, onDone: () => void): void {
     const voice = getFemaleVoice();
     if (voice) utter.voice = voice;
     utter.pitch = 1.15;
-    utter.rate  = 0.95;
+    utter.rate = 0.95;
 
     utter.onend = () => {
       count++;
@@ -317,7 +329,17 @@ const QueueDisplay = () => {
       >
         {/* Header: title + clock */}
         <header className="flex shrink-0 items-center justify-between border-b border-border pb-3">
-          <h1 className="text-lg font-bold tracking-wide text-foreground md:text-xl">
+          <h1 className="flex items-center gap-3 text-lg font-bold tracking-wide text-foreground md:text-xl">
+            <img
+              src={darkLogo}
+              alt="UHC logo"
+              className="block dark:hidden h-9 w-auto shrink-0 object-contain"
+            />
+            <img
+              src={lightLogo}
+              alt="UHC logo"
+              className="hidden dark:block h-9 w-auto shrink-0 object-contain"
+            />
             Queue Display
           </h1>
           <div className="flex items-baseline gap-4">
@@ -341,7 +363,12 @@ const QueueDisplay = () => {
         </header>
 
         {/* Bottom section: per-office columns */}
-        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden">
+        <div
+          className="min-h-0 flex-1 grid gap-4 overflow-x-auto overflow-y-hidden"
+          style={{
+            gridTemplateColumns: `repeat(${activeOffices.length}, minmax(calc((100% - 5 * 1rem) / 6), 1fr))`,
+          }}
+        >
           {activeOffices.length === 0 ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground">
               No active offices
@@ -388,55 +415,55 @@ const QueueDisplay = () => {
               return (
                 <div
                   key={office.id}
-                  className="flex min-w-40 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card"
+                  className="flex flex-col overflow-hidden rounded-xl border border-border bg-card"
                 >
                   {/* Office header */}
                   <div className="shrink-0 border-b border-border px-3 py-2">
                     <p className="break-words text-sm font-bold text-foreground">{officeName}</p>
                   </div>
 
-                  {/* Now serving — stacked per active window */}
-                  <div className="flex flex-1 flex-col items-center justify-start gap-0 overflow-y-auto pt-0 px-4 pb-4">
-                    {/* Serving section */}
-                    {servingEntries.length > 0 ? (
-                      <>
-                        <div className="w-full flex flex-col items-center gap-2 pb-4">
-                          {servingEntries.map(({ seq, windowLabel, style }) => (
-                            <div key={seq.id} className="flex w-full flex-col items-center gap-1">
-                              <span
-                                className={`text-center font-black tracking-[0.12em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
-                                style={{
-                                  fontSize: 'clamp(2rem, 6vw, 3rem)',
-                                  lineHeight: 1.1,
-                                }}
-                                aria-live="polite"
-                              >
-                                {seq.queue_data?.code || '---'}
+                  {/* Now serving / waiting — split into two colour zones */}
+                  <div className="flex flex-1 flex-col overflow-hidden">
+                    {/* ── SERVING zone (green tint) ── */}
+                    <div className="flex flex-col items-center gap-2 bg-emerald-100 dark:bg-emerald-950/40 px-4 pt-3 pb-3 shrink-0">
+                      <span className="self-start text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400/70">
+                        Now Serving
+                      </span>
+                      {servingEntries.length > 0 ? (
+                        servingEntries.map(({ seq, windowLabel, style }) => (
+                          <div key={seq.id} className="flex w-full flex-col items-center gap-0.5">
+                            <span
+                              className={`text-center font-black tracking-[0.12em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
+                              style={{ fontSize: 'clamp(2rem, 6vw, 3rem)', lineHeight: 1.1 }}
+                              aria-live="polite"
+                            >
+                              {seq.queue_data?.code || '---'}
+                            </span>
+                            {windowLabel && (
+                              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300/80">
+                                {windowLabel}
                               </span>
-                              {windowLabel && (
-                                <span className="text-xs font-semibold text-muted-foreground">
-                                  {windowLabel}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="w-full border-t-3 border-dashed border-border mb-4" />
-                      </>
-                    ) : (
-                      <>
+                            )}
+                          </div>
+                        ))
+                      ) : (
                         <span
-                          className="font-bold text-muted-foreground mb-4"
+                          className="font-bold text-emerald-400 dark:text-emerald-700/50"
                           style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)' }}
                         >
                           —
                         </span>
-                        <div className="w-full border-t-3 border-dashed border-border mb-4" />
-                      </>
-                    )}
+                      )}
+                    </div>
 
-                    {/* Waiting section with small font */}
-                    <div className="w-full flex flex-col items-center gap-1 overflow-y-auto">
+                    {/* Divider */}
+                    <div className="w-full border-t border-dashed border-border" />
+
+                    {/* ── WAITING zone (silver/slate tint) ── */}
+                    <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto bg-slate-100 dark:bg-slate-700/30 px-4 pt-3 pb-4">
+                      <span className="self-start text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400/70 mb-1">
+                        Waiting
+                      </span>
                       {waitingEntries.length === 0 ? (
                         <p className="text-xs text-muted-foreground">No waiting</p>
                       ) : (
@@ -449,9 +476,7 @@ const QueueDisplay = () => {
                             >
                               <span
                                 className={`font-black tracking-wide ${style.text}`}
-                                style={{
-                                  fontSize: 'clamp(2rem, 6vw, 2.3rem)',
-                                }}
+                                style={{ fontSize: 'clamp(2rem, 6vw, 2.3rem)' }}
                               >
                                 {seq.queue_data?.code || '---'}
                               </span>

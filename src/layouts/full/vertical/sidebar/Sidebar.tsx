@@ -2,7 +2,7 @@ import SidebarContent from './sidebaritems';
 import SimpleBar from 'simplebar-react';
 import { Icon } from '@iconify/react';
 import FullLogo from '../../shared/logo/FullLogo';
-import { Link, useLocation } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useTheme } from 'src/components/provider/theme-provider';
 import { usePermissions } from 'src/context/PermissionsContext';
 import { useAuthStore } from 'src/stores/useAuthStore';
@@ -25,6 +25,7 @@ interface SidebarItemType {
 const renderSidebarItems = (
   items: SidebarItemType[],
   currentPath: string,
+  navigate: ReturnType<typeof useNavigate>,
   onClose?: () => void,
   isSubItem: boolean = false,
 ) => {
@@ -59,14 +60,13 @@ const renderSidebarItems = (
           title={item.name}
           ClassName="mt-0.5 text-sidebar-foreground dark:text-sidebar-foreground"
         >
-          {renderSidebarItems(item.children, currentPath, onClose, true)}
+          {renderSidebarItems(item.children, currentPath, navigate, onClose, true)}
         </AMSubmenu>
       );
     }
 
     // Regular menu item
     const isExternal = item.url?.startsWith('https');
-    const linkTarget = isExternal ? '_blank' : undefined;
 
     const itemClassNames = isSubItem
       ? `mt-0.5 text-sidebar-foreground dark:text-sidebar-foreground !hover:bg-transparent ${
@@ -74,19 +74,26 @@ const renderSidebarItems = (
         }`
       : `mt-0.5 text-sidebar-foreground dark:text-sidebar-foreground`;
 
+    const handleClick = (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (isExternal) {
+        window.open(item.url, '_blank', 'noopener,noreferrer');
+      } else if (item.url) {
+        navigate(item.url);
+      }
+      onClose?.();
+    };
+
     return (
-      <div key={item.id} onClick={onClose}>
+      <div key={item.id} onClick={handleClick} style={{ cursor: 'pointer' }}>
         <AMMenuItem
           icon={iconElement}
           isSelected={isSelected}
-          link={item.url || undefined}
-          target={linkTarget}
           badge={!!item.isPro}
           badgeColor="bg-lightsecondary"
           badgeTextColor="text-secondary"
           disabled={item.disabled}
           badgeContent={item.isPro ? 'Pro' : undefined}
-          component={isExternal ? 'a' : Link}
           className={`${itemClassNames}`}
         >
           <span className="truncate flex-1">{item.title || item.name}</span>
@@ -106,6 +113,7 @@ const SidebarLayout = ({
   onToggle?: () => void;
 }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const pathname = location.pathname;
   const { theme } = useTheme();
   const { checkAccess, loading } = usePermissions();
@@ -173,6 +181,7 @@ const SidebarLayout = ({
                   ...(section.children || []),
                 ],
                 pathname,
+                navigate,
                 onClose,
               )}
             </div>

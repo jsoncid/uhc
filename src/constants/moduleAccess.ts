@@ -58,6 +58,7 @@ export const PAGE_MODULES = {
 
   // Module 5 - OCR pages
   MODULE_5_OCR: 'Module 5 - OCR',
+  MODULE_5_DOCUMENTS: 'Module 5 - Documents',
 };
 
 export const ROLE_IDS = {

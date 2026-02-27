@@ -247,12 +247,12 @@ const PdfPreviewModal = ({ url, name, onClose }: { url: string; name: string; on
           >
             <ExternalLink className="w-4 h-4" /> Open in New Tab
           </Button>
-          <Button
+          {/* <Button
             className="flex gap-2 bg-green-600 hover:bg-green-700 text-white shadow-sm"
             onClick={() => { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }}
           >
             <Download className="w-4 h-4" /> Download
-          </Button>
+          </Button> */}
         </div>
     </div>
   </div>
@@ -1070,8 +1070,7 @@ const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
   onDownload: () => void; isCapturing: boolean;
 }) => (
   <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4">
-    <div className="bg-white dark:bg-gray-900 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-green-700 bg-gradient-to-r from-green-800 to-green-900 flex-shrink-0">
+  <div className="bg-white dark:bg-[#1e1e1e] rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col">      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-green-700 bg-gradient-to-r from-green-800 to-green-900 flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
             <Printer className="w-4 h-4 text-white" />
@@ -1087,8 +1086,8 @@ const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
       </div>
 
       {/* Card preview - scrollable */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 dark:from-gray-800 dark:via-gray-850 dark:to-gray-800 relative">
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage:'radial-gradient(circle,#d1d5db 1px,transparent 1px)',backgroundSize:'20px 20px' }} />
+    <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 dark:from-[#262626] dark:via-[#222] dark:to-[#262626] relative">        
+      <div className="absolute inset-0 opacity-20" style={{ backgroundImage:'radial-gradient(circle,#d1d5db 1px,transparent 1px)',backgroundSize:'20px 20px' }} />
         <div className="relative z-10 flex justify-center px-4 sm:px-8 py-6 sm:py-8">
           <div style={{ filter:'drop-shadow(0 12px 32px rgba(0,0,0,0.25))' }} className="w-full max-w-md sm:max-w-lg">
             <img
@@ -1101,7 +1100,7 @@ const PrintModal = ({ imgUrl, patientName, onClose, onDownload, isCapturing }: {
       </div>
 
       {/* Footer */}
-      <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex-shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 dark:border-[#333] bg-gray-50 dark:bg-[#262626]/80 flex-shrink-0">        
         <div className="flex flex-col gap-3">
           {/* Action buttons */}
           <div className="flex gap-2 flex-wrap justify-end">
@@ -2325,10 +2324,10 @@ const UhcMember = () => {
 
       {/* ══ Camera Capture Modal ══ */}
       {showCamera && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700">
+       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-[#1e1e1e] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-[#333]">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-[#333]">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
                   <Camera className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -2338,7 +2337,7 @@ const UhcMember = () => {
                   <p className="text-[11px] text-gray-400 dark:text-gray-500">Position your face in the frame</p>
                 </div>
               </div>
-              <button onClick={closeCamera} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              <button onClick={closeCamera} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2a2a2a] transition-colors">
                 <X className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               </button>
             </div>
@@ -2387,13 +2386,13 @@ const UhcMember = () => {
             </div>
 
             {/* Controls */}
-            <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700">
+              <div className="px-5 py-4 border-t border-gray-100 dark:border-[#333]">
               {cameraError ? null : capturedImage ? (
                 /* Captured — Use / Retake */
                 <div className="flex items-center gap-3">
                   <button
                     onClick={retakePhoto}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#333] text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-[#2a2a2a] transition-colors"
                   >
                     <RefreshCw className="w-4 h-4" /> Retake
                   </button>
@@ -2410,10 +2409,10 @@ const UhcMember = () => {
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center justify-center gap-4">
+               <div className="flex items-center justify-center gap-4">
                   <button
                     onClick={switchCamera}
-                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-[#262626] flex items-center justify-center hover:bg-gray-200 dark:hover:bg-[#333] transition-colors"
                     title="Switch camera"
                   >
                     <SwitchCamera className="w-5 h-5 text-gray-600 dark:text-gray-300" />
@@ -2428,9 +2427,10 @@ const UhcMember = () => {
                   </button>
                   <button
                     onClick={closeCamera}
-                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    className="w-11 h-11 rounded-full bg-gray-100 dark:bg-[#262626] flex items-center justify-center hover:bg-gray-200 dark:hover:bg-[#333] transition-colors"
                     title="Cancel"
                   >
+
                     <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                   </button>
                 </div>
@@ -2442,7 +2442,7 @@ const UhcMember = () => {
 
       <div className="flex flex-col gap-4 sm:gap-6">
         {/* ── Search / Profile ── */}
-        <Card className="p-4 sm:p-6 dark:bg-gray-900 dark:border-gray-700">
+        <Card className="p-4 sm:p-6 dark:bg-[#1e1e1e] dark:border-[#333]">
           {isAutoLoading ? (
             /* Loading state while checking for tagged patient */
             <div className="flex flex-col items-center justify-center py-8 gap-3">
@@ -2491,8 +2491,8 @@ const UhcMember = () => {
                         onChange={handleProfilePicUpload}
                       />
                       {/* Small camera badge */}
-                      <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-green-600 dark:bg-green-500 flex items-center justify-center shadow-md border-2 border-white dark:border-gray-800">
-                        <Camera className="w-3.5 h-3.5 text-white" />
+                      <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-green-600 dark:bg-green-500 flex items-center justify-center shadow-md border-2 border-white dark:border-[#1e1e1e]">                       
+                         <Camera className="w-3.5 h-3.5 text-white" />
                       </div>
                     </div>
                     {/* Action buttons */}
@@ -2530,22 +2530,22 @@ const UhcMember = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">My Health Profile</p>
 
                     {/* Info grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-[#262626]/60 border border-gray-100 dark:border-[#333]">
                         <User className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                         <div className="min-w-0">
                           <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Sex</p>
                           <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{selectedPatient.sex}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-[#262626]/60 border border-gray-100 dark:border-[#333]">
                         <IdCard className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                         <div className="min-w-0">
                           <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Date of Birth</p>
                           <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{formatDate(selectedPatient.birth_date)} ({computeAge(selectedPatient.birth_date)})</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 sm:col-span-2">
+                      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-[#262626]/60 border border-gray-100 dark:border-[#333] sm:col-span-2">
                         <Building2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                         <div className="min-w-0 overflow-hidden">
                           <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Address</p>
@@ -2555,8 +2555,8 @@ const UhcMember = () => {
                     </div>
 
                     {/* Document stats */}
-                    <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
-                      <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400">
+                    <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 dark:border-[#333]">                    
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400">
                         <CheckCircle2 className="w-3.5 h-3.5" />{totalActive} active documents
                       </span>
                       {totalArchived > 0 && (
@@ -2666,11 +2666,11 @@ const UhcMember = () => {
                     ) : (
                       <table className="w-full border-collapse">
                         <thead>
-                        <tr className="border-b border-gray-200">
-                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">Date Attached</th>
-                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">Category</th>
-                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50">File Name</th>
-                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 bg-gray-50 w-32">Actions</th>
+                        <tr className="border-b border-gray-200 dark:border-[#333]">
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-[#262626]">Date Attached</th>
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-[#262626]">Category</th>
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-[#262626]">File Name</th>
+                        <th className="text-center py-3 px-4 font-semibold text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-[#262626] w-32">Actions</th>
                       </tr>
                         </thead>
                         <tbody>
@@ -2690,25 +2690,25 @@ const UhcMember = () => {
                                 : '';
 
                               return (
-                                <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                  <td className="py-3 px-4 text-sm text-gray-600 text-center">
+                                  <tr key={doc.id} className="border-b border-gray-100 dark:border-[#333] hover:bg-gray-50 dark:hover:bg-[#2a2a2a] transition-colors">
+                                  <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 text-center">
                                     <div>{attachmentDate}</div>
-                                    {attachmentTime && <div className="text-xs text-gray-400">{attachmentTime}</div>}
+                                    {attachmentTime && <div className="text-xs text-gray-400 dark:text-gray-500">{attachmentTime}</div>}
                                   </td>
                                   <td className="py-3 px-4">
                                     <div className="flex items-center justify-center gap-2">
                                       {FOLDER_DEFS.find(f => docMatchesFolder(doc.category, f.key)) && (
-                                        <span className="text-green-600">
+                                        <span className="text-green-600 dark:text-green-400 ">
                                           {FOLDER_DEFS.find(f => docMatchesFolder(doc.category, f.key))?.icon}
                                         </span>
                                       )}
-                                      <span className="text-sm text-gray-700">{doc.category}</span>
+                                      <span className="text-sm text-gray-700 dark:text-gray-300">{doc.category}</span>
                                     </div>
                                   </td>
                                   <td className="py-3 px-4">
                                     <div className="flex items-center justify-center gap-3">
                                       <img src={filePdfIcon} alt="PDF" className="w-5 h-5 object-contain flex-shrink-0" />
-                                      <span className="text-sm font-medium text-gray-800 truncate max-w-xs">
+                                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200  truncate max-w-xs">
                                         {displayFileName(doc.attachment, selectedPatient)}
                                       </span>
                                     </div>
@@ -2899,31 +2899,31 @@ const UhcMember = () => {
             </TabsContent>
 
             {/* ════ PIN TAB ════ */}
-            <TabsContent value="pin">
+           <TabsContent value="pin">
               <Card className="p-4 sm:p-6">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-                    <Lock className="w-5 h-5 text-green-700" />
+                  <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
+                    <Lock className="w-5 h-5 text-green-700 dark:text-green-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-base sm:text-lg text-gray-900">My Security PIN</h3>
-                    <p className="text-xs text-gray-400">Your 4-digit PIN protects your health records from unauthorized access.</p>
+                    <h3 className="font-semibold text-base sm:text-lg text-gray-900 dark:text-gray-100">My Security PIN</h3>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">Your 4-digit PIN protects your health records from unauthorized access.</p>
                   </div>
                 </div>
 
                 {/* Success */}
                 {pinSuccess && (
-                  <div className="mb-5 flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-                    <ShieldCheck className="w-5 h-5 text-green-600 flex-shrink-0" />
-                    <p className="text-sm text-green-700 font-medium">{pinSuccess}</p>
+                  <div className="mb-5 flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                    <ShieldCheck className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                    <p className="text-sm text-green-700 dark:text-green-400 font-medium">{pinSuccess}</p>
                   </div>
                 )}
 
                 {/* No health card yet — still show the card but disable the button */}
                 {!healthCardId && (
-                  <div className="mb-5 flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                    <p className="text-sm text-amber-700">
+                  <div className="mb-5 flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                    <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    <p className="text-sm text-amber-700 dark:text-amber-400">
                       Your health card record is being set up. Once ready, you can set your PIN here. This usually happens automatically when you search your name.
                     </p>
                   </div>
@@ -2931,20 +2931,20 @@ const UhcMember = () => {
 
                 {/* PIN status block */}
                 <div className={`rounded-2xl border-2 p-4 sm:p-6 mb-5 ${
-                  hasPin ? 'border-green-200 bg-green-50' : 'border-dashed border-gray-200 bg-gray-50'
+                  hasPin ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border-dashed border-gray-200 dark:border-[#333] bg-gray-50 dark:bg-[#262626]'
                 }`}>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3 sm:gap-4">
-                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${hasPin ? 'bg-green-100' : 'bg-gray-100'}`}>
+                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${hasPin ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-[#333]'}`}>
                         {hasPin
                           ? <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-green-600" />
                           : <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7 text-gray-400" />}
                       </div>
                       <div>
-                        <p className={`font-bold text-sm sm:text-base ${hasPin ? 'text-green-800' : 'text-gray-600'}`}>
+                        <p className={`font-bold text-sm sm:text-base ${hasPin ? 'text-green-800 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
                           {hasPin ? 'PIN is Active' : 'No PIN Set'}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5 max-w-xs leading-relaxed">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 max-w-xs leading-relaxed">
                           {hasPin
                             ? 'Your records are protected. Give your PIN to the operator only when you are present.'
                             : 'Set a PIN so operators must ask for it before accessing your records.'}
@@ -2957,8 +2957,8 @@ const UhcMember = () => {
                       <Button
                         onClick={() => { setPinError(''); setPinModalMode(hasPin ? 'change' : 'set'); }}
                         className={hasPin
-                          ? 'flex gap-2 border border-green-300 text-green-700 bg-white hover:bg-green-50'
-                          : 'flex gap-2 bg-green-700 hover:bg-green-800 text-white'}
+                          ? 'flex gap-2 border border-green-300 text-green-700 bg-white hover:bg-green-50 hover:text-green-700'
+                          : 'flex gap-2 bg-green-700 hover:bg-green-800 text-green-50 hover:text-green-50'}
                         variant={hasPin ? 'outline' : 'default'}
                       >
                         <KeyRound className="w-4 h-4" />
@@ -2973,8 +2973,8 @@ const UhcMember = () => {
                 </div>
 
                 {/* How it works */}
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-5">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">How the PIN works</p>
+                <div className="rounded-xl border border-gray-100 dark:border-[#333] bg-gray-50 dark:bg-[#262626] p-5">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">How the PIN works</p>
                   <div className="flex flex-col gap-3">
                     {[
                       { icon: <Lock        className="w-4 h-4 text-green-600" />, text: 'You set a 4-digit PIN that only you know.' },
@@ -2983,10 +2983,10 @@ const UhcMember = () => {
                       { icon: <ShieldAlert className="w-4 h-4 text-red-500" />,   text: 'Never share your PIN over phone, text, or with anyone outside the health center.' },
                     ].map((item, i) => (
                       <div key={i} className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-7 h-7 rounded-lg bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#333] flex items-center justify-center flex-shrink-0 mt-0.5">
                           {item.icon}
                         </div>
-                        <p className="text-sm text-gray-600 leading-relaxed">{item.text}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{item.text}</p>
                       </div>
                     ))}
                   </div>

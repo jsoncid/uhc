@@ -44,8 +44,10 @@ const PatientHistoryTimeline = ({ history, isLoading }: PatientHistoryTimelinePr
     <div className="relative">
       <div className="absolute left-5 top-6 bottom-0 w-0.5 bg-gradient-to-b from-primary/50 via-primary/30 to-transparent" />
       <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-        {history.map((record) => (
-          <div key={record.enccode} className="relative flex gap-4 group">
+        {history.map((record) => {
+          const recordKey = `${record.source_database ?? 'unknown'}-${record.enccode}-${record.admdate ?? record.encounter_date ?? ''}-${record.disdate ?? ''}`;
+          return (
+            <div key={recordKey} className="relative flex gap-4 group">
             {/* Timeline Dot */}
             <div className="relative z-10 flex-shrink-0">
               <div className={cn(
@@ -69,6 +71,11 @@ const PatientHistoryTimeline = ({ history, isLoading }: PatientHistoryTimelinePr
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       <h4 className="font-bold text-base">{getAdmissionType(record)}</h4>
                       {getStatusBadge(record.admstat)}
+                      {record.source_database && (
+                        <Badge variant="outline" className="font-mono text-[11px] leading-none">
+                          {record.source_database.toUpperCase()}
+                        </Badge>
+                      )}
                       {record.source_facility_name && (
                         <Badge 
                           variant="outline" 
@@ -275,7 +282,8 @@ const PatientHistoryTimeline = ({ history, isLoading }: PatientHistoryTimelinePr
               </div>
             </div>
           </div>
-        ))}
+        );
+      })}
       </div>
     </div>
   );
