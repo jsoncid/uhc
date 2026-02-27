@@ -4,7 +4,9 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Search } from 'lucide-react'
 import { roleService } from '@/services/roleService'
 import { moduleService } from '@/services/moduleService'
 import { Database } from '@/lib/supabase'
@@ -18,9 +20,10 @@ interface RoleModuleAccessDialogProps {
   onClose: () => void
   role?: Role | null
   access?: RoleModuleAccess | null
+  existingModules?: string[]
 }
 
-export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleModuleAccessDialogProps) => {
+export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access, existingModules = [] }: RoleModuleAccessDialogProps) => {
   const [modules, setModules] = useState<Module[]>([])
   const [formData, setFormData] = useState({
     module: '',
@@ -30,6 +33,8 @@ export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleMo
     is_delete: false,
     description: ''
   })
+  const [selectedModules, setSelectedModules] = useState<string[]>([])
+  const [moduleSearchTerm, setModuleSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,6 +55,7 @@ export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleMo
         is_delete: access.is_delete,
         description: access.description || ''
       })
+      setSelectedModules([])
     } else if (!isOpen) {
       // Reset form when dialog closes
       setFormData({
@@ -60,6 +66,8 @@ export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleMo
         is_delete: false,
         description: ''
       })
+      setSelectedModules([])
+      setModuleSearchTerm('')
       setError(null)
     }
   }, [isOpen, access])
@@ -77,9 +85,23 @@ export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleMo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!role || !formData.module) {
-      setError('Please select a module')
+    if (!role) {
+      setError('Role is required')
       return
+    }
+
+    if (access) {
+      // Edit mode - single module update
+      if (!formData.module) {
+        setError('Please select a module')
+        return
+      }
+    } else {
+      // Create mode - multi module
+      if (selectedModules.length === 0) {
+        setError('Please select at least one module')
+        return
+      }
     }
 
     setIsLoading(true)
@@ -96,16 +118,20 @@ export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleMo
           description: formData.description || null
         })
       } else {
-        // Create mode - create new access
-        await roleService.createRoleModuleAccess({
-          role: role.id,
-          module: formData.module,
-          is_select: formData.is_select,
-          is_insert: formData.is_insert,
-          is_update: formData.is_update,
-          is_delete: formData.is_delete,
-          description: formData.description || null
-        })
+        // Create mode - create access for each selected module
+        await Promise.all(
+          selectedModules.map(moduleId =>
+            roleService.createRoleModuleAccess({
+              role: role.id,
+              module: moduleId,
+              is_select: formData.is_select,
+              is_insert: formData.is_insert,
+              is_update: formData.is_update,
+              is_delete: formData.is_delete,
+              description: formData.description || null
+            })
+          )
+        )
       }
       onClose()
     } catch (err) {
@@ -125,8 +151,18 @@ export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleMo
       is_delete: false,
       description: ''
     })
+    setSelectedModules([])
+    setModuleSearchTerm('')
     setError(null)
     onClose()
+  }
+
+  const handleModuleToggle = (moduleId: string) => {
+    setSelectedModules(prev =>
+      prev.includes(moduleId)
+        ? prev.filter(id => id !== moduleId)
+        : [...prev, moduleId]
+    )
   }
 
   return (
@@ -158,25 +194,94 @@ export const RoleModuleAccessDialog = ({ isOpen, onClose, role, access }: RoleMo
               />
             </div>
             
-            <div className="grid gap-2">
-              <Label htmlFor="module">Module</Label>
-              <Select
-                value={formData.module}
-                onValueChange={(value) => setFormData({ ...formData, module: value })}
-                disabled={!!access}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a module" />
-                </SelectTrigger>
-                <SelectContent>
-                  {modules.map((module) => (
-                    <SelectItem key={module.id} value={module.id}>
-                     {module.description || 'No description'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {access ? (
+              // Edit mode - single module selection (disabled)
+              <div className="grid gap-2">
+                <Label htmlFor="module">Module</Label>
+                <Select
+                  value={formData.module}
+                  onValueChange={(value) => setFormData({ ...formData, module: value })}
+                  disabled={!!access}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a module" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modules.map((module) => (
+                      <SelectItem key={module.id} value={module.id}>
+                       {module.description || 'No description'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              // Create mode - multi-select with search
+              <div className="space-y-3">
+                <Label>Modules (select one or more)</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search modules..."
+                    value={moduleSearchTerm}
+                    onChange={(e) => setModuleSearchTerm(e.target.value)}
+                    className="pl-9 mb-2 border-2 focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                </div>
+                <div className="border rounded-md p-4 space-y-3 max-h-60 overflow-y-auto">
+                  {modules.length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-4">
+                      No modules available
+                    </div>
+                  ) : (
+                    modules
+                      .filter(module => {
+                        // Filter out modules already assigned to this role (only in create mode)
+                        if (!access && existingModules.includes(module.id)) return false
+                        
+                        if (!moduleSearchTerm) return true
+                        const searchLower = moduleSearchTerm.toLowerCase()
+                        return (
+                          module.description?.toLowerCase().includes(searchLower) ||
+                          module.id.toLowerCase().includes(searchLower)
+                        )
+                      })
+                      .map(module => (
+                        <div key={module.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`module-${module.id}`}
+                            checked={selectedModules.includes(module.id)}
+                            onCheckedChange={() => handleModuleToggle(module.id)}
+                          />
+                          <Label htmlFor={`module-${module.id}`} className="cursor-pointer flex-1">
+                            {module.description || module.id}
+                          </Label>
+                        </div>
+                      ))
+                  )}
+                  {modules.filter(module => {
+                    // Filter out modules already assigned to this role (only in create mode)
+                    if (!access && existingModules.includes(module.id)) return false
+                    
+                    if (!moduleSearchTerm) return true
+                    const searchLower = moduleSearchTerm.toLowerCase()
+                    return (
+                      module.description?.toLowerCase().includes(searchLower) ||
+                      module.id.toLowerCase().includes(searchLower)
+                    )
+                  }).length === 0 && moduleSearchTerm && (
+                    <div className="text-sm text-muted-foreground text-center py-4">
+                      No modules found
+                    </div>
+                  )}
+                </div>
+                {selectedModules.length > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    {selectedModules.length} module{selectedModules.length !== 1 ? 's' : ''} selected
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid gap-3">
               <Label>Permissions</Label>
