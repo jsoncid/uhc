@@ -44,6 +44,7 @@ export interface ReferralHistory {
   to_assignment_name?: string;
   status_description?: string;
   email?: string | null; // email of the auth.users record who triggered this event
+  actor_assignment_name?: string | null; // facility of whoever performed this action
 }
 // ─── module2.referral_info ────────────────────────────────────────────────────
 export interface ReferralInfo {

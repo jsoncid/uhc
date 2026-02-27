@@ -45,6 +45,8 @@ import {
 } from 'src/components/ui/select';
 import ReferralPrintDocument from './ReferralPrintDocument';
 import EditClinicalInfoPanel from './EditClinicalInfoPanel';
+import { assignmentService } from '@/services/assignmentService';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 // ─── Status style map ─────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
@@ -90,7 +92,8 @@ const Paginator = ({
   return (
     <div className="flex items-center justify-between mt-3 px-1">
       <p className="text-xs text-muted-foreground">
-      Showing {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} of {total}
+        Showing {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} of{' '}
+        {total}
       </p>
       <div className="flex items-center gap-1">
         <Button
@@ -397,15 +400,15 @@ const PendingTab = ({
               </TableRow>
             ) : (
               visible.map((r) => (
-                <TableRow key={r.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
+                <TableRow
+                  key={r.id}
+                  className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors"
+                >
                   <TableCell>
                     <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-               
-                      {r.from_assignment_name ?? '—'}
-                    </div>
+                    <div className="flex items-center gap-1.5">{r.from_assignment_name ?? '—'}</div>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {r.to_assignment_name ?? '—'}
@@ -462,6 +465,117 @@ const PendingTab = ({
   );
 };
 
+// ─── Receiver Re-Refer Dialog ────────────────────────────────────────────────
+const ReceiverReReferDialog = ({
+  open,
+  referral,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  referral: ReferralType | null;
+  onClose: () => void;
+  onConfirm: (selected: { id: string; description: string }) => void;
+}) => {
+  const [hospital, setHospital] = useState('');
+  const [assignments, setAssignments] = useState<{ id: string; description: string }[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      assignmentService.getAllAssignments().then((data) => {
+        setAssignments(
+          data
+            .filter((a) => a.description)
+            .map((a) => ({ id: a.id, description: a.description! }))
+            .sort((a, b) => a.description.localeCompare(b.description)),
+        );
+      });
+    } else {
+      setHospital('');
+    }
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-full bg-lightprimary flex items-center justify-center flex-shrink-0">
+              <Icon icon="solar:refresh-circle-bold-duotone" height={22} className="text-primary" />
+            </div>
+            <DialogTitle className="text-base">Re-refer Patient</DialogTitle>
+          </div>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Forward <span className="font-semibold text-foreground">{referral?.patient_name}</span>{' '}
+            to another facility. The patient is currently at your facility.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 mt-2">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Current Facility (Your Dept.)</Label>
+            <div className="h-9 px-3 flex items-center rounded-md bg-muted/50 border border-border text-sm text-muted-foreground">
+              {referral?.to_assignment_name ?? '—'}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium">
+              New Destination <span className="text-error">*</span>
+            </Label>
+            <Select value={hospital} onValueChange={setHospital}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select a facility..." />
+              </SelectTrigger>
+              <SelectContent>
+                {assignments.map((a) => (
+                  <SelectItem key={a.id} value={a.description}>
+                    <div className="flex items-center gap-2">
+                      <Icon
+                        icon="solar:buildings-2-bold-duotone"
+                        height={14}
+                        className="text-muted-foreground flex-shrink-0"
+                      />
+                      {a.description}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter className="gap-2 mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setHospital('');
+              onClose();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              if (hospital) {
+                const selected = assignments.find((a) => a.description === hospital);
+                if (selected) {
+                  onConfirm(selected);
+                  setHospital('');
+                  onClose();
+                }
+              }
+            }}
+            disabled={!hospital}
+          >
+            <Icon icon="solar:refresh-circle-bold-duotone" height={15} className="mr-1.5" />
+            Confirm Re-referral
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 // ─── Active (Accepted / In Transit / Arrived) tab ────────────────────────────
 const ActiveTab = ({
   referrals,
@@ -484,10 +598,12 @@ const ActiveTab = ({
     addVaccination,
     deleteVaccination,
     updateVaccinationAttachment,
+    reReferPatient,
     incomingReferrals,
   }: ReferralContextType = useContext(ReferralContext);
   const [dischargeTarget, setDischargeTarget] = useState<ReferralType | null>(null);
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
+  const [reReferTarget, setReReferTarget] = useState<ReferralType | null>(null);
   const editTarget = editTargetId
     ? (incomingReferrals.find((r) => r.id === editTargetId) ?? null)
     : null;
@@ -558,7 +674,10 @@ const ActiveTab = ({
               </TableRow>
             ) : (
               visible.map((r) => (
-                <TableRow key={r.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
+                <TableRow
+                  key={r.id}
+                  className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors"
+                >
                   <TableCell>
                     <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                   </TableCell>
@@ -630,6 +749,16 @@ const ActiveTab = ({
                             Edit Clinical Info
                           </DropdownMenuItem>
                         )}
+                        {['Arrived', 'Admitted'].includes(r.latest_status?.description ?? '') && (
+                          <DropdownMenuItem onClick={() => setReReferTarget(r)}>
+                            <Icon
+                              icon="solar:refresh-circle-bold-duotone"
+                              height={15}
+                              className="mr-2 text-primary"
+                            />
+                            Re-refer Patient
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => onPrint(r)}>
                           <Icon
                             icon="solar:printer-minimalistic-bold-duotone"
@@ -681,6 +810,148 @@ const ActiveTab = ({
           if (dischargeTarget) saveDischargeNotes(dischargeTarget.id, notes);
         }}
       />
+      <ReceiverReReferDialog
+        open={!!reReferTarget}
+        referral={reReferTarget}
+        onClose={() => setReReferTarget(null)}
+        onConfirm={(selected) => {
+          if (reReferTarget) reReferPatient(reReferTarget.id, selected.id, selected.description);
+        }}
+      />
+    </>
+  );
+};
+
+// ─── Forwarded (Re-referred to another facility) tab ─────────────────────────
+const ForwardedTab = ({ referrals, search }: { referrals: ReferralType[]; search: string }) => {
+  const navigate = useNavigate();
+  const { markOutgoingInTransit } = useContext(ReferralContext) as ReferralContextType;
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  const allVisible = referrals
+    .filter((r) => {
+      const q = search.toLowerCase();
+      return (
+        !q ||
+        (r.patient_name ?? '').toLowerCase().includes(q) ||
+        (r.from_assignment_name ?? '').toLowerCase().includes(q) ||
+        (r.to_assignment_name ?? '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const visible = allVisible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  return (
+    <>
+      <div className="rounded-md border border-ld overflow-x-auto scrollbar-none">
+        <Table className="min-w-[900px]">
+          <TableHeader>
+            <TableRow className="bg-muted/30">
+              <TableHead className="font-semibold">Patient</TableHead>
+              <TableHead className="font-semibold">Originally From</TableHead>
+              <TableHead className="font-semibold">Forwarded To</TableHead>
+              <TableHead className="font-semibold">Accepted By</TableHead>
+              <TableHead className="font-semibold">Status</TableHead>
+              <TableHead className="font-semibold">Date</TableHead>
+              <TableHead className="font-semibold text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visible.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center h-[530px] text-muted-foreground">
+                  <div className="flex flex-col items-center gap-2">
+                    <Icon
+                      icon="solar:refresh-circle-bold-duotone"
+                      height={44}
+                      className="opacity-25"
+                    />
+                    <p className="text-sm">No forwarded patients</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              visible.map((r) => (
+                <TableRow
+                  key={r.id}
+                  className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors"
+                >
+                  <TableCell>
+                    <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {r.from_assignment_name ?? '—'}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <Icon icon="solar:arrow-right-bold" height={12} className="text-primary" />
+                      {r.to_assignment_name ?? '—'}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {r.accepted_by ? (
+                      <div className="flex items-center gap-1.5">
+                        <Icon
+                          icon="solar:user-check-bold-duotone"
+                          height={14}
+                          className="text-success flex-shrink-0"
+                        />
+                        {r.accepted_by}
+                      </div>
+                    ) : (
+                      '—'
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge
+                        variant="outline"
+                        className={'font-medium ' + getStatusStyle(r.latest_status?.description)}
+                      >
+                        {r.latest_status?.description ?? 'Pending'}
+                      </Badge>
+                      {r.latest_status?.description === 'Accepted' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs whitespace-nowrap"
+                          onClick={() => markOutgoingInTransit(r.id)}
+                        >
+                          <Icon icon="solar:arrow-right-bold" height={12} className="mr-1" />
+                          In Transit
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {fmt(r.created_at)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => navigate('/module-2/referrals/incoming/detail/' + r.id)}
+                    >
+                      <Icon icon="solar:eye-linear" height={16} className="text-primary" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+            {visible.length > 0 &&
+              Array.from({ length: Math.max(0, PAGE_SIZE - visible.length) }).map((_, i) => (
+                <TableRow key={`filler-${i}`} className="pointer-events-none">
+                  <TableCell colSpan={7} className="h-[53px]" />
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
+      </div>
+      <Paginator total={allVisible.length} page={page} perPage={PAGE_SIZE} onPageChange={setPage} />
     </>
   );
 };
@@ -700,7 +971,11 @@ const DeclinedTab = ({
   useEffect(() => {
     setPage(1);
   }, [search]);
-  const declined = referrals.filter((r) => r.latest_status?.description === 'Declined');
+  const declined = referrals.filter(
+    (r) =>
+      r.latest_status?.description === 'Declined' ||
+      (r.history ?? []).some((h) => h.status_description === 'Declined'),
+  );
   const allVisible = declined
     .filter((r) => {
       const q = search.toLowerCase();
@@ -744,7 +1019,10 @@ const DeclinedTab = ({
               </TableRow>
             ) : (
               visible.map((r) => (
-                <TableRow key={r.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
+                <TableRow
+                  key={r.id}
+                  className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors"
+                >
                   <TableCell>
                     <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                   </TableCell>
@@ -878,7 +1156,10 @@ const DischargedTab = ({
                   (h) => h.status_description === 'Discharged',
                 );
                 return (
-                  <TableRow key={r.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
+                  <TableRow
+                    key={r.id}
+                    className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors"
+                  >
                     <TableCell>
                       <span className="font-medium text-sm">{r.patient_name ?? '—'}</span>
                     </TableCell>
@@ -953,7 +1234,12 @@ const DischargedTab = ({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 const IncomingReferralPage = () => {
-  const { incomingReferrals }: ReferralContextType = useContext(ReferralContext);
+  const {
+    incomingReferrals,
+    formerlyDeclinedReferrals,
+    formerlyActiveReferrals,
+  }: ReferralContextType = useContext(ReferralContext);
+  const { userAssignmentId } = useAuthStore();
 
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -965,14 +1251,38 @@ const IncomingReferralPage = () => {
     (r) => !dateFrom || new Date(r.created_at).toISOString().slice(0, 10) === dateFrom,
   );
 
+  // Formerly-declined: once directed here + declined, now re-referred to another facility
+  const dateFilteredFormerlyDeclined = (formerlyDeclinedReferrals ?? []).filter(
+    (r) => !dateFrom || new Date(r.created_at).toISOString().slice(0, 10) === dateFrom,
+  );
+
+  // Formerly-active: patient was Arrived/Admitted here but now re-referred to another facility
+  // Also catch optimistic re-referred entries still in incomingReferrals (to_assignment changed)
+  const optimisticForwarded = incomingReferrals.filter(
+    (r) =>
+      r.to_assignment !== userAssignmentId &&
+      (r.history ?? []).some((h) => ['Arrived', 'Admitted'].includes(h.status_description ?? '')),
+  );
+  const dateFilteredFormerlyActive = [...(formerlyActiveReferrals ?? []), ...optimisticForwarded]
+    .filter((r, i, arr) => arr.findIndex((x) => x.id === r.id) === i)
+    .filter((r) => !dateFrom || new Date(r.created_at).toISOString().slice(0, 10) === dateFrom);
+
+  // Combined list for the Declined tab (current declined + formerly declined here)
+  const allForDeclined = [...dateFilteredReferrals, ...dateFilteredFormerlyDeclined].filter(
+    (r, i, arr) => arr.findIndex((x) => x.id === r.id) === i,
+  );
+
   const pendingCount = dateFilteredReferrals.filter((r) =>
     ['Pending', 'Seen'].includes(r.latest_status?.description ?? ''),
   ).length;
   const activeCount = dateFilteredReferrals.filter((r) =>
     ['Accepted', 'In Transit', 'Arrived', 'Admitted'].includes(r.latest_status?.description ?? ''),
   ).length;
-  const declinedCount = dateFilteredReferrals.filter(
-    (r) => r.latest_status?.description === 'Declined',
+  const forwardedCount = dateFilteredFormerlyActive.length;
+  const declinedCount = allForDeclined.filter(
+    (r) =>
+      r.latest_status?.description === 'Declined' ||
+      (r.history ?? []).some((h) => h.status_description === 'Declined'),
   ).length;
   const dischargedCount = dateFilteredReferrals.filter(
     (r) => r.latest_status?.description === 'Discharged',
@@ -1050,6 +1360,11 @@ const IncomingReferralPage = () => {
                     Active Patients {activeCount > 0 && `(${activeCount})`}
                   </div>
                 </SelectItem>
+                <SelectItem value="forwarded">
+                  <div className="flex items-center gap-2">
+                    Forwarded {forwardedCount > 0 && `(${forwardedCount})`}
+                  </div>
+                </SelectItem>
                 <SelectItem value="declined">
                   <div className="flex items-center gap-2">
                     Declined {declinedCount > 0 && `(${declinedCount})`}
@@ -1072,8 +1387,11 @@ const IncomingReferralPage = () => {
         {activeTab === 'active' && (
           <ActiveTab referrals={dateFilteredReferrals} search={search} onPrint={setPrintTarget} />
         )}
+        {activeTab === 'forwarded' && (
+          <ForwardedTab referrals={dateFilteredFormerlyActive} search={search} />
+        )}
         {activeTab === 'declined' && (
-          <DeclinedTab referrals={dateFilteredReferrals} search={search} onPrint={setPrintTarget} />
+          <DeclinedTab referrals={allForDeclined} search={search} onPrint={setPrintTarget} />
         )}
         {activeTab === 'discharged' && (
           <DischargedTab

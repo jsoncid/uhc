@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import ReferralDetail from '../apps/referrals/ReferralDetail';
+import ReferralUnifiedDetail from '../apps/referrals/ReferralUnifiedDetail';
 
 const BCrumb = [
   { to: '/', title: 'Home' },
@@ -39,7 +39,7 @@ const ReferralDetails = () => {
           })}
         </ol>
       </div>
-      <ReferralDetail />
+      <ReferralUnifiedDetail />
     </>
   );
 };

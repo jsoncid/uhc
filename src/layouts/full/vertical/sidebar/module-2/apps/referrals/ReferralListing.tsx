@@ -84,7 +84,8 @@ const Paginator = ({
   return (
     <div className="flex items-center justify-between mt-3 px-1">
       <p className="text-xs text-muted-foreground">
-      Showing {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} of {total}
+        Showing {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} of{' '}
+        {total}
       </p>
       <div className="flex items-center gap-1">
         <Button
@@ -242,7 +243,7 @@ const ReReferDialog = ({
 const ReferralListing = () => {
   const {
     referrals,
-    addReferral,
+    reReferPatient,
     updateReferralInfo,
     addOutgoingDiagnostic,
     deleteOutgoingDiagnostic,
@@ -367,6 +368,32 @@ const ReferralListing = () => {
 
       {/* ── Filters ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            'all',
+            'Pending',
+            'Seen',
+            'Accepted',
+            'In Transit',
+            'Arrived',
+            'Admitted',
+            'Discharged',
+            'Declined',
+          ].map((f) => (
+            <Button
+              key={f}
+              size="sm"
+              variant={filter === f ? 'default' : 'outline'}
+              className="h-7 text-xs px-3"
+              onClick={() => {
+                setFilter(f);
+                setPage(1);
+              }}
+            >
+              {f === 'all' ? 'All' : f}
+            </Button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative sm:w-56 w-full">
             <Icon
@@ -384,8 +411,6 @@ const ReferralListing = () => {
               placeholder="Search patient, doctor..."
             />
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Input
               type="date"
@@ -409,25 +434,6 @@ const ReferralListing = () => {
               </button>
             )}
           </div>
-          <Select value={filter} onValueChange={(v) => {
-            setFilter(v);
-            setPage(1);
-          }}>
-            <SelectTrigger className="w-40 h-9 text-sm">
-              <SelectValue placeholder="All Statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Seen">Seen</SelectItem>
-              <SelectItem value="Accepted">Accepted</SelectItem>
-              <SelectItem value="In Transit">In Transit</SelectItem>
-              <SelectItem value="Arrived">Arrived</SelectItem>
-              <SelectItem value="Admitted">Admitted</SelectItem>
-              <SelectItem value="Discharged">Discharged</SelectItem>
-              <SelectItem value="Declined">Declined</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
@@ -515,7 +521,7 @@ const ReferralListing = () => {
               </TableRow>
             ) : (
               visible.map((referral: ReferralType) => (
-                <TableRow key={referral.id} className="hover:bg-primary/20 dark:hover:bg-primary/15 cursor-pointer transition-colors">
+                <TableRow key={referral.id} className="hover:bg-muted/20 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{referral.patient_name ?? '—'}</span>
@@ -639,28 +645,7 @@ const ReferralListing = () => {
         onClose={() => setReReferTarget(null)}
         onConfirm={(selected) => {
           if (!reReferTarget) return;
-          const newId = `ref-${Date.now()}`;
-          addReferral({
-            id: newId,
-            created_at: new Date().toISOString(),
-            status: true,
-            patient_profile: reReferTarget.patient_profile,
-            from_assignment: reReferTarget.from_assignment,
-            to_assignment: selected.id,
-            patient_name: reReferTarget.patient_name,
-            from_assignment_name: reReferTarget.from_assignment_name,
-            to_assignment_name: selected.description,
-            // Strip the old referral_info.id so Supabase generates a new one,
-            // and clear diagnostics/vaccinations to avoid UUID conflicts
-            referral_info: reReferTarget.referral_info
-              ? {
-                  ...reReferTarget.referral_info,
-                  id: '',
-                  diagnostics: [],
-                  vaccinations: [],
-                }
-              : undefined,
-          });
+          reReferPatient(reReferTarget.id, selected.id, selected.description);
         }}
       />
 
@@ -691,96 +676,49 @@ const ReferralListing = () => {
           if (!open) setConfirmId(null);
         }}
       >
-        <DialogContent className="max-w-lg">
-          <div className="flex flex-col gap-6">
-            {/* Header */}
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-950/30 flex items-center justify-center flex-shrink-0">
-                <Icon
-                  icon="solar:danger-bold-duotone"
-                  height={24}
-                  className="text-red-600 dark:text-red-500"
-                />
-              </div>
-              <div className="flex-1">
-                <DialogTitle className="text-xl font-semibold">Deactivate Referral</DialogTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Please review the details before confirming this action
-                </p>
-              </div>
-            </div>
-
-            {/* Alert Section */}
-            <div className="p-4 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40">
-              <div className="flex gap-3">
-                <Icon
-                  icon="solar:info-circle-bold"
-                  height={20}
-                  className="text-red-600 dark:text-red-500 flex-shrink-0 mt-0.5"
-                />
-                <div className="flex-1">
-                  <h4 className="font-medium text-sm text-red-900 dark:text-red-200 mb-1">
-                    This action cannot be undone
-                  </h4>
-                  <p className="text-sm text-red-800 dark:text-red-300 leading-relaxed">
-                    Once deactivated, this referral will be removed from the active list and marked as inactive. Historical records will still be available for audit purposes.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Details Section */}
-            <div className="space-y-3 p-4 rounded-lg bg-muted/30">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Patient Name</span>
-                <span className="text-sm font-semibold text-foreground">{confirmName}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Action By</span>
-                <div className="flex items-center gap-2">
-                  <Icon
-                    icon="solar:user-circle-bold-duotone"
-                    height={18}
-                    className="text-primary"
-                  />
-                  <span className="text-sm font-semibold text-foreground">{currentUserName}</span>
-                </div>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Timestamp</span>
-                <span className="text-sm font-mono text-muted-foreground">
-                  {new Date().toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <DialogFooter className="gap-3 mt-2">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => setConfirmId(null)}
-                className="flex-1"
-              >
-                <Icon icon="solar:close-circle-linear" height={16} className="mr-2" />
-                Cancel
-              </Button>
-              <Button
-                size="lg"
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white dark:bg-red-700 dark:hover:bg-red-800"
-                onClick={handleConfirmDeactivate}
-              >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-full bg-lighterror flex items-center justify-center flex-shrink-0">
                 <Icon
                   icon="solar:trash-bin-minimalistic-bold-duotone"
-                  height={16}
-                  className="mr-2"
+                  height={22}
+                  className="text-error"
                 />
-                Deactivate Referral
-              </Button>
-            </DialogFooter>
+              </div>
+              <DialogTitle className="text-base">Deactivate Referral</DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
+              Are you sure you want to deactivate the referral for{' '}
+              <span className="font-semibold text-foreground">{confirmName}</span>? This will mark
+              the referral as inactive and remove it from the active list. This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 px-1 py-2 rounded-lg bg-muted/50">
+            <Icon
+              icon="solar:user-bold-duotone"
+              height={16}
+              className="text-muted-foreground flex-shrink-0"
+            />
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">Deactivating as</span>
+              <span className="text-sm font-medium">{currentUserName}</span>
+            </div>
           </div>
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => setConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="bg-error hover:bg-error/90 text-white"
+              onClick={handleConfirmDeactivate}
+            >
+              <Icon icon="solar:trash-bin-minimalistic-linear" height={15} className="mr-1.5" />
+              Deactivate
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </CardBox>
