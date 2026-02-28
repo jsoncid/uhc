@@ -52,6 +52,7 @@ import {
   PatientDatabaseSummary,
 } from './utils/patientSearchResultHelpers';
 import { mapFacilityList } from './utils/facilityHelpers';
+import { Module3PageHeader } from './components';
 
 /* ------------------------------------------------------------------ */
 
@@ -798,17 +799,11 @@ const PatientProfiling = () => {
     <>
       {/* Header Section */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Users className="h-7 w-7 text-primary" />
-            </div>
-            Patient Profiling
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Create and update detailed patient profiles
-          </p>
-        </div>
+        <Module3PageHeader
+          icon={Users}
+          title="Patient Profiling"
+          description="Create and update detailed patient profiles"
+        />
 
         {/* Status Message (floating) */}
         {statusMessage && (

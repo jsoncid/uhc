@@ -62,6 +62,11 @@ import { getFacilityName } from 'src/utils/facilityMapping';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientInfoCard from './components/PatientInfoCard';
 import { PatientPDFModal } from './components/PatientPDFModal';
+import {
+  Module3PageHeader,
+  StatsCard,
+  TableRowSkeleton,
+} from './components';
 
 /* ------------------------------------------------------------------ */
 /*  Types & Interfaces                                                 */
@@ -677,25 +682,52 @@ const PatientList = () => {
   /*  Render                                                            */
   /* ------------------------------------------------------------------ */
 
+  // Calculate statistics
+  const linkedPatientsCount = patients.filter((p: any) => 
+    p.patient_repository?.some((r: any) => r.hpercode)
+  ).length;
+  const unlinkedPatientsCount = patients.length - linkedPatientsCount;
+
   return (
     <div className="space-y-6">
-      {/* Header Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Users className="h-7 w-7 text-primary" />
-            </div>
-            Patient List
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            View and manage all patient records in the system
-          </p>
-        </div>
-        <Badge variant="outline" className="text-base px-4 py-2 font-semibold">
-          <Users className="h-4 w-4 mr-2" />
-          {totalPatients} {totalPatients === 1 ? 'Patient' : 'Patients'}
-        </Badge>
+      {/* Page Header */}
+      <Module3PageHeader
+        icon={Users}
+        title="Patient List"
+        description="View and manage all patient records in the system"
+      />
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard
+          icon={Users}
+          title="Total Patients"
+          value={totalPatients}
+          colorScheme="blue"
+          description="All registered patients"
+        />
+        <StatsCard
+          icon={Link2}
+          title="Linked Patients"
+          value={linkedPatientsCount}
+          colorScheme="green"
+          description="Connected to hospital"
+        />
+        <StatsCard
+          icon={Link2Off}
+          title="Unlinked Patients"
+          value={unlinkedPatientsCount}
+          colorScheme="amber"
+          description="Pending connection"
+        />
+        <StatsCard
+          icon={Building2}
+          title="Current Page"
+          value={currentPage}
+          colorScheme="purple"
+          description={`of ${totalPages} total pages`}
+          animate={false}
+        />
       </div>
 
       {/* Search and Filters Card */}
