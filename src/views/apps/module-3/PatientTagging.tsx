@@ -1,11 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from 'src/components/ui/card';
 import { Button } from 'src/components/ui/button';
-import { Input } from 'src/components/ui/input';
 import { Badge } from 'src/components/ui/badge';
 import { Separator } from 'src/components/ui/separator';
 import { Alert, AlertDescription } from 'src/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from 'src/components/ui/tabs';
+import { Tabs, TabsContent } from 'src/components/ui/tabs';
 import {
   Search,
   User,
@@ -13,25 +12,36 @@ import {
   History as HistoryIcon,
   Link as LinkIcon,
   Database,
-  Loader2,
   Info,
   UserPlus,
-  ArrowRight,
   CheckCircle2,
   Edit,
   RefreshCw,
   Trash2,
   Plus,
-  FileText,
+  Users,
+  Link2,
+  Link2Off,
+  CalendarDays,
+  ArrowRight,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import patientService, { PatientProfileWithLocations as PatientProfile, PatientHistory } from 'src/services/patientService';
+import patientService, { PatientHistory } from 'src/services/patientService';
 import PatientSearchPanel, { PatientSearchResultProfile } from './components/PatientSearchPanel';
 import PatientInfoCard from './components/PatientInfoCard';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientLinkingDialog from './components/PatientLinkingDialog';
 import { PatientPDFModal } from './components/PatientPDFModal';
 import { ConfirmDialog } from 'src/components/ui/confirm-dialog';
+import {
+  Module3PageHeader,
+  StatsCard,
+  PatientCardSkeleton,
+  EmptyState,
+  ProcessStepper,
+  SearchInput,
+  ModernTabs,
+} from './components';
 import {
   getPatientSearchBuckets,
   getPatientSearchSummaries,
@@ -430,40 +440,77 @@ const PatientTagging = () => {
   /*  Render                                                            */
   /* ------------------------------------------------------------------ */
 
+  // Tab configuration for ModernTabs
+  const tabConfig = [
+    { value: 'link', label: 'Link Patient', icon: LinkIcon },
+    { value: 'linked', label: 'Linked', icon: CheckCircle2, badge: linkedTotal },
+    { value: 'view', label: 'View History', icon: Search },
+  ];
+
+  // Process steps configuration
+  const linkingSteps = [
+    { title: 'Search Patient', description: 'Find unlinked profile', color: 'blue' as const },
+    { title: 'Click Link', description: 'Open linking dialog', color: 'purple' as const },
+    { title: 'Match Record', description: 'Find hospital match', color: 'emerald' as const },
+    { title: 'Complete', description: 'Full access enabled', color: 'amber' as const, icon: CheckCircle2 },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Header Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Activity className="h-7 w-7 text-primary" />
-            </div>
-            Patient Tagging
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Link manually entered patients with hospital database records and manage patient connections.
-          </p>
-        </div>
+      {/* Page Header */}
+      <Module3PageHeader
+        icon={Activity}
+        title="Patient Tagging"
+        description="Link manually entered patients with hospital database records and manage patient connections."
+      />
+
+      {/* Statistics Dashboard */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard
+          icon={Users}
+          title="Total in Repository"
+          value={linkedTotal + supabaseSearchResults.length}
+          colorScheme="blue"
+          description="All patient profiles"
+        />
+        <StatsCard
+          icon={Link2}
+          title="Linked Patients"
+          value={linkedTotal}
+          colorScheme="green"
+          description="Successfully connected"
+        />
+        <StatsCard
+          icon={Link2Off}
+          title="Pending Links"
+          value={supabaseSearchResults.length}
+          colorScheme="amber"
+          description="Awaiting connection"
+        />
+        <StatsCard
+          icon={CalendarDays}
+          title="Today's Links"
+          value={linkedPatients.filter(p => {
+            const today = new Date().toDateString();
+            return p.patient_repository?.some((repo: any) => 
+              new Date(repo.created_at).toDateString() === today
+            );
+          }).length}
+          colorScheme="purple"
+          description="Linked today"
+        />
       </div>
 
-      {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'view' | 'link' | 'linked')} className="mt-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
-          <TabsTrigger value="link" className="flex items-center gap-2">
-            <LinkIcon className="h-4 w-4" />
-            Link Patient
-          </TabsTrigger>
-          <TabsTrigger value="linked" className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4" />
-            Linked
-          </TabsTrigger>
-          <TabsTrigger value="view" className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            View History
-          </TabsTrigger>
-        </TabsList>
+      {/* Modern Tabs Navigation */}
+      <ModernTabs
+        tabs={tabConfig}
+        activeTab={activeTab}
+        onChange={(v) => setActiveTab(v as 'view' | 'link' | 'linked')}
+        className="w-full sm:w-auto"
+      />
 
+      {/* Main Content */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'view' | 'link' | 'linked')}>
         {/* TAB 1: Link Patients */}
         <TabsContent value="link" className="mt-6 space-y-4">
           <Alert className="border-primary/30 bg-primary/5">
@@ -473,61 +520,14 @@ const PatientTagging = () => {
             </AlertDescription>
           </Alert>
 
-          {/* How it Works */}
-          <Card className="border-2">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Info className="h-4 w-4" />
-                How to Link
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-start gap-4">
-                <div className="flex flex-col items-center gap-2 flex-1">
-                  <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
-                    <span className="text-lg font-bold text-blue-500">1</span>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-sm">Search Patient</p>
-                    <p className="text-xs text-muted-foreground">Find unlinked profile</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-6 w-6 text-muted-foreground mt-3" />
-                <div className="flex flex-col items-center gap-2 flex-1">
-                  <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center">
-                    <span className="text-lg font-bold text-purple-500">2</span>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-sm">Click Link</p>
-                    <p className="text-xs text-muted-foreground">Open linking dialog</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-6 w-6 text-muted-foreground mt-3" />
-                <div className="flex flex-col items-center gap-2 flex-1">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                    <span className="text-lg font-bold text-emerald-500">3</span>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-sm">Match Record</p>
-                    <p className="text-xs text-muted-foreground">Find hospital match</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-6 w-6 text-muted-foreground mt-3" />
-                <div className="flex flex-col items-center gap-2 flex-1">
-                  <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
-                    <CheckCircle2 className="h-6 w-6 text-amber-500" />
-                  </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-sm">Complete</p>
-                    <p className="text-xs text-muted-foreground">Full access enabled</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* How it Works - Using ProcessStepper */}
+          <ProcessStepper
+            title="How to Link"
+            steps={linkingSteps}
+          />
 
           {/* Search Manually Entered Patients */}
-          <Card>
+          <Card className="border-2 shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <UserPlus className="h-5 w-5 text-primary" />
@@ -538,31 +538,17 @@ const PatientTagging = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by patient name..."
-                    value={supabaseSearchTerm}
-                    onChange={(e) => setSupabaseSearchTerm(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearchSupabase()}
-                    className="pl-10"
-                  />
-                </div>
-                <Button onClick={handleSearchSupabase} disabled={isSearchingSupabase} size="lg">
-                  {isSearchingSupabase ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Searching...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="h-4 w-4 mr-2" />
-                      Search
-                    </>
-                  )}
-                </Button>
-              </div>
+              <SearchInput
+                value={supabaseSearchTerm}
+                onChange={setSupabaseSearchTerm}
+                onSearch={handleSearchSupabase}
+                onClear={() => {
+                  setSupabaseSearchResults([]);
+                  setSupabaseSearchTerm('');
+                }}
+                placeholder="Search by patient name..."
+                isLoading={isSearchingSupabase}
+              />
 
               {/* Supabase Search Results */}
               {supabaseSearchResults.length > 0 && (
@@ -587,39 +573,51 @@ const PatientTagging = () => {
                     {supabaseSearchResults.map((patient) => (
                       <Card
                         key={patient.id}
-                        className="border-2 bg-card transition-all hover:shadow-md"
+                        className="group relative overflow-hidden border-2 bg-card transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5 hover:-translate-y-0.5 hover:border-amber-400/50"
                       >
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 flex-1 min-w-0">
-                              <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 text-amber-600">
-                                <User className="h-6 w-6" />
+                        {/* Gradient glow on hover */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        
+                        <CardContent className="relative p-5">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-4 flex-1 min-w-0">
+                              {/* Avatar with ring */}
+                              <div className="relative flex-shrink-0">
+                                <div className="w-14 h-14 rounded-full flex items-center justify-center bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-lg shadow-amber-500/25 ring-4 ring-amber-500/20">
+                                  <span className="text-lg font-bold">
+                                    {patient.first_name?.[0]}{patient.last_name?.[0]}
+                                  </span>
+                                </div>
+                                <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-amber-400 rounded-full border-2 border-background flex items-center justify-center">
+                                  <LinkIcon className="h-2 w-2 text-white" />
+                                </span>
                               </div>
+                              
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                  <p className="font-semibold text-lg truncate">
+                                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                  <p className="font-bold text-lg truncate">
                                     {patient.last_name}, {patient.first_name} {patient.middle_name}
                                   </p>
-                                  <Badge variant="outline" className="border-amber-500 text-amber-700">
-                                    Not Linked
+                                  <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">
+                                    Pending Link
                                   </Badge>
                                 </div>
                                 <div className="flex items-center gap-3 text-sm text-muted-foreground mb-2">
-                                  <span className="capitalize">{patient.sex}</span>
-                                  <span>•</span>
+                                  <span className="capitalize font-medium">{patient.sex}</span>
+                                  <span className="text-muted-foreground/50">•</span>
                                   <span>{patient.birth_date}</span>
                                 </div>
-                                <p className="text-xs text-muted-foreground italic">
+                                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                                  <Info className="h-3 w-3" />
                                   Ready to link with hospital database
                                 </p>
                               </div>
                             </div>
                             <Button
-                              size="default"
                               onClick={() => handleOpenLinkDialog(patient)}
-                              className="flex-shrink-0"
+                              className="flex-shrink-0 gap-2 shadow-lg shadow-primary/20 group-hover:shadow-primary/30 transition-shadow"
                             >
-                              <LinkIcon className="h-4 w-4 mr-2" />
+                              <LinkIcon className="h-4 w-4" />
                               Link to Hospital
                             </Button>
                           </div>
@@ -632,36 +630,26 @@ const PatientTagging = () => {
 
               {/* Loading State */}
               {isSearchingSupabase && (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-                  <p className="text-sm text-muted-foreground">Searching for patients...</p>
-                </div>
+                <PatientCardSkeleton count={3} />
               )}
 
               {/* Empty State */}
               {!isSearchingSupabase && supabaseSearchResults.length === 0 && supabaseSearchTerm && (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
-                    <Search className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <p className="font-semibold mb-1">No Results Found</p>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    No unlinked patients matching "{supabaseSearchTerm}". The patient may not exist or is already linked.
-                  </p>
-                </div>
+                <EmptyState
+                  variant="search"
+                  title="No Results Found"
+                  description={`No unlinked patients matching "${supabaseSearchTerm}". The patient may not exist or is already linked.`}
+                />
               )}
 
               {/* Initial Empty State */}
               {!supabaseSearchTerm && supabaseSearchResults.length === 0 && !isSearchingSupabase && (
-                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg">
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                    <UserPlus className="h-8 w-8 text-primary" />
-                  </div>
-                  <p className="font-semibold mb-1">Ready to Link Patients</p>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    Search for manually created patients that need to be linked with the hospital database.
-                  </p>
-                </div>
+                <EmptyState
+                  icon={UserPlus}
+                  variant="link"
+                  title="Ready to Link Patients"
+                  description="Search for manually created patients that need to be linked with the hospital database."
+                />
               )}
             </CardContent>
           </Card>
@@ -677,7 +665,7 @@ const PatientTagging = () => {
           </Alert>
 
           {/* Search Linked Patients */}
-          <Card>
+          <Card className="border-2 shadow-sm">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -694,57 +682,32 @@ const PatientTagging = () => {
                   size="sm"
                   onClick={() => linkedSearchTerm ? handleSearchLinked() : loadAllLinkedPatients(linkedPage)}
                   disabled={isLoadingLinked || isSearchingLinked}
+                  className="gap-2"
                 >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${(isLoadingLinked || isSearchingLinked) ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-4 w-4 ${(isLoadingLinked || isSearchingLinked) ? 'animate-spin' : ''}`} />
                   Refresh
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name or HPERCODE..."
-                    value={linkedSearchTerm}
-                    onChange={(e) => setLinkedSearchTerm(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearchLinked()}
-                    className="pl-10"
-                  />
-                </div>
-                <Button onClick={handleSearchLinked} disabled={isSearchingLinked} size="lg">
-                  {isSearchingLinked ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Searching...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="h-4 w-4 mr-2" />
-                      Search
-                    </>
-                  )}
-                </Button>
-                {linkedSearchTerm && (
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => {
-                      setLinkedSearchTerm('');
-                      loadAllLinkedPatients();
-                    }}
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
+              <SearchInput
+                value={linkedSearchTerm}
+                onChange={setLinkedSearchTerm}
+                onSearch={handleSearchLinked}
+                onClear={() => {
+                  setLinkedSearchTerm('');
+                  loadAllLinkedPatients();
+                }}
+                placeholder="Search by name or HPERCODE..."
+                isLoading={isSearchingLinked}
+              />
 
               {/* Linked Patients Results */}
               {linkedPatients.length > 0 && !isLoadingLinked && (
                 <div className="space-y-3">
                   {linkedSearchTerm && (
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-green-700">
+                      <p className="text-sm font-semibold text-green-700 dark:text-green-400">
                         Found {linkedPatients.length} linked patient{linkedPatients.length === 1 ? '' : 's'}
                       </p>
                     </div>
@@ -754,45 +717,57 @@ const PatientTagging = () => {
                     {linkedPatients.map((patient) => (
                       <Card
                         key={patient.id}
-                        className="border-2 bg-card transition-all hover:shadow-md"
+                        className="group relative overflow-hidden border-2 bg-card transition-all duration-300 hover:shadow-xl hover:shadow-green-500/5 hover:-translate-y-0.5 hover:border-green-400/50"
                       >
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 flex-1 min-w-0">
-                              <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-green-100 text-green-600">
-                                <User className="h-6 w-6" />
+                        {/* Gradient glow on hover */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        
+                        <CardContent className="relative p-5">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-4 flex-1 min-w-0">
+                              {/* Avatar with status ring */}
+                              <div className="relative flex-shrink-0">
+                                <div className="w-14 h-14 rounded-full flex items-center justify-center bg-gradient-to-br from-green-400 to-green-600 text-white shadow-lg shadow-green-500/25 ring-4 ring-green-500/20">
+                                  <span className="text-lg font-bold">
+                                    {patient.first_name?.[0]}{patient.last_name?.[0]}
+                                  </span>
+                                </div>
+                                <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-green-500 rounded-full border-2 border-background animate-pulse" />
                               </div>
+                              
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                  <p className="font-semibold text-lg truncate">
+                                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                  <p className="font-bold text-lg truncate">
                                     {patient.last_name}, {patient.first_name} {patient.middle_name}
                                   </p>
-                                  <Badge className="bg-green-600 hover:bg-green-700">
+                                  <Badge className="bg-green-600 hover:bg-green-700 shadow-sm">
                                     <CheckCircle2 className="h-3 w-3 mr-1" />
                                     Linked ({patient.patient_repository?.length || 0})
                                   </Badge>
                                 </div>
-                                <div className="flex items-center gap-3 text-sm text-muted-foreground mb-2">
-                                  <span className="capitalize">{patient.sex}</span>
-                                  <span>•</span>
+                                <div className="flex items-center gap-3 text-sm text-muted-foreground mb-3">
+                                  <span className="capitalize font-medium">{patient.sex}</span>
+                                  <span className="text-muted-foreground/50">•</span>
                                   <span>{patient.birth_date}</span>
                                 </div>
+                                
+                                {/* Repository links */}
                                 <div className="flex flex-col gap-2">
                                   {patient.patient_repository?.map((repo: any, index: number) => (
-                                    <div key={repo.id || index} className="flex items-center gap-2 text-xs flex-wrap">
-                                      <Badge variant="secondary" className="font-mono">
+                                    <div key={repo.id || index} className="flex items-center gap-2 text-xs flex-wrap p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                                      <Badge variant="outline" className="font-mono bg-background">
                                         HPERCODE: {repo.hpercode}
                                       </Badge>
                                       {repo.facility_code && (
-                                        <Badge variant="secondary" className="font-mono">
+                                        <Badge variant="outline" className="font-mono bg-background">
                                           Facility: {repo.facility_code}
                                         </Badge>
                                       )}
-                                      <div className="flex items-center gap-1 ml-1">
+                                      <div className="flex items-center gap-1 ml-auto">
                                         <Button
                                           size="icon"
                                           variant="ghost"
-                                          className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                          className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
                                           onClick={() => {
                                             // Pre-fill the linking dialog for editing this specific link
                                             setPatientToLink({
@@ -805,12 +780,12 @@ const PatientTagging = () => {
                                           }}
                                           title="Edit this link"
                                         >
-                                          <Edit className="h-3 w-3" />
+                                          <Edit className="h-3.5 w-3.5" />
                                         </Button>
                                         <Button
                                           size="icon"
                                           variant="ghost"
-                                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                          className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                           onClick={() => handleOpenUnlinkDialog(
                                             repo.id,
                                             repo.hpercode,
@@ -818,14 +793,14 @@ const PatientTagging = () => {
                                           )}
                                           title="Remove this link"
                                         >
-                                          <Trash2 className="h-3 w-3" />
+                                          <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                       </div>
                                     </div>
                                   ))}
                                 </div>
-                                <p className="text-xs text-green-700 dark:text-green-400 italic mt-2 flex items-center gap-1">
-                                  <CheckCircle2 className="h-3 w-3" />
+                                <p className="text-xs text-green-700 dark:text-green-400 font-medium mt-3 flex items-center gap-1.5">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
                                   Full hospital history access enabled
                                 </p>
                               </div>
@@ -839,18 +814,18 @@ const PatientTagging = () => {
                                   setSearchTerm(patient.patient_repository?.[0]?.hpercode || '');
                                   setTimeout(() => handleSearch(), 100);
                                 }}
-                                className="flex-shrink-0"
+                                className="flex-shrink-0 gap-2 shadow-md shadow-primary/20"
                               >
-                                <HistoryIcon className="h-4 w-4 mr-2" />
+                                <HistoryIcon className="h-4 w-4" />
                                 View History
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleAddLink(patient)}
-                                className="flex-shrink-0"
+                                className="flex-shrink-0 gap-2"
                               >
-                                <Plus className="h-4 w-4 mr-2" />
+                                <Plus className="h-4 w-4" />
                                 Add Link
                               </Button>
                             </div>
@@ -864,44 +839,29 @@ const PatientTagging = () => {
 
               {/* Loading State */}
               {(isSearchingLinked || isLoadingLinked) && (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-green-600 mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    {isSearchingLinked ? 'Searching for linked patients...' : 'Loading linked patients...'}
-                  </p>
-                </div>
+                <PatientCardSkeleton count={3} />
               )}
 
               {/* Empty State - No Search Results */}
               {!isSearchingLinked && !isLoadingLinked && linkedPatients.length === 0 && linkedSearchTerm && (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
-                    <Search className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <p className="font-semibold mb-1">No Match Found</p>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    No linked patients match "{linkedSearchTerm}". Try a different search.
-                  </p>
-                </div>
+                <EmptyState
+                  variant="search"
+                  title="No Match Found"
+                  description={`No linked patients match "${linkedSearchTerm}". Try a different search.`}
+                />
               )}
 
               {/* Empty State - No Linked Patients */}
               {!linkedSearchTerm && linkedPatients.length === 0 && !isSearchingLinked && !isLoadingLinked && (
-                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg">
-                  <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-3">
-                    <LinkIcon className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <p className="font-semibold mb-1">No Linked Patients</p>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    Start linking patients to enable access to their hospital records and medical history.
-                  </p>
-                  <Button
-                    className="mt-4"
-                    onClick={() => setActiveTab('link')}
-                  >
-                    Link Patients
-                  </Button>
-                </div>
+                <EmptyState
+                  variant="link"
+                  title="No Linked Patients"
+                  description="Start linking patients to enable access to their hospital records and medical history."
+                  action={{
+                    label: 'Link Patients',
+                    onClick: () => setActiveTab('link'),
+                  }}
+                />
               )}
             </CardContent>
           </Card>
