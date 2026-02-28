@@ -25,44 +25,45 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Generator' }];
 
-const PRIORITY_COLORS: Record<string, { bg: string; text: string; badge: string; border: string }> = {
-  regular: {
-    bg: 'bg-green-600 hover:bg-green-700',
-    text: 'text-green-600',
-    badge: 'bg-green-100 text-green-700',
-    border: 'border-green-500',
-  },
-  senior: {
-    bg: 'bg-blue-600 hover:bg-blue-700',
-    text: 'text-blue-600',
-    badge: 'bg-blue-100 text-blue-700',
-    border: 'border-blue-500',
-  },
-  pwd: {
-    bg: 'bg-purple-600 hover:bg-purple-700',
-    text: 'text-purple-600',
-    badge: 'bg-purple-100 text-purple-700',
-    border: 'border-purple-500',
-  },
-  priority: {
-    bg: 'bg-red-600 hover:bg-red-700',
-    text: 'text-red-600',
-    badge: 'bg-red-100 text-red-700',
-    border: 'border-red-500',
-  },
-  urgent: {
-    bg: 'bg-orange-600 hover:bg-orange-700',
-    text: 'text-orange-600',
-    badge: 'bg-orange-100 text-orange-700',
-    border: 'border-orange-500',
-  },
-  vip: {
-    bg: 'bg-yellow-600 hover:bg-yellow-700',
-    text: 'text-yellow-600',
-    badge: 'bg-yellow-100 text-yellow-700',
-    border: 'border-yellow-500',
-  },
-};
+const PRIORITY_COLORS: Record<string, { bg: string; text: string; badge: string; border: string }> =
+  {
+    regular: {
+      bg: 'bg-green-600 hover:bg-green-700',
+      text: 'text-green-600',
+      badge: 'bg-green-100 text-green-700',
+      border: 'border-green-500',
+    },
+    senior: {
+      bg: 'bg-blue-600 hover:bg-blue-700',
+      text: 'text-blue-600',
+      badge: 'bg-blue-100 text-blue-700',
+      border: 'border-blue-500',
+    },
+    pwd: {
+      bg: 'bg-purple-600 hover:bg-purple-700',
+      text: 'text-purple-600',
+      badge: 'bg-purple-100 text-purple-700',
+      border: 'border-purple-500',
+    },
+    priority: {
+      bg: 'bg-red-600 hover:bg-red-700',
+      text: 'text-red-600',
+      badge: 'bg-red-100 text-red-700',
+      border: 'border-red-500',
+    },
+    urgent: {
+      bg: 'bg-orange-600 hover:bg-orange-700',
+      text: 'text-orange-600',
+      badge: 'bg-orange-100 text-orange-700',
+      border: 'border-orange-500',
+    },
+    vip: {
+      bg: 'bg-yellow-600 hover:bg-yellow-700',
+      text: 'text-yellow-600',
+      badge: 'bg-yellow-100 text-yellow-700',
+      border: 'border-yellow-500',
+    },
+  };
 
 const QueueGenerator = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -75,7 +76,12 @@ const QueueGenerator = () => {
 
   const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
-  const { priorities, fetchPriorities, generateQueueCode, isLoading: queueLoading } = useQueueStore();
+  const {
+    priorities,
+    fetchPriorities,
+    generateQueueCode,
+    isLoading: queueLoading,
+  } = useQueueStore();
 
   // Get assignment IDs from user profile
   const userAssignmentIds = useMemo(() => {
@@ -113,10 +119,13 @@ const QueueGenerator = () => {
     if (code) {
       setQueueCode(code);
       const office = offices.find((o) => o.id === selectedOffice);
-      setSelectedOfficeName(office?.description || '');
+      const officeName = office?.description || '';
+      setSelectedOfficeName(officeName);
       const priority = priorities.find((p) => p.id === selectedPriority);
-      setSelectedPriorityName(priority?.description || '');
+      const priorityName = priority?.description || '';
+      setSelectedPriorityName(priorityName);
       setIsDialogOpen(true);
+      // Notification is handled automatically via Postgres Changes on sequence table
     }
   };
 
@@ -146,11 +155,13 @@ const QueueGenerator = () => {
                   <SelectValue placeholder="Choose an office" />
                 </SelectTrigger>
                 <SelectContent>
-                  {offices.filter(o => o.status).map((office) => (
-                    <SelectItem key={office.id} value={office.id}>
-                      {office.description || office.id}
-                    </SelectItem>
-                  ))}
+                  {offices
+                    .filter((o) => o.status)
+                    .map((office) => (
+                      <SelectItem key={office.id} value={office.id}>
+                        {office.description || office.id}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -158,9 +169,15 @@ const QueueGenerator = () => {
             <div className="space-y-2">
               <Label>Select Priority Type</Label>
               {priorities.length > 0 ? (
-                <Select value={selectedPriority} onValueChange={setSelectedPriority} disabled={isLoading}>
+                <Select
+                  value={selectedPriority}
+                  onValueChange={setSelectedPriority}
+                  disabled={isLoading}
+                >
                   <SelectTrigger
-                    className={selectedPriorityColors ? `border-2 ${selectedPriorityColors.border}` : ''}
+                    className={
+                      selectedPriorityColors ? `border-2 ${selectedPriorityColors.border}` : ''
+                    }
                   >
                     <SelectValue placeholder="Choose a priority type" />
                   </SelectTrigger>
@@ -170,9 +187,7 @@ const QueueGenerator = () => {
                       return (
                         <SelectItem key={priority.id} value={priority.id}>
                           <div className="flex items-center gap-2">
-                            <span
-                              className={`w-3 h-3 rounded-full ${colors.bg.split(' ')[0]}`}
-                            />
+                            <span className={`w-3 h-3 rounded-full ${colors.bg.split(' ')[0]}`} />
                             {priority.description || priority.id}
                           </div>
                         </SelectItem>
@@ -209,14 +224,14 @@ const QueueGenerator = () => {
 
             <Button
               className={`w-full text-lg py-6 ${
-                selectedPriorityColors ? selectedPriorityColors.bg : 'bg-primary hover:bg-primary/90'
+                selectedPriorityColors
+                  ? selectedPriorityColors.bg
+                  : 'bg-primary hover:bg-primary/90'
               }`}
               onClick={handleGenerateCode}
               disabled={!isFormValid || isLoading}
             >
-              {isGenerating ? (
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              ) : null}
+              {isGenerating ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
               Generate Queue Code
             </Button>
           </CardContent>

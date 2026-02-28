@@ -1,4 +1,4 @@
-import avatar1 from 'src/assets/images/profile/user-2.jpg';
+import queueIcon from 'src/assets/images/svgs/icon-inbox.svg';
 
 export interface ModuleNotification {
   id: string;
@@ -8,12 +8,8 @@ export interface ModuleNotification {
   timestamp: string;
 }
 
-export const module1Notifications: ModuleNotification[] = [
-  {
-    id: 'm1-1',
-    avatar: avatar1,
-    title: 'Roman Joined the Team!',
-    subtitle: 'Congratulate him',
-    timestamp: '5 mins ago',
-  },
-];
+// Static notifications (empty - using real-time queue notifications instead)
+export const module1Notifications: ModuleNotification[] = [];
+
+// Queue notification icon for real-time notifications
+export const queueNotificationIcon = queueIcon;
