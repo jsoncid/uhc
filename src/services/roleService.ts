@@ -218,20 +218,20 @@ export const roleService = {
         return []
       }
 
-      // Get unique user IDs and assignment IDs
-      const userIds = [...new Set(userAssignments.map(ua => ua.user))]
-      const assignmentIds = [...new Set(userAssignments.map(ua => ua.assignment))]
+      // Get unique user IDs and assignment IDs, filtering out null/undefined
+      const userIds = [...new Set(userAssignments.map(ua => ua.user))].filter(id => id != null)
+      const assignmentIds = [...new Set(userAssignments.map(ua => ua.assignment))].filter(id => id != null)
 
       // Fetch users from backend API and assignments from Supabase
-      const [users, assignmentsResult] = await Promise.all([
-        userService.getUsersByIds(userIds).catch(err => {
-          console.warn('Failed to fetch users from API:', err)
-          return []
-        }),
-        supabase.from('assignment').select('id, description').in('id', assignmentIds)
-      ])
-
-      const assignments = assignmentsResult.data || []
+      const users = await userService.getUsersByIds(userIds).catch(err => {
+        console.warn('Failed to fetch users from API:', err)
+        return []
+      })
+      
+      // Only fetch assignments if we have valid IDs
+      const assignments = assignmentIds.length > 0 
+        ? (await supabase.from('assignment').select('id, description').in('id', assignmentIds)).data || []
+        : []
 
       // Map the data together
       const enrichedAssignments = userAssignments.map(ua => ({
@@ -303,6 +303,27 @@ export const roleService = {
       return data
     } catch (error) {
       console.error('Error in createUserAssignment:', error)
+      throw error
+    }
+  },
+
+  async updateUserAssignment(id: string, assignmentData: UserAssignment['Update']): Promise<UserAssignment['Row']> {
+    try {
+      const { data, error } = await supabase
+        .from('user_assignment')
+        .update(assignmentData)
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error updating user assignment:', error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in updateUserAssignment:', error)
       throw error
     }
   },

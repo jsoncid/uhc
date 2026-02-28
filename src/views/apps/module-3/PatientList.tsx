@@ -31,22 +31,17 @@ import {
   History as HistoryIcon,
   Info,
   LinkIcon,
+  FileText,
 } from 'lucide-react';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import patientService, { PatientProfile, PatientHistory } from 'src/services/patientService';
 import { getFacilityName } from 'src/utils/facilityMapping';
 import PatientHistoryTabs from './components/PatientHistoryTabs';
 import PatientInfoCard from './components/PatientInfoCard';
+import { PatientPDFModal } from './components/PatientPDFModal';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
-
-const BCrumb = [
-  { to: '/', title: 'Home' },
-  { title: 'Module 3 - Patient Repository' },
-  { title: 'Patient List' },
-];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -73,6 +68,9 @@ const PatientList = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+
+  const selectedPatientHpercode = selectedPatient?.patient_repository?.[0]?.hpercode;
 
   /* ------------------------------------------------------------------ */
   /*  Effects                                                           */
@@ -81,6 +79,10 @@ const PatientList = () => {
   useEffect(() => {
     loadPatients();
   }, [currentPage]);
+
+  useEffect(() => {
+    setIsRecordModalOpen(false);
+  }, [selectedPatient?.id]);
 
   /* ------------------------------------------------------------------ */
   /*  Handlers                                                          */
@@ -146,6 +148,12 @@ const PatientList = () => {
     } else {
       setPatientHistory([]);
     }
+    const params = new URLSearchParams();
+    params.set('tab', 'view');
+    if (hpercode) {
+      params.set('hpercode', hpercode);
+    }
+    navigate(`/module-3/patient-tagging?${params.toString()}`);
   };
 
   const loadPatientHistory = async (hpercode: string) => {
@@ -170,10 +178,16 @@ const PatientList = () => {
     setSelectedPatient(null);
     setPatientHistory([]);
     setTypeFilter('all');
+    setIsRecordModalOpen(false);
   };
 
   const handleViewPatient = (patientId: string) => {
     navigate(`/module-3/patient-details?id=${patientId}`);
+  };
+
+  const handleOpenPatientRecords = () => {
+    if (!selectedPatientHpercode) return;
+    setIsRecordModalOpen(true);
   };
 
   const formatDate = (dateString: string) => {
@@ -290,7 +304,6 @@ const PatientList = () => {
 
   return (
     <div className="space-y-6">
-      <BreadcrumbComp items={BCrumb} title="Patient List" />
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
@@ -298,10 +311,10 @@ const PatientList = () => {
             <div className="p-2 bg-primary/10 rounded-lg">
               <Users className="h-7 w-7 text-primary" />
             </div>
-            Patient Repository
+            Patient List
           </h1>
           <p className="text-muted-foreground mt-2">
-            Manage and view all patient records in the system
+            View and manage all patient records in the system
           </p>
         </div>
         <Badge variant="outline" className="text-base px-4 py-2 font-semibold">
@@ -435,7 +448,7 @@ const PatientList = () => {
                         <TableCell className="py-4">
                           <div className="flex items-start gap-2 max-w-[200px]">
                             <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1 group-hover:text-primary transition-colors" />
-                            <span className="text-sm font-medium text-foreground break-words leading-relaxed">
+                            <span className="text-sm font-medium text-foreground leading-relaxed block whitespace-normal break-words">
                               {getFacility(patient)}
                             </span>
                           </div>
@@ -462,7 +475,7 @@ const PatientList = () => {
                         <TableCell className="py-4">
                           <div className="flex items-start gap-2 max-w-[300px]">
                             <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
-                            <span className="text-sm text-muted-foreground break-words leading-relaxed">
+                            <span className="text-sm text-muted-foreground leading-relaxed block whitespace-normal break-words">
                               {getLocationString(patient)}
                             </span>
                           </div>
@@ -512,7 +525,7 @@ const PatientList = () => {
       {selectedPatient && (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Header with Close Button */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-lg">
                 <HistoryIcon className="h-6 w-6 text-primary" />
@@ -555,7 +568,19 @@ const PatientList = () => {
               </div>
 
               {/* Patient History */}
-              <div className="col-span-12 lg:col-span-8">
+              <div className="col-span-12 lg:col-span-8 space-y-3">
+                <div className="flex items-center justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenPatientRecords}
+                    disabled={!selectedPatientHpercode}
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    View Records
+                  </Button>
+                </div>
                 <PatientHistoryTabs
                   history={filteredHistory}
                   isLoading={isLoadingHistory}
@@ -563,12 +588,30 @@ const PatientList = () => {
                   onViewModeChange={setViewMode}
                   typeFilter={typeFilter}
                   onTypeFilterChange={setTypeFilter}
+                  rightActions={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenPatientRecords}
+                      disabled={!selectedPatientHpercode}
+                      className="flex items-center gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      View Records
+                    </Button>
+                  }
                 />
               </div>
             </div>
           )}
         </div>
       )}
+      <PatientPDFModal
+        isOpen={isRecordModalOpen}
+        onClose={() => setIsRecordModalOpen(false)}
+        patient={selectedPatient}
+        hpercode={selectedPatientHpercode}
+      />
     </div>
   );
 };

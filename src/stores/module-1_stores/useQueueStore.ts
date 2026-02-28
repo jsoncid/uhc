@@ -58,6 +58,7 @@ interface QueueState {
   updateStatus: (id: string, description: string, status: boolean) => Promise<void>;
   deleteStatus: (id: string) => Promise<void>;
   fetchSequences: (officeId?: string) => Promise<void>;
+  fetchAllSequencesForLogs: () => Promise<void>;
   generateQueueCode: (officeId: string, priorityId: string) => Promise<string | null>;
   updateSequenceStatus: (
     sequenceId: string,
@@ -326,6 +327,73 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch sequences',
+        isLoading: false,
+      });
+    }
+  },
+
+  fetchAllSequencesForLogs: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data: sequencesData, error: sequencesError } = await module1
+        .from('sequence')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (sequencesError) throw sequencesError;
+
+      if (!sequencesData || sequencesData.length === 0) {
+        set({ sequences: [], isLoading: false });
+        return;
+      }
+
+      const officeIds = [...new Set(sequencesData.map((s) => s.office))];
+      const queueIds = [...new Set(sequencesData.map((s) => s.queue))];
+      const priorityIds = [...new Set(sequencesData.map((s) => s.priority))];
+      const statusIds = [...new Set(sequencesData.map((s) => s.status))];
+      const windowIds = [
+        ...new Set(
+          (sequencesData as { window?: string | null }[])
+            .map((s) => s.window)
+            .filter((id): id is string => id != null),
+        ),
+      ];
+
+      const [officesResult, queuesResult, prioritiesResult, statusesResult, windowsResult] =
+        await Promise.all([
+          module1.from('office').select('id, description').in('id', officeIds),
+          module1.from('queue').select('*').in('id', queueIds),
+          module1.from('priority').select('*').in('id', priorityIds),
+          module1.from('status').select('*').in('id', statusIds),
+          windowIds.length > 0
+            ? module1.from('window').select('id, description').in('id', windowIds)
+            : Promise.resolve({ data: [] }),
+        ]);
+
+      const officesMap = new Map(officesResult.data?.map((o) => [o.id, o]) || []);
+      const queuesMap = new Map(queuesResult.data?.map((q) => [q.id, q]) || []);
+      const prioritiesMap = new Map(prioritiesResult.data?.map((p) => [p.id, p]) || []);
+      const statusesMap = new Map(statusesResult.data?.map((s) => [s.id, s]) || []);
+      const windowsMap = new Map((windowsResult.data || []).map((w) => [w.id, w]));
+
+      const enrichedSequences: Sequence[] = sequencesData.map((seq) => {
+        const row = seq as { window?: string | null; is_active?: boolean };
+        return {
+          ...seq,
+          window: row.window ?? null,
+          is_active: row.is_active ?? true,
+          office_data: officesMap.get(seq.office),
+          queue_data: queuesMap.get(seq.queue),
+          priority_data: prioritiesMap.get(seq.priority),
+          status_data: statusesMap.get(seq.status),
+          window_data: row.window != null ? windowsMap.get(row.window) : undefined,
+        };
+      });
+
+      set({ sequences: enrichedSequences, isLoading: false });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch sequence logs',
         isLoading: false,
       });
     }
