@@ -4,14 +4,12 @@ import Messages from './Messages';
 import FullLogo from '../../shared/logo/FullLogo';
 import Profile from './Profile';
 import SidebarLayout from '../sidebar/Sidebar';
-import { useTheme } from 'src/components/provider/theme-provider';
 
 import { Sheet, SheetContent, SheetTitle } from 'src/components/ui/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import Search from './Search';
 
 const Header = () => {
-  const { theme, setTheme } = useTheme();
   const [isSticky, setIsSticky] = useState(false);
   const [mobileMenu, setMobileMenu] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -43,10 +41,6 @@ const Header = () => {
       window.removeEventListener('resize', handleResize);
     };
   }, []);
-
-  const toggleMode = () => {
-    setTheme(theme === 'light' ? 'dark' : 'light');
-  };
 
   const handleMobileMenu = () => {
     if (mobileMenu === 'active') {
@@ -83,32 +77,6 @@ const Header = () => {
 
           <div className="xl:!block !hidden md:!hidden">
             <div className="flex gap-0 items-center">
-              {/* Theme Toggle */}
-              {theme === 'light' ? (
-                <div
-                  className="hover:text-primary px-15 group dark:hover:text-primary focus:ring-0 rounded-full flex justify-center items-center cursor-pointer text-foreground dark:text-muted-foreground relative"
-                  onClick={toggleMode}
-                >
-                  <span className="flex items-center justify-center relative after:absolute after:w-10 after:h-10 after:rounded-full after:-top-1/2 group-hover:after:bg-lightprimary">
-                    <Icon icon="tabler:moon" width="20" />
-                  </span>
-                </div>
-              ) : (
-                // Dark Mode Button
-                <div
-                  className="hover:text-primary px-15 dark:hover:text-primary focus:ring-0 rounded-full flex justify-center items-center cursor-pointer text-foreground dark:text-muted-foreground group relative"
-                  onClick={toggleMode}
-                >
-                  <span className="flex items-center justify-center relative after:absolute after:w-10 after:h-10 after:rounded-full after:-top-1/2 group-hover:after:bg-lightprimary">
-                    <Icon
-                      icon="solar:sun-bold-duotone"
-                      width="20"
-                      className="group-hover:text-primary"
-                    />
-                  </span>
-                </div>
-              )}
-
               {/* Messages Dropdown */}
               <Messages />
 
@@ -120,30 +88,6 @@ const Header = () => {
           <span className="flex xl:hidden " onClick={handleMobileMenu}>
             <div className="xl:hidden flex w-full">
               <div className="flex justify-center items-center">
-                {theme === 'light' ? (
-                  <div
-                    className="hover:text-primary px-1 sm:px-15 group  dark:hover:text-primary focus:ring-0 rounded-full flex justify-center items-center cursor-pointer text-foreground dark:text-muted-foreground relative"
-                    onClick={toggleMode}
-                  >
-                    <span className="flex items-center justify-center relative after:absolute after:w-10 after:h-10 after:rounded-full after:-top-1/2 group-hover:after:bg-lightprimary">
-                      <Icon icon="tabler:moon" width="20" />
-                    </span>
-                  </div>
-                ) : (
-                  // Dark Mode Button
-                  <div
-                    className="hover:text-primary px-1 sm:px-15 dark:hover:text-primary focus:ring-0 rounded-full flex justify-center items-center cursor-pointer text-foreground dark:text-muted-foreground group relative"
-                    onClick={toggleMode}
-                  >
-                    <span className="flex items-center justify-center relative after:absolute after:w-10 after:h-10 after:rounded-full after:-top-1/2 group-hover:after:bg-lightprimary">
-                      <Icon
-                        icon="solar:sun-bold-duotone"
-                        width="20"
-                        className="group-hover:text-primary"
-                      />
-                    </span>
-                  </div>
-                )}
                 <Messages />
                 <Profile />
               </div>
