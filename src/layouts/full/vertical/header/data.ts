@@ -158,6 +158,13 @@ const profileDD: ProfileType[] = [
     icon: "tabler:user",
     url: '/user-profile',
   },
+  {
+    img: taskIcon,
+    title: 'Settings',
+    subtitle: 'System preferences',
+    icon: "solar:settings-bold-duotone",
+    url: '/settings',
+  },
 ];
 
 export { appsLink, pageLinks, SearchLinks, profileDD };
