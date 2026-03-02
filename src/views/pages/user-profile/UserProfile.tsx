@@ -5,8 +5,8 @@ import { useUserProfile } from "src/hooks/useUserProfile";
 import { Skeleton } from "src/components/ui/skeleton";
 import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
-// import { Input } from "src/components/ui/input";
-// import { Label } from "src/components/ui/label";
+import { Input } from "src/components/ui/input";
+import { Label } from "src/components/ui/label";
 import { userService } from "@/services/userService";
 import { useRef, useState } from "react";
 import { Camera, Loader2, User, Edit } from "lucide-react";
@@ -24,11 +24,11 @@ const UserProfile = () => {
     // const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
+    const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    // const [firstName, setFirstName] = useState('');
-    // const [lastName, setLastName] = useState('');
+    const [name, setName] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Get display name from email
@@ -37,10 +37,10 @@ const UserProfile = () => {
 
     const handleEditProfile = () => {
         // Initialize form with current values
-        // setFirstName(profile?.firstName || defaultFirstName);
-        // setLastName(profile?.lastName || '');
+        setName(profile?.name || defaultFirstName);
         setShowEditDialog(true);
         setUploadError(null);
+        setSaveSuccessMessage(null);
     };
 
     const handleUploadClick = () => {
@@ -74,27 +74,55 @@ const UserProfile = () => {
 
         setIsSaving(true);
         setUploadError(null);
+        setSaveSuccessMessage(null);
+        
+        const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, step: string): Promise<T> => {
+            return new Promise<T>((resolve, reject) => {
+                const timer = window.setTimeout(() => {
+                    reject(new Error(`${step} timed out. Please check your connection and try again.`));
+                }, timeoutMs);
+
+                promise
+                    .then((result) => {
+                        window.clearTimeout(timer);
+                        resolve(result);
+                    })
+                    .catch((error) => {
+                        window.clearTimeout(timer);
+                        reject(error);
+                    });
+            });
+        };
 
         try {
-            // Upload profile picture if selected
             if (selectedFile) {
-                await userService.uploadProfilePicture(selectedFile, displayName, profile.id);
+                await withTimeout(
+                    userService.uploadProfilePicture(selectedFile, displayName, profile.id),
+                    30000,
+                    'Profile picture upload'
+                );
             }
 
-            // Update name if changed - Temporarily Disabled
-            /* if (firstName.trim() || lastName.trim()) {
-                await userService.updateUserName(profile.id, {
-                    firstName: firstName.trim() || defaultFirstName,
-                    lastName: lastName.trim()
-                });
-            } */
+            const trimmedName = name.trim();
+            const currentName = (profile.name || defaultFirstName).trim();
+            if (trimmedName && trimmedName !== currentName) {
+                await withTimeout(
+                    userService.updateUserProfileName(profile.id, trimmedName),
+                    20000,
+                    'Profile name update'
+                );
+            }
 
-            // Refresh profile to get updates
-            await refetch();
-            
-            // Close dialog and cleanup
+            setSaveSuccessMessage('Profile updated successfully.');
+            await new Promise((resolve) => window.setTimeout(resolve, 1200));
+
+            await refetch().catch((err) => {
+                console.error('Error refreshing profile:', err);
+            });
+
             setShowEditDialog(false);
             handleCleanup();
+            setSaveSuccessMessage(null);
         } catch (err) {
             console.error('Save error:', err);
             setUploadError(err instanceof Error ? err.message : 'Failed to save profile');
@@ -109,6 +137,7 @@ const UserProfile = () => {
         }
         setPreviewUrl(null);
         setSelectedFile(null);
+        setName('');
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -118,6 +147,8 @@ const UserProfile = () => {
         setShowEditDialog(false);
         handleCleanup();
         setUploadError(null);
+        setSaveSuccessMessage(null);
+        setName('');
     };
 
     if (loading) {
@@ -174,10 +205,7 @@ const UserProfile = () => {
                     <div className="flex-1 text-center sm:text-left min-w-0">
                         <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 lg:gap-3 mb-1 lg:mb-2">
                             <h1 className="text-lg lg:text-xl font-bold truncate">
-                                {profile?.firstName && profile?.lastName 
-                                    ? `${profile.firstName} ${profile.lastName}`
-                                    : profile?.firstName || defaultFirstName
-                                }
+                                {profile?.name || defaultFirstName}
                             </h1>
                             <Badge className={`text-xs lg:text-sm px-2 lg:px-3 py-0.5 lg:py-1 ${profile?.isActive ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
                                 {profile?.isActive ? "Active" : "Inactive"}
@@ -310,6 +338,51 @@ const UserProfile = () => {
                                                                 ) : (
                                                                     <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
                                                                 )}
+                                                            </td>
+                                                            <td className="text-center py-2 px-1">
+                                                                {module.permissions.is_insert ? (
+                                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-emerald-500 mx-auto" />
+                                                                ) : (
+                                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                                )}
+                                                            </td>
+                                                            <td className="text-center py-2 px-1">
+                                                                {module.permissions.is_update ? (
+                                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-emerald-500 mx-auto" />
+                                                                ) : (
+                                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                                )}
+                                                            </td>
+                                                            <td className="text-center py-2 px-1">
+                                                                {module.permissions.is_delete ? (
+                                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-emerald-500 mx-auto" />
+                                                                ) : (
+                                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-4 text-gray-400">
+                                            <p className="text-xs">No modules assigned to this role</p>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center text-gray-400 py-8">
+                            <div className="text-center">
+                                <Icon icon="solar:shield-user-line-duotone" className="w-10 h-10 lg:w-12 lg:h-12 mx-auto mb-2 lg:mb-3 opacity-50" />
+                                <p className="text-xs lg:text-sm">No roles assigned</p>
+                            </div>
+                        </div>
+                    )}
+                </CardBox>
+            </div>
 
             {/* Edit Profile Dialog */}
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
@@ -320,7 +393,7 @@ const UserProfile = () => {
                             Edit Profile
                         </DialogTitle>
                         <DialogDescription>
-                            Update your profile picture.
+                            Update your profile picture and name.
                         </DialogDescription>
                     </DialogHeader>
                     
@@ -367,39 +440,34 @@ const UserProfile = () => {
                             />
                         </div>
 
-                        {/* Name Fields - Temporarily Disabled */}
-                        {/* <div className="space-y-3">
-                            <div className="space-y-2">
-                                <Label htmlFor="firstName" className="text-sm font-medium">
-                                    First Name <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    id="firstName"
-                                    placeholder="Enter your first name"
-                                    value={firstName}
-                                    onChange={(e) => setFirstName(e.target.value)}
-                                    className="w-full"
-                                />
-                            </div>
-                            
-                            <div className="space-y-2">
-                                <Label htmlFor="lastName" className="text-sm font-medium">
-                                    Last Name
-                                </Label>
-                                <Input
-                                    id="lastName"
-                                    placeholder="Enter your last name"
-                                    value={lastName}
-                                    onChange={(e) => setLastName(e.target.value)}
-                                    className="w-full"
-                                />
-                            </div>
-                        </div> */}
+                        {/* Name Field */}
+                        <div className="space-y-2">
+                            <Label htmlFor="profile-name" className="text-sm font-medium">
+                                Name <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                id="profile-name"
+                                placeholder="Enter your name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className="w-full"
+                            />
+                        </div>
 
                         {/* Error Message */}
                         {uploadError && (
                             <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
                                 <p className="text-xs text-red-600 dark:text-red-400">{uploadError}</p>
+                            </div>
+                        )}
+
+                        {/* Success Message */}
+                        {saveSuccessMessage && (
+                            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                                <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                                    <Icon icon="solar:check-circle-bold" className="w-4 h-4" />
+                                    <p className="text-xs font-medium">{saveSuccessMessage}</p>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -409,7 +477,7 @@ const UserProfile = () => {
                             type="button"
                             variant="outline"
                             onClick={handleCancelEdit}
-                            disabled={isSaving}
+                            disabled={isSaving || !!saveSuccessMessage}
                             className="flex-1 sm:flex-none"
                         >
                             Cancel
@@ -417,7 +485,7 @@ const UserProfile = () => {
                         <Button
                             type="button"
                             onClick={handleSaveProfile}
-                            disabled={isSaving}
+                            disabled={isSaving || !!saveSuccessMessage}
                             className="flex-1 sm:flex-none"
                         >
                             {isSaving ? (
@@ -425,6 +493,8 @@ const UserProfile = () => {
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                     Saving...
                                 </>
+                            ) : saveSuccessMessage ? (
+                                'Saved'
                             ) : (
                                 'Save Changes'
                             )}
@@ -432,51 +502,6 @@ const UserProfile = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-                                                            </td>
-                                                            <td className="text-center py-2 px-1">
-                                                                {module.permissions.is_insert ? (
-                                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-emerald-500 mx-auto" />
-                                                                ) : (
-                                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
-                                                                )}
-                                                            </td>
-                                                            <td className="text-center py-2 px-1">
-                                                                {module.permissions.is_update ? (
-                                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-emerald-500 mx-auto" />
-                                                                ) : (
-                                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
-                                                                )}
-                                                            </td>
-                                                            <td className="text-center py-2 px-1">
-                                                                {module.permissions.is_delete ? (
-                                                                    <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-emerald-500 mx-auto" />
-                                                                ) : (
-                                                                    <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-4 text-gray-400">
-                                            <p className="text-xs">No modules assigned to this role</p>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="flex-1 flex items-center justify-center text-gray-400 py-8">
-                            <div className="text-center">
-                                <Icon icon="solar:shield-user-line-duotone" className="w-10 h-10 lg:w-12 lg:h-12 mx-auto mb-2 lg:mb-3 opacity-50" />
-                                <p className="text-xs lg:text-sm">No roles assigned</p>
-                            </div>
-                        </div>
-                    )}
-                </CardBox>
-            </div>
         </div>
     );
 };

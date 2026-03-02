@@ -31,8 +31,7 @@ export interface UserProfileData {
   email: string;
   isActive: boolean;
   profilePictureUrl?: string;
-  firstName?: string;
-  lastName?: string;
+  name?: string;
   roles: Array<{
     id: string;
     description: string;
@@ -443,6 +442,7 @@ export const userService = {
       return {
         id: user.id,
         email: user.email || '',
+        name: user.user_metadata?.name,
         isActive,
         roles,
         assignments,
@@ -602,82 +602,47 @@ export const userService = {
     }
   },
 
-  // Update user name (stored in user_profile table)
-  async updateUserName(userId: string, data: { firstName: string; lastName: string }): Promise<void> {
+  // Update user name in metadata (updates current user)
+  async updateUserProfileName(userId: string, name: string): Promise<void> {
     try {
-      // Check if user_profile record exists
-      const { data: existingProfile, error: fetchError } = await supabase
-        .from('user_profile')
-        .select('id')
-        .eq('user_id', userId)
-        .maybeSingle();
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error checking user profile:', fetchError);
-        throw fetchError;
+      if (sessionError || !session?.access_token) {
+        throw new Error(sessionError?.message || 'No active session found. Please sign in again.');
       }
 
-      if (existingProfile) {
-        // Update existing profile
-        const { error: updateError } = await supabase
-          .from('user_profile')
-          .update({
-            first_name: data.firstName,
-            last_name: data.lastName,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('user_id', userId);
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 15000);
 
-        if (updateError) {
-          console.error('Error updating user profile:', updateError);
-          throw updateError;
-        }
-      } else {
-        // Create new profile
-        const { error: insertError } = await supabase
-          .from('user_profile')
-          .insert({
-            user_id: userId,
-            first_name: data.firstName,
-            last_name: data.lastName,
-          });
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/user`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            data: {
+              name: name,
+            },
+          }),
+          signal: controller.signal,
+        });
 
-        if (insertError) {
-          console.error('Error creating user profile:', insertError);
-          throw insertError;
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData?.msg || errorData?.message || 'Failed to update user name');
         }
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     } catch (error) {
-      console.error('Error in updateUserName:', error);
+      console.error('Error in updateUserProfileName:', error);
       throw error;
-    }
-  },
-
-  // Get user profile name
-  async getUserProfile(userId: string): Promise<{ firstName?: string; lastName?: string } | null> {
-    try {
-      const { data, error } = await supabase
-        .from('user_profile')
-        .select('first_name, last_name')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user profile:', error);
-        return null;
-      }
-
-      if (data) {
-        return {
-          firstName: data.first_name || undefined,
-          lastName: data.last_name || undefined,
-        };
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Error in getUserProfile:', error);
-      return null;
     }
   },
 
