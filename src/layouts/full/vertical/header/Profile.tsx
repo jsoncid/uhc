@@ -14,9 +14,11 @@ import {
 } from 'src/components/ui/dropdown-menu';
 import { Button } from 'src/components/ui/button';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useUserProfile } from 'src/hooks/useUserProfile';
 
 const Profile = () => {
   const { signOut } = useAuthStore();
+  const { profile } = useUserProfile();
 
   const handleLogout = async () => {
     await signOut();
@@ -27,7 +29,13 @@ const Profile = () => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <span className="hover:text-primary hover:bg-lightprimary rounded-full flex justify-center items-center cursor-pointer group-hover/menu:bg-lightprimary group-hover/menu:text-primary">
-            <img src={profileimg} alt="logo" height="35" width="35" className="rounded-full" />
+            <img 
+              src={profile?.profilePictureUrl || profileimg} 
+              alt="logo" 
+              height="35" 
+              width="35" 
+              className="rounded-full object-cover w-[35px] h-[35px]" 
+            />
           </span>
         </DropdownMenuTrigger>
 
