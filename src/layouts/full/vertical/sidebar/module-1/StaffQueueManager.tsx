@@ -429,48 +429,48 @@ const StaffQueueManager = () => {
                               </div>
                               <div className="flex gap-2 flex-wrap">
                                 <Button
-                                  variant="outline"
                                   size="sm"
                                   onClick={() => handleComplete(serving.id)}
                                   disabled={isLoading || !serving.status_data?.description?.toLowerCase().includes('arrived')}
+                                  className="bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                                 >
                                   <Check className="h-4 w-4 mr-2" />
                                   Complete
                                 </Button>
                                 <Button
-                                  variant="outline"
                                   size="sm"
                                   onClick={() => handleOpenTransferDialog(serving)}
                                   disabled={isLoading}
+                                  className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                                 >
                                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                                   Transfer
                                 </Button>
                                 <Button
-                                  variant="outline"
                                   size="sm"
                                   onClick={() => handleArrived(serving.id, selectedWindowByOffice[office.id])}
                                   disabled={isLoading || serving.status_data?.description?.toLowerCase().includes('arrived')}
+                                  className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
                                 >
                                   <UserCheck className="h-4 w-4 mr-2" />
                                   Arrived
                                 </Button>
                                 <Button
-                                  variant="outline"
                                   size="sm"
                                   onClick={() => handlePing(serving, office.description || '')}
                                   disabled={isLoading || pingingId === serving.id}
                                   title="Re-announce this queue on the display"
+                                  className="bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
                                 >
                                   <Bell className="h-4 w-4 mr-2" />
                                   Ping
                                 </Button>
                                 <Button
-                                  variant="outline"
                                   size="sm"
                                   onClick={() => handlePutBackOnQueue(serving.id)}
                                   disabled={isLoading}
                                   title="Put back to end of queue (customer didn't arrive)"
+                                  className="bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
                                 >
                                   <RotateCcw className="h-4 w-4 mr-2" />
                                   Put Back
