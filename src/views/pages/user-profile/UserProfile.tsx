@@ -4,13 +4,47 @@ import profileImg from "src/assets/images/profile/user-1.jpg"
 import { useUserProfile } from "src/hooks/useUserProfile";
 import { Skeleton } from "src/components/ui/skeleton";
 import { Badge } from "src/components/ui/badge";
+import { Button } from "src/components/ui/button";
+import { userService } from "@/services/userService";
+import { useRef, useState } from "react";
+import { Camera, Loader2 } from "lucide-react";
 
 const UserProfile = () => {
-    const { profile, loading, error } = useUserProfile();
+    const { profile, loading, error, refetch } = useUserProfile();
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Get display name from email
     const displayName = profile?.email?.split('@')[0] || 'User';
     const firstName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !profile) return;
+
+        setIsUploading(true);
+        setUploadError(null);
+
+        try {
+            await userService.uploadProfilePicture(file, displayName, profile.id);
+            // Refresh profile to get new picture URL
+            await refetch();
+        } catch (err) {
+            console.error('Upload error:', err);
+            setUploadError(err instanceof Error ? err.message : 'Failed to upload profile picture');
+        } finally {
+            setIsUploading(false);
+            // Reset input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    };
 
     if (loading) {
         return (
@@ -52,14 +86,42 @@ const UserProfile = () => {
             {/* Profile Header */}
             <CardBox className="p-4 lg:p-5 flex-shrink-0">
                 <div className="flex flex-col sm:flex-row items-center gap-4 lg:gap-5">
-                    {/* Avatar */}
-                    <div className="relative flex-shrink-0">
+                    {/* Avatar with Upload */}
+                    <div className="relative flex-shrink-0 group">
                         <img 
-                            src={profileImg} 
+                            src={profile?.profilePictureUrl || profileImg} 
                             alt="Profile" 
-                            className="w-16 h-16 lg:w-20 lg:h-20 rounded-full border-2 border-white shadow-md" 
+                            className="w-16 h-16 lg:w-20 lg:h-20 rounded-full border-2 border-white shadow-md object-cover" 
                         />
                         <span className={`absolute bottom-0.5 right-0.5 lg:bottom-1 lg:right-1 w-4 h-4 lg:w-5 lg:h-5 rounded-full border-2 border-white ${profile?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        
+                        {/* Upload button overlay */}
+                        <button
+                            onClick={handleUploadClick}
+                            disabled={isUploading}
+                            className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col items-center justify-center cursor-pointer"
+                            title="Upload profile picture"
+                        >
+                            {isUploading ? (
+                                <Loader2 className="w-6 h-6 text-white animate-spin" />
+                            ) : (
+                                <>
+                                    <Camera className="w-5 h-5 lg:w-6 lg:h-6 text-white drop-shadow" />
+                                    <span className="text-[10px] font-semibold text-white drop-shadow mt-1">
+                                        {profile?.profilePictureUrl ? 'Change' : 'Upload'}
+                                    </span>
+                                </>
+                            )}
+                        </button>
+                        
+                        {/* Hidden file input */}
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleFileChange}
+                        />
                     </div>
                     
                     {/* Info */}
@@ -71,6 +133,11 @@ const UserProfile = () => {
                             </Badge>
                         </div>
                         <p className="text-sm lg:text-base text-gray-500 dark:text-gray-400 truncate">{profile?.email}</p>
+                        
+                        {/* Upload error message */}
+                        {uploadError && (
+                            <p className="text-xs text-red-500 mt-2 text-center sm:text-left">{uploadError}</p>
+                        )}
                     </div>
 
                     {/* Quick Stats */}

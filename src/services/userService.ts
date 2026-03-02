@@ -30,6 +30,7 @@ export interface UserProfileData {
   id: string;
   email: string;
   isActive: boolean;
+  profilePictureUrl?: string;
   roles: Array<{
     id: string;
     description: string;
@@ -511,6 +512,91 @@ export const userService = {
     } catch (error) {
       console.error('Error in rejectUser:', error);
       throw error;
+    }
+  },
+
+  // Upload user profile picture
+  async uploadProfilePicture(file: File, userName: string, userId: string): Promise<string> {
+    try {
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Please select an image file (JPG, PNG, etc.)');
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('File size must be under 5 MB');
+      }
+
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      // Sanitize the user name for folder path
+      const safeName = userName.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/\s+/g, '_');
+      const path = `${safeName}/${userId}_${Date.now()}.${ext}`;
+
+      // Remove ALL existing profile pictures for this user in their folder
+      try {
+        const { data: existing } = await supabase.storage
+          .from('user_profile')
+          .list(safeName, { limit: 100 });
+        
+        if (existing && existing.length > 0) {
+          const toRemove = existing
+            .filter((f) => f.name.startsWith(userId))
+            .map((f) => `${safeName}/${f.name}`);
+          
+          if (toRemove.length > 0) {
+            await supabase.storage.from('user_profile').remove(toRemove);
+          }
+        }
+      } catch (listError) {
+        // Folder might not exist yet, that's okay
+        console.log('Folder does not exist yet, will be created on upload');
+      }
+
+      // Upload new file (folder will be created automatically)
+      const { error: uploadError } = await supabase.storage
+        .from('user_profile')
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error(uploadError.message || 'Failed to upload profile picture');
+      }
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('user_profile')
+        .getPublicUrl(path);
+
+      return publicUrlData.publicUrl + '?t=' + Date.now();
+    } catch (error) {
+      console.error('Error in uploadProfilePicture:', error);
+      throw error;
+    }
+  },
+
+  // Get user profile picture URL
+  async getProfilePictureUrl(userName: string, userId: string): Promise<string | null> {
+    try {
+      const safeName = userName.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/\s+/g, '_');
+      const { data: files } = await supabase.storage
+        .from('user_profile')
+        .list(safeName, { limit: 100 });
+      
+      const match = files?.find((f) => f.name.startsWith(userId));
+      if (match) {
+        const { data: publicUrlData } = supabase.storage
+          .from('user_profile')
+          .getPublicUrl(`${safeName}/${match.name}`);
+        
+        return publicUrlData.publicUrl + '?t=' + Date.now();
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error in getProfilePictureUrl:', error);
+      return null;
     }
   },
 };
