@@ -13,11 +13,18 @@ export function useUserProfile() {
       
       const data = await userService.getCurrentUserProfile()
       
-      // Fetch profile picture if user data exists
+      // Fetch profile picture and name if user data exists
       if (data) {
         const userName = data.email.split('@')[0]
         const profilePictureUrl = await userService.getProfilePictureUrl(userName, data.id)
         data.profilePictureUrl = profilePictureUrl || undefined
+        
+        // Fetch user profile name
+        const userProfile = await userService.getUserProfile(data.id)
+        if (userProfile) {
+          data.firstName = userProfile.firstName
+          data.lastName = userProfile.lastName
+        }
       }
       
       setProfile(data)

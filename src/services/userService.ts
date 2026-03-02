@@ -31,6 +31,8 @@ export interface UserProfileData {
   email: string;
   isActive: boolean;
   profilePictureUrl?: string;
+  firstName?: string;
+  lastName?: string;
   roles: Array<{
     id: string;
     description: string;
@@ -596,6 +598,85 @@ export const userService = {
       return null;
     } catch (error) {
       console.error('Error in getProfilePictureUrl:', error);
+      return null;
+    }
+  },
+
+  // Update user name (stored in user_profile table)
+  async updateUserName(userId: string, data: { firstName: string; lastName: string }): Promise<void> {
+    try {
+      // Check if user_profile record exists
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('user_profile')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error checking user profile:', fetchError);
+        throw fetchError;
+      }
+
+      if (existingProfile) {
+        // Update existing profile
+        const { error: updateError } = await supabase
+          .from('user_profile')
+          .update({
+            first_name: data.firstName,
+            last_name: data.lastName,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId);
+
+        if (updateError) {
+          console.error('Error updating user profile:', updateError);
+          throw updateError;
+        }
+      } else {
+        // Create new profile
+        const { error: insertError } = await supabase
+          .from('user_profile')
+          .insert({
+            user_id: userId,
+            first_name: data.firstName,
+            last_name: data.lastName,
+          });
+
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
+          throw insertError;
+        }
+      }
+    } catch (error) {
+      console.error('Error in updateUserName:', error);
+      throw error;
+    }
+  },
+
+  // Get user profile name
+  async getUserProfile(userId: string): Promise<{ firstName?: string; lastName?: string } | null> {
+    try {
+      const { data, error } = await supabase
+        .from('user_profile')
+        .select('first_name, last_name')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching user profile:', error);
+        return null;
+      }
+
+      if (data) {
+        return {
+          firstName: data.first_name || undefined,
+          lastName: data.last_name || undefined,
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error in getUserProfile:', error);
       return null;
     }
   },
