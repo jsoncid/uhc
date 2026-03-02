@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell } from 'lucide-react';
+import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -274,6 +274,15 @@ const StaffQueueManager = () => {
     setPingingId(serving.id);
   };
 
+  const handlePutBackOnQueue = async (sequenceId: string) => {
+    const pendingStatus = getStatusByDescription('pending');
+    if (pendingStatus) {
+      // Put back to pending status with no window assignment
+      // The new created_at timestamp will automatically place it at the end of the queue
+      await updateSequenceStatus(sequenceId, pendingStatus.id, null);
+    }
+  };
+
   // Offices available as transfer targets: all active offices under the same
   // assignment as the sequence being transferred, excluding the source office.
   const transferableOffices = useMemo(() => {
@@ -418,7 +427,7 @@ const StaffQueueManager = () => {
                               <div className="text-sm text-muted-foreground">
                                 {serving.priority_data?.description || 'Regular'}
                               </div>
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 flex-wrap">
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -455,6 +464,16 @@ const StaffQueueManager = () => {
                                 >
                                   <Bell className="h-4 w-4 mr-2" />
                                   Ping
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handlePutBackOnQueue(serving.id)}
+                                  disabled={isLoading}
+                                  title="Put back to end of queue (customer didn't arrive)"
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-2" />
+                                  Put Back
                                 </Button>
                               </div>
                             </div>
