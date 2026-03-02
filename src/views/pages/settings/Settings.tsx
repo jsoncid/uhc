@@ -6,11 +6,14 @@ import { Switch } from "src/components/ui/switch";
 import { Button } from "src/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "src/components/ui/select";
 import { useSettings } from "src/context/SettingsContext";
+import { supabase } from "src/lib/supabase";
+import { useState } from "react";
 
 const Settings = () => {
     const { theme, setTheme } = useTheme();
     const isDarkMode = theme === 'dark';
     const { settings, updateSetting, resetSettings } = useSettings();
+    const [uploading, setUploading] = useState(false);
 
     const handleThemeToggle = (checked: boolean) => {
         setTheme(checked ? 'dark' : 'light');
@@ -20,6 +23,65 @@ const Settings = () => {
         if (confirm('Are you sure you want to reset all settings to default?')) {
             resetSettings();
         }
+    };
+
+    const handleLogoUpload = async (file: File) => {
+        try {
+            setUploading(true);
+
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                alert('Please upload an image file');
+                return;
+            }
+
+            // Validate file size (max 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                alert('File size must be less than 2MB');
+                return;
+            }
+
+            const fileExt = file.name.split('.').pop();
+            const fileName = `system-logo-${Date.now()}.${fileExt}`;
+            const filePath = `${fileName}`;
+
+            // Upload to Supabase Storage
+            const { error } = await supabase.storage
+                .from('system_logo')
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: false
+                });
+
+            if (error) {
+                console.error('Error uploading logo:', error);
+                alert('Failed to upload logo. Please try again.');
+                return;
+            }
+
+            // Get public URL
+            const { data: { publicUrl } } = supabase.storage
+                .from('system_logo')
+                .getPublicUrl(filePath);
+
+            // Update settings with new logo URL
+            updateSetting('branding', 'systemLogoUrl', publicUrl);
+
+            alert('Logo uploaded successfully!');
+        } catch (error) {
+            console.error('Error uploading logo:', error);
+            alert('Failed to upload logo. Please try again.');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleRemoveLogo = async () => {
+        if (!confirm('Are you sure you want to remove this logo?')) {
+            return;
+        }
+
+        updateSetting('branding', 'systemLogoUrl', null);
     };
 
     return (
@@ -153,6 +215,80 @@ const Settings = () => {
                                 <SelectItem value="compact">Compact</SelectItem>
                             </SelectContent>
                         </Select>
+                    </div>
+                </div>
+            </CardBox>
+
+            {/* Branding */}
+            <CardBox className="p-4 lg:p-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <Icon icon="solar:gallery-bold-duotone" className="w-6 h-6 text-primary" />
+                    <h5 className="text-lg font-semibold">Branding</h5>
+                </div>
+
+                <div className="space-y-6">
+                    {/* System Logo Upload */}
+                    <div className="py-4 px-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 rounded-full bg-primary/10">
+                                <Icon icon="solar:image-bold" className="w-6 h-6 text-primary" />
+                            </div>
+                            <div className="flex-1">
+                                <Label className="text-base font-medium">System Logo</Label>
+                                <p className="text-sm text-muted-foreground mt-1 mb-3">
+                                    Upload a logo to replace the default system logo (applies to both light and dark modes)
+                                </p>
+
+                                {settings?.branding?.systemLogoUrl && (
+                                    <div className="mb-3 p-3 border rounded-lg bg-gray-50 dark:bg-gray-900/30">
+                                        <img 
+                                            src={settings.branding.systemLogoUrl} 
+                                            alt="System Logo Preview" 
+                                            className="max-h-16 object-contain mb-2"
+                                        />
+                                        <Button 
+                                            onClick={handleRemoveLogo} 
+                                            variant="outline" 
+                                            size="sm"
+                                            className="text-red-600 hover:text-red-700"
+                                        >
+                                            <Icon icon="solar:trash-bin-trash-bold" className="w-4 h-4 mr-2" />
+                                            Remove Logo
+                                        </Button>
+                                    </div>
+                                )}
+
+                                <div className="flex gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        disabled={uploading}
+                                        onClick={() => {
+                                            const input = document.createElement('input');
+                                            input.type = 'file';
+                                            input.accept = 'image/*';
+                                            input.onchange = (e) => {
+                                                const file = (e.target as HTMLInputElement).files?.[0];
+                                                if (file) handleLogoUpload(file);
+                                            };
+                                            input.click();
+                                        }}
+                                    >
+                                        {uploading ? (
+                                            <>
+                                                <Icon icon="solar:loading-bold" className="w-4 h-4 mr-2 animate-spin" />
+                                                Uploading...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Icon icon="solar:upload-bold" className="w-4 h-4 mr-2" />
+                                                {settings?.branding?.systemLogoUrl ? 'Change Logo' : 'Upload Logo'}
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </CardBox>
