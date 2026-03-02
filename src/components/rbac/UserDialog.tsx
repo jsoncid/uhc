@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import type { UserWithStatus } from '@/services/userService'
 
 interface UserDialogProps {
@@ -12,16 +11,19 @@ interface UserDialogProps {
   initialData?: UserWithStatus
   onClose: () => void
   onSubmit: (values: { name: string; email: string; isActive: boolean }) => Promise<void>
+  onSendPasswordReset?: (email: string) => Promise<void>
 }
 
-export const UserDialog = ({ isOpen, mode, initialData, onClose, onSubmit }: UserDialogProps) => {
+export const UserDialog = ({ isOpen, mode, initialData, onClose, onSubmit, onSendPasswordReset }: UserDialogProps) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     isActive: true
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [isSendingReset, setIsSendingReset] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -31,13 +33,35 @@ export const UserDialog = ({ isOpen, mode, initialData, onClose, onSubmit }: Use
         isActive: initialData?.is_active ?? true
       })
       setError(null)
+      setSuccessMessage(null)
     }
   }, [isOpen, initialData])
 
   const handleClose = () => {
     setFormData({ name: '', email: '', isActive: true })
     setError(null)
+    setSuccessMessage(null)
     onClose()
+  }
+
+  const handleSendPasswordReset = async () => {
+    if (!onSendPasswordReset || !formData.email.trim()) {
+      return
+    }
+
+    setIsSendingReset(true)
+    setError(null)
+    setSuccessMessage(null)
+
+    try {
+      await onSendPasswordReset(formData.email.trim())
+      setSuccessMessage('Password reset email sent successfully!')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to send password reset email'
+      setError(message)
+    } finally {
+      setIsSendingReset(false)
+    }
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -79,6 +103,11 @@ export const UserDialog = ({ isOpen, mode, initialData, onClose, onSubmit }: Use
               {error}
             </div>
           )}
+          {successMessage && (
+            <div className="rounded-md bg-green-500/15 px-4 py-2 text-sm text-green-600 dark:text-green-400">
+              {successMessage}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="user-name">Name</Label>
             <Input
@@ -98,18 +127,19 @@ export const UserDialog = ({ isOpen, mode, initialData, onClose, onSubmit }: Use
               placeholder="user@example.com"
             />
           </div>
-          <div className="flex items-center gap-3">
-            <Switch
-              id="user-active"
-              checked={formData.isActive}
-              onCheckedChange={(value) =>
-                setFormData((prev) => ({ ...prev, isActive: value }))
-              }
-            />
-            <Label htmlFor="user-active" className="mb-0">
-              {formData.isActive ? 'Active' : 'Inactive'}
-            </Label>
-          </div>
+          {mode === 'edit' && onSendPasswordReset && (
+            <div className="pt-2 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSendPasswordReset}
+                disabled={isSendingReset || !formData.email.trim()}
+                className="w-full"
+              >
+                {isSendingReset ? 'Sending...' : 'Send Password Reset Email'}
+              </Button>
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel

@@ -680,4 +680,199 @@ export const userService = {
       return null;
     }
   },
+
+  // Admin functions for user management
+  async createUserAdmin(userData: {
+    email: string;
+    password: string;
+    name?: string;
+    isActive?: boolean;
+  }): Promise<{ success: boolean; userId?: string; error?: string }> {
+    try {
+      // Note: This requires the Supabase Service Role Key on the backend
+      // In production, this should be a server-side API call
+      const response = await fetch(`${API_URL}/admin/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userData.email,
+          password: userData.password,
+          name: userData.name,
+          isActive: userData.isActive ?? true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to create user' }));
+        throw new Error(errorData.message || 'Failed to create user');
+      }
+
+      const result = await response.json();
+      return {
+        success: true,
+        userId: result.userId || result.id,
+      };
+    } catch (error) {
+      console.error('Error in createUserAdmin:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create user',
+      };
+    }
+  },
+
+  async updateUserAdmin(
+    userId: string,
+    updates: {
+      email?: string;
+      name?: string;
+      isActive?: boolean;
+    }
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Update user_status table for active status and name
+      const statusUpdates: any = {};
+      if (updates.isActive !== undefined) {
+        statusUpdates.is_active = updates.isActive;
+      }
+      if (updates.name !== undefined) {
+        // Store name in user_status if that table has a name column
+        // Otherwise we can add it to user_profile table
+        const { data: existingStatus } = await supabase
+          .from('user_status')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (existingStatus) {
+          const { error: updateError } = await supabase
+            .from('user_status')
+            .update(statusUpdates)
+            .eq('id', userId);
+
+          if (updateError) {
+            throw updateError;
+          }
+        } else {
+          // Create status record if it doesn't exist
+          const { error: insertError } = await supabase
+            .from('user_status')
+            .insert({
+              id: userId,
+              email: updates.email || '',
+              ...statusUpdates,
+            });
+
+          if (insertError) {
+            throw insertError;
+          }
+        }
+      } else if (Object.keys(statusUpdates).length > 0) {
+        const { error: updateError } = await supabase
+          .from('user_status')
+          .update(statusUpdates)
+          .eq('id', userId);
+
+        if (updateError) {
+          throw updateError;
+        }
+      }
+
+      // If email is being updated, we need backend API
+      if (updates.email) {
+        const response = await fetch(`${API_URL}/admin/users/${userId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: updates.email }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Failed to update user email' }));
+          throw new Error(errorData.message || 'Failed to update user email');
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error in updateUserAdmin:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update user',
+      };
+    }
+  },
+
+  async resetUserPassword(
+    userId: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // This requires backend API with service role key
+      const response = await fetch(`${API_URL}/admin/users/${userId}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to reset password' }));
+        throw new Error(errorData.message || 'Failed to reset password');
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error in resetUserPassword:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to reset password',
+      };
+    }
+  },
+
+  async sendPasswordResetEmail(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error in sendPasswordResetEmail:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to send password reset email',
+      };
+    }
+  },
+
+  async toggleUserStatus(userId: string, isActive: boolean): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase
+        .from('user_status')
+        .update({ is_active: isActive })
+        .eq('id', userId);
+
+      if (error) {
+        throw error;
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error in toggleUserStatus:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to toggle user status',
+      };
+    }
+  },
 };
