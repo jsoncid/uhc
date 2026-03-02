@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 
 import { DatabaseConnectionForm, DatabaseList } from 'src/components/apps/database';
+import { Module3PageHeader } from './components';
 
 const DatabaseManagement = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -45,17 +46,11 @@ const DatabaseManagement = () => {
     <div className="container mx-auto py-8 px-6 max-w-7xl">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
-            <Database className="h-9 w-9 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Database Management</h1>
-            <p className="text-muted-foreground text-base mt-1">
-              Configure and manage connections to hospital database systems
-            </p>
-          </div>
-        </div>
+        <Module3PageHeader
+          icon={Database}
+          title="Database Management"
+          description="Configure and manage connections to hospital database systems"
+        />
       </div>
 
       {/* Info Alert */}

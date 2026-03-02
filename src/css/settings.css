@@ -1,0 +1,219 @@
+/* Settings-based styling */
+
+/* Font Size Settings */
+:root.font-small {
+    --base-font-size: 0.875rem; /* 14px */
+    --heading-scale: 0.9;
+}
+
+:root.font-medium {
+    --base-font-size: 1rem; /* 16px - default */
+    --heading-scale: 1;
+}
+
+:root.font-large {
+    --base-font-size: 1.125rem; /* 18px */
+    --heading-scale: 1.1;
+}
+
+.font-small body,
+.font-small .text-base {
+    font-size: 0.875rem;
+}
+
+.font-small .text-sm {
+    font-size: 0.8125rem;
+}
+
+.font-small .text-xs {
+    font-size: 0.75rem;
+}
+
+.font-small h1 { font-size: calc(2rem * 0.9); }
+.font-small h2 { font-size: calc(1.75rem * 0.9); }
+.font-small h3 { font-size: calc(1.5rem * 0.9); }
+.font-small h4 { font-size: calc(1.25rem * 0.9); }
+.font-small h5 { font-size: calc(1.125rem * 0.9); }
+.font-small h6 { font-size: calc(1rem * 0.9); }
+
+.font-large body,
+.font-large .text-base {
+    font-size: 1.125rem;
+}
+
+.font-large .text-sm {
+    font-size: 1rem;
+}
+
+.font-large .text-xs {
+    font-size: 0.875rem;
+}
+
+.font-large h1 { font-size: calc(2rem * 1.1); }
+.font-large h2 { font-size: calc(1.75rem * 1.1); }
+.font-large h3 { font-size: calc(1.5rem * 1.1); }
+.font-large h4 { font-size: calc(1.25rem * 1.1); }
+.font-large h5 { font-size: calc(1.125rem * 1.1); }
+.font-large h6 { font-size: calc(1rem * 1.1); }
+
+/* Compact Mode */
+.compact-mode .p-4 {
+    padding: 0.75rem !important;
+}
+
+.compact-mode .p-5 {
+    padding: 1rem !important;
+}
+
+.compact-mode .p-6 {
+    padding: 1.25rem !important;
+}
+
+.compact-mode .py-4 {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+}
+
+.compact-mode .py-5 {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+}
+
+.compact-mode .py-6 {
+    padding-top: 1.25rem !important;
+    padding-bottom: 1.25rem !important;
+}
+
+.compact-mode .px-4 {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+}
+
+.compact-mode .px-5 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+}
+
+.compact-mode .px-6 {
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
+}
+
+.compact-mode .gap-4 {
+    gap: 0.75rem !important;
+}
+
+.compact-mode .gap-5 {
+    gap: 1rem !important;
+}
+
+.compact-mode .gap-6 {
+    gap: 1.25rem !important;
+}
+
+.compact-mode .space-y-4 > * + * {
+    margin-top: 0.75rem !important;
+}
+
+.compact-mode .space-y-5 > * + * {
+    margin-top: 1rem !important;
+}
+
+.compact-mode .space-y-6 > * + * {
+    margin-top: 1.25rem !important;
+}
+
+/* Table Density */
+.table-comfortable table tbody tr td,
+.table-comfortable table tbody tr th {
+    padding: 1rem 1.25rem;
+}
+
+.table-standard table tbody tr td,
+.table-standard table tbody tr th {
+    padding: 0.75rem 1rem;
+}
+
+.table-compact table tbody tr td,
+.table-compact table tbody tr th {
+    padding: 0.5rem 0.75rem;
+}
+
+.table-comfortable table thead tr th {
+    padding: 1.25rem 1.25rem;
+}
+
+.table-standard table thead tr th {
+    padding: 1rem 1rem;
+}
+
+.table-compact table thead tr th {
+    padding: 0.75rem 0.75rem;
+}
+
+/* High Contrast Mode */
+.high-contrast {
+    --contrast-boost: 1.3;
+}
+
+.high-contrast .text-muted-foreground {
+    color: hsl(var(--foreground) / 0.8) !important;
+}
+
+.high-contrast .border {
+    border-width: 2px !important;
+}
+
+.high-contrast button,
+.high-contrast a {
+    font-weight: 600 !important;
+}
+
+.high-contrast .bg-primary {
+    filter: saturate(1.2) contrast(1.1);
+}
+
+.high-contrast .shadow-sm {
+    box-shadow: 0 2px 4px 0 rgb(0 0 0 / 0.15) !important;
+}
+
+.high-contrast .shadow-md {
+    box-shadow: 0 4px 8px 0 rgb(0 0 0 / 0.2) !important;
+}
+
+.high-contrast .shadow-lg {
+    box-shadow: 0 10px 20px 0 rgb(0 0 0 / 0.25) !important;
+}
+
+/* Reduced Motion */
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+}
+
+.reduced-motion .animate-spin,
+.reduced-motion .animate-pulse,
+.reduced-motion .animate-bounce {
+    animation: none !important;
+}
+
+/* Smooth transitions when not in reduced motion */
+:root:not(.reduced-motion) * {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+}
+
+/* Auto-save indicator */
+@keyframes fadeInOut {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+}
+
+.settings-saved-indicator {
+    animation: fadeInOut 2s ease-in-out;
+}
