@@ -7,12 +7,23 @@ import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
 import { userService } from "@/services/userService";
 import { useRef, useState } from "react";
-import { Camera, Loader2 } from "lucide-react";
+import { Camera, Loader2, X } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "src/components/ui/dialog";
 
 const UserProfile = () => {
     const { profile, loading, error, refetch } = useUserProfile();
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Get display name from email
@@ -23,15 +34,38 @@ const UserProfile = () => {
         fileInputRef.current?.click();
     };
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !profile) return;
 
+        // Validate file type and size
+        if (!file.type.startsWith('image/')) {
+            setUploadError('Please select an image file (JPG, PNG, etc.)');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            setUploadError('File size must be under 5 MB');
+            return;
+        }
+
+        // Create preview URL
+        const url = URL.createObjectURL(file);
+        setPreviewUrl(url);
+        setSelectedFile(file);
+        setShowConfirmDialog(true);
+        setUploadError(null);
+    };
+
+    const handleConfirmUpload = async () => {
+        if (!selectedFile || !profile) return;
+
         setIsUploading(true);
         setUploadError(null);
+        setShowConfirmDialog(false);
 
         try {
-            await userService.uploadProfilePicture(file, displayName, profile.id);
+            await userService.uploadProfilePicture(selectedFile, displayName, profile.id);
             // Refresh profile to get new picture URL
             await refetch();
         } catch (err) {
@@ -39,10 +73,29 @@ const UserProfile = () => {
             setUploadError(err instanceof Error ? err.message : 'Failed to upload profile picture');
         } finally {
             setIsUploading(false);
+            // Clean up
+            if (previewUrl) {
+                URL.revokeObjectURL(previewUrl);
+            }
+            setPreviewUrl(null);
+            setSelectedFile(null);
             // Reset input
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
+        }
+    };
+
+    const handleCancelUpload = () => {
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+        }
+        setPreviewUrl(null);
+        setSelectedFile(null);
+        setShowConfirmDialog(false);
+        // Reset input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
         }
     };
 
@@ -252,6 +305,70 @@ const UserProfile = () => {
                                                                 ) : (
                                                                     <Icon icon="solar:close-circle-bold" className="w-5 h-5 text-gray-300 dark:text-gray-600 mx-auto" />
                                                                 )}
+
+            {/* Confirmation Dialog */}
+            <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Camera className="w-5 h-5 text-primary" />
+                            Change Profile Picture
+                        </DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to update your profile picture?
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="flex flex-col items-center gap-4 py-4">
+                        {previewUrl && (
+                            <div className="relative">
+                                <img
+                                    src={previewUrl}
+                                    alt="Preview"
+                                    className="w-32 h-32 rounded-full object-cover border-4 border-primary/20 shadow-lg"
+                                />
+                            </div>
+                        )}
+                        
+                        {selectedFile && (
+                            <div className="text-center space-y-1">
+                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    {selectedFile.name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                    {(selectedFile.size / 1024).toFixed(2)} KB
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="flex-row gap-2 sm:gap-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleCancelUpload}
+                            className="flex-1 sm:flex-none"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleConfirmUpload}
+                            disabled={isUploading}
+                            className="flex-1 sm:flex-none"
+                        >
+                            {isUploading ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Uploading...
+                                </>
+                            ) : (
+                                'Confirm & Upload'
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
                                                             </td>
                                                             <td className="text-center py-2 px-1">
                                                                 {module.permissions.is_insert ? (
