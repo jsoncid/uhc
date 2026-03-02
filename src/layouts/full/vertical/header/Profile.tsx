@@ -34,7 +34,7 @@ const Profile = () => {
               alt="logo" 
               height="35" 
               width="35" 
-              className="rounded-full object-cover" 
+              className="rounded-full object-cover w-[35px] h-[35px]" 
             />
           </span>
         </DropdownMenuTrigger>

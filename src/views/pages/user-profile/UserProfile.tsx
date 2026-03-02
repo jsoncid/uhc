@@ -5,11 +5,11 @@ import { useUserProfile } from "src/hooks/useUserProfile";
 import { Skeleton } from "src/components/ui/skeleton";
 import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
-import { Input } from "src/components/ui/input";
-import { Label } from "src/components/ui/label";
+// import { Input } from "src/components/ui/input";
+// import { Label } from "src/components/ui/label";
 import { userService } from "@/services/userService";
 import { useRef, useState } from "react";
-import { Camera, Loader2, X, User, Edit } from "lucide-react";
+import { Camera, Loader2, User, Edit } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -21,14 +21,14 @@ import {
 
 const UserProfile = () => {
     const { profile, loading, error, refetch } = useUserProfile();
-    const [isUploading, setIsUploading] = useState(false);
+    // const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
+    // const [firstName, setFirstName] = useState('');
+    // const [lastName, setLastName] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Get display name from email
@@ -37,8 +37,8 @@ const UserProfile = () => {
 
     const handleEditProfile = () => {
         // Initialize form with current values
-        setFirstName(profile?.firstName || defaultFirstName);
-        setLastName(profile?.lastName || '');
+        // setFirstName(profile?.firstName || defaultFirstName);
+        // setLastName(profile?.lastName || '');
         setShowEditDialog(true);
         setUploadError(null);
     };
@@ -81,13 +81,13 @@ const UserProfile = () => {
                 await userService.uploadProfilePicture(selectedFile, displayName, profile.id);
             }
 
-            // Update name if changed
-            if (firstName.trim() || lastName.trim()) {
+            // Update name if changed - Temporarily Disabled
+            /* if (firstName.trim() || lastName.trim()) {
                 await userService.updateUserName(profile.id, {
                     firstName: firstName.trim() || defaultFirstName,
                     lastName: lastName.trim()
                 });
-            }
+            } */
 
             // Refresh profile to get updates
             await refetch();
@@ -320,7 +320,7 @@ const UserProfile = () => {
                             Edit Profile
                         </DialogTitle>
                         <DialogDescription>
-                            Update your profile information and picture.
+                            Update your profile picture.
                         </DialogDescription>
                     </DialogHeader>
                     
@@ -367,8 +367,8 @@ const UserProfile = () => {
                             />
                         </div>
 
-                        {/* Name Fields */}
-                        <div className="space-y-3">
+                        {/* Name Fields - Temporarily Disabled */}
+                        {/* <div className="space-y-3">
                             <div className="space-y-2">
                                 <Label htmlFor="firstName" className="text-sm font-medium">
                                     First Name <span className="text-red-500">*</span>
@@ -394,7 +394,7 @@ const UserProfile = () => {
                                     className="w-full"
                                 />
                             </div>
-                        </div>
+                        </div> */}
 
                         {/* Error Message */}
                         {uploadError && (
@@ -417,7 +417,7 @@ const UserProfile = () => {
                         <Button
                             type="button"
                             onClick={handleSaveProfile}
-                            disabled={isSaving || !firstName.trim()}
+                            disabled={isSaving}
                             className="flex-1 sm:flex-none"
                         >
                             {isSaving ? (

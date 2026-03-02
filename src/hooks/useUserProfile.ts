@@ -19,12 +19,12 @@ export function useUserProfile() {
         const profilePictureUrl = await userService.getProfilePictureUrl(userName, data.id)
         data.profilePictureUrl = profilePictureUrl || undefined
         
-        // Fetch user profile name
-        const userProfile = await userService.getUserProfile(data.id)
+        // Fetch user profile name - Temporarily disabled until table is created
+        /* const userProfile = await userService.getUserProfile(data.id)
         if (userProfile) {
           data.firstName = userProfile.firstName
           data.lastName = userProfile.lastName
-        }
+        } */
       }
       
       setProfile(data)
