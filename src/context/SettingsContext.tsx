@@ -14,6 +14,9 @@ export interface SettingsConfig {
         highContrast: boolean;
         reducedMotion: boolean;
     };
+    branding: {
+        systemLogoUrl: string | null;
+    };
 }
 
 export const defaultSettings: SettingsConfig = {
@@ -29,6 +32,9 @@ export const defaultSettings: SettingsConfig = {
     accessibility: {
         highContrast: false,
         reducedMotion: false,
+    },
+    branding: {
+        systemLogoUrl: null,
     },
 };
 
