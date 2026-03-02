@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell } from 'lucide-react';
+import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -274,16 +274,39 @@ const StaffQueueManager = () => {
     setPingingId(serving.id);
   };
 
+  const handlePutBackOnQueue = async (sequenceId: string) => {
+    const pendingStatus = getStatusByDescription('pending');
+    if (pendingStatus) {
+      // Put back to pending status with no window assignment
+      // The new created_at timestamp will automatically place it at the end of the queue
+      await updateSequenceStatus(sequenceId, pendingStatus.id, null);
+    }
+  };
+
+  // Offices available as transfer targets: all active offices under the same
+  // assignment as the sequence being transferred, excluding the source office.
+  const transferableOffices = useMemo(() => {
+    if (!transferringSequence) return [];
+    const sourceOffice = offices.find((o) => o.id === transferringSequence.office);
+    if (!sourceOffice) return [];
+    return offices.filter(
+      (o) =>
+        o.status &&
+        o.assignment === sourceOffice.assignment &&
+        o.id !== transferringSequence.office,
+    );
+  }, [offices, transferringSequence]);
+
   const handleOpenTransferDialog = (sequence: Sequence) => {
     setTransferringSequence(sequence);
-    setTransferTargetOffice(sequence.office);
+    setTransferTargetOffice('');     // reset — user must pick a different office
     setTransferDialogOpen(true);
   };
 
   const handleTransfer = async () => {
     if (!transferringSequence || !transferTargetOffice) return;
 
-    const targetOffice = activeOffices.find((o) => o.id === transferTargetOffice);
+    const targetOffice = offices.find((o) => o.id === transferTargetOffice);
 
     await transferSequence(transferringSequence.id, transferTargetOffice, null);
 
@@ -404,43 +427,53 @@ const StaffQueueManager = () => {
                               <div className="text-sm text-muted-foreground">
                                 {serving.priority_data?.description || 'Regular'}
                               </div>
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 flex-wrap">
                                 <Button
-                                  variant="outline"
                                   size="sm"
                                   onClick={() => handleComplete(serving.id)}
                                   disabled={isLoading || !serving.status_data?.description?.toLowerCase().includes('arrived')}
+                                  className="bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                                 >
                                   <Check className="h-4 w-4 mr-2" />
                                   Complete
                                 </Button>
                                 <Button
-                                  variant="outline"
                                   size="sm"
                                   onClick={() => handleOpenTransferDialog(serving)}
                                   disabled={isLoading}
+                                  className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                                 >
                                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                                   Transfer
                                 </Button>
                                 <Button
-                                  variant="outline"
                                   size="sm"
                                   onClick={() => handleArrived(serving.id, selectedWindowByOffice[office.id])}
                                   disabled={isLoading || serving.status_data?.description?.toLowerCase().includes('arrived')}
+                                  className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
                                 >
                                   <UserCheck className="h-4 w-4 mr-2" />
                                   Arrived
                                 </Button>
                                 <Button
-                                  variant="outline"
                                   size="sm"
                                   onClick={() => handlePing(serving, office.description || '')}
                                   disabled={isLoading || pingingId === serving.id}
                                   title="Re-announce this queue on the display"
+                                  className="bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
                                 >
                                   <Bell className="h-4 w-4 mr-2" />
                                   Ping
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handlePutBackOnQueue(serving.id)}
+                                  disabled={isLoading}
+                                  title="Put back to end of queue (customer didn't arrive)"
+                                  className="bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-2" />
+                                  Put Back
                                 </Button>
                               </div>
                             </div>
@@ -520,11 +553,17 @@ const StaffQueueManager = () => {
                   <SelectValue placeholder="Select office" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeOffices.map((office) => (
-                    <SelectItem key={office.id} value={office.id}>
-                      {office.description || office.id}
-                    </SelectItem>
-                  ))}
+                  {transferableOffices.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      No other offices available
+                    </div>
+                  ) : (
+                    transferableOffices.map((office) => (
+                      <SelectItem key={office.id} value={office.id}>
+                        {office.description || office.id}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

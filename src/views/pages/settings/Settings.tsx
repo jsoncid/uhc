@@ -166,13 +166,18 @@ const Settings = () => {
 
                 <div className="space-y-4">
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                        <div>
-                            <Label htmlFor="auto-logout" className="text-base font-medium cursor-pointer">
-                                Auto Logout
-                            </Label>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                Automatically log out after inactivity
-                            </p>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
+                                <Icon icon="solar:logout-2-bold" className="w-5 h-5 text-red-600 dark:text-red-400" />
+                            </div>
+                            <div>
+                                <Label htmlFor="auto-logout" className="text-base font-medium cursor-pointer">
+                                    Auto Logout
+                                </Label>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Automatically log out after inactivity
+                                </p>
+                            </div>
                         </div>
                         <Switch
                             id="auto-logout"
@@ -183,11 +188,16 @@ const Settings = () => {
 
                     {settings.session.autoLogout && (
                         <div className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-700 ml-4">
-                            <div>
-                                <Label className="text-base font-medium">Session Timeout</Label>
-                                <p className="text-sm text-muted-foreground mt-1">
-                                    Minutes of inactivity before logout
-                                </p>
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                                    <Icon icon="solar:clock-circle-bold" className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                                </div>
+                                <div>
+                                    <Label className="text-base font-medium">Session Timeout</Label>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Minutes of inactivity before logout
+                                    </p>
+                                </div>
                             </div>
                             <Select 
                                 value={settings.session.sessionTimeout.toString()} 
@@ -217,13 +227,18 @@ const Settings = () => {
 
                 <div className="space-y-4">
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                        <div>
-                            <Label htmlFor="high-contrast" className="text-base font-medium cursor-pointer">
-                                High Contrast
-                            </Label>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                Increase color contrast for better visibility
-                            </p>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                                <Icon icon="solar:brightness-bold" className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                            </div>
+                            <div>
+                                <Label htmlFor="high-contrast" className="text-base font-medium cursor-pointer">
+                                    High Contrast
+                                </Label>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Increase color contrast for better visibility
+                                </p>
+                            </div>
                         </div>
                         <Switch
                             id="high-contrast"
@@ -233,13 +248,18 @@ const Settings = () => {
                     </div>
 
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                        <div>
-                            <Label htmlFor="reduced-motion" className="text-base font-medium cursor-pointer">
-                                Reduced Motion
-                            </Label>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                Minimize animations and transitions
-                            </p>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-teal-100 dark:bg-teal-900/30">
+                                <Icon icon="solar:pause-circle-bold" className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                            </div>
+                            <div>
+                                <Label htmlFor="reduced-motion" className="text-base font-medium cursor-pointer">
+                                    Reduced Motion
+                                </Label>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Minimize animations and transitions
+                                </p>
+                            </div>
                         </div>
                         <Switch
                             id="reduced-motion"

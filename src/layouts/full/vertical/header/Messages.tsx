@@ -13,9 +13,15 @@ import {
 import { Badge } from 'src/components/ui/badge';
 import { Button } from 'src/components/ui/button';
 import { useCurrentModule } from 'src/hooks/useCurrentModule';
+import { M1Messages } from './notifications/module-1/m1_messages';
 
 const Messages = () => {
   const currentModule = useCurrentModule();
+
+  // Module 1 has its own dedicated notification bell with realtime queue support
+  if (currentModule === 1) {
+    return <M1Messages />;
+  }
 
   // Filter notifications to the current module only
   const activeModuleNotifications = currentModule
@@ -48,15 +54,17 @@ const Messages = () => {
         >
           <div className="flex items-center px-6 justify-between">
             <h3 className="mb-0 text-lg font-semibold text-ld">Notifications</h3>
-            {totalNotifications > 0 && (
-              <Badge color={'primary'}>{totalNotifications} new</Badge>
-            )}
+            {totalNotifications > 0 && <Badge color={'primary'}>{totalNotifications} new</Badge>}
           </div>
 
           <SimpleBar className="max-h-96 mt-3">
             {currentModule === null ? (
               <div className="px-6 py-8 text-center">
-                <Icon icon="tabler:bell-off" height={32} className="mx-auto mb-2 text-muted-foreground/50" />
+                <Icon
+                  icon="tabler:bell-off"
+                  height={32}
+                  className="mx-auto mb-2 text-muted-foreground/50"
+                />
                 <p className="text-sm text-muted-foreground">
                   Navigate to a module to view its notifications.
                 </p>
@@ -118,7 +126,9 @@ const Messages = () => {
               ))
             ) : (
               <div className="px-6 py-8 text-center">
-                <span className="text-xs text-muted-foreground">No notifications for this module</span>
+                <span className="text-xs text-muted-foreground">
+                  No notifications for this module
+                </span>
               </div>
             )}
           </SimpleBar>

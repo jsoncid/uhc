@@ -192,6 +192,7 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
 }
 
@@ -201,11 +202,23 @@
     animation: none !important;
 }
 
-/* Smooth transitions when not in reduced motion */
-:root:not(.reduced-motion) * {
-    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 150ms;
+/* Also respect system preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        transition-delay: 0s !important;
+        scroll-behavior: auto !important;
+    }
+    
+    .animate-spin,
+    .animate-pulse,
+    .animate-bounce {
+        animation: none !important;
+    }
 }
 
 /* Auto-save indicator */
