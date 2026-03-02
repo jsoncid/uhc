@@ -732,14 +732,13 @@ export const userService = {
     }
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // Update user_status table for active status and name
+      // Update user_status table for active status only
       const statusUpdates: any = {};
       if (updates.isActive !== undefined) {
         statusUpdates.is_active = updates.isActive;
       }
-      if (updates.name !== undefined) {
-        // Store name in user_status if that table has a name column
-        // Otherwise we can add it to user_profile table
+      
+      if (Object.keys(statusUpdates).length > 0) {
         const { data: existingStatus } = await supabase
           .from('user_status')
           .select('*')
@@ -769,30 +768,24 @@ export const userService = {
             throw insertError;
           }
         }
-      } else if (Object.keys(statusUpdates).length > 0) {
-        const { error: updateError } = await supabase
-          .from('user_status')
-          .update(statusUpdates)
-          .eq('id', userId);
-
-        if (updateError) {
-          throw updateError;
-        }
       }
 
-      // If email is being updated, we need backend API
-      if (updates.email) {
+      // Update email or name via backend API (requires service role key)
+      if (updates.email || updates.name) {
         const response = await fetch(`${API_URL}/admin/users/${userId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ email: updates.email }),
+          body: JSON.stringify({ 
+            email: updates.email,
+            name: updates.name 
+          }),
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: 'Failed to update user email' }));
-          throw new Error(errorData.message || 'Failed to update user email');
+          const errorData = await response.json().catch(() => ({ message: 'Failed to update user' }));
+          throw new Error(errorData.message || 'Failed to update user');
         }
       }
 
@@ -851,6 +844,65 @@ export const userService = {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to send password reset email',
+      };
+    }
+  },
+
+  async generatePasswordResetLink(email: string): Promise<{ success: boolean; link?: string; error?: string }> {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      if (!apiUrl) {
+        throw new Error('Backend API URL not configured. Please set VITE_API_URL in your .env file');
+      }
+
+      const response = await fetch(`${apiUrl}/api/admin/users/generate-reset-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          // Ensure error is a string, not an object
+          if (errorData.error) {
+            errorMessage = typeof errorData.error === 'string' 
+              ? errorData.error 
+              : JSON.stringify(errorData.error);
+          } else if (errorData.message) {
+            errorMessage = typeof errorData.message === 'string'
+              ? errorData.message
+              : JSON.stringify(errorData.message);
+          }
+        } catch {
+          // Response wasn't JSON, use the status message
+          if (response.status === 404) {
+            errorMessage = 'Backend endpoint not found. Please implement the /api/admin/users/generate-reset-link endpoint';
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      return { success: true, link: data.resetLink };
+    } catch (error) {
+      console.error('Error in generatePasswordResetLink:', error);
+      let errorMessage = 'Failed to generate password reset link';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object') {
+        errorMessage = JSON.stringify(error);
+      }
+      
+      return {
+        success: false,
+        error: errorMessage,
       };
     }
   },

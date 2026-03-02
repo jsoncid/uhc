@@ -25,7 +25,6 @@ import { Database } from '@/lib/supabase'
 import { UserAssignmentDialog } from './UserAssignmentDialog.tsx'
 import { RoleModuleAccessDialog } from './RoleModuleAccessDialog.tsx'
 import { UserRoleDialog } from './UserRoleDialog.tsx'
-import { UserDialog } from './UserDialog.tsx'
 
 type UserAssignment = Database['public']['Tables']['user_assignment']['Row'] & {
   users?: { email?: string; username?: string }
@@ -76,11 +75,6 @@ export const UserAssignmentList = () => {
   const [editingUserAssignment, setEditingUserAssignment] = useState<UserAssignment | null>(null)
   const [editingUserRole, setEditingUserRole] = useState<{ id: string; email?: string } | null>(null)
   const [editingUserRoles, setEditingUserRoles] = useState<UserRole[]>([])
-  
-  // User Dialog states
-  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState<UserWithStatus | null>(null)
-  const [userDialogMode, setUserDialogMode] = useState<'add' | 'edit'>('add')
   
   // Filter and sort states
   const [userStatusFilter, setUserStatusFilter] = useState<string>('all')
@@ -211,62 +205,6 @@ export const UserAssignmentList = () => {
     }
   }
 
-  const handleAddUser = () => {
-    setUserDialogMode('add')
-    setEditingUser(null)
-    setIsUserDialogOpen(true)
-  }
-
-  const handleEditUser = (user: UserWithStatus) => {
-    setUserDialogMode('edit')
-    setEditingUser(user)
-    setIsUserDialogOpen(true)
-  }
-
-  const handleUserDialogClose = () => {
-    setIsUserDialogOpen(false)
-    setEditingUser(null)
-  }
-
-  const handleUserDialogSubmit = async (values: { name: string; email: string; isActive: boolean }) => {
-    try {
-      if (userDialogMode === 'add') {
-        // Create new user - requires backend API
-        const result = await userService.createUserAdmin({
-          email: values.email,
-          password: 'TempPassword123!', // Default password - user should change it
-          name: values.name,
-          isActive: values.isActive,
-        })
-        
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to create user')
-        }
-        
-        // Send password reset email
-        await userService.sendPasswordResetEmail(values.email)
-      } else if (editingUser) {
-        // Update existing user
-        const result = await userService.updateUserAdmin(editingUser.id, {
-          email: values.email !== editingUser.email ? values.email : undefined,
-          name: values.name !== editingUser.name ? values.name : undefined,
-          isActive: values.isActive !== editingUser.is_active ? values.isActive : undefined,
-        })
-        
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to update user')
-        }
-      }
-      
-      await fetchUsersWithStatus()
-      handleUserDialogClose()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save user'
-      setUserListError(message)
-      throw err // Re-throw to show error in dialog
-    }
-  }
-
   const handleToggleUserStatus = async (user: UserWithStatus) => {
     try {
       setUserListError(null)
@@ -281,14 +219,6 @@ export const UserAssignmentList = () => {
       const message = err instanceof Error ? err.message : 'Failed to toggle user status'
       setUserListError(message)
       console.error('Error toggling user status:', err)
-    }
-  }
-
-  const handleSendPasswordResetFromDialog = async (email: string) => {
-    const result = await userService.sendPasswordResetEmail(email)
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to send password reset email')
     }
   }
 
@@ -1188,10 +1118,6 @@ export const UserAssignmentList = () => {
                   <Users className="h-5 w-5" />
                   System Users
                 </CardTitle>
-                <Button onClick={handleAddUser}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add User
-                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -1295,24 +1221,14 @@ export const UserAssignmentList = () => {
                           </TableCell>
                           <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEditUser(user)}
-                                title="Edit user"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openDeleteUserDialog(user)}
-                                title="Delete user"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openDeleteUserDialog(user)}
+                              title="Delete user"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))
@@ -1338,15 +1254,6 @@ export const UserAssignmentList = () => {
         onClose={handleDialogClose}
         editingUser={editingUserRole}
         existingUserRoles={editingUserRoles}
-      />
-
-      <UserDialog
-        isOpen={isUserDialogOpen}
-        mode={userDialogMode}
-        initialData={editingUser || undefined}
-        onClose={handleUserDialogClose}
-        onSubmit={handleUserDialogSubmit}
-        onSendPasswordReset={handleSendPasswordResetFromDialog}
       />
 
       <Dialog open={isDeleteConfirmOpen} onOpenChange={closeDeleteUserDialog}>

@@ -1,92 +1,145 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Copy, Check } from 'lucide-react'
 import type { UserWithStatus } from '@/services/userService'
 
 interface UserDialogProps {
   isOpen: boolean
-  mode: 'add' | 'edit'
   initialData?: UserWithStatus
   onClose: () => void
-  onSubmit: (values: { name: string; email: string; isActive: boolean }) => Promise<void>
-  onSendPasswordReset?: (email: string) => Promise<void>
+  onSendPasswordReset: (email: string) => Promise<void>
+  onGenerateResetLink: (email: string) => Promise<string | null>
 }
 
-export const UserDialog = ({ isOpen, mode, initialData, onClose, onSubmit, onSendPasswordReset }: UserDialogProps) => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    isActive: true
-  })
-  const [isLoading, setIsLoading] = useState(false)
+export const UserDialog = ({ isOpen, initialData, onClose, onSendPasswordReset, onGenerateResetLink }: UserDialogProps) => {
   const [isSendingReset, setIsSendingReset] = useState(false)
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
+  const [resetLink, setResetLink] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
-      setFormData({
-        name: initialData?.name || '',
-        email: initialData?.email || '',
-        isActive: initialData?.is_active ?? true
-      })
       setError(null)
       setSuccessMessage(null)
+      setResetLink(null)
+      setIsCopied(false)
     }
-  }, [isOpen, initialData])
+  }, [isOpen])
 
   const handleClose = () => {
-    setFormData({ name: '', email: '', isActive: true })
     setError(null)
     setSuccessMessage(null)
+    setResetLink(null)
+    setIsCopied(false)
     onClose()
   }
 
   const handleSendPasswordReset = async () => {
-    if (!onSendPasswordReset || !formData.email.trim()) {
+    if (!initialData?.email) {
       return
     }
 
     setIsSendingReset(true)
     setError(null)
     setSuccessMessage(null)
+    setResetLink(null)
+
+    let emailSent = false
+    let linkGenerated = false
 
     try {
-      await onSendPasswordReset(formData.email.trim())
-      setSuccessMessage('Password reset email sent successfully!')
+      // Send email first
+      await onSendPasswordReset(initialData.email)
+      emailSent = true
+      
+      // Then try to generate link
+      try {
+        const link = await onGenerateResetLink(initialData.email)
+        if (link) {
+          setResetLink(link)
+          linkGenerated = true
+        }
+      } catch (linkErr) {
+        console.error('Failed to generate link:', linkErr)
+        // Email was sent, but link generation failed
+        let linkMessage = 'Could not generate link';
+        if (linkErr instanceof Error) {
+          linkMessage = linkErr.message;
+        } else if (typeof linkErr === 'string') {
+          linkMessage = linkErr;
+        } else if (linkErr && typeof linkErr === 'object') {
+          linkMessage = JSON.stringify(linkErr);
+        }
+        setSuccessMessage(`Password reset email sent successfully! However, ${linkMessage}`)
+        setIsSendingReset(false)
+        return
+      }
+
+      if (linkGenerated) {
+        setSuccessMessage('Password reset email sent successfully! Copy the link below to share.')
+      } else {
+        setSuccessMessage('Password reset email sent successfully!')
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to send password reset email'
+      let message = 'Failed to send password reset email';
+      if (err instanceof Error) {
+        message = err.message;
+      } else if (typeof err === 'string') {
+        message = err;
+      } else if (err && typeof err === 'object') {
+        message = JSON.stringify(err);
+      }
       setError(message)
     } finally {
       setIsSendingReset(false)
     }
   }
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!formData.email.trim()) {
-      setError('Email is required')
+  const handleGenerateLink = async () => {
+    if (!initialData?.email) {
       return
     }
 
-    setIsLoading(true)
+    setIsGeneratingLink(true)
     setError(null)
+    setSuccessMessage(null)
+    setResetLink(null)
 
     try {
-      await onSubmit({
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        isActive: formData.isActive
-      })
-      handleClose()
+      const link = await onGenerateResetLink(initialData.email)
+      if (link) {
+        setResetLink(link)
+        setSuccessMessage('Password reset link generated successfully!')
+      } else {
+        setError('Failed to generate password reset link')
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save user'
+      let message = 'Failed to generate password reset link';
+      if (err instanceof Error) {
+        message = err.message;
+      } else if (typeof err === 'string') {
+        message = err;
+      } else if (err && typeof err === 'object') {
+        message = JSON.stringify(err);
+      }
       setError(message)
     } finally {
-      setIsLoading(false)
+      setIsGeneratingLink(false)
+    }
+  }
+
+  const handleCopyLink = async () => {
+    if (!resetLink) return
+
+    try {
+      await navigator.clipboard.writeText(resetLink)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+    } catch (err) {
+      setError('Failed to copy link to clipboard')
     }
   }
 
@@ -94,10 +147,10 @@ export const UserDialog = ({ isOpen, mode, initialData, onClose, onSubmit, onSen
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{mode === 'add' ? 'Add User' : 'Edit User'}</DialogTitle>
+          <DialogTitle>Reset Password for {initialData?.name || initialData?.email}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           {error && (
             <div className="rounded-md bg-destructive/15 px-4 py-2 text-sm text-destructive">
               {error}
@@ -108,47 +161,55 @@ export const UserDialog = ({ isOpen, mode, initialData, onClose, onSubmit, onSen
               {successMessage}
             </div>
           )}
+          <p className="text-sm text-muted-foreground">
+            Manage password reset for <strong>{initialData?.email}</strong>
+          </p>
           <div className="space-y-2">
-            <Label htmlFor="user-name">Name</Label>
-            <Input
-              id="user-name"
-              value={formData.name}
-              onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))}
-              placeholder="Full name"
-            />
+            <Button
+              type="button"
+              onClick={handleSendPasswordReset}
+              disabled={isSendingReset || isGeneratingLink}
+              className="w-full"
+            >
+              {isSendingReset ? 'Sending...' : 'Send Email & Get Link'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleGenerateLink}
+              disabled={isSendingReset || isGeneratingLink}
+              className="w-full"
+            >
+              {isGeneratingLink ? 'Generating...' : 'Generate Link Only'}
+            </Button>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="user-email">Email</Label>
-            <Input
-              id="user-email"
-              type="email"
-              value={formData.email}
-              onChange={(event) => setFormData((prev) => ({ ...prev, email: event.target.value }))}
-              placeholder="user@example.com"
-            />
-          </div>
-          {mode === 'edit' && onSendPasswordReset && (
-            <div className="pt-2 border-t">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleSendPasswordReset}
-                disabled={isSendingReset || !formData.email.trim()}
-                className="w-full"
-              >
-                {isSendingReset ? 'Sending...' : 'Send Password Reset Email'}
-              </Button>
+          {resetLink && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={resetLink}
+                  className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCopyLink}
+                  className="shrink-0"
+                >
+                  {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Saving...' : mode === 'add' ? 'Add User' : 'Save Changes'}
+              Close
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   )
