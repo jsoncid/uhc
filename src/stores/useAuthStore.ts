@@ -8,16 +8,19 @@ interface AuthState {
   user: User | null;
   userModuleId: string | null;
   userRoleId: string | null;
+  userRoleName: string | null; // role.description from the database
   userAssignmentId: string | null; // uuid → public.assignment.id
   userAssignmentName: string | null; // public.assignment.description
   isLoading: boolean;
   error: string | null;
   sessionExpiry: number | null;
+  hasFaceProfile: boolean;
+  setHasFaceProfile: (value: boolean) => void;
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (
     email: string,
     password: string,
-    options?: { data?: { [key: string]: any }; assignmentId?: string; roleId?: string },
+    options?: { data?: { [key: string]: any }; assignmentId?: string; roleId?: string; keepSession?: boolean },
   ) => Promise<boolean>;
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
@@ -37,8 +40,15 @@ const fetchRoleAndModule = async (userId: string) => {
 
   if (roleError || !userRole) {
     console.error('Failed to fetch user role:', roleError);
-    return { roleId: null, moduleId: null };
+    return { roleId: null, roleName: null, moduleId: null };
   }
+
+  // Fetch the role description so we can do admin checks by name
+  const { data: roleData } = await supabase
+    .from('role')
+    .select('description')
+    .eq('id', userRole.role)
+    .single();
 
   const { data: roleModuleAccess, error: moduleError } = await supabase
     .from('role_module_access')
@@ -77,6 +87,7 @@ const fetchRoleAndModule = async (userId: string) => {
 
   return {
     roleId: userRole.role as string,
+    roleName: roleData?.description ?? null,
     moduleId: roleModuleAccess.module as string,
     assignmentId: (userAssignment?.assignment as string) ?? null,
     assignmentName,
@@ -130,11 +141,15 @@ export const useAuthStore = create<AuthState>((set, get) => {
     user: null,
     userModuleId: null,
     userRoleId: null,
+    userRoleName: null,
     userAssignmentId: null,
     userAssignmentName: null,
     isLoading: true, // Start as true to prevent flash of login page
     error: null,
     sessionExpiry: null,
+    hasFaceProfile: false,
+
+    setHasFaceProfile: (value: boolean) => set({ hasFaceProfile: value }),
 
     initialize: async () => {
       set({ isLoading: true });
@@ -148,23 +163,34 @@ export const useAuthStore = create<AuthState>((set, get) => {
             user: null,
             userModuleId: null,
             userRoleId: null,
+            userRoleName: null,
             sessionExpiry: null,
+            hasFaceProfile: false,
             isLoading: false,
           });
           return;
         }
 
-        const { roleId, moduleId, assignmentId, assignmentName } = await fetchRoleAndModule(
+        const { roleId, roleName, moduleId, assignmentId, assignmentName } = await fetchRoleAndModule(
           session.user.id,
         );
+
+        // Check if user has a face profile
+        const { count } = await supabase
+          .schema('module5')
+          .from('face_profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', session.user.id);
 
         set({
           user: session.user,
           userModuleId: moduleId,
           userRoleId: roleId,
+          userRoleName: roleName ?? null,
           userAssignmentId: assignmentId ?? null,
           userAssignmentName: assignmentName ?? null,
           sessionExpiry: getExpiryFromSession(session),
+          hasFaceProfile: (count ?? 0) > 0,
           isLoading: false,
         });
       } catch (err) {
@@ -178,17 +204,26 @@ export const useAuthStore = create<AuthState>((set, get) => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        const { roleId, moduleId, assignmentId, assignmentName } = await fetchRoleAndModule(
+        const { roleId, roleName, moduleId, assignmentId, assignmentName } = await fetchRoleAndModule(
           data.user.id,
         );
+
+        // Check if user has a face profile
+        const { count } = await supabase
+          .schema('module5')
+          .from('face_profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', data.user.id);
 
         set({
           user: data.user,
           userModuleId: moduleId,
           userRoleId: roleId,
+          userRoleName: roleName ?? null,
           userAssignmentId: assignmentId ?? null,
           userAssignmentName: assignmentName ?? null,
           sessionExpiry: getExpiryFromSession(data.session),
+          hasFaceProfile: (count ?? 0) > 0,
           isLoading: false,
         });
         return true;
@@ -250,14 +285,19 @@ export const useAuthStore = create<AuthState>((set, get) => {
             }
           }
 
-          // Sign out — user must wait for admin approval
-          await supabase.auth.signOut();
+          // If keepSession is true, keep the session alive for face registration
+          if (!options?.keepSession) {
+            // Sign out — user must wait for admin approval
+            await supabase.auth.signOut();
+          }
         }
 
+        // Do NOT set user in the store during signup
         set({
           user: null,
           userModuleId: null,
           userRoleId: null,
+          userRoleName: null,
           sessionExpiry: null,
           isLoading: false,
         });
@@ -284,9 +324,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
           user: null,
           userModuleId: null,
           userRoleId: null,
+          userRoleName: null,
           userAssignmentId: null,
           userAssignmentName: null,
           sessionExpiry: null,
+          hasFaceProfile: false,
           isLoading: false,
         });
       } catch (error) {

@@ -4,6 +4,7 @@ import { lazy } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { AdminRoute } from '../components/AdminRoute';
 
 // Import module routes
 import { module1Routes } from './m1_routes';
@@ -157,45 +158,45 @@ const Router = [
           </ProtectedRoute>
         ),
       },
-      // RBAC Routes
+      // RBAC Routes (admin-only)
       {
         path: '/rbac/assignments',
         element: (
-          <ProtectedRoute>
+          <AdminRoute>
             <AssignmentManagement />
-          </ProtectedRoute>
+          </AdminRoute>
         ),
       },
       {
         path: '/rbac/modules',
         element: (
-          <ProtectedRoute>
+          <AdminRoute>
             <ModuleManagement />
-          </ProtectedRoute>
+          </AdminRoute>
         ),
       },
       {
         path: '/rbac/roles',
         element: (
-          <ProtectedRoute>
+          <AdminRoute>
             <RoleManagement />
-          </ProtectedRoute>
+          </AdminRoute>
         ),
       },
       {
         path: '/rbac/user-assignments',
         element: (
-          <ProtectedRoute>
+          <AdminRoute>
             <UserAssignmentManagement />
-          </ProtectedRoute>
+          </AdminRoute>
         ),
       },
       {
         path: '/rbac/user-acceptance',
         element: (
-          <ProtectedRoute>
+          <AdminRoute>
             <UserAcceptance />
-          </ProtectedRoute>
+          </AdminRoute>
         ),
       },
       { path: '*', element: <Navigate to="/auth/404" /> },
