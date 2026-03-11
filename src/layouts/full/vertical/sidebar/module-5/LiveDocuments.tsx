@@ -14,6 +14,14 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../../../lib/supabase';
 import { useAuthStore } from '../../../../../stores/useAuthStore';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from 'src/components/ui/dialog';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -168,6 +176,7 @@ const LiveDocuments = () => {
   const [notes, setNotes]                     = useState<ScribbleNote[]>([]);
   const [notesLoading, setNotesLoading]       = useState(true);
   const [deletingId, setDeletingId]           = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const channelRef                            = useRef<RealtimeChannel | null>(null);
   const ensureSessionValid                    = useAuthStore((s) => s.ensureSessionValid);
   const refreshSession                        = useAuthStore((s) => s.refreshSession);
@@ -507,7 +516,7 @@ const LiveDocuments = () => {
                       </Badge>
 
                       <button
-                        onClick={(e) => { e.stopPropagation(); deleteNote(n.input_uuid); }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(n.input_uuid); }}
                         disabled={deletingId === n.input_uuid}
                         title="Delete note"
                         className="ml-1 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
@@ -525,6 +534,37 @@ const LiveDocuments = () => {
         </div>
 
       </div>
+
+      {/* ── Delete confirmation dialog ───────────────────── */}
+      <Dialog open={confirmDeleteId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete note?</DialogTitle>
+            <DialogDescription>
+              This note will be permanently deleted. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmDeleteId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deletingId === confirmDeleteId}
+              onClick={async () => {
+                if (!confirmDeleteId) return;
+                const id = confirmDeleteId;
+                setConfirmDeleteId(null);
+                await deleteNote(id);
+              }}
+            >
+              {deletingId === confirmDeleteId
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Deleting…</>
+                : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

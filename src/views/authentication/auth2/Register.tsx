@@ -24,9 +24,9 @@ const Register = () => {
       </div>
 
       {/* Centered Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center h-full px-6 py-12">
+      <div className="relative z-10 flex flex-col items-center justify-center h-full px-6 py-12 overflow-y-auto">
         {/* Logo at Top */}
-        <div className="mb-12">
+        <div className="mb-12 shrink-0">
           <div className="transform hover:scale-105 transition-transform duration-300">
             <div className="scale-[3.5]">
               <FullLogo />
@@ -35,7 +35,7 @@ const Register = () => {
         </div>
 
         {/* Register Form Card - Centered */}
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-lg shrink-0">
           <div className="bg-white dark:bg-muted rounded-2xl shadow-2xl border border-border dark:border-border p-8">
             <div className="mb-8">
               <h2 className="text-3xl font-bold text-dark dark:text-white mb-2">

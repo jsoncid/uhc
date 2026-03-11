@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "s
 import { useAuthStore } from '@/stores/useAuthStore';
 import { assignmentService } from '@/services/assignmentService';
 import { roleService } from '@/services/roleService';
+import { supabase } from '@/lib/supabase';
+import FaceRegistration from '@/components/auth/FaceRegistration';
 
 interface Assignment {
   id: string;
@@ -23,6 +25,8 @@ interface Role {
   created_at: string;
 }
 
+type Step = 'form' | 'face' | 'success';
+
 const AuthRegister = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -33,7 +37,8 @@ const AuthRegister = () => {
   const [loadingAssignments, setLoadingAssignments] = useState(true);
   const [memberRoleId, setMemberRoleId] = useState<string | null>(null);
   const [loadingRole, setLoadingRole] = useState(true);
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [step, setStep] = useState<Step>('form');
+  const [userId, setUserId] = useState<string | null>(null);
   const { signUp, isLoading, error, clearError } = useAuthStore();
   const navigate = useNavigate();
 
@@ -77,27 +82,39 @@ const AuthRegister = () => {
       return;
     }
     
-    await signUp(email, password, {
+    const success = await signUp(email, password, {
       data: {
         display_name: name,
         user_type: userType
       },
       assignmentId: selectedAssignment || undefined,
-      roleId: userType === 'member' ? memberRoleId ?? undefined : undefined
+      roleId: userType === 'member' ? memberRoleId ?? undefined : undefined,
+      keepSession: true,
     });
     
-    // Check the store state after signUp completes
-    const currentError = useAuthStore.getState().error;
-    if (!currentError) {
-      setRegistrationSuccess(true);
-      // Redirect to login page after a short delay to show success message
-      setTimeout(() => {
-        navigate('/auth/auth2/login');
-      }, 3000);
+    if (success) {
+      // Retrieve userId from the active session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        setUserId(session.user.id);
+        setStep('face');
+      } else {
+        // Fallback: if session is not available, skip face registration
+        setStep('success');
+        setTimeout(() => navigate('/auth/auth2/login'), 3000);
+      }
     }
   };
 
-  if (registrationSuccess) {
+  const handleFaceComplete = async () => {
+    // Sign out after face registration — user must wait for admin approval
+    await supabase.auth.signOut();
+    setStep('success');
+    setTimeout(() => navigate('/auth/auth2/login'), 3000);
+  };
+
+  // Step 3: Success
+  if (step === 'success') {
     return (
       <div className="mt-6 text-center">
         <div className="mb-4 p-4 bg-green-100 dark:bg-green-900/30 border border-green-500 rounded-md">
@@ -121,6 +138,21 @@ const AuthRegister = () => {
       </div>
     );
   }
+
+  // Step 2: Face Registration
+  if (step === 'face' && userId) {
+    return (
+      <div className="mt-4">
+        <div className="text-center mb-4">
+          <h3 className="text-lg font-semibold text-foreground">Face Registration</h3>
+          <p className="text-sm text-muted-foreground">Register your face for secure authentication</p>
+        </div>
+        <FaceRegistration userId={userId} onComplete={handleFaceComplete} />
+      </div>
+    );
+  }
+
+  // Step 1: Registration Form
 
   return (
     <>

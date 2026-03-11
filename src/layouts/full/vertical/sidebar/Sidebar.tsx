@@ -120,17 +120,17 @@ const SidebarLayout = ({
   const userRoleId = useAuthStore((s) => s.userRoleId);
   const isMember = userRoleId === ROLE_IDS.module4Member;
 
-  // Sections that should be hidden for member-role users
-  const MEMBER_HIDDEN_SECTIONS = ['Module 5 - OCR', 'Role-Based Access Control', 'Auth'];
+  // Sections hidden from Module 4 member accounts
+  const MEMBER_HIDDEN_SECTIONS = ['Role-Based Access Control', 'Auth'];
 
   // Only allow "light" or "dark" for AMSidebar
   const sidebarMode = theme === 'light' || theme === 'dark' ? theme : undefined;
 
   // Filter children within each section by their page-level module tag.
-  // Additionally, hide admin-only sections from member users.
+  // RBAC and Auth sections are only visible to administrators.
   const visibleSections = SidebarContent
     .map((section) => {
-      // Hide entire section from members if it's in the restricted list
+      // Hide RBAC/Auth sections from Module 4 member accounts
       if (isMember && section.heading && MEMBER_HIDDEN_SECTIONS.includes(section.heading)) {
         return null;
       }
