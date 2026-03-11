@@ -60,6 +60,7 @@ const SidebarContent: MenuItem[] = [
         url: '/module-5/mobile-notes-integration',
         module: PAGE_MODULES.MODULE_5_DOCUMENTS,
       },
+
       {
         name: 'Tables',
         icon: 'solar:server-linear',
