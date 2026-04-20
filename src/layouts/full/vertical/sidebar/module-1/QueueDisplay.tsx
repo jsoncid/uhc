@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, DragEvent } from 'react';
 import { Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import darkLogo from 'src/assets/images/logos/dark-logo.svg';
@@ -14,8 +14,9 @@ const REPEAT_COUNT = 3; // how many times to announce
 const PAUSE_BETWEEN_MS = 800; // pause between each announcement
 const POPUP_GAP_MS = 600; // gap after speech before picking up the next item
 const MAX_OFFICES_PER_ROW = 5;
-const MAX_WAITING_PER_COLUMN = 5;
+const MAX_WAITING_PER_COLUMN = 6;
 const SCREEN_SIDE_MARGIN_PX = 8;
+const OFFICE_ORDER_STORAGE_KEY = 'queue-display-office-order-v1';
 
 interface CallNotification {
   id: string;
@@ -146,6 +147,10 @@ const QueueDisplay = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [notifQueue, setNotifQueue] = useState<CallNotification[]>([]);
   const [activeNotif, setActiveNotif] = useState<CallNotification | null>(null);
+  const [officeOrderIds, setOfficeOrderIds] = useState<string[]>([]);
+  const [draggedOfficeId, setDraggedOfficeId] = useState<string | null>(null);
+  const [dragOverOfficeId, setDragOverOfficeId] = useState<string | null>(null);
+  const [isOfficeOrderHydrated, setIsOfficeOrderHydrated] = useState(false);
   // Tracks sequence IDs already enqueued so we never repeat
   const seenIds = useRef<Set<string>>(new Set());
   // Prevents announcements on the initial page load snapshot
@@ -316,6 +321,109 @@ const QueueDisplay = () => {
 
   const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      setIsOfficeOrderHydrated(true);
+      return;
+    }
+
+    try {
+      const raw = window.localStorage.getItem(OFFICE_ORDER_STORAGE_KEY);
+      if (!raw) return;
+
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+
+      const savedOrder = parsed.filter((id): id is string => typeof id === 'string');
+      if (savedOrder.length > 0) {
+        setOfficeOrderIds(savedOrder);
+      }
+    } catch {
+      // Ignore malformed localStorage payloads and continue with default order.
+    } finally {
+      setIsOfficeOrderHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOfficeOrderHydrated || typeof window === 'undefined') return;
+    window.localStorage.setItem(OFFICE_ORDER_STORAGE_KEY, JSON.stringify(officeOrderIds));
+  }, [officeOrderIds, isOfficeOrderHydrated]);
+
+  useEffect(() => {
+    const activeIds = activeOffices.map((office) => office.id);
+    setOfficeOrderIds((prev) => {
+      if (activeIds.length === 0) return prev;
+
+      const retained = prev.filter((id) => activeIds.includes(id));
+      const added = activeIds.filter((id) => !retained.includes(id));
+      const next = [...retained, ...added];
+
+      if (next.length === prev.length && next.every((id, idx) => id === prev[idx])) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [activeOffices]);
+
+  const orderedActiveOffices = useMemo(() => {
+    if (officeOrderIds.length === 0) return activeOffices;
+
+    const officeById = new Map(activeOffices.map((office) => [office.id, office]));
+    return officeOrderIds
+      .map((officeId) => officeById.get(officeId))
+      .filter((office): office is Office => Boolean(office));
+  }, [activeOffices, officeOrderIds]);
+
+  const moveOffice = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+
+    setOfficeOrderIds((prev) => {
+      const fromIndex = prev.indexOf(sourceId);
+      const toIndex = prev.indexOf(targetId);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+
+      const next = [...prev];
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, sourceId);
+      return next;
+    });
+  };
+
+  const handleOfficeDragStart = (event: DragEvent<HTMLDivElement>, officeId: string) => {
+    setDraggedOfficeId(officeId);
+    setDragOverOfficeId(officeId);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', officeId);
+  };
+
+  const handleOfficeDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleOfficeDragEnter = (officeId: string) => {
+    if (!draggedOfficeId || draggedOfficeId === officeId) return;
+    setDragOverOfficeId(officeId);
+    moveOffice(draggedOfficeId, officeId);
+  };
+
+  const handleOfficeDrop = (event: DragEvent<HTMLDivElement>, officeId: string) => {
+    event.preventDefault();
+    const droppedOfficeId = event.dataTransfer.getData('text/plain') || draggedOfficeId;
+    if (droppedOfficeId) {
+      moveOffice(droppedOfficeId, officeId);
+    }
+    setDraggedOfficeId(null);
+    setDragOverOfficeId(null);
+  };
+
+  const handleOfficeDragEnd = () => {
+    setDraggedOfficeId(null);
+    setDragOverOfficeId(null);
+  };
+
   const fullBleedStyle = useMemo(
     () => ({
       width: `calc(100vw - ${SCREEN_SIDE_MARGIN_PX * 2}px)`,
@@ -385,16 +493,16 @@ const QueueDisplay = () => {
         <div
           className="queue-scroll min-h-0 flex-1 grid gap-1.5 overflow-x-hidden overflow-y-auto"
           style={{
-            gridTemplateColumns: `repeat(${Math.max(1, Math.min(activeOffices.length, MAX_OFFICES_PER_ROW))}, minmax(0, 1fr))`,
+            gridTemplateColumns: `repeat(${Math.max(1, Math.min(orderedActiveOffices.length, MAX_OFFICES_PER_ROW))}, minmax(0, 1fr))`,
             gridAutoRows: 'minmax(19rem, 1fr)',
           }}
         >
-          {activeOffices.length === 0 ? (
+          {orderedActiveOffices.length === 0 ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground">
               No active offices
             </div>
           ) : (
-            activeOffices.map((office: Office) => {
+            orderedActiveOffices.map((office: Office) => {
               const officeName = office.description || office.id;
 
               // Use enriched status_data & window_data — no fragile ID lookup needed
@@ -445,19 +553,45 @@ const QueueDisplay = () => {
                 waitingRegularVisible.length,
               );
 
-              const servingCodeSize = 'clamp(1.82rem, 3.35vw, 2.8rem)';
+              const hasServingCode = servingEntries.some(({ seq }) => {
+                const code = seq.queue_data?.code?.trim();
+                return Boolean(code && code !== '---');
+              });
+
+              const servingCodeSize =
+                waitingDensity >= 6 && hasServingCode
+                  ? 'clamp(1.64rem, 2.9vw, 2.35rem)'
+                  : 'clamp(1.82rem, 3.35vw, 2.8rem)';
               const waitingCodeSize =
-                waitingDensity >= 5
-                  ? 'clamp(1.38rem, 2.1vw, 1.95rem)'
-                  : waitingDensity === 4
-                    ? 'clamp(1.5rem, 2.3vw, 2.15rem)'
-                    : 'clamp(1.72rem, 2.7vw, 2.55rem)';
-              const waitingListGapClass = waitingDensity >= 5 ? 'space-y-0.5' : 'space-y-1';
+                waitingDensity >= 6
+                  ? hasServingCode
+                    ? 'clamp(1.16rem, 1.7vw, 1.48rem)'
+                    : 'clamp(1.22rem, 1.85vw, 1.62rem)'
+                  : waitingDensity === 5
+                    ? hasServingCode
+                      ? 'clamp(1.26rem, 1.95vw, 1.76rem)'
+                      : 'clamp(1.34rem, 2.1vw, 1.9rem)'
+                    : waitingDensity === 4
+                      ? 'clamp(1.44rem, 2.25vw, 2.08rem)'
+                      : 'clamp(1.66rem, 2.65vw, 2.45rem)';
+              const waitingListGapClass =
+                waitingDensity >= 6
+                  ? 'space-y-0'
+                  : waitingDensity >= 5
+                    ? 'space-y-0.5'
+                    : 'space-y-1';
+              const waitingHeadingMarginClass = waitingDensity >= 6 ? 'mb-0.5' : 'mb-1';
 
               return (
                 <div
                   key={office.id}
-                  className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card"
+                  draggable
+                  onDragStart={(event) => handleOfficeDragStart(event, office.id)}
+                  onDragOver={handleOfficeDragOver}
+                  onDragEnter={() => handleOfficeDragEnter(office.id)}
+                  onDrop={(event) => handleOfficeDrop(event, office.id)}
+                  onDragEnd={handleOfficeDragEnd}
+                  className={`flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-opacity duration-150 ${draggedOfficeId === office.id ? 'cursor-grabbing opacity-75' : 'cursor-grab'} ${dragOverOfficeId === office.id && draggedOfficeId !== office.id ? 'ring-2 ring-emerald-400/70' : ''}`}
                 >
                   {/* Office header */}
                   <div className="shrink-0 border-b border-border px-2.5 py-1">
@@ -513,13 +647,18 @@ const QueueDisplay = () => {
                       ) : (
                         <div className="grid min-h-0 flex-1 grid-cols-2 items-stretch gap-1">
                           <div className="flex h-full min-h-0 flex-col px-1 py-0.5">
-                            <span className="mb-1 text-center text-[10px] font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300/90">
+                            <span
+                              className={`${waitingHeadingMarginClass} text-center text-[10px] font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300/90`}
+                            >
                               Priority
                             </span>
                             {waitingPriorityVisible.length === 0 ? (
-                              <p className="flex flex-1 items-center justify-center text-center text-[11px] text-rose-400 dark:text-rose-300/40"></p>
+                              <div className="flex flex-1" aria-hidden="true" />
                             ) : (
-                              <ul className={`min-h-0 ${waitingListGapClass}`} role="list">
+                              <ul
+                                className={`min-h-0 overflow-hidden ${waitingListGapClass}`}
+                                role="list"
+                              >
                                 {waitingPriorityVisible.map(({ seq }) => (
                                   <li key={seq.id} className="flex items-center justify-center">
                                     <span
@@ -535,15 +674,18 @@ const QueueDisplay = () => {
                           </div>
 
                           <div className="flex h-full min-h-0 flex-col px-1 py-0.5">
-                            <span className="mb-1 text-center text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300/90">
+                            <span
+                              className={`${waitingHeadingMarginClass} text-center text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300/90`}
+                            >
                               Regular
                             </span>
                             {waitingRegularVisible.length === 0 ? (
-                              <p className="flex flex-1 items-center justify-center text-center text-[11px] text-emerald-500 dark:text-emerald-300/40">
-                                None
-                              </p>
+                              <div className="flex flex-1" aria-hidden="true" />
                             ) : (
-                              <ul className={`min-h-0 ${waitingListGapClass}`} role="list">
+                              <ul
+                                className={`min-h-0 overflow-hidden ${waitingListGapClass}`}
+                                role="list"
+                              >
                                 {waitingRegularVisible.map(({ seq }) => (
                                   <li key={seq.id} className="flex items-center justify-center">
                                     <span
