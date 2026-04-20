@@ -204,12 +204,14 @@ const QueueDisplay = () => {
     }
 
     // Realtime path — only runs after initialisation
+    const activeOfficeIds = new Set(activeOffices.map((o) => o.id));
     const fresh: CallNotification[] = [];
     sequences.forEach((seq) => {
       if (
         seq.is_active !== false &&
         seq.status_data?.description?.toLowerCase().includes('serving') &&
-        !seenIds.current.has(seq.id)
+        !seenIds.current.has(seq.id) &&
+        activeOfficeIds.has(seq.office)
       ) {
         seenIds.current.add(seq.id);
         // Spell out the queue code so TTS reads each letter: "C T B" not "CTB"
