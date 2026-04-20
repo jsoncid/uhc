@@ -14,6 +14,8 @@ const REPEAT_COUNT = 3; // how many times to announce
 const PAUSE_BETWEEN_MS = 800; // pause between each announcement
 const POPUP_GAP_MS = 600; // gap after speech before picking up the next item
 const MAX_OFFICES_PER_ROW = 5;
+const MAX_WAITING_PER_COLUMN = 5;
+const SCREEN_SIDE_MARGIN_PX = 8;
 
 interface CallNotification {
   id: string;
@@ -119,10 +121,14 @@ const getPriorityWeight = (priorityDescription: string | null | undefined): numb
   return 10;
 };
 
-const getPriorityStyle = (priority: string | null | undefined) => {
+const isRegularPriority = (priority: string | null | undefined): boolean => {
   const desc = (priority ?? '').toLowerCase();
+  return desc === '' || desc.includes('regular');
+};
+
+const getPriorityStyle = (priority: string | null | undefined) => {
   // Anything that is not explicitly "regular" is treated as priority (red)
-  const isRegular = desc === '' || desc.includes('regular');
+  const isRegular = isRegularPriority(priority);
   if (isRegular)
     return {
       text: 'text-emerald-700 dark:text-emerald-400',
@@ -308,6 +314,15 @@ const QueueDisplay = () => {
 
   const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
+  const fullBleedStyle = useMemo(
+    () => ({
+      width: `calc(100vw - ${SCREEN_SIDE_MARGIN_PX * 2}px)`,
+      marginLeft: `calc(50% - 50vw + ${SCREEN_SIDE_MARGIN_PX}px)`,
+      marginRight: `calc(50% - 50vw + ${SCREEN_SIDE_MARGIN_PX}px)`,
+    }),
+    [],
+  );
+
   const isLoading = profileLoading || officesLoading || queueLoading;
 
   if (isLoading && activeOffices.length === 0) {
@@ -324,12 +339,13 @@ const QueueDisplay = () => {
   return (
     <>
       <div
+        style={fullBleedStyle}
         className={`flex h-screen flex-col overflow-hidden text-foreground ${
-          isDisplayMode ? 'p-4 md:p-6' : 'p-4'
-        } gap-4`}
+          isDisplayMode ? 'px-0 py-1 md:py-1.5' : 'px-0 py-1 md:py-1.5'
+        } gap-1`}
       >
         {/* Header: title + clock */}
-        <header className="flex shrink-0 items-center justify-between border-b border-border pb-3">
+        <header className="flex shrink-0 items-center justify-between border-b border-border pb-2">
           <h1 className="flex items-center gap-3 text-lg font-bold tracking-wide text-foreground md:text-xl">
             <img
               src={darkLogo}
@@ -365,10 +381,10 @@ const QueueDisplay = () => {
 
         {/* Bottom section: per-office columns */}
         <div
-          className="min-h-0 flex-1 grid gap-4 overflow-x-hidden overflow-y-auto"
+          className="queue-scroll min-h-0 flex-1 grid gap-1.5 overflow-x-hidden overflow-y-auto"
           style={{
             gridTemplateColumns: `repeat(${Math.max(1, Math.min(activeOffices.length, MAX_OFFICES_PER_ROW))}, minmax(0, 1fr))`,
-            gridAutoRows: 'minmax(24rem, auto)',
+            gridAutoRows: 'minmax(19rem, 1fr)',
           }}
         >
           {activeOffices.length === 0 ? (
@@ -400,11 +416,7 @@ const QueueDisplay = () => {
                     seq.is_active !== false &&
                     seq.status_data?.description?.toLowerCase().includes('pending'),
                 )
-                .map((seq) => ({
-                  seq,
-                  windowLabel: seq.window_data?.description || null,
-                  style: getPriorityStyle(seq.priority_data?.description),
-                }))
+                .map((seq) => ({ seq }))
                 .sort((a, b) => {
                   const pa = getPriorityWeight(a.seq.priority_data?.description);
                   const pb = getPriorityWeight(b.seq.priority_data?.description);
@@ -414,22 +426,40 @@ const QueueDisplay = () => {
                   );
                 });
 
-              const compactWaiting = waitingEntries.length >= 4;
-              const servingCodeSize = compactWaiting
-                ? 'clamp(1.2rem, 2.5vw, 1.8rem)'
-                : 'clamp(1.45rem, 3.2vw, 2.2rem)';
-              const waitingCodeSize = compactWaiting
-                ? 'clamp(0.95rem, 1.8vw, 1.35rem)'
-                : 'clamp(1.2rem, 2.6vw, 1.8rem)';
+              const waitingPriorityEntries = waitingEntries.filter(
+                ({ seq }) => !isRegularPriority(seq.priority_data?.description),
+              );
+              const waitingRegularEntries = waitingEntries.filter(({ seq }) =>
+                isRegularPriority(seq.priority_data?.description),
+              );
+              const waitingPriorityVisible = waitingPriorityEntries.slice(
+                0,
+                MAX_WAITING_PER_COLUMN,
+              );
+              const waitingRegularVisible = waitingRegularEntries.slice(0, MAX_WAITING_PER_COLUMN);
+
+              const waitingDensity = Math.max(
+                waitingPriorityVisible.length,
+                waitingRegularVisible.length,
+              );
+
+              const servingCodeSize = 'clamp(1.82rem, 3.35vw, 2.8rem)';
+              const waitingCodeSize =
+                waitingDensity >= 5
+                  ? 'clamp(1.38rem, 2.1vw, 1.95rem)'
+                  : waitingDensity === 4
+                    ? 'clamp(1.5rem, 2.3vw, 2.15rem)'
+                    : 'clamp(1.72rem, 2.7vw, 2.55rem)';
+              const waitingListGapClass = waitingDensity >= 5 ? 'space-y-0.5' : 'space-y-1';
 
               return (
                 <div
                   key={office.id}
-                  className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card"
+                  className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card"
                 >
                   {/* Office header */}
-                  <div className="shrink-0 border-b border-border px-3 py-2">
-                    <p className="wrap-break-word text-sm font-bold text-foreground">
+                  <div className="shrink-0 border-b border-border px-2.5 py-1">
+                    <p className="wrap-break-word text-center text-sm font-bold text-foreground">
                       {officeName}
                     </p>
                   </div>
@@ -437,7 +467,7 @@ const QueueDisplay = () => {
                   {/* Now serving / waiting — split into two colour zones */}
                   <div className="flex flex-1 flex-col overflow-hidden">
                     {/* ── SERVING zone (green tint) ── */}
-                    <div className="flex flex-col items-center gap-1 bg-emerald-100 dark:bg-emerald-950/40 px-3 pt-2 pb-2 shrink-0">
+                    <div className="flex shrink-0 flex-col items-center gap-0.5 bg-emerald-100 px-2 py-1 dark:bg-emerald-950/40">
                       <span className="self-start text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400/70">
                         Now Serving
                       </span>
@@ -472,37 +502,62 @@ const QueueDisplay = () => {
                     <div className="w-full border-t border-dashed border-border" />
 
                     {/* ── WAITING zone (silver/slate tint) ── */}
-                    <div className="flex flex-1 flex-col items-center gap-0.5 overflow-y-auto bg-slate-100 dark:bg-slate-700/30 px-3 pt-2 pb-2">
-                      <span className="self-start text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400/70 mb-1">
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100 px-2 py-1 dark:bg-slate-700/30">
+                      <span className="mb-1 self-start text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400/70">
                         Waiting
                       </span>
                       {waitingEntries.length === 0 ? (
                         <p className="text-xs text-muted-foreground">No waiting</p>
                       ) : (
-                        <ul
-                          className={`w-full ${compactWaiting ? 'grid grid-cols-2 gap-x-1 gap-y-1' : 'flex flex-col items-center gap-1.5'}`}
-                          role="list"
-                        >
-                          {waitingEntries.map(({ seq, windowLabel, style }) => (
-                            <li
-                              key={seq.id}
-                              className="flex flex-col items-center justify-center w-full"
-                              style={{ opacity: windowLabel ? 1 : 0.5 }}
-                            >
-                              <span
-                                className={`font-black tracking-wide ${style.text}`}
-                                style={{ fontSize: waitingCodeSize, lineHeight: 1.1 }}
-                              >
-                                {seq.queue_data?.code || '---'}
-                              </span>
-                              {!compactWaiting && (
-                                <span className="text-xs font-semibold text-muted-foreground">
-                                  {windowLabel || 'Unassigned'}
-                                </span>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
+                        <div className="grid min-h-0 flex-1 grid-cols-2 items-stretch gap-1">
+                          <div className="flex h-full min-h-0 flex-col px-1 py-0.5">
+                            <span className="mb-1 text-center text-[10px] font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300/90">
+                              Priority
+                            </span>
+                            {waitingPriorityVisible.length === 0 ? (
+                              <p className="flex flex-1 items-center justify-center text-center text-[11px] text-rose-400 dark:text-rose-300/40">
+                                None
+                              </p>
+                            ) : (
+                              <ul className={`min-h-0 ${waitingListGapClass}`} role="list">
+                                {waitingPriorityVisible.map(({ seq }) => (
+                                  <li key={seq.id} className="flex items-center justify-center">
+                                    <span
+                                      className="font-black tracking-wide text-rose-600 dark:text-rose-400"
+                                      style={{ fontSize: waitingCodeSize, lineHeight: 0.98 }}
+                                    >
+                                      {seq.queue_data?.code || '---'}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+
+                          <div className="flex h-full min-h-0 flex-col px-1 py-0.5">
+                            <span className="mb-1 text-center text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300/90">
+                              Regular
+                            </span>
+                            {waitingRegularVisible.length === 0 ? (
+                              <p className="flex flex-1 items-center justify-center text-center text-[11px] text-emerald-500 dark:text-emerald-300/40">
+                                None
+                              </p>
+                            ) : (
+                              <ul className={`min-h-0 ${waitingListGapClass}`} role="list">
+                                {waitingRegularVisible.map(({ seq }) => (
+                                  <li key={seq.id} className="flex items-center justify-center">
+                                    <span
+                                      className="font-black tracking-wide text-emerald-700 dark:text-emerald-400"
+                                      style={{ fontSize: waitingCodeSize, lineHeight: 0.98 }}
+                                    >
+                                      {seq.queue_data?.code || '---'}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -520,6 +575,14 @@ const QueueDisplay = () => {
           50%       { opacity: 0; }
         }
         .queue-blink { animation: blink-queue 0.55s step-end infinite; }
+        .queue-scroll {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .queue-scroll::-webkit-scrollbar {
+          width: 0;
+          height: 0;
+        }
       `}</style>
     </>
   );
