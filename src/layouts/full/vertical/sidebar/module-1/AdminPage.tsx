@@ -83,7 +83,7 @@ const AdminPage = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAssignUserDialogOpen, setIsAssignUserDialogOpen] = useState(false);
   const [isEditUserAssignmentDialogOpen, setIsEditUserAssignmentDialogOpen] = useState(false);
-  const [editingOffice, setEditingOffice] = useState<Office | null>(null);
+  const [editingOfficeId, setEditingOfficeId] = useState<string | null>(null);
   const [editingUserAssignment, setEditingUserAssignment] = useState<OfficeUserAssignment | null>(null);
   const [userAssignment, setUserAssignment] = useState<Assignment | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
@@ -167,9 +167,13 @@ const AdminPage = () => {
   };
 
   const handleEditOffice = (office: Office) => {
-    setEditingOffice(office);
+    setEditingOfficeId(office.id);
     setIsEditDialogOpen(true);
   };
+
+  const editingOffice = editingOfficeId
+    ? offices.find((office) => office.id === editingOfficeId) ?? null
+    : null;
 
   const handleRefresh = () => {
     if (userAssignment) {
@@ -1155,7 +1159,7 @@ const AdminPage = () => {
         isOpen={isEditDialogOpen}
         onClose={() => {
           setIsEditDialogOpen(false);
-          setEditingOffice(null);
+          setEditingOfficeId(null);
         }}
         office={editingOffice}
       />

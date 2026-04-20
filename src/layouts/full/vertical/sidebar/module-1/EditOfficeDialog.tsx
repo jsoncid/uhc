@@ -28,6 +28,7 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
     updateWindow,
     addWindow,
     deleteWindow,
+    fetchOfficeById,
     isLoading,
     error: storeError,
   } = useOfficeStore();
@@ -60,6 +61,7 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
     setLocalError(null);
     await updateOffice(office.id, officeName.trim());
     setIsEditingName(false);
+    await fetchOfficeById(office.id);
   };
 
   const handleStartEditWindow = (windowId: string, currentDesc: string) => {
@@ -76,6 +78,7 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
     await updateWindow(editingWindowId, editingWindowValue.trim());
     setEditingWindowId(null);
     setEditingWindowValue('');
+    if (office) await fetchOfficeById(office.id);
   };
 
   const handleCancelEditWindow = () => {
@@ -92,11 +95,13 @@ export const EditOfficeDialog = ({ isOpen, onClose, office }: EditOfficeDialogPr
     await addWindow(office.id, newWindowName.trim());
     setNewWindowName('');
     setIsAddingWindow(false);
+    await fetchOfficeById(office.id);
   };
 
   const handleDeleteWindow = async (windowId: string) => {
     if (confirm('Are you sure you want to delete this window?')) {
       await deleteWindow(windowId);
+      if (office) await fetchOfficeById(office.id);
     }
   };
 
