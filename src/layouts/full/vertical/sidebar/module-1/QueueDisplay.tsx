@@ -281,6 +281,11 @@ const QueueDisplay = () => {
     const ch = supabase
       .channel('queue-ping-broadcast', { config: { broadcast: { self: true } } })
       .on('broadcast', { event: 'ping' }, ({ payload }) => {
+        // Only process pings for offices that belong to this user's assignment
+        const officeId = payload.officeId as string;
+        const isOwnOffice = offices.some((o) => o.id === officeId && o.status);
+        if (!isOwnOffice) return;
+
         const code = (payload.queueCode as string) || '---';
         const spokenCode = code.split('').join(' ');
         // Use the real sequenceId as the notification id so the blink matches seq.id in the display
@@ -304,7 +309,7 @@ const QueueDisplay = () => {
       supabase.removeChannel(ch);
       pingChRef.current = null;
     };
-  }, []);
+  }, [offices]);
 
   const formatTime = (d: Date) =>
     d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
