@@ -515,9 +515,7 @@ const QueueDisplay = () => {
                               Priority
                             </span>
                             {waitingPriorityVisible.length === 0 ? (
-                              <p className="flex flex-1 items-center justify-center text-center text-[11px] text-rose-400 dark:text-rose-300/40">
-                                None
-                              </p>
+                              <p className="flex flex-1 items-center justify-center text-center text-[11px] text-rose-400 dark:text-rose-300/40"></p>
                             ) : (
                               <ul className={`min-h-0 ${waitingListGapClass}`} role="list">
                                 {waitingPriorityVisible.map(({ seq }) => (
