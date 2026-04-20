@@ -254,7 +254,7 @@ const StaffQueueManager = () => {
     }
   };
 
-  const handlePing = async (serving: Sequence, officeName: string) => {
+  const handlePing = async (serving: Sequence, officeName: string, officeId: string) => {
     // Use the Supabase REST broadcast API — no WebSocket subscription needed,
     // fires instantly on the very first click with no channel-ready race condition.
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
@@ -273,6 +273,7 @@ const StaffQueueManager = () => {
             event: 'ping',
             payload: {
               sequenceId: serving.id,
+              officeId,
               queueCode: serving.queue_data?.code || '---',
               windowLabel: serving.window_data?.description || 'the window',
               officeName,
@@ -457,7 +458,7 @@ const StaffQueueManager = () => {
                                 </Button>
                                 <Button
                                   size="sm"
-                                  onClick={() => handlePing(serving, office.description || '')}
+                                  onClick={() => handlePing(serving, office.description || '', office.id)}
                                   disabled={isLoading || pingingId === serving.id}
                                   title="Re-announce this queue on the display"
                                   className="w-full justify-center bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
