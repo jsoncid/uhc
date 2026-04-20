@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
 import { Check, ChevronsUpDown } from 'lucide-react'
@@ -29,7 +29,8 @@ interface UserAssignmentDialogProps {
 }
 
 export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignments, editingAssignment }: UserAssignmentDialogProps) => {
-  const [users, setUsers] = useState<AuthUser[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_users, setUsers] = useState<AuthUser[]>([])
   const [availableUsers, setAvailableUsers] = useState<AuthUser[]>([])
   const [formData, setFormData] = useState({
     user: '',
@@ -74,7 +75,7 @@ export const UserAssignmentDialog = ({ isOpen, onClose, assignments, userAssignm
       // Filter out users who already have an assignment
       const usersWithAssignments = new Set(
         userAssignments
-          .filter(ua => ua.is_active && ua.id !== editingAssignment?.id) // Exclude current editing assignment
+          .filter(ua => (ua as any).is_active && ua.id !== editingAssignment?.id) // Exclude current editing assignment
           .map(ua => ua.user)
       )
       const filtered = userData.filter(user => !usersWithAssignments.has(user.id))

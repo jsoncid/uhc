@@ -1,4 +1,4 @@
-import { Label } from 'src/components/ui/label';
+// Label import removed - was unused
 import { Badge } from 'src/components/ui/badge';
 
 interface SectionHeaderProps {

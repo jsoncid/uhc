@@ -147,7 +147,7 @@ interface ProfileType {
 }
 
 import acccountIcon from 'src/assets/images/svgs/icon-account.svg';
-import inboxIcon from 'src/assets/images/svgs/icon-inbox.svg';
+
 import taskIcon from 'src/assets/images/svgs/icon-tasks.svg';
 
 const profileDD: ProfileType[] = [

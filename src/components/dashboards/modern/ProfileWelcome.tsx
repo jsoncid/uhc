@@ -6,12 +6,12 @@ const ProfileWelcome = () => {
   const { profile, loading } = useUserProfile();
   
   // Get display name from profile
-  const displayName = profile?.firstName && profile?.lastName
-    ? `${profile.firstName} ${profile.lastName}`
-    : profile?.firstName
-    ? profile.firstName
-    : profile?.email?.split('@')[0]?.charAt(0).toUpperCase() + profile?.email?.split('@')[0]?.slice(1)
-    || 'User';
+  const emailUsername = profile?.email?.split('@')[0];
+  const displayName = profile?.name
+    ? profile.name
+    : emailUsername
+    ? emailUsername.charAt(0).toUpperCase() + emailUsername.slice(1)
+    : 'User';
 
   return (
     <div className="relative flex items-center justify-between bg-lightsecondary rounded-lg p-6">
