@@ -22,7 +22,7 @@ const StaffQueueManager = Loadable(
 
 export const module1Routes = [
   {
-    path: '/module-1/admin',
+    path: '/queueing/admin',
     element: (
       <ProtectedRoute>
         <ModuleRoute moduleName={PAGE_MODULES.MODULE_1_ADMIN}>
@@ -32,7 +32,7 @@ export const module1Routes = [
     ),
   },
   {
-    path: '/module-1/queue-generator',
+    path: '/queueing/queue-generator',
     element: (
       <ProtectedRoute>
         <ModuleRoute moduleName={PAGE_MODULES.MODULE_1_QG}>
@@ -42,7 +42,7 @@ export const module1Routes = [
     ),
   },
   {
-    path: '/module-1/queue-display',
+    path: '/queueing/queue-display',
     element: (
       <ModuleRoute moduleName={PAGE_MODULES.MODULE_1_QD}>
         <QueueDisplay />
@@ -50,7 +50,7 @@ export const module1Routes = [
     ),
   },
   {
-    path: '/module-1/staff-queue-manager',
+    path: '/queueing/staff-queue-manager',
     element: (
       <ProtectedRoute>
         <ModuleRoute moduleName={PAGE_MODULES.MODULE_1_SQM}>
