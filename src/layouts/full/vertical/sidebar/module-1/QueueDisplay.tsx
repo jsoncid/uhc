@@ -13,6 +13,7 @@ const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 const REPEAT_COUNT = 3; // how many times to announce
 const PAUSE_BETWEEN_MS = 800; // pause between each announcement
 const POPUP_GAP_MS = 600; // gap after speech before picking up the next item
+const MAX_OFFICES_PER_ROW = 5;
 
 interface CallNotification {
   id: string;
@@ -364,9 +365,10 @@ const QueueDisplay = () => {
 
         {/* Bottom section: per-office columns */}
         <div
-          className="min-h-0 flex-1 grid gap-4 overflow-x-auto overflow-y-hidden"
+          className="min-h-0 flex-1 grid gap-4 overflow-x-hidden overflow-y-auto"
           style={{
-            gridTemplateColumns: `repeat(${activeOffices.length}, minmax(calc((100% - 5 * 1rem) / 6), 1fr))`,
+            gridTemplateColumns: `repeat(${Math.max(1, Math.min(activeOffices.length, MAX_OFFICES_PER_ROW))}, minmax(0, 1fr))`,
+            gridAutoRows: 'minmax(24rem, auto)',
           }}
         >
           {activeOffices.length === 0 ? (
@@ -412,20 +414,30 @@ const QueueDisplay = () => {
                   );
                 });
 
+              const compactWaiting = waitingEntries.length >= 4;
+              const servingCodeSize = compactWaiting
+                ? 'clamp(1.2rem, 2.5vw, 1.8rem)'
+                : 'clamp(1.45rem, 3.2vw, 2.2rem)';
+              const waitingCodeSize = compactWaiting
+                ? 'clamp(0.95rem, 1.8vw, 1.35rem)'
+                : 'clamp(1.2rem, 2.6vw, 1.8rem)';
+
               return (
                 <div
                   key={office.id}
-                  className="flex flex-col overflow-hidden rounded-xl border border-border bg-card"
+                  className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card"
                 >
                   {/* Office header */}
                   <div className="shrink-0 border-b border-border px-3 py-2">
-                    <p className="break-words text-sm font-bold text-foreground">{officeName}</p>
+                    <p className="wrap-break-word text-sm font-bold text-foreground">
+                      {officeName}
+                    </p>
                   </div>
 
                   {/* Now serving / waiting — split into two colour zones */}
                   <div className="flex flex-1 flex-col overflow-hidden">
                     {/* ── SERVING zone (green tint) ── */}
-                    <div className="flex flex-col items-center gap-2 bg-emerald-100 dark:bg-emerald-950/40 px-4 pt-3 pb-3 shrink-0">
+                    <div className="flex flex-col items-center gap-1 bg-emerald-100 dark:bg-emerald-950/40 px-3 pt-2 pb-2 shrink-0">
                       <span className="self-start text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400/70">
                         Now Serving
                       </span>
@@ -434,7 +446,7 @@ const QueueDisplay = () => {
                           <div key={seq.id} className="flex w-full flex-col items-center gap-0.5">
                             <span
                               className={`text-center font-black tracking-[0.12em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
-                              style={{ fontSize: 'clamp(2rem, 6vw, 3rem)', lineHeight: 1.1 }}
+                              style={{ fontSize: servingCodeSize, lineHeight: 1.1 }}
                               aria-live="polite"
                             >
                               {seq.queue_data?.code || '---'}
@@ -449,7 +461,7 @@ const QueueDisplay = () => {
                       ) : (
                         <span
                           className="font-bold text-emerald-400 dark:text-emerald-700/50"
-                          style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)' }}
+                          style={{ fontSize: 'clamp(1.1rem, 2.6vw, 1.7rem)' }}
                         >
                           —
                         </span>
@@ -460,14 +472,17 @@ const QueueDisplay = () => {
                     <div className="w-full border-t border-dashed border-border" />
 
                     {/* ── WAITING zone (silver/slate tint) ── */}
-                    <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto bg-slate-100 dark:bg-slate-700/30 px-4 pt-3 pb-4">
+                    <div className="flex flex-1 flex-col items-center gap-0.5 overflow-y-auto bg-slate-100 dark:bg-slate-700/30 px-3 pt-2 pb-2">
                       <span className="self-start text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400/70 mb-1">
                         Waiting
                       </span>
                       {waitingEntries.length === 0 ? (
                         <p className="text-xs text-muted-foreground">No waiting</p>
                       ) : (
-                        <ul className="flex flex-col items-center gap-2 w-full" role="list">
+                        <ul
+                          className={`w-full ${compactWaiting ? 'grid grid-cols-2 gap-x-1 gap-y-1' : 'flex flex-col items-center gap-1.5'}`}
+                          role="list"
+                        >
                           {waitingEntries.map(({ seq, windowLabel, style }) => (
                             <li
                               key={seq.id}
@@ -476,13 +491,15 @@ const QueueDisplay = () => {
                             >
                               <span
                                 className={`font-black tracking-wide ${style.text}`}
-                                style={{ fontSize: 'clamp(2rem, 6vw, 2.3rem)' }}
+                                style={{ fontSize: waitingCodeSize, lineHeight: 1.1 }}
                               >
                                 {seq.queue_data?.code || '---'}
                               </span>
-                              <span className="text-xs font-semibold text-muted-foreground">
-                                {windowLabel || 'Unassigned'}
-                              </span>
+                              {!compactWaiting && (
+                                <span className="text-xs font-semibold text-muted-foreground">
+                                  {windowLabel || 'Unassigned'}
+                                </span>
+                              )}
                             </li>
                           ))}
                         </ul>
