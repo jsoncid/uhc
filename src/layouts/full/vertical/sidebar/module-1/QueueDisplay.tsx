@@ -558,46 +558,25 @@ const QueueDisplay = () => {
                 waitingRegularVisible.length,
               );
 
-              const hasServingCode = servingEntries.some(({ seq }) => {
-                const code = seq.queue_data?.code?.trim();
-                return Boolean(code && code !== '---');
-              });
+              const servingZoneHeight = '6rem';
 
-              const isCompactWaitingLayout = hasServingCode && waitingDensity >= 4;
-              const servingZoneHeight =
-                hasServingCode && waitingDensity >= 6
-                  ? '5.5rem'
-                  : hasServingCode && waitingDensity >= 4
-                    ? '5.9rem'
-                    : '6.6rem';
-
-              const servingCodeSize = isCompactWaitingLayout
-                ? 'clamp(1.36rem, 2.1vw, 1.9rem)'
-                : 'clamp(1.72rem, 3.1vw, 2.55rem)';
+              const servingCodeSize = 'clamp(1.48rem, 2.15vw, 1.95rem)';
               const waitingCodeSize =
                 waitingDensity >= 6
-                  ? hasServingCode
-                    ? 'clamp(1.08rem, 1.52vw, 1.36rem)'
-                    : 'clamp(1.14rem, 1.7vw, 1.48rem)'
+                  ? 'clamp(1.12rem, 1.58vw, 1.38rem)'
                   : waitingDensity === 5
-                    ? hasServingCode
-                      ? 'clamp(1.18rem, 1.74vw, 1.5rem)'
-                      : 'clamp(1.24rem, 1.9vw, 1.72rem)'
+                    ? 'clamp(1.2rem, 1.78vw, 1.52rem)'
                     : waitingDensity === 4
-                      ? hasServingCode
-                        ? 'clamp(1.26rem, 1.9vw, 1.64rem)'
-                        : 'clamp(1.34rem, 2.1vw, 1.95rem)'
-                      : 'clamp(1.56rem, 2.45vw, 2.25rem)';
-              const waitingListGapClass = isCompactWaitingLayout
-                ? 'space-y-0'
-                : waitingDensity >= 6
+                      ? 'clamp(1.3rem, 1.95vw, 1.68rem)'
+                      : 'clamp(1.5rem, 2.3vw, 2.05rem)';
+              const waitingListGapClass =
+                waitingDensity >= 6
                   ? 'space-y-0'
                   : waitingDensity >= 5
                     ? 'space-y-0.5'
                     : 'space-y-1';
-              const waitingHeadingMarginClass =
-                waitingDensity >= 6 || isCompactWaitingLayout ? 'mb-0.5' : 'mb-1';
-              const waitingCodeLineHeight = isCompactWaitingLayout ? 0.94 : 0.98;
+              const waitingHeadingMarginClass = waitingDensity >= 5 ? 'mb-0.5' : 'mb-1';
+              const waitingCodeLineHeight = 0.95;
 
               return (
                 <div
@@ -683,7 +662,7 @@ const QueueDisplay = () => {
                               <div className="flex flex-1" aria-hidden="true" />
                             ) : (
                               <ul
-                                className={`min-h-0 flex-1 overflow-y-auto ${waitingListGapClass}`}
+                                className={`min-h-0 overflow-hidden ${waitingListGapClass}`}
                                 role="list"
                               >
                                 {waitingPriorityVisible.map(({ seq }) => (
@@ -713,7 +692,7 @@ const QueueDisplay = () => {
                               <div className="flex flex-1" aria-hidden="true" />
                             ) : (
                               <ul
-                                className={`min-h-0 flex-1 overflow-y-auto ${waitingListGapClass}`}
+                                className={`min-h-0 overflow-hidden ${waitingListGapClass}`}
                                 role="list"
                               >
                                 {waitingRegularVisible.map(({ seq }) => (
