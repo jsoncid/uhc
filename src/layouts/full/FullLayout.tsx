@@ -42,7 +42,7 @@ const FullLayout: FC = () => {
             <Header />
 
             {/* Body Content  */}
-            <div className={'container mx-auto px-6 py-30'}>
+            <div className={sidebarOpen ? 'container mx-auto px-6 py-30' : 'w-full max-w-none px-6 py-30'}>
               <main className="grow">
                 <Outlet />
               </main>

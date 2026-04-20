@@ -365,14 +365,16 @@ const StaffQueueManager = () => {
           </CardContent>
         </Card>
       ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList>
-            {activeOffices.map((office) => (
-              <TabsTrigger key={office.id} value={office.id}>
-                {office.description || office.id}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 md:space-y-6">
+          {activeOffices.length > 1 && (
+            <TabsList>
+              {activeOffices.map((office) => (
+                <TabsTrigger key={office.id} value={office.id}>
+                  {office.description || office.id}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          )}
 
           {activeOffices.map((office) => {
             const serving = getServingSequence(office.id, selectedWindowByOffice[office.id]);
@@ -385,8 +387,8 @@ const StaffQueueManager = () => {
             );
 
             return (
-              <TabsContent key={office.id} value={office.id}>
-                <Card>
+              <TabsContent key={office.id} value={office.id} className="w-full">
+                <Card className="w-full">
                   <CardHeader>
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <CardTitle>{office.description || office.id} Queue</CardTitle>
@@ -407,16 +409,16 @@ const StaffQueueManager = () => {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-6">
+                  <CardContent className="p-4 md:p-6">
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(320px,1fr)_minmax(460px,1.25fr)] 2xl:grid-cols-[minmax(360px,1fr)_minmax(540px,1.35fr)] xl:gap-6">
                       {/* Now Serving Section */}
                       <Card className="bg-muted/50">
-                        <CardContent className="pt-6">
-                          <h3 className="font-semibold text-lg mb-4">Now Serving</h3>
+                        <CardContent className="pt-3 pb-4 md:pt-4 md:pb-5">
+                          <h3 className="font-semibold text-xl md:text-2xl mb-4">Now Serving</h3>
                           {serving ? (
                             <div className="space-y-4">
                               <div
-                                className={`text-4xl font-bold tracking-widest ${getPriorityColor(
+                                className={`text-3xl md:text-4xl 2xl:text-5xl font-bold tracking-widest ${getPriorityColor(
                                   serving.priority_data?.description,
                                 )}`}
                               >
@@ -485,9 +487,9 @@ const StaffQueueManager = () => {
 
                       {/* Waiting Section */}
                       <Card className="bg-muted/50">
-                        <CardContent className="pt-3 pb-4">
-                          <h3 className="font-semibold text-2xl mb-4">Waiting ({waiting.length})</h3>
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <CardContent className="pt-2 pb-3 md:pt-3 md:pb-4">
+                          <h3 className="font-semibold text-xl md:text-2xl mb-4">Waiting ({waiting.length})</h3>
+                          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                             <div className="rounded-md border bg-background p-4 h-full flex flex-col gap-4">
                               <div className="flex items-center justify-between gap-2">
                                 <h4 className="font-medium text-sm text-rose-600">
@@ -508,11 +510,11 @@ const StaffQueueManager = () => {
                               </div>
 
                               {priorityWaiting.length > 0 ? (
-                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[20rem]">
+                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[12rem]">
                                   {priorityWaiting.map((seq) => (
                                     <div key={seq.id} className="flex items-center justify-between py-1">
                                       <div
-                                        className={`text-4xl font-semibold tracking-wide leading-none ${getPriorityColor(seq.priority_data?.description)}`}
+                                        className={`text-3xl md:text-4xl 2xl:text-5xl font-semibold tracking-wide leading-none ${getPriorityColor(seq.priority_data?.description)}`}
                                       >
                                         {seq.queue_data?.code || '---'}
                                       </div>
@@ -554,11 +556,11 @@ const StaffQueueManager = () => {
                               </div>
 
                               {regularWaiting.length > 0 ? (
-                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[20rem]">
+                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[12rem]">
                                   {regularWaiting.map((seq) => (
                                     <div key={seq.id} className="flex items-center justify-between py-1">
                                       <div
-                                        className={`text-4xl font-semibold tracking-wide leading-none ${getPriorityColor(seq.priority_data?.description)}`}
+                                        className={`text-3xl md:text-4xl 2xl:text-5xl font-semibold tracking-wide leading-none ${getPriorityColor(seq.priority_data?.description)}`}
                                       >
                                         {seq.queue_data?.code || '---'}
                                       </div>
