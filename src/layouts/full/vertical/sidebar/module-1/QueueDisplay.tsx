@@ -13,7 +13,7 @@ const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 const REPEAT_COUNT = 3; // how many times to announce
 const PAUSE_BETWEEN_MS = 800; // pause between each announcement
 const POPUP_GAP_MS = 600; // gap after speech before picking up the next item
-const MAX_OFFICES_PER_ROW = 5;
+const MAX_OFFICES_PER_ROW = 7;
 const MAX_WAITING_PER_COLUMN = 6;
 const SCREEN_SIDE_MARGIN_PX = 8;
 const OFFICE_ORDER_STORAGE_KEY = 'queue-display-office-order-v1';
@@ -281,6 +281,11 @@ const QueueDisplay = () => {
     const ch = supabase
       .channel('queue-ping-broadcast', { config: { broadcast: { self: true } } })
       .on('broadcast', { event: 'ping' }, ({ payload }) => {
+        // Only process pings for offices that belong to this user's assignment
+        const officeId = payload.officeId as string;
+        const isOwnOffice = offices.some((o) => o.id === officeId && o.status);
+        if (!isOwnOffice) return;
+
         const code = (payload.queueCode as string) || '---';
         const spokenCode = code.split('').join(' ');
         // Use the real sequenceId as the notification id so the blink matches seq.id in the display
@@ -304,7 +309,7 @@ const QueueDisplay = () => {
       supabase.removeChannel(ch);
       pingChRef.current = null;
     };
-  }, []);
+  }, [offices]);
 
   const formatTime = (d: Date) =>
     d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -553,34 +558,25 @@ const QueueDisplay = () => {
                 waitingRegularVisible.length,
               );
 
-              const hasServingCode = servingEntries.some(({ seq }) => {
-                const code = seq.queue_data?.code?.trim();
-                return Boolean(code && code !== '---');
-              });
+              const servingZoneHeight = '6rem';
 
-              const servingCodeSize =
-                waitingDensity >= 6 && hasServingCode
-                  ? 'clamp(1.64rem, 2.9vw, 2.35rem)'
-                  : 'clamp(1.82rem, 3.35vw, 2.8rem)';
+              const servingCodeSize = 'clamp(1.48rem, 2.15vw, 1.95rem)';
               const waitingCodeSize =
                 waitingDensity >= 6
-                  ? hasServingCode
-                    ? 'clamp(1.16rem, 1.7vw, 1.48rem)'
-                    : 'clamp(1.22rem, 1.85vw, 1.62rem)'
+                  ? 'clamp(1.12rem, 1.58vw, 1.38rem)'
                   : waitingDensity === 5
-                    ? hasServingCode
-                      ? 'clamp(1.26rem, 1.95vw, 1.76rem)'
-                      : 'clamp(1.34rem, 2.1vw, 1.9rem)'
+                    ? 'clamp(1.2rem, 1.78vw, 1.52rem)'
                     : waitingDensity === 4
-                      ? 'clamp(1.44rem, 2.25vw, 2.08rem)'
-                      : 'clamp(1.66rem, 2.65vw, 2.45rem)';
+                      ? 'clamp(1.3rem, 1.95vw, 1.68rem)'
+                      : 'clamp(1.5rem, 2.3vw, 2.05rem)';
               const waitingListGapClass =
                 waitingDensity >= 6
                   ? 'space-y-0'
                   : waitingDensity >= 5
                     ? 'space-y-0.5'
                     : 'space-y-1';
-              const waitingHeadingMarginClass = waitingDensity >= 6 ? 'mb-0.5' : 'mb-1';
+              const waitingHeadingMarginClass = waitingDensity >= 5 ? 'mb-0.5' : 'mb-1';
+              const waitingCodeLineHeight = 0.95;
 
               return (
                 <div
@@ -594,8 +590,8 @@ const QueueDisplay = () => {
                   className={`flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-opacity duration-150 ${draggedOfficeId === office.id ? 'cursor-grabbing opacity-75' : 'cursor-grab'} ${dragOverOfficeId === office.id && draggedOfficeId !== office.id ? 'ring-2 ring-emerald-400/70' : ''}`}
                 >
                   {/* Office header */}
-                  <div className="shrink-0 border-b border-border px-2.5 py-1">
-                    <p className="wrap-break-word text-center text-sm font-bold text-foreground">
+                  <div className="shrink-0 border-b border-border px-2.5 py-0.5">
+                    <p className="wrap-break-word text-center text-base font-bold text-foreground">
                       {officeName}
                     </p>
                   </div>
@@ -603,35 +599,45 @@ const QueueDisplay = () => {
                   {/* Now serving / waiting — split into two colour zones */}
                   <div className="flex flex-1 flex-col overflow-hidden">
                     {/* ── SERVING zone (green tint) ── */}
-                    <div className="flex shrink-0 flex-col items-center gap-0.5 bg-emerald-100 px-2 py-1 dark:bg-emerald-950/40">
+                    <div
+                      className="flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2 py-1 dark:bg-emerald-950/40"
+                      style={{ height: servingZoneHeight }}
+                    >
                       <span className="self-start text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400/70">
                         Now Serving
                       </span>
-                      {servingEntries.length > 0 ? (
-                        servingEntries.map(({ seq, windowLabel, style }) => (
-                          <div key={seq.id} className="flex w-full flex-col items-center gap-0.5">
-                            <span
-                              className={`text-center font-black tracking-[0.12em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
-                              style={{ fontSize: servingCodeSize, lineHeight: 1.1 }}
-                              aria-live="polite"
-                            >
-                              {seq.queue_data?.code || '---'}
-                            </span>
-                            {windowLabel && (
-                              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300/80">
-                                {windowLabel}
-                              </span>
-                            )}
+                      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+                        {servingEntries.length > 0 ? (
+                          <div className="flex w-full min-h-0 flex-col items-center justify-center gap-0.5 overflow-hidden">
+                            {servingEntries.map(({ seq, windowLabel, style }) => (
+                              <div
+                                key={seq.id}
+                                className="flex w-full flex-col items-center gap-0.5 overflow-hidden"
+                              >
+                                <span
+                                  className={`text-center font-black tracking-[0.12em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
+                                  style={{ fontSize: servingCodeSize, lineHeight: 1.1 }}
+                                  aria-live="polite"
+                                >
+                                  {seq.queue_data?.code || '---'}
+                                </span>
+                                {windowLabel && (
+                                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300/80">
+                                    {windowLabel}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        ))
-                      ) : (
-                        <span
-                          className="font-bold text-emerald-400 dark:text-emerald-700/50"
-                          style={{ fontSize: 'clamp(1.1rem, 2.6vw, 1.7rem)' }}
-                        >
-                          —
-                        </span>
-                      )}
+                        ) : (
+                          <span
+                            className="font-bold text-emerald-400 dark:text-emerald-700/50"
+                            style={{ fontSize: 'clamp(1.1rem, 2.6vw, 1.7rem)' }}
+                          >
+                            —
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Divider */}
@@ -663,7 +669,10 @@ const QueueDisplay = () => {
                                   <li key={seq.id} className="flex items-center justify-center">
                                     <span
                                       className="font-black tracking-wide text-rose-600 dark:text-rose-400"
-                                      style={{ fontSize: waitingCodeSize, lineHeight: 0.98 }}
+                                      style={{
+                                        fontSize: waitingCodeSize,
+                                        lineHeight: waitingCodeLineHeight,
+                                      }}
                                     >
                                       {seq.queue_data?.code || '---'}
                                     </span>
@@ -690,7 +699,10 @@ const QueueDisplay = () => {
                                   <li key={seq.id} className="flex items-center justify-center">
                                     <span
                                       className="font-black tracking-wide text-emerald-700 dark:text-emerald-400"
-                                      style={{ fontSize: waitingCodeSize, lineHeight: 0.98 }}
+                                      style={{
+                                        fontSize: waitingCodeSize,
+                                        lineHeight: waitingCodeLineHeight,
+                                      }}
                                     >
                                       {seq.queue_data?.code || '---'}
                                     </span>
