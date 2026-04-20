@@ -19,14 +19,13 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
-import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { supabase } from '@/lib/supabase';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
 import { useOfficeUserAssignmentStore } from '@/stores/module-1_stores/useOfficeUserAssignmentStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
-const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Staff Queue Manager' }];
+type QueueBucket = 'priority' | 'regular';
 
 const StaffQueueManager = () => {
   const [activeTab, setActiveTab] = useState<string>('');
@@ -49,7 +48,6 @@ const StaffQueueManager = () => {
     fetchStatuses,
     updateSequenceStatus,
     transferSequence,
-    callNextSequence,
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
@@ -164,6 +162,11 @@ const StaffQueueManager = () => {
     return 10; // Regular/default - lowest priority
   };
 
+  const isRegularPriority = (priorityDescription: string | null | undefined): boolean => {
+    const desc = priorityDescription?.toLowerCase() || '';
+    return desc === '' || desc.includes('regular');
+  };
+
   const getWaitingSequences = (officeId: string, windowId?: string): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
     let pending = getSequencesForOffice(officeId).filter(
@@ -197,7 +200,7 @@ const StaffQueueManager = () => {
     return officeSequences.find((seq) => activeStatusIds.includes(seq.status));
   };
 
-  const handleCallNext = async (officeId: string) => {
+  const handleCallNext = async (officeId: string, bucket: QueueBucket) => {
     const servingStatus = getStatusByDescription('serving');
 
     if (!servingStatus) {
@@ -219,13 +222,22 @@ const StaffQueueManager = () => {
       return;
     }
 
-    // Atomically claim the next pending sequence via DB function —
-    // prevents two windows from grabbing the same queue number simultaneously.
-    console.log('[callNext] officeId:', officeId, '| servingStatusId:', servingStatus.id, '| windowId:', windowId);
-    const claimed = await callNextSequence(officeId, servingStatus.id, windowId);
-    if (!claimed) {
-      console.log('ℹ️ No one waiting in queue (DB claim_next_sequence returned null)');
+    const waiting = getWaitingSequences(officeId, windowId);
+    const waitingByBucket = waiting.filter((seq) =>
+      bucket === 'regular'
+        ? isRegularPriority(seq.priority_data?.description)
+        : !isRegularPriority(seq.priority_data?.description),
+    );
+
+    const nextForBucket = waitingByBucket[0];
+
+    if (!nextForBucket) {
+      console.log(`ℹ️ No one waiting in ${bucket} queue`);
+      return;
     }
+
+    // Move only the selected bucket's first waiting queue to serving.
+    await updateSequenceStatus(nextForBucket.id, servingStatus.id, windowId);
   };
 
   const handleComplete = async (sequenceId: string) => {
@@ -323,13 +335,7 @@ const StaffQueueManager = () => {
   };
 
   const getPriorityColor = (priority: string | null | undefined) => {
-    const desc = priority?.toLowerCase() || '';
-    if (desc.includes('senior')) return 'text-blue-600';
-    if (desc.includes('pwd')) return 'text-purple-600';
-    if (desc.includes('priority')) return 'text-red-600';
-    if (desc.includes('urgent')) return 'text-orange-600';
-    if (desc.includes('vip')) return 'text-yellow-600';
-    return 'text-green-600';
+    return isRegularPriority(priority) ? 'text-emerald-600' : 'text-red-600';
   };
 
   const isLoading = profileLoading || officesLoading || queueLoading;
@@ -337,7 +343,6 @@ const StaffQueueManager = () => {
   if (isLoading || !myAssignmentLoaded) {
     return (
       <>
-        <BreadcrumbComp title="Staff Queue Manager" items={BCrumb} />
         <div className="flex justify-center items-center min-h-[40vh]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -347,8 +352,6 @@ const StaffQueueManager = () => {
 
   return (
     <>
-      <BreadcrumbComp title="Staff Queue Manager" items={BCrumb} />
-
       {transferSuccess && (
         <div className="mx-6 mt-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
           {transferSuccess}
@@ -362,22 +365,30 @@ const StaffQueueManager = () => {
           </CardContent>
         </Card>
       ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList>
-            {activeOffices.map((office) => (
-              <TabsTrigger key={office.id} value={office.id}>
-                {office.description || office.id}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 md:space-y-6">
+          {activeOffices.length > 1 && (
+            <TabsList>
+              {activeOffices.map((office) => (
+                <TabsTrigger key={office.id} value={office.id}>
+                  {office.description || office.id}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          )}
 
           {activeOffices.map((office) => {
             const serving = getServingSequence(office.id, selectedWindowByOffice[office.id]);
             const waiting = getWaitingSequences(office.id, selectedWindowByOffice[office.id]);
+            const priorityWaiting = waiting.filter(
+              (seq) => !isRegularPriority(seq.priority_data?.description),
+            );
+            const regularWaiting = waiting.filter((seq) =>
+              isRegularPriority(seq.priority_data?.description),
+            );
 
             return (
-              <TabsContent key={office.id} value={office.id}>
-                <Card>
+              <TabsContent key={office.id} value={office.id} className="w-full">
+                <Card className="w-full">
                   <CardHeader>
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <CardTitle>{office.description || office.id} Queue</CardTitle>
@@ -395,30 +406,19 @@ const StaffQueueManager = () => {
                             </div>
                           </div>
                         )}
-                        <Button
-                          onClick={() => handleCallNext(office.id)}
-                          disabled={isLoading || !!serving}
-                        >
-                          {isLoading ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 mr-2" />
-                          )}
-                          Call Next
-                        </Button>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-6">
+                  <CardContent className="p-4 md:p-6">
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(320px,1fr)_minmax(460px,1.25fr)] 2xl:grid-cols-[minmax(360px,1fr)_minmax(540px,1.35fr)] xl:gap-6">
                       {/* Now Serving Section */}
                       <Card className="bg-muted/50">
-                        <CardContent className="pt-6">
-                          <h3 className="font-semibold text-lg mb-4">Now Serving</h3>
+                        <CardContent className="pt-3 pb-4 md:pt-4 md:pb-5">
+                          <h3 className="font-semibold text-xl md:text-2xl mb-4">Now Serving</h3>
                           {serving ? (
                             <div className="space-y-4">
                               <div
-                                className={`text-4xl font-bold tracking-widest ${getPriorityColor(
+                                className={`text-3xl md:text-4xl 2xl:text-5xl font-bold tracking-widest ${getPriorityColor(
                                   serving.priority_data?.description,
                                 )}`}
                               >
@@ -427,12 +427,12 @@ const StaffQueueManager = () => {
                               <div className="text-sm text-muted-foreground">
                                 {serving.priority_data?.description || 'Regular'}
                               </div>
-                              <div className="flex gap-2 flex-wrap">
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                 <Button
                                   size="sm"
                                   onClick={() => handleComplete(serving.id)}
                                   disabled={isLoading || !serving.status_data?.description?.toLowerCase().includes('arrived')}
-                                  className="bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                                  className="w-full justify-center bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                                 >
                                   <Check className="h-4 w-4 mr-2" />
                                   Complete
@@ -441,7 +441,7 @@ const StaffQueueManager = () => {
                                   size="sm"
                                   onClick={() => handleOpenTransferDialog(serving)}
                                   disabled={isLoading}
-                                  className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                                  className="w-full justify-center bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                                 >
                                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                                   Transfer
@@ -450,7 +450,7 @@ const StaffQueueManager = () => {
                                   size="sm"
                                   onClick={() => handleArrived(serving.id, selectedWindowByOffice[office.id])}
                                   disabled={isLoading || serving.status_data?.description?.toLowerCase().includes('arrived')}
-                                  className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                                  className="w-full justify-center bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
                                 >
                                   <UserCheck className="h-4 w-4 mr-2" />
                                   Arrived
@@ -460,7 +460,7 @@ const StaffQueueManager = () => {
                                   onClick={() => handlePing(serving, office.description || '')}
                                   disabled={isLoading || pingingId === serving.id}
                                   title="Re-announce this queue on the display"
-                                  className="bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
+                                  className="w-full justify-center bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
                                 >
                                   <Bell className="h-4 w-4 mr-2" />
                                   Ping
@@ -470,7 +470,7 @@ const StaffQueueManager = () => {
                                   onClick={() => handlePutBackOnQueue(serving.id)}
                                   disabled={isLoading}
                                   title="Put back to end of queue (customer didn't arrive)"
-                                  className="bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
+                                  className="w-full justify-center bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
                                 >
                                   <RotateCcw className="h-4 w-4 mr-2" />
                                   Put Back
@@ -487,36 +487,101 @@ const StaffQueueManager = () => {
 
                       {/* Waiting Section */}
                       <Card className="bg-muted/50">
-                        <CardContent className="pt-6">
-                          <h3 className="font-semibold text-lg mb-4">Waiting ({waiting.length})</h3>
-                          {waiting.length > 0 ? (
-                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                              {waiting.map((seq) => (
-                                <div key={seq.id} className="flex items-center justify-between">
-                                  <div
-                                    className={`text-lg font-medium tracking-wider ${getPriorityColor(seq.priority_data?.description)}`}
-                                  >
-                                    {seq.queue_data?.code || '---'}
-                                    <span className="text-xs ml-2 text-muted-foreground">
-                                      ({seq.priority_data?.description || 'Regular'})
-                                    </span>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleOpenTransferDialog(seq)}
-                                    disabled={isLoading}
-                                  >
-                                    <ArrowRightLeft className="h-3 w-3" />
-                                  </Button>
+                        <CardContent className="pt-2 pb-3 md:pt-3 md:pb-4">
+                          <h3 className="font-semibold text-xl md:text-2xl mb-4">Waiting ({waiting.length})</h3>
+                          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                            <div className="rounded-md border bg-background p-4 h-full flex flex-col gap-4">
+                              <div className="flex items-center justify-between gap-2">
+                                <h4 className="font-medium text-sm text-rose-600">
+                                  Priority ({priorityWaiting.length})
+                                </h4>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleCallNext(office.id, 'priority')}
+                                  disabled={isLoading || !!serving || priorityWaiting.length === 0}
+                                >
+                                  {isLoading ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 mr-2" />
+                                  )}
+                                  Call Next
+                                </Button>
+                              </div>
+
+                              {priorityWaiting.length > 0 ? (
+                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[12rem]">
+                                  {priorityWaiting.map((seq) => (
+                                    <div key={seq.id} className="flex items-center justify-between py-1">
+                                      <div
+                                        className={`text-3xl md:text-4xl 2xl:text-5xl font-semibold tracking-wide leading-none ${getPriorityColor(seq.priority_data?.description)}`}
+                                      >
+                                        {seq.queue_data?.code || '---'}
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleOpenTransferDialog(seq)}
+                                        disabled={isLoading}
+                                      >
+                                        <ArrowRightLeft className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              ) : (
+                                <p className="text-muted-foreground italic text-sm">
+                                  No waiting priority queue.
+                                </p>
+                              )}
                             </div>
-                          ) : (
-                            <p className="text-muted-foreground italic">
-                              The waiting queue is empty.
-                            </p>
-                          )}
+
+                            <div className="rounded-md border bg-background p-4 h-full flex flex-col gap-4">
+                              <div className="flex items-center justify-between gap-2">
+                                <h4 className="font-medium text-sm text-emerald-600">
+                                  Regular ({regularWaiting.length})
+                                </h4>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleCallNext(office.id, 'regular')}
+                                  disabled={isLoading || !!serving || regularWaiting.length === 0}
+                                >
+                                  {isLoading ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 mr-2" />
+                                  )}
+                                  Call Next
+                                </Button>
+                              </div>
+
+                              {regularWaiting.length > 0 ? (
+                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[12rem]">
+                                  {regularWaiting.map((seq) => (
+                                    <div key={seq.id} className="flex items-center justify-between py-1">
+                                      <div
+                                        className={`text-3xl md:text-4xl 2xl:text-5xl font-semibold tracking-wide leading-none ${getPriorityColor(seq.priority_data?.description)}`}
+                                      >
+                                        {seq.queue_data?.code || '---'}
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleOpenTransferDialog(seq)}
+                                        disabled={isLoading}
+                                      >
+                                        <ArrowRightLeft className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-muted-foreground italic text-sm">
+                                  No waiting regular queue.
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                     </div>
