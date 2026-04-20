@@ -3,6 +3,7 @@ import { Plus, Search, Trash2, Users, UserCheck, Edit, Filter, ArrowUpDown, Arro
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -204,6 +205,23 @@ export const UserAssignmentList = () => {
     }
   }
 
+  const handleToggleUserStatus = async (user: UserWithStatus) => {
+    try {
+      setUserListError(null)
+      const result = await userService.toggleUserStatus(user.id, !user.is_active)
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to toggle user status')
+      }
+      
+      await fetchUsersWithStatus()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to toggle user status'
+      setUserListError(message)
+      console.error('Error toggling user status:', err)
+    }
+  }
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -294,7 +312,7 @@ export const UserAssignmentList = () => {
     setIsUserRoleDialogOpen(true)
   }
 
-  const handleDeleteUserRole = (userId: string, userEmail?: string) => {
+  const handleDeleteUserRole = (userId: string) => {
     // Find the first role for this user to display in confirmation
     const firstRole = userRoles.find(ur => ur.user === userId)
     if (firstRole) {
@@ -877,7 +895,7 @@ export const UserAssignmentList = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleDeleteUserRole(groupedRole.user, groupedRole.email)}
+                                onClick={() => handleDeleteUserRole(groupedRole.user)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1190,21 +1208,27 @@ export const UserAssignmentList = () => {
                           <TableCell className="font-medium">{user.name || user.email}</TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
-                            <Badge variant={user.is_active ? 'default' : 'secondary'}>
-                              {user.is_active ? 'Active' : 'Inactive'}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={user.is_active}
+                                onCheckedChange={() => handleToggleUserStatus(user)}
+                                className={!user.is_active ? 'data-[state=unchecked]:bg-red-500' : ''}
+                              />
+                              <span className="text-sm">
+                                {user.is_active ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openDeleteUserDialog(user)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openDeleteUserDialog(user)}
+                              title="Delete user"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))

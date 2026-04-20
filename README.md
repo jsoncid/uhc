@@ -36,12 +36,13 @@ A two-way patient referral system between health facilities.
 
 Centralized patient record management linked to the hospital's primary database.
 
-| Page                     | Function                                                                                                                                                                                                          |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 👥 **Patient List**      | Paginated, searchable, filterable table of all patient profiles; clicking a record opens an inline panel showing full patient history in either timeline or table view                                            |
-| 👤 **Patient Details**   | Full demographic and medical detail view for a selected patient                                                                                                                                                   |
-| 📝 **Patient Profiling** | Create or edit patient profiles with complete demographic data; address fields are resolved hierarchically via the PSGC API (Region → Province → City/Municipality → Barangay) and include facility assignment    |
-| 🏷️ **Patient Tagging**   | Links patients from the hospital's external MySQL database to the UHC Supabase repository; allows staff to search the hospital HIS, find the matching Supabase record, and create a verified link between the two |
+| Page                        | Function                                                                                                                                                                                                          |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 👥 **Patient List**         | Paginated, searchable, filterable table of all patient profiles; clicking a record opens an inline panel showing full patient history in either timeline or table view                                            |
+| 👤 **Patient Details**      | Full demographic and medical detail view for a selected patient                                                                                                                                                   |
+| 📝 **Patient Profiling**    | Create or edit patient profiles with complete demographic data; address fields are resolved hierarchically via the PSGC API (Region → Province → City/Municipality → Barangay) and include facility assignment    |
+| 🏷️ **Patient Tagging**      | Links patients from the hospital's external MySQL database to the UHC Supabase repository; allows staff to search the hospital HIS, find the matching Supabase record, and create a verified link between the two |
+| 🗄️ **Database Management**  | Configure and manage dynamic connections to hospital database systems (iHOMIS, iClinic); supports MySQL, PostgreSQL, MariaDB, and MSSQL with credential management, connection testing, and status toggling       |
 
 ---
 
@@ -196,7 +197,7 @@ src/
 | ----------- | ------------ | ----------------------------------------------------------------------------------------------- |
 | 🔢 Module 1 | `/module-1/` | `admin`, `queue-generator`, `queue-display`, `staff-queue-manager`                              |
 | 🔄 Module 2 | `/module-2/` | `referrals`, `referrals/create`, `referrals/create-ob-gyne`, `referral-history`, `incoming/:id` |
-| 🗂️ Module 3 | `/module-3/` | `patient-list`, `patient-details`, `patient-profiling`, `patient-tagging`                       |
+| 🗂️ Module 3 | `/module-3/` | `patient-list`, `patient-details`, `patient-profiling`, `patient-tagging`, `database-management` |
 | 💳 Module 4 | `/module-4/` | `member`, `operator`                                                                            |
 | 📱 Module 5 | `/module-5/` | `mobile-notes-integration`, `live-documents`                                                    |
 

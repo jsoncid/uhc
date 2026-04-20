@@ -12,6 +12,21 @@ export function useUserProfile() {
       setError(null)
       
       const data = await userService.getCurrentUserProfile()
+      
+      // Fetch profile picture and name if user data exists
+      if (data) {
+        const userName = data.email.split('@')[0]
+        const profilePictureUrl = await userService.getProfilePictureUrl(userName, data.id)
+        data.profilePictureUrl = profilePictureUrl || undefined
+        
+        // Fetch user profile name - Temporarily disabled until table is created
+        /* const userProfile = await userService.getUserProfile(data.id)
+        if (userProfile) {
+          data.firstName = userProfile.firstName
+          data.lastName = userProfile.lastName
+        } */
+      }
+      
       setProfile(data)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch profile'))

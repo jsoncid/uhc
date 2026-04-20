@@ -30,6 +30,8 @@ export interface UserProfileData {
   id: string;
   email: string;
   isActive: boolean;
+  profilePictureUrl?: string;
+  name?: string;
   roles: Array<{
     id: string;
     description: string;
@@ -440,6 +442,7 @@ export const userService = {
       return {
         id: user.id,
         email: user.email || '',
+        name: user.user_metadata?.name,
         isActive,
         roles,
         assignments,
@@ -511,6 +514,382 @@ export const userService = {
     } catch (error) {
       console.error('Error in rejectUser:', error);
       throw error;
+    }
+  },
+
+  // Upload user profile picture
+  async uploadProfilePicture(file: File, userName: string, userId: string): Promise<string> {
+    try {
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Please select an image file (JPG, PNG, etc.)');
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('File size must be under 5 MB');
+      }
+
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      // Sanitize the user name for folder path
+      const safeName = userName.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/\s+/g, '_');
+      const path = `${safeName}/${userId}_${Date.now()}.${ext}`;
+
+      // Remove ALL existing profile pictures for this user in their folder
+      try {
+        const { data: existing } = await supabase.storage
+          .from('user_profile')
+          .list(safeName, { limit: 100 });
+        
+        if (existing && existing.length > 0) {
+          const toRemove = existing
+            .filter((f) => f.name.startsWith(userId))
+            .map((f) => `${safeName}/${f.name}`);
+          
+          if (toRemove.length > 0) {
+            await supabase.storage.from('user_profile').remove(toRemove);
+          }
+        }
+      } catch (listError) {
+        // Folder might not exist yet, that's okay
+        console.log('Folder does not exist yet, will be created on upload');
+      }
+
+      // Upload new file (folder will be created automatically)
+      const { error: uploadError } = await supabase.storage
+        .from('user_profile')
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error(uploadError.message || 'Failed to upload profile picture');
+      }
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('user_profile')
+        .getPublicUrl(path);
+
+      return publicUrlData.publicUrl + '?t=' + Date.now();
+    } catch (error) {
+      console.error('Error in uploadProfilePicture:', error);
+      throw error;
+    }
+  },
+
+  // Get user profile picture URL
+  async getProfilePictureUrl(userName: string, userId: string): Promise<string | null> {
+    try {
+      const safeName = userName.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/\s+/g, '_');
+      const { data: files } = await supabase.storage
+        .from('user_profile')
+        .list(safeName, { limit: 100 });
+      
+      const match = files?.find((f) => f.name.startsWith(userId));
+      if (match) {
+        const { data: publicUrlData } = supabase.storage
+          .from('user_profile')
+          .getPublicUrl(`${safeName}/${match.name}`);
+        
+        return publicUrlData.publicUrl + '?t=' + Date.now();
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error in getProfilePictureUrl:', error);
+      return null;
+    }
+  },
+
+  // Update user name in metadata (updates current user)
+  async updateUserProfileName(userId: string, name: string): Promise<void> {
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        throw new Error(sessionError?.message || 'No active session found. Please sign in again.');
+      }
+
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/user`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            data: {
+              name: name,
+            },
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData?.msg || errorData?.message || 'Failed to update user name');
+        }
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    } catch (error) {
+      console.error('Error in updateUserProfileName:', error);
+      throw error;
+    }
+  },
+
+  // Admin functions for user management
+  async createUserAdmin(userData: {
+    email: string;
+    password: string;
+    name?: string;
+    isActive?: boolean;
+  }): Promise<{ success: boolean; userId?: string; error?: string }> {
+    try {
+      // Note: This requires the Supabase Service Role Key on the backend
+      // In production, this should be a server-side API call
+      const response = await fetch(`${API_URL}/admin/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userData.email,
+          password: userData.password,
+          name: userData.name,
+          isActive: userData.isActive ?? true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to create user' }));
+        throw new Error(errorData.message || 'Failed to create user');
+      }
+
+      const result = await response.json();
+      return {
+        success: true,
+        userId: result.userId || result.id,
+      };
+    } catch (error) {
+      console.error('Error in createUserAdmin:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create user',
+      };
+    }
+  },
+
+  async updateUserAdmin(
+    userId: string,
+    updates: {
+      email?: string;
+      name?: string;
+      isActive?: boolean;
+    }
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Update user_status table for active status only
+      const statusUpdates: any = {};
+      if (updates.isActive !== undefined) {
+        statusUpdates.is_active = updates.isActive;
+      }
+      
+      if (Object.keys(statusUpdates).length > 0) {
+        const { data: existingStatus } = await supabase
+          .from('user_status')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (existingStatus) {
+          const { error: updateError } = await supabase
+            .from('user_status')
+            .update(statusUpdates)
+            .eq('id', userId);
+
+          if (updateError) {
+            throw updateError;
+          }
+        } else {
+          // Create status record if it doesn't exist
+          const { error: insertError } = await supabase
+            .from('user_status')
+            .insert({
+              id: userId,
+              email: updates.email || '',
+              ...statusUpdates,
+            });
+
+          if (insertError) {
+            throw insertError;
+          }
+        }
+      }
+
+      // Update email or name via backend API (requires service role key)
+      if (updates.email || updates.name) {
+        const response = await fetch(`${API_URL}/admin/users/${userId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            email: updates.email,
+            name: updates.name 
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Failed to update user' }));
+          throw new Error(errorData.message || 'Failed to update user');
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error in updateUserAdmin:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update user',
+      };
+    }
+  },
+
+  async resetUserPassword(
+    userId: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // This requires backend API with service role key
+      const response = await fetch(`${API_URL}/admin/users/${userId}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to reset password' }));
+        throw new Error(errorData.message || 'Failed to reset password');
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error in resetUserPassword:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to reset password',
+      };
+    }
+  },
+
+  async sendPasswordResetEmail(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error in sendPasswordResetEmail:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to send password reset email',
+      };
+    }
+  },
+
+  async generatePasswordResetLink(email: string): Promise<{ success: boolean; link?: string; error?: string }> {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      if (!apiUrl) {
+        throw new Error('Backend API URL not configured. Please set VITE_API_URL in your .env file');
+      }
+
+      const response = await fetch(`${apiUrl}/api/admin/users/generate-reset-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          // Ensure error is a string, not an object
+          if (errorData.error) {
+            errorMessage = typeof errorData.error === 'string' 
+              ? errorData.error 
+              : JSON.stringify(errorData.error);
+          } else if (errorData.message) {
+            errorMessage = typeof errorData.message === 'string'
+              ? errorData.message
+              : JSON.stringify(errorData.message);
+          }
+        } catch {
+          // Response wasn't JSON, use the status message
+          if (response.status === 404) {
+            errorMessage = 'Backend endpoint not found. Please implement the /api/admin/users/generate-reset-link endpoint';
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      return { success: true, link: data.resetLink };
+    } catch (error) {
+      console.error('Error in generatePasswordResetLink:', error);
+      let errorMessage = 'Failed to generate password reset link';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object') {
+        errorMessage = JSON.stringify(error);
+      }
+      
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  },
+
+  async toggleUserStatus(userId: string, isActive: boolean): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase
+        .from('user_status')
+        .update({ is_active: isActive })
+        .eq('id', userId);
+
+      if (error) {
+        throw error;
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error in toggleUserStatus:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to toggle user status',
+      };
     }
   },
 };

@@ -4,13 +4,152 @@ import profileImg from "src/assets/images/profile/user-1.jpg"
 import { useUserProfile } from "src/hooks/useUserProfile";
 import { Skeleton } from "src/components/ui/skeleton";
 import { Badge } from "src/components/ui/badge";
+import { Button } from "src/components/ui/button";
+import { Input } from "src/components/ui/input";
+import { Label } from "src/components/ui/label";
+import { userService } from "@/services/userService";
+import { useRef, useState } from "react";
+import { Camera, Loader2, User, Edit } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "src/components/ui/dialog";
 
 const UserProfile = () => {
-    const { profile, loading, error } = useUserProfile();
+    const { profile, loading, error, refetch } = useUserProfile();
+    // const [isUploading, setIsUploading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+    const [showEditDialog, setShowEditDialog] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [name, setName] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Get display name from email
     const displayName = profile?.email?.split('@')[0] || 'User';
-    const firstName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+    const defaultFirstName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+
+    const handleEditProfile = () => {
+        // Initialize form with current values
+        setName(profile?.name || defaultFirstName);
+        setShowEditDialog(true);
+        setUploadError(null);
+        setSaveSuccessMessage(null);
+    };
+
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type and size
+        if (!file.type.startsWith('image/')) {
+            setUploadError('Please select an image file (JPG, PNG, etc.)');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            setUploadError('File size must be under 5 MB');
+            return;
+        }
+
+        // Create preview URL
+        const url = URL.createObjectURL(file);
+        setPreviewUrl(url);
+        setSelectedFile(file);
+        setUploadError(null);
+    };
+
+    const handleSaveProfile = async () => {
+        if (!profile) return;
+
+        setIsSaving(true);
+        setUploadError(null);
+        setSaveSuccessMessage(null);
+        
+        const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, step: string): Promise<T> => {
+            return new Promise<T>((resolve, reject) => {
+                const timer = window.setTimeout(() => {
+                    reject(new Error(`${step} timed out. Please check your connection and try again.`));
+                }, timeoutMs);
+
+                promise
+                    .then((result) => {
+                        window.clearTimeout(timer);
+                        resolve(result);
+                    })
+                    .catch((error) => {
+                        window.clearTimeout(timer);
+                        reject(error);
+                    });
+            });
+        };
+
+        try {
+            if (selectedFile) {
+                await withTimeout(
+                    userService.uploadProfilePicture(selectedFile, displayName, profile.id),
+                    30000,
+                    'Profile picture upload'
+                );
+            }
+
+            const trimmedName = name.trim();
+            const currentName = (profile.name || defaultFirstName).trim();
+            if (trimmedName && trimmedName !== currentName) {
+                await withTimeout(
+                    userService.updateUserProfileName(profile.id, trimmedName),
+                    20000,
+                    'Profile name update'
+                );
+            }
+
+            setSaveSuccessMessage('Profile updated successfully.');
+            await new Promise((resolve) => window.setTimeout(resolve, 1200));
+
+            await refetch().catch((err) => {
+                console.error('Error refreshing profile:', err);
+            });
+
+            setShowEditDialog(false);
+            handleCleanup();
+            setSaveSuccessMessage(null);
+        } catch (err) {
+            console.error('Save error:', err);
+            setUploadError(err instanceof Error ? err.message : 'Failed to save profile');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleCleanup = () => {
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+        }
+        setPreviewUrl(null);
+        setSelectedFile(null);
+        setName('');
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const handleCancelEdit = () => {
+        setShowEditDialog(false);
+        handleCleanup();
+        setUploadError(null);
+        setSaveSuccessMessage(null);
+        setName('');
+    };
 
     if (loading) {
         return (
@@ -55,9 +194,9 @@ const UserProfile = () => {
                     {/* Avatar */}
                     <div className="relative flex-shrink-0">
                         <img 
-                            src={profileImg} 
+                            src={profile?.profilePictureUrl || profileImg} 
                             alt="Profile" 
-                            className="w-16 h-16 lg:w-20 lg:h-20 rounded-full border-2 border-white shadow-md" 
+                            className="w-16 h-16 lg:w-20 lg:h-20 rounded-full border-2 border-white shadow-md object-cover" 
                         />
                         <span className={`absolute bottom-0.5 right-0.5 lg:bottom-1 lg:right-1 w-4 h-4 lg:w-5 lg:h-5 rounded-full border-2 border-white ${profile?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
                     </div>
@@ -65,26 +204,25 @@ const UserProfile = () => {
                     {/* Info */}
                     <div className="flex-1 text-center sm:text-left min-w-0">
                         <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 lg:gap-3 mb-1 lg:mb-2">
-                            <h1 className="text-lg lg:text-xl font-bold truncate">{firstName}</h1>
+                            <h1 className="text-lg lg:text-xl font-bold truncate">
+                                {profile?.name || defaultFirstName}
+                            </h1>
                             <Badge className={`text-xs lg:text-sm px-2 lg:px-3 py-0.5 lg:py-1 ${profile?.isActive ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
                                 {profile?.isActive ? "Active" : "Inactive"}
                             </Badge>
                         </div>
-                        <p className="text-sm lg:text-base text-gray-500 dark:text-gray-400 truncate">{profile?.email}</p>
+                        <p className="text-sm lg:text-base text-gray-500 dark:text-gray-400 truncate mb-3">{profile?.email}</p>
                     </div>
 
-                    {/* Quick Stats */}
-                    <div className="flex flex-wrap justify-center gap-2 lg:gap-3">
-                        <span className="inline-flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-1.5 lg:py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs lg:text-sm font-medium">
-                            <span className="font-bold text-sm lg:text-base">{profile?.roles?.length || 0}</span> Roles
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-1.5 lg:py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full text-xs lg:text-sm font-medium">
-                            <span className="font-bold text-sm lg:text-base">{profile?.assignments?.length || 0}</span> Assign
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-1.5 lg:py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-xs lg:text-sm font-medium">
-                            <span className="font-bold text-sm lg:text-base">{profile?.modules?.length || 0}</span> Modules
-                        </span>
-                    </div>
+                    {/* Edit Profile Button */}
+                    <Button
+                        onClick={handleEditProfile}
+                        size="sm"
+                        className="text-xs lg:text-sm"
+                    >
+                        <Edit className="w-3.5 h-3.5 mr-1.5" />
+                        Edit Profile
+                    </Button>
                 </div>
             </CardBox>
 
@@ -98,7 +236,7 @@ const UserProfile = () => {
                             <Icon icon="solar:user-id-bold-duotone" className="w-5 h-5 lg:w-6 lg:h-6 text-primary" />
                             <h5 className="font-semibold text-sm lg:text-base">Account Details</h5>
                         </div>
-                        <div className="space-y-2 lg:space-y-3">
+                        <div className="space-y-3 lg:space-y-4">
                             <div>
                                 <p className="text-xs lg:text-sm text-gray-500 uppercase mb-1">User ID</p>
                                 <p className="font-mono text-xs lg:text-sm bg-gray-100 dark:bg-gray-800 p-1.5 lg:p-2 rounded break-all">{profile?.id}</p>
@@ -106,6 +244,21 @@ const UserProfile = () => {
                             <div>
                                 <p className="text-xs lg:text-sm text-gray-500 uppercase mb-1">Email</p>
                                 <p className="text-sm lg:text-base break-all">{profile?.email}</p>
+                            </div>
+                            
+                            {/* Quick Stats */}
+                            <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                <div className="flex flex-wrap gap-2">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-medium">
+                                        <span className="font-bold">{profile?.roles?.length || 0}</span> Roles
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full text-xs font-medium">
+                                        <span className="font-bold">{profile?.assignments?.length || 0}</span> Assign
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-xs font-medium">
+                                        <span className="font-bold">{profile?.modules?.length || 0}</span> Modules
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </CardBox>
@@ -230,6 +383,125 @@ const UserProfile = () => {
                     )}
                 </CardBox>
             </div>
+
+            {/* Edit Profile Dialog */}
+            <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <User className="w-5 h-5 text-primary" />
+                            Edit Profile
+                        </DialogTitle>
+                        <DialogDescription>
+                            Update your profile picture and name.
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-4">
+                        {/* Profile Picture Section */}
+                        <div className="flex flex-col items-center gap-3 pb-4 border-b">
+                            <div className="relative">
+                                <img
+                                    src={previewUrl || profile?.profilePictureUrl || profileImg}
+                                    alt="Profile"
+                                    className="w-24 h-24 rounded-full object-cover border-4 border-primary/20 shadow-lg"
+                                />
+                                {selectedFile && (
+                                    <div className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full p-1">
+                                        <Camera className="w-3 h-3" />
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleUploadClick}
+                                className="text-xs"
+                            >
+                                <Camera className="w-3.5 h-3.5 mr-1.5" />
+                                {selectedFile ? 'Change Picture' : 'Upload Picture'}
+                            </Button>
+                            
+                            {selectedFile && (
+                                <p className="text-xs text-gray-500">
+                                    {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+                                </p>
+                            )}
+                            
+                            {/* Hidden file input */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleFileChange}
+                            />
+                        </div>
+
+                        {/* Name Field */}
+                        <div className="space-y-2">
+                            <Label htmlFor="profile-name" className="text-sm font-medium">
+                                Name <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                id="profile-name"
+                                placeholder="Enter your name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className="w-full"
+                            />
+                        </div>
+
+                        {/* Error Message */}
+                        {uploadError && (
+                            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                                <p className="text-xs text-red-600 dark:text-red-400">{uploadError}</p>
+                            </div>
+                        )}
+
+                        {/* Success Message */}
+                        {saveSuccessMessage && (
+                            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                                <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                                    <Icon icon="solar:check-circle-bold" className="w-4 h-4" />
+                                    <p className="text-xs font-medium">{saveSuccessMessage}</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="flex-row gap-2 sm:gap-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleCancelEdit}
+                            disabled={isSaving || !!saveSuccessMessage}
+                            className="flex-1 sm:flex-none"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleSaveProfile}
+                            disabled={isSaving || !!saveSuccessMessage}
+                            className="flex-1 sm:flex-none"
+                        >
+                            {isSaving ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : saveSuccessMessage ? (
+                                'Saved'
+                            ) : (
+                                'Save Changes'
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
