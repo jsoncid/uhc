@@ -28,7 +28,7 @@ import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
-const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Generator' }];
+const BCrumb: never[] = [];
 
 const QUEUE_TICKET_WIDTH_MM = '84.5';
 const QUEUE_TICKET_HEIGHT_MM = '108';
