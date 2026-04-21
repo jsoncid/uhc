@@ -30,8 +30,8 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Generator' }];
 
-const QUEUE_TICKET_WIDTH_MM = '82.5';
-const QUEUE_TICKET_HEIGHT_MM = '100';
+const QUEUE_TICKET_WIDTH_MM = '84.5';
+const QUEUE_TICKET_HEIGHT_MM = '108';
 const QUEUE_TICKET_WIDTH_IN = Number(QUEUE_TICKET_WIDTH_MM) / 25.4;
 const QUEUE_TICKET_HEIGHT_IN = Number(QUEUE_TICKET_HEIGHT_MM) / 25.4;
 const QUEUE_CODE_COLOR = '#dc2626';
@@ -247,16 +247,9 @@ const QueueGenerator = () => {
               letter-spacing: 0.08em;
               text-transform: uppercase;
             }
-            .office {
-              margin: 1.2mm 0 0;
-              font-size: 10px;
-              color: #4b5563;
-              text-transform: uppercase;
-              line-height: 1.2;
-            }
             .line {
               width: 100%;
-              border-top: 1px dashed #d1d5db;
+              border-top: 1px dashed #afb2b6;
               margin: 1.8mm 0;
             }
             .code {
@@ -310,12 +303,12 @@ const QueueGenerator = () => {
       <div style="width:${QUEUE_TICKET_WIDTH_MM}mm;height:${QUEUE_TICKET_HEIGHT_MM}mm;padding:3mm;box-sizing:border-box;background:#ffffff;font-family:'Consolas','Courier New',monospace;">
         <div style="width:100%;height:100%;border:none;border-radius:2mm;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;padding:2.5mm 2mm;box-sizing:border-box;">
           <div style="width:100%;">
-            <p style="margin:0;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">Queue Ticket</p>
+            <p style="margin:0;font-size:18px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">Queue Ticket</p>
           </div>
-          <div style="width:100%;border-top:1px dashed #d1d5db;margin:1.8mm 0;"></div>
+          <div style="width:100%;border-top:1px dashed #afb2b6;margin:1.8mm 0;"></div>
           <p style="margin:0;font-size:104px;font-weight:800;letter-spacing:0.14em;line-height:1;color:${QUEUE_CODE_COLOR};">${safeCode}</p>
-          <p style="margin-top:1.6mm;font-size:10.5px;font-weight:700;color:${colors.badgeText};background:${colors.badgeBg};border-radius:999px;padding:1mm 3mm;text-transform:uppercase;">${safePriority}</p>
-          <p style="margin:0;font-size:9px;color:#6b7280;">${safeGeneratedAt}</p>
+          <p style="margin-top:1.6mm;font-size:16.5px;font-weight:700;color:${colors.badgeText};background:${colors.badgeBg};border-radius:999px;padding:1mm 3mm;text-transform:uppercase;">${safePriority}</p>
+          <p style="margin:0;font-size:14px;color:#6b7280;">${safeGeneratedAt}</p>
         </div>
       </div>
     `;
@@ -479,13 +472,12 @@ const QueueGenerator = () => {
     if (!queueCode) return;
 
     const colors = getPriorityPrintColor(selectedPriorityName || 'regular');
-    const safeOffice = escapeHtml(selectedOfficeName || '');
     const safeCode = escapeHtml(queueCode);
     const safePriority = escapeHtml(selectedPriorityName || 'Regular');
     const safeGeneratedAt = escapeHtml(generatedAt || '');
 
     const ticketInlineMarkup = buildTicketInlineMarkup(
-      safeOffice,
+      '',
       safeCode,
       safePriority,
       safeGeneratedAt,
@@ -496,7 +488,7 @@ const QueueGenerator = () => {
       printWithCurrentWindow(ticketInlineMarkup);
     } catch {
       const ticketHtml = buildTicketPrintHtml(
-        safeOffice,
+        '',
         safeCode,
         safePriority,
         safeGeneratedAt,
@@ -519,9 +511,6 @@ const QueueGenerator = () => {
       <div className="w-full">
         <span className="text-[13px] font-bold tracking-[0.1em] uppercase">Queue Ticket</span>
       </div>
-      <span className="text-[11px] font-medium leading-tight text-muted-foreground text-center uppercase">
-        {selectedOfficeName}
-      </span>
       <div className="h-px w-full bg-gray-300" />
       <span
         className="text-[68px] leading-none font-black tracking-[0.14em] text-red-600"
@@ -631,7 +620,7 @@ const QueueGenerator = () => {
           >
             {renderQueueTicketCard()}
           </div>
-          <DialogFooter id="queue-print-actions" className="sm:justify-center gap-2">
+          <DialogFooter id="queue-print-actions" className="sm:justify-center gap-2 mb-2">
             <Button onClick={handlePrintDialog}>Print</Button>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Close
