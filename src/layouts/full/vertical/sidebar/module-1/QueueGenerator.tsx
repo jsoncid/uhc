@@ -545,7 +545,7 @@ const QueueGenerator = () => {
                 onClick={() => setIsOfficeDialogOpen(true)}
                 disabled={isLoading || activeOffices.length === 0}
               >
-                <span className={`truncate ${selectedOfficeData ? 'text-black' : 'text-muted-foreground'}`}>
+                <span className={`truncate ${selectedOfficeData ? 'text-black dark:text-white' : 'text-muted-foreground'}`}>
                   {selectedOfficeData?.description || 'Choose an office'}
                 </span>
                 <ChevronsUpDown className="h-5 w-5 opacity-60" />
@@ -610,7 +610,7 @@ const QueueGenerator = () => {
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent
-          className="sm:max-w-none max-w-none p-0"
+          className="sm:max-w-none max-w-none p-0 bg-white text-black dark:bg-white dark:text-black"
           style={{ width: `${QUEUE_TICKET_WIDTH_IN}in` }}
         >
           <div
@@ -650,9 +650,9 @@ const QueueGenerator = () => {
                           setSelectedOffice(office.id);
                           setIsOfficeDialogOpen(false);
                         }}
-                        className={`h-14 rounded-md border border-border/60 px-4 text-base data-[selected=true]:text-black ${isSelected ? 'bg-lightprimary text-black border-primary/40' : ''}`}
+                        className={`h-14 rounded-md border px-4 text-base transition-all duration-200 bg-background/60 dark:bg-background/40 border-border/80 dark:border-white/20 shadow-[0_2px_10px_rgba(0,0,0,0.22)] hover:-translate-y-[1px] hover:border-primary/50 hover:shadow-[0_10px_24px_rgba(0,0,0,0.34)] data-[selected=true]:text-black dark:data-[selected=true]:text-white ${isSelected ? 'bg-lightprimary text-black dark:text-white border-primary/60 ring-1 ring-primary/30 shadow-[0_12px_26px_rgba(34,197,94,0.24)]' : ''}`}
                       >
-                        <span className={`truncate font-medium ${isSelected ? 'text-black' : ''}`}>
+                        <span className={`truncate font-medium ${isSelected ? 'text-black dark:text-white' : ''}`}>
                           {office.description || 'Unnamed Office'}
                         </span>
                         <Check
