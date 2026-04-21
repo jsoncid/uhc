@@ -23,7 +23,7 @@ const MAX_WAITING_PER_COLUMN = 6;
 // Full-bleed spacing and persisted office order key.
 const SCREEN_SIDE_MARGIN_PX = 8;
 const OFFICE_ORDER_STORAGE_KEY = 'queue-display-office-order-v1';
-const QUEUE_UI_SCALE = 1.8;
+const QUEUE_UI_SCALE = 1.79;
 
 interface CallNotification {
   id: string;
@@ -495,7 +495,7 @@ const QueueDisplay = () => {
             />
             Queue Display
           </h1>
-          <div className="flex items-baseline gap-4">
+          <div className="flex items-center gap-3 pr-1">
             <div className="flex items-center gap-2">
               {staticPriorityLegend.map((item) => (
                 <div key={item.label} className="flex items-center gap-1">
@@ -506,12 +506,14 @@ const QueueDisplay = () => {
             </div>
             <div className="h-6 w-px bg-border" />
             <span
-              className="text-xl font-bold tabular-nums text-foreground md:text-2xl"
+              className="whitespace-nowrap text-xl font-extrabold tabular-nums text-foreground dark:text-white md:text-2xl"
               aria-live="polite"
             >
               {formatTime(currentTime)}
             </span>
-            <span className="text-sm text-muted-foreground">{formatDate(currentTime)}</span>
+            <span className="whitespace-nowrap text-sm font-semibold text-foreground/80 dark:text-white/85">
+              {formatDate(currentTime)}
+            </span>
           </div>
         </header>
 

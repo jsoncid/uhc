@@ -15,7 +15,9 @@ const Header = () => {
   const [mobileMenu, setMobileMenu] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
-  const shouldHideSearch = location.pathname.startsWith('/module-1/queue-display');
+  const shouldHideSearch =
+    location.pathname.startsWith('/queueing/queue-display') ||
+    location.pathname.startsWith('/module-1/queue-display');
 
   const handleScroll = useEffectEvent(() => {
     if (window.scrollY > 50) {

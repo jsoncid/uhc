@@ -7,7 +7,9 @@ import { Icon } from '@iconify/react';
 const FullLayout: FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
-  const isQueueDisplayRoute = location.pathname.startsWith('/module-1/queue-display');
+  const isQueueDisplayRoute =
+    location.pathname.startsWith('/queueing/queue-display') ||
+    location.pathname.startsWith('/module-1/queue-display');
 
   const contentClassName = isQueueDisplayRoute
     ? 'w-full max-w-none p-0'
