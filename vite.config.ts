@@ -39,7 +39,7 @@ export default defineConfig({
     outDir: 'dist',
   },
   preview: {
-    allowedHosts: ['.sslip.io'],
+    allowedHosts: ['.sslip.io', '.adncn.org'],
   },
   plugins: [svgr(), react()],
 });
