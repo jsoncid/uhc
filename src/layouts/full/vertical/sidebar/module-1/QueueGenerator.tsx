@@ -542,33 +542,33 @@ const QueueGenerator = () => {
       <BreadcrumbComp title="Queue Code Generator" items={BCrumb} />
 
       <div className="flex justify-center items-center min-h-[60vh]">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Customer Check-in</CardTitle>
-            <CardDescription className="text-base">Select an office and queue type to get your number.</CardDescription>
+        <Card className="w-full max-w-xl">
+          <CardHeader className="text-center space-y-1">
+            <CardTitle className="text-3xl">Customer Check-in</CardTitle>
+            <CardDescription className="text-lg">Select an office and queue type to get your number.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label className="text-base font-semibold">Select Office</Label>
+          <CardContent className="space-y-7">
+            <div className="space-y-3">
+              <Label className="text-lg font-semibold">Select Office</Label>
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-12 px-4 text-base justify-between"
+                className="w-full h-14 px-5 text-lg justify-between"
                 onClick={() => setIsOfficeDialogOpen(true)}
                 disabled={isLoading || activeOffices.length === 0}
               >
                 <span className={`truncate ${selectedOfficeData ? 'text-black' : 'text-muted-foreground'}`}>
                   {selectedOfficeData?.description || 'Choose an office'}
                 </span>
-                <ChevronsUpDown className="h-4 w-4 opacity-60" />
+                <ChevronsUpDown className="h-5 w-5 opacity-60" />
               </Button>
               {activeOffices.length === 0 && !isLoading ? (
                 <p className="text-sm text-muted-foreground">No offices available.</p>
               ) : null}
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-base font-semibold">Select Priority Type</Label>
+            <div className="space-y-3">
+              <Label className="text-lg font-semibold">Select Priority Type</Label>
               {priorities.length > 0 ? (
                 <Select
                   value={selectedPriority}
@@ -576,15 +576,15 @@ const QueueGenerator = () => {
                   disabled={isLoading}
                 >
                   <SelectTrigger
-                    className={`w-full !h-12 data-[size=default]:!h-12 !px-4 !text-base justify-between ${selectedPriorityColors ? `border-2 ${selectedPriorityColors.border}` : ''}`}
+                    className={`w-full !h-14 data-[size=default]:!h-14 !px-5 !text-lg justify-between ${selectedPriorityColors ? `border-2 ${selectedPriorityColors.border}` : ''}`}
                   >
-                    <SelectValue className="text-base" placeholder="Choose a priority type" />
+                    <SelectValue className="text-lg" placeholder="Choose a priority type" />
                   </SelectTrigger>
-                  <SelectContent className="w-[var(--radix-select-trigger-width)] min-w-[var(--radix-select-trigger-width)] text-base">
+                  <SelectContent className="w-[var(--radix-select-trigger-width)] min-w-[var(--radix-select-trigger-width)] text-lg">
                     {priorities.map((priority) => {
                       const colors = getPriorityColor(priority.description);
                       return (
-                        <SelectItem key={priority.id} value={priority.id} className="py-3 text-base">
+                        <SelectItem key={priority.id} value={priority.id} className="py-3.5 text-base">
                           <div className="flex items-center gap-3">
                             <span className={`w-4 h-4 rounded-full ${colors.bg.split(' ')[0]}`} />
                             {priority.description || priority.id}
@@ -608,25 +608,8 @@ const QueueGenerator = () => {
               )}
             </div>
 
-            {selectedPriorityData && (
-              <div
-                className={`p-3 rounded-lg border-2 ${selectedPriorityColors?.border} ${selectedPriorityColors?.badge}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-medium">Selected Priority:</span>
-                  <span className={`text-lg font-bold ${selectedPriorityColors?.text}`}>
-                    {selectedPriorityData.description}
-                  </span>
-                </div>
-              </div>
-            )}
-
             <Button
-              className={`w-full text-lg py-6 ${
-                selectedPriorityColors
-                  ? selectedPriorityColors.bg
-                  : 'bg-primary hover:bg-primary/90'
-              }`}
+              className="w-full text-2xl py-7 bg-primary hover:bg-primary/90"
               onClick={handleGenerateCode}
               disabled={!isFormValid || isLoading}
             >
