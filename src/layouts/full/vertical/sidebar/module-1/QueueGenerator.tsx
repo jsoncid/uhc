@@ -26,6 +26,7 @@ const QUEUE_TICKET_WIDTH_MM = '82.5';
 const QUEUE_TICKET_HEIGHT_MM = '100';
 const QUEUE_TICKET_WIDTH_IN = Number(QUEUE_TICKET_WIDTH_MM) / 25.4;
 const QUEUE_TICKET_HEIGHT_IN = Number(QUEUE_TICKET_HEIGHT_MM) / 25.4;
+const QUEUE_CODE_COLOR = '#dc2626';
 
 const PRIORITY_PRINT_COLORS: Record<string, { code: string; badgeBg: string; badgeText: string }> = {
   regular: { code: '#16a34a', badgeBg: '#dcfce7', badgeText: '#166534' },
@@ -177,7 +178,7 @@ const QueueGenerator = () => {
             .ticket {
               width: 100%;
               height: 100%;
-              border: 1px dashed #6b7280;
+              border: none;
               border-radius: 2mm;
               display: flex;
               flex-direction: column;
@@ -207,11 +208,11 @@ const QueueGenerator = () => {
             }
             .code {
               margin: 0;
-              font-size: 34px;
+              font-size: 104;
               font-weight: 800;
               letter-spacing: 0.14em;
               line-height: 1;
-              color: ${colors.code};
+              color: ${QUEUE_CODE_COLOR};
             }
             .priority {
               margin-top: 1.6mm;
@@ -235,7 +236,6 @@ const QueueGenerator = () => {
             <div class="ticket">
               <div style="width:100%;">
                 <p class="title">Queue Ticket</p>
-                <p class="office">${safeOffice}</p>
               </div>
               <div class="line"></div>
               <p class="code">${safeCode}</p>
@@ -255,13 +255,12 @@ const QueueGenerator = () => {
     colors: { code: string; badgeBg: string; badgeText: string },
   ) => `
       <div style="width:${QUEUE_TICKET_WIDTH_MM}mm;height:${QUEUE_TICKET_HEIGHT_MM}mm;padding:3mm;box-sizing:border-box;background:#ffffff;font-family:'Consolas','Courier New',monospace;">
-        <div style="width:100%;height:100%;border:1px dashed #6b7280;border-radius:2mm;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;padding:2.5mm 2mm;box-sizing:border-box;">
+        <div style="width:100%;height:100%;border:none;border-radius:2mm;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;padding:2.5mm 2mm;box-sizing:border-box;">
           <div style="width:100%;">
             <p style="margin:0;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">Queue Ticket</p>
-            <p style="margin:1.2mm 0 0;font-size:10px;color:#4b5563;text-transform:uppercase;line-height:1.2;">${safeOffice}</p>
           </div>
           <div style="width:100%;border-top:1px dashed #d1d5db;margin:1.8mm 0;"></div>
-          <p style="margin:0;font-size:34px;font-weight:800;letter-spacing:0.14em;line-height:1;color:${colors.code};">${safeCode}</p>
+          <p style="margin:0;font-size:104px;font-weight:800;letter-spacing:0.14em;line-height:1;color:${QUEUE_CODE_COLOR};">${safeCode}</p>
           <p style="margin-top:1.6mm;font-size:10.5px;font-weight:700;color:${colors.badgeText};background:${colors.badgeBg};border-radius:999px;padding:1mm 3mm;text-transform:uppercase;">${safePriority}</p>
           <p style="margin:0;font-size:9px;color:#6b7280;">${safeGeneratedAt}</p>
         </div>
@@ -463,7 +462,7 @@ const QueueGenerator = () => {
     : null;
 
   const renderQueueTicketCard = () => (
-    <div className="queue-ticket-card flex h-full flex-col items-center justify-between rounded-md border border-dashed border-gray-400 bg-white px-4 py-4 text-center font-mono">
+    <div className="queue-ticket-card flex h-full flex-col items-center justify-between rounded-md bg-white px-4 py-4 text-center font-mono">
       <div className="w-full">
         <span className="text-[13px] font-bold tracking-[0.1em] uppercase">Queue Ticket</span>
       </div>
@@ -472,7 +471,7 @@ const QueueGenerator = () => {
       </span>
       <div className="h-px w-full bg-gray-300" />
       <span
-        className={`text-[68px] leading-none font-black tracking-[0.14em] ${getPriorityColor(selectedPriorityName).text}`}
+        className="text-[68px] leading-none font-black tracking-[0.14em] text-red-600"
       >
         {queueCode}
       </span>
