@@ -557,7 +557,9 @@ const QueueGenerator = () => {
                 onClick={() => setIsOfficeDialogOpen(true)}
                 disabled={isLoading || activeOffices.length === 0}
               >
-                <span className="truncate">{selectedOfficeData?.description || 'Choose an office'}</span>
+                <span className={`truncate ${selectedOfficeData ? 'text-black' : 'text-muted-foreground'}`}>
+                  {selectedOfficeData?.description || 'Choose an office'}
+                </span>
                 <ChevronsUpDown className="h-4 w-4 opacity-60" />
               </Button>
               {activeOffices.length === 0 && !isLoading ? (
@@ -574,7 +576,7 @@ const QueueGenerator = () => {
                   disabled={isLoading}
                 >
                   <SelectTrigger
-                    className={`w-full h-12 px-4 text-base ${selectedPriorityColors ? `border-2 ${selectedPriorityColors.border}` : ''}`}
+                    className={`w-full !h-12 data-[size=default]:!h-12 !px-4 !text-base justify-between ${selectedPriorityColors ? `border-2 ${selectedPriorityColors.border}` : ''}`}
                   >
                     <SelectValue className="text-base" placeholder="Choose a priority type" />
                   </SelectTrigger>
@@ -677,9 +679,9 @@ const QueueGenerator = () => {
                           setSelectedOffice(office.id);
                           setIsOfficeDialogOpen(false);
                         }}
-                        className="h-14 rounded-md border border-border/60 px-4 text-base"
+                        className={`h-14 rounded-md border border-border/60 px-4 text-base data-[selected=true]:text-black ${isSelected ? 'bg-lightprimary text-black border-primary/40' : ''}`}
                       >
-                        <span className="truncate font-medium">
+                        <span className={`truncate font-medium ${isSelected ? 'text-black' : ''}`}>
                           {office.description || 'Unnamed Office'}
                         </span>
                         <Check
