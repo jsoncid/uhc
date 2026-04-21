@@ -4,9 +4,6 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
@@ -24,6 +21,32 @@ import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Generator' }];
+
+const LONG_BOND_WIDTH_IN = 8.5;
+const LONG_BOND_HEIGHT_IN = 13;
+const QUEUE_TICKET_COLUMNS = 3;
+const QUEUE_TICKET_ROWS = 4;
+const QUEUE_TICKET_WIDTH_IN = LONG_BOND_WIDTH_IN / QUEUE_TICKET_COLUMNS;
+const QUEUE_TICKET_HEIGHT_IN = LONG_BOND_HEIGHT_IN / QUEUE_TICKET_ROWS;
+const QUEUE_TICKET_WIDTH_MM = (QUEUE_TICKET_WIDTH_IN * 25.4).toFixed(2);
+const QUEUE_TICKET_HEIGHT_MM = (QUEUE_TICKET_HEIGHT_IN * 25.4).toFixed(2);
+
+const PRIORITY_PRINT_COLORS: Record<string, { code: string; badgeBg: string; badgeText: string }> = {
+  regular: { code: '#16a34a', badgeBg: '#dcfce7', badgeText: '#166534' },
+  senior: { code: '#2563eb', badgeBg: '#dbeafe', badgeText: '#1e3a8a' },
+  pwd: { code: '#9333ea', badgeBg: '#f3e8ff', badgeText: '#6b21a8' },
+  priority: { code: '#dc2626', badgeBg: '#fee2e2', badgeText: '#991b1b' },
+  urgent: { code: '#ea580c', badgeBg: '#ffedd5', badgeText: '#9a3412' },
+  vip: { code: '#ca8a04', badgeBg: '#fef9c3', badgeText: '#854d0e' },
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; badge: string; border: string }> =
   {
@@ -72,6 +95,7 @@ const QueueGenerator = () => {
   const [selectedPriorityName, setSelectedPriorityName] = useState('');
   const [selectedOffice, setSelectedOffice] = useState('');
   const [selectedOfficeName, setSelectedOfficeName] = useState('');
+  const [generatedAt, setGeneratedAt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
   const { profile, loading: profileLoading } = useUserProfile();
@@ -109,6 +133,14 @@ const QueueGenerator = () => {
     return PRIORITY_COLORS.regular;
   };
 
+  const getPriorityPrintColor = (description: string) => {
+    const desc = description.toLowerCase();
+    for (const [key, colors] of Object.entries(PRIORITY_PRINT_COLORS)) {
+      if (desc.includes(key)) return colors;
+    }
+    return PRIORITY_PRINT_COLORS.regular;
+  };
+
   const handleGenerateCode = async () => {
     if (!selectedOffice || !selectedPriority) return;
 
@@ -124,9 +156,165 @@ const QueueGenerator = () => {
       const priority = priorities.find((p) => p.id === selectedPriority);
       const priorityName = priority?.description || '';
       setSelectedPriorityName(priorityName);
+      setGeneratedAt(new Date().toLocaleString());
       setIsDialogOpen(true);
       // Notification is handled automatically via Postgres Changes on sequence table
     }
+  };
+
+  const handlePrintDialog = () => {
+    if (!queueCode) return;
+
+    const colors = getPriorityPrintColor(selectedPriorityName || 'regular');
+    const safeOffice = escapeHtml(selectedOfficeName || '');
+    const safeCode = escapeHtml(queueCode);
+    const safePriority = escapeHtml(selectedPriorityName || 'Regular');
+    const safeGeneratedAt = escapeHtml(generatedAt || '');
+
+    const printFrame = document.createElement('iframe');
+    printFrame.setAttribute('aria-hidden', 'true');
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+    document.body.appendChild(printFrame);
+
+    const frameWindow = printFrame.contentWindow;
+    const frameDocument = frameWindow?.document;
+
+    if (!frameWindow || !frameDocument) {
+      document.body.removeChild(printFrame);
+      return;
+    }
+
+    let hasPrinted = false;
+    const cleanup = () => {
+      if (!document.body.contains(printFrame)) return;
+      document.body.removeChild(printFrame);
+    };
+
+    const printReceipt = () => {
+      if (hasPrinted) return;
+      hasPrinted = true;
+
+      frameWindow.onafterprint = cleanup;
+      frameWindow.focus();
+      frameWindow.print();
+
+      // Fallback cleanup if afterprint is not emitted.
+      window.setTimeout(cleanup, 1200);
+    };
+
+    printFrame.onload = printReceipt;
+
+    frameDocument.open();
+    frameDocument.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Queue Ticket</title>
+          <style>
+            @page {
+              size: ${QUEUE_TICKET_WIDTH_MM}mm ${QUEUE_TICKET_HEIGHT_MM}mm;
+              margin: 0;
+            }
+            * {
+              box-sizing: border-box;
+            }
+            html,
+            body {
+              margin: 0;
+              padding: 0;
+              width: ${QUEUE_TICKET_WIDTH_MM}mm;
+              height: ${QUEUE_TICKET_HEIGHT_MM}mm;
+              background: #ffffff;
+              overflow: hidden;
+              font-family: "Consolas", "Courier New", monospace;
+            }
+            .ticket-wrap {
+              width: 100%;
+              height: 100%;
+              padding: 3mm;
+            }
+            .ticket {
+              width: 100%;
+              height: 100%;
+              border: 1px dashed #6b7280;
+              border-radius: 2mm;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              align-items: center;
+              text-align: center;
+              padding: 2.5mm 2mm;
+            }
+            .title {
+              margin: 0;
+              font-size: 11px;
+              font-weight: 700;
+              letter-spacing: 0.08em;
+              text-transform: uppercase;
+            }
+            .office {
+              margin: 1.2mm 0 0;
+              font-size: 8.5px;
+              color: #4b5563;
+              text-transform: uppercase;
+              line-height: 1.2;
+            }
+            .line {
+              width: 100%;
+              border-top: 1px dashed #d1d5db;
+              margin: 1.8mm 0;
+            }
+            .code {
+              margin: 0;
+              font-size: 28px;
+              font-weight: 800;
+              letter-spacing: 0.14em;
+              line-height: 1;
+              color: ${colors.code};
+            }
+            .priority {
+              margin-top: 1.6mm;
+              font-size: 9px;
+              font-weight: 700;
+              color: ${colors.badgeText};
+              background: ${colors.badgeBg};
+              border-radius: 999px;
+              padding: 1mm 3mm;
+              text-transform: uppercase;
+            }
+            .datetime {
+              margin: 0;
+              font-size: 7.8px;
+              color: #6b7280;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="ticket-wrap">
+            <div class="ticket">
+              <div style="width:100%;">
+                <p class="title">Queue Ticket</p>
+                <p class="office">${safeOffice}</p>
+              </div>
+              <div class="line"></div>
+              <p class="code">${safeCode}</p>
+              <p class="priority">${safePriority}</p>
+              <p class="datetime">${safeGeneratedAt}</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    frameDocument.close();
+
+    // Some browsers skip iframe onload when content is injected quickly.
+    window.setTimeout(printReceipt, 160);
   };
 
   const isFormValid = !!selectedOffice && !!selectedPriority;
@@ -136,6 +324,29 @@ const QueueGenerator = () => {
   const selectedPriorityColors = selectedPriorityData
     ? getPriorityColor(selectedPriorityData.description)
     : null;
+
+  const renderQueueTicketCard = () => (
+    <div className="queue-ticket-card flex h-full flex-col items-center justify-between rounded-md border border-dashed border-gray-400 bg-white px-3 py-3 text-center font-mono">
+      <div className="w-full">
+        <span className="text-[11px] font-bold tracking-[0.1em] uppercase">Queue Ticket</span>
+      </div>
+      <span className="text-[9px] font-medium leading-tight text-muted-foreground text-center uppercase">
+        {selectedOfficeName}
+      </span>
+      <div className="h-px w-full bg-gray-300" />
+      <span
+        className={`text-[56px] leading-none font-black tracking-[0.14em] ${getPriorityColor(selectedPriorityName).text}`}
+      >
+        {queueCode}
+      </span>
+      <span
+        className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase ${getPriorityColor(selectedPriorityName).badge}`}
+      >
+        {selectedPriorityName}
+      </span>
+      <span className="text-[8px] text-muted-foreground">{generatedAt}</span>
+    </div>
+  );
 
   return (
     <>
@@ -239,28 +450,21 @@ const QueueGenerator = () => {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-center">Your Queue Code</DialogTitle>
-            <DialogDescription className="text-center">
-              Please wait for your code to be called.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center py-8 space-y-4">
-            <span className="text-sm text-muted-foreground">{selectedOfficeName}</span>
-            <span
-              className={`text-6xl font-bold tracking-widest ${getPriorityColor(selectedPriorityName).text}`}
-            >
-              {queueCode}
-            </span>
-            <span
-              className={`text-sm font-medium px-3 py-1 rounded-full ${getPriorityColor(selectedPriorityName).badge}`}
-            >
-              {selectedPriorityName}
-            </span>
+        <DialogContent
+          className="sm:max-w-none max-w-none p-0"
+          style={{ width: `${QUEUE_TICKET_WIDTH_IN}in` }}
+        >
+          <div
+            className="p-4"
+            style={{ width: `${QUEUE_TICKET_WIDTH_IN}in`, minHeight: `${QUEUE_TICKET_HEIGHT_IN}in` }}
+          >
+            {renderQueueTicketCard()}
           </div>
-          <DialogFooter className="sm:justify-center">
-            <Button onClick={() => setIsDialogOpen(false)}>Close</Button>
+          <DialogFooter id="queue-print-actions" className="sm:justify-center gap-2">
+            <Button onClick={handlePrintDialog}>Print</Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
