@@ -10,9 +10,9 @@ import { supabase } from '@/lib/supabase';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 
-const REPEAT_COUNT = 3; // how many times to announce
-const PAUSE_BETWEEN_MS = 800; // pause between each announcement
-const POPUP_GAP_MS = 600; // gap after speech before picking up the next item
+const REPEAT_COUNT = 2; // how many times to announce
+const PAUSE_BETWEEN_MS = 250; // pause between each announcement
+const POPUP_GAP_MS = 250; // gap after speech before picking up the next item
 const MAX_OFFICES_PER_ROW = 7;
 const MAX_WAITING_PER_COLUMN = 6;
 const SCREEN_SIDE_MARGIN_PX = 8;
@@ -77,7 +77,7 @@ function getFemaleVoice(): SpeechSynthesisVoice | null {
 }
 
 /** Speak `text` exactly `times` times, with a pause between each. Calls `onDone` when finished. */
-function speakRepeat(text: string, times: number, onDone: () => void): void {
+function speakRepeat(text: string, times: number, onDone: () => void, rate?: number): void {
   window.speechSynthesis.cancel();
 
   let count = 0;
@@ -86,8 +86,8 @@ function speakRepeat(text: string, times: number, onDone: () => void): void {
     const utter = new SpeechSynthesisUtterance(text);
     const voice = getFemaleVoice();
     if (voice) utter.voice = voice;
-    utter.pitch = 1.15;
-    utter.rate = 0.95;
+    utter.pitch = 1.05;
+    utter.rate = rate ?? 0.85; // default slower pace, or per-call override
 
     utter.onend = () => {
       count++;
@@ -259,24 +259,27 @@ const QueueDisplay = () => {
     setNotifQueue((prev) => prev.slice(1));
     setActiveNotif(next);
 
+/** Format a queue code so each letter is spoken with a longer pause, e.g. "ABX" → "A...... B...... C...... " */
+function formatQueueCodeForSpeech(code: string): string {
+  return ((code || '').split('').join('... ') + '... ');
+}
+
+    const spokenCode = formatQueueCodeForSpeech(next.queueCode);
+    // Announce once: "Now calling, V...... A...... X...... , at the office. Please proceed to Window 1."
     const announcement =
-      `Now calling, ${next.spokenCode ?? next.queueCode} at ${next.officeName || 'the office'}. ` +
-      `Please proceed to ${next.windowLabel}.`;
+      `Now calling, ${spokenCode}to ${next.officeName || 'the office'}. Please proceed to ${next.windowLabel}.`;
 
     speakRepeat(announcement, REPEAT_COUNT, () => {
       setTimeout(() => {
-        // Notify StaffQueueManager the announcement is done so Ping button re-enables
         pingChRef.current?.send({
           type: 'broadcast',
           event: 'ping-done',
           payload: { sequenceId: next.id },
         });
-        setActiveNotif(null); // state change → effect re-runs → picks up next item
+        setActiveNotif(null);
       }, POPUP_GAP_MS);
-    });
+    }, 0.85);
   }, [notifQueue, activeNotif]);
-
-  // Subscribe to ping broadcasts sent by staff — bypasses seenIds so it always re-announces
   useEffect(() => {
     const ch = supabase
       .channel('queue-ping-broadcast', { config: { broadcast: { self: true } } })
@@ -287,7 +290,6 @@ const QueueDisplay = () => {
         if (!isOwnOffice) return;
 
         const code = (payload.queueCode as string) || '---';
-        const spokenCode = code.split('').join(' ');
         // Use the real sequenceId as the notification id so the blink matches seq.id in the display
         const notifId = (payload.sequenceId as string) || `ping-${Date.now()}`;
         setNotifQueue((prev) => [
@@ -299,7 +301,6 @@ const QueueDisplay = () => {
             officeName: (payload.officeName as string) || '',
             priorityText: (payload.priorityDesc as string) || 'Regular',
             priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
-            ...({ spokenCode } as { spokenCode: string }),
           } as CallNotification,
         ]);
       })
