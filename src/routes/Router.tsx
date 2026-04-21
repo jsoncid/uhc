@@ -41,15 +41,6 @@ const CreateTickets = Loadable(lazy(() => import('../views/apps/tickets/CreateTi
 const Blog = Loadable(lazy(() => import('../views/apps/blog/Blog')));
 const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')));
 
-// RBAC Pages
-const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
-const ModuleManagement = Loadable(lazy(() => import('../views/rbac/ModuleManagement')));
-const RoleManagement = Loadable(lazy(() => import('../views/rbac/RoleManagement')));
-const UserAssignmentManagement = Loadable(
-  lazy(() => import('../views/rbac/UserAssignmentManagement')),
-);
-const UserAcceptance = Loadable(lazy(() => import('../views/rbac/UserAcceptance')));
-
 const Error = Loadable(lazy(() => import('../views/authentication/Error')));
 const Unauthorized = Loadable(lazy(() => import('../views/authentication/Unauthorized')));
 
@@ -169,43 +160,23 @@ const Router = [
       // RBAC Routes
       {
         path: '/rbac/assignments',
-        element: (
-          <ProtectedRoute>
-            <AssignmentManagement />
-          </ProtectedRoute>
-        ),
+        element: <Navigate to="/auth/unauthorized" replace />,
       },
       {
         path: '/rbac/modules',
-        element: (
-          <ProtectedRoute>
-            <ModuleManagement />
-          </ProtectedRoute>
-        ),
+        element: <Navigate to="/auth/unauthorized" replace />,
       },
       {
         path: '/rbac/roles',
-        element: (
-          <ProtectedRoute>
-            <RoleManagement />
-          </ProtectedRoute>
-        ),
+        element: <Navigate to="/auth/unauthorized" replace />,
       },
       {
         path: '/rbac/user-assignments',
-        element: (
-          <ProtectedRoute>
-            <UserAssignmentManagement />
-          </ProtectedRoute>
-        ),
+        element: <Navigate to="/auth/unauthorized" replace />,
       },
       {
         path: '/rbac/user-acceptance',
-        element: (
-          <ProtectedRoute>
-            <UserAcceptance />
-          </ProtectedRoute>
-        ),
+        element: <Navigate to="/auth/unauthorized" replace />,
       },
       { path: '*', element: <Navigate to="/auth/404" /> },
     ],
