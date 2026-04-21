@@ -530,7 +530,7 @@ const QueueGenerator = () => {
       <BreadcrumbComp title="Queue Code Generator" items={BCrumb} />
 
       <div className="flex justify-center items-center min-h-[60vh]">
-        <Card className="w-full max-w-xl">
+        <Card className="w-full max-w-xl border border-border/80 dark:border-white/20 bg-background/70 dark:bg-background/60 shadow-[0_6px_16px_rgba(0,0,0,0.20)]">
           <CardHeader className="text-center space-y-1">
             <CardTitle className="text-3xl">Customer Check-in</CardTitle>
             <CardDescription className="text-lg">Select an office and queue type to get your number.</CardDescription>
@@ -650,7 +650,7 @@ const QueueGenerator = () => {
                           setSelectedOffice(office.id);
                           setIsOfficeDialogOpen(false);
                         }}
-                        className={`h-14 rounded-md border px-4 text-base transition-all duration-200 bg-background/60 dark:bg-background/40 border-border/80 dark:border-white/20 shadow-[0_2px_10px_rgba(0,0,0,0.22)] hover:-translate-y-[1px] hover:border-primary/50 hover:shadow-[0_10px_24px_rgba(0,0,0,0.34)] data-[selected=true]:text-black dark:data-[selected=true]:text-white ${isSelected ? 'bg-lightprimary text-black dark:text-white border-primary/60 ring-1 ring-primary/30 shadow-[0_12px_26px_rgba(34,197,94,0.24)]' : ''}`}
+                        className={`h-14 rounded-md border px-4 text-base bg-background/60 dark:bg-background/40 border-border/80 dark:border-white/20 shadow-[0_4px_12px_rgba(0,0,0,0.20)] data-[selected=true]:text-black dark:data-[selected=true]:text-white ${isSelected ? 'bg-lightprimary text-black dark:text-white border-primary/60 ring-1 ring-primary/30 shadow-[0_6px_14px_rgba(34,197,94,0.18)]' : ''}`}
                       >
                         <span className={`truncate font-medium ${isSelected ? 'text-black dark:text-white' : ''}`}>
                           {office.description || 'Unnamed Office'}
