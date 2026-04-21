@@ -15,8 +15,11 @@ const PAUSE_BETWEEN_MS = 250; // pause between each announcement
 const POPUP_GAP_MS = 250; // gap after speech before picking up the next item
 const MAX_OFFICES_PER_ROW = 7;
 const MAX_WAITING_PER_COLUMN = 6;
+
+// Full-bleed spacing and persisted office order key.
 const SCREEN_SIDE_MARGIN_PX = 8;
 const OFFICE_ORDER_STORAGE_KEY = 'queue-display-office-order-v1';
+const QUEUE_UI_SCALE = 1.79;
 
 interface CallNotification {
   id: string;
@@ -327,6 +330,8 @@ function formatQueueCodeForSpeech(code: string): string {
 
   const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
+  // Load any previously saved office order from localStorage.
+  // This preserves the drag arrangement after page refresh.
   useEffect(() => {
     if (typeof window === 'undefined') {
       setIsOfficeOrderHydrated(true);
@@ -351,11 +356,15 @@ function formatQueueCodeForSpeech(code: string): string {
     }
   }, []);
 
+  // Persist office order whenever it changes.
   useEffect(() => {
     if (!isOfficeOrderHydrated || typeof window === 'undefined') return;
     window.localStorage.setItem(OFFICE_ORDER_STORAGE_KEY, JSON.stringify(officeOrderIds));
   }, [officeOrderIds, isOfficeOrderHydrated]);
 
+  // Keep the saved order in sync with active offices.
+  // 1) remove ids that are no longer active
+  // 2) append newly active offices at the end
   useEffect(() => {
     const activeIds = activeOffices.map((office) => office.id);
     setOfficeOrderIds((prev) => {
@@ -373,6 +382,7 @@ function formatQueueCodeForSpeech(code: string): string {
     });
   }, [activeOffices]);
 
+  // Materialize ordered office objects from the id list.
   const orderedActiveOffices = useMemo(() => {
     if (officeOrderIds.length === 0) return activeOffices;
 
@@ -382,6 +392,7 @@ function formatQueueCodeForSpeech(code: string): string {
       .filter((office): office is Office => Boolean(office));
   }, [activeOffices, officeOrderIds]);
 
+  // Move one office id before/into another position during drag reorder.
   const moveOffice = (sourceId: string, targetId: string) => {
     if (sourceId === targetId) return;
 
@@ -397,6 +408,7 @@ function formatQueueCodeForSpeech(code: string): string {
     });
   };
 
+  // Drag and drop handlers for office card rearrangement.
   const handleOfficeDragStart = (event: DragEvent<HTMLDivElement>, officeId: string) => {
     setDraggedOfficeId(officeId);
     setDragOverOfficeId(officeId);
@@ -430,13 +442,18 @@ function formatQueueCodeForSpeech(code: string): string {
     setDragOverOfficeId(null);
   };
 
-  const fullBleedStyle = useMemo(
+  const queueScaledStyle = useMemo(
     () => ({
-      width: `calc(100vw - ${SCREEN_SIDE_MARGIN_PX * 2}px)`,
-      marginLeft: `calc(50% - 50vw + ${SCREEN_SIDE_MARGIN_PX}px)`,
-      marginRight: `calc(50% - 50vw + ${SCREEN_SIDE_MARGIN_PX}px)`,
+      width: isDisplayMode
+        ? `calc((100vw - ${SCREEN_SIDE_MARGIN_PX * 2}px) / ${QUEUE_UI_SCALE})`
+        : `calc(100% / ${QUEUE_UI_SCALE})`,
+      height: `calc(100vh / ${QUEUE_UI_SCALE})`,
+      marginLeft: isDisplayMode ? `calc(50% - 50vw + ${SCREEN_SIDE_MARGIN_PX}px)` : 0,
+      marginRight: isDisplayMode ? `calc(50% - 50vw + ${SCREEN_SIDE_MARGIN_PX}px)` : 0,
+      transform: `scale(${QUEUE_UI_SCALE})`,
+      transformOrigin: 'top left',
     }),
-    [],
+    [isDisplayMode],
   );
 
   const isLoading = profileLoading || officesLoading || queueLoading;
@@ -455,13 +472,13 @@ function formatQueueCodeForSpeech(code: string): string {
   return (
     <>
       <div
-        style={fullBleedStyle}
+        style={queueScaledStyle}
         className={`flex h-screen flex-col overflow-hidden text-foreground ${
           isDisplayMode ? 'px-0 py-1 md:py-1.5' : 'px-0 py-1 md:py-1.5'
-        } gap-1`}
+        } gap-1.5 md:gap-2`}
       >
         {/* Header: title + clock */}
-        <header className="flex shrink-0 items-center justify-between border-b border-border pb-2">
+        <header className="flex shrink-0 items-center justify-between border-b border-border pb-2.5">
           <h1 className="flex items-center gap-3 text-lg font-bold tracking-wide text-foreground md:text-xl">
             <img
               src={darkLogo}
@@ -475,7 +492,7 @@ function formatQueueCodeForSpeech(code: string): string {
             />
             Queue Display
           </h1>
-          <div className="flex items-baseline gap-4">
+          <div className="flex items-center gap-3 pr-1">
             <div className="flex items-center gap-2">
               {staticPriorityLegend.map((item) => (
                 <div key={item.label} className="flex items-center gap-1">
@@ -486,21 +503,23 @@ function formatQueueCodeForSpeech(code: string): string {
             </div>
             <div className="h-6 w-px bg-border" />
             <span
-              className="text-xl font-bold tabular-nums text-foreground md:text-2xl"
+              className="whitespace-nowrap text-xl font-extrabold tabular-nums text-foreground dark:text-white md:text-2xl"
               aria-live="polite"
             >
               {formatTime(currentTime)}
             </span>
-            <span className="text-sm text-muted-foreground">{formatDate(currentTime)}</span>
+            <span className="whitespace-nowrap text-sm font-semibold text-foreground/80 dark:text-white/85">
+              {formatDate(currentTime)}
+            </span>
           </div>
         </header>
 
         {/* Bottom section: per-office columns */}
         <div
-          className="queue-scroll min-h-0 flex-1 grid gap-1.5 overflow-x-hidden overflow-y-auto"
+          className="queue-scroll min-h-0 flex-1 grid gap-2 overflow-x-hidden overflow-y-auto"
           style={{
             gridTemplateColumns: `repeat(${Math.max(1, Math.min(orderedActiveOffices.length, MAX_OFFICES_PER_ROW))}, minmax(0, 1fr))`,
-            gridAutoRows: 'minmax(19rem, 1fr)',
+            gridAutoRows: 'max-content',
           }}
         >
           {orderedActiveOffices.length === 0 ? (
@@ -554,30 +573,28 @@ function formatQueueCodeForSpeech(code: string): string {
               );
               const waitingRegularVisible = waitingRegularEntries.slice(0, MAX_WAITING_PER_COLUMN);
 
+              // Density = max rows shown in either waiting column.
+              // We use this to scale code font sizes and vertical spacing.
               const waitingDensity = Math.max(
                 waitingPriorityVisible.length,
                 waitingRegularVisible.length,
               );
 
-              const servingZoneHeight = '6rem';
-
-              const servingCodeSize = 'clamp(1.48rem, 2.15vw, 1.95rem)';
+              // Queue code typography scale.
+              // Serving size is stable; waiting size adapts by density for readability.
+              const servingCodeSize = 'clamp(1.92rem, 2.8vw, 2.54rem)';
               const waitingCodeSize =
                 waitingDensity >= 6
-                  ? 'clamp(1.12rem, 1.58vw, 1.38rem)'
+                  ? 'clamp(1.14rem, 1.56vw, 1.37rem)'
                   : waitingDensity === 5
-                    ? 'clamp(1.2rem, 1.78vw, 1.52rem)'
+                    ? 'clamp(1.25rem, 1.76vw, 1.51rem)'
                     : waitingDensity === 4
-                      ? 'clamp(1.3rem, 1.95vw, 1.68rem)'
-                      : 'clamp(1.5rem, 2.3vw, 2.05rem)';
-              const waitingListGapClass =
-                waitingDensity >= 6
-                  ? 'space-y-0'
-                  : waitingDensity >= 5
-                    ? 'space-y-0.5'
-                    : 'space-y-1';
+                      ? 'clamp(1.35rem, 1.95vw, 1.64rem)'
+                      : 'clamp(1.53rem, 2.34vw, 1.95rem)';
+
+              // Small heading adjustments in dense layouts to free vertical space.
               const waitingHeadingMarginClass = waitingDensity >= 5 ? 'mb-0.5' : 'mb-1';
-              const waitingCodeLineHeight = 0.95;
+              const waitingCodeLineHeight = 1.12;
 
               return (
                 <div
@@ -592,7 +609,10 @@ function formatQueueCodeForSpeech(code: string): string {
                 >
                   {/* Office header */}
                   <div className="shrink-0 border-b border-border px-2.5 py-0.5">
-                    <p className="wrap-break-word text-center text-base font-bold text-foreground">
+                    <p
+                      className="w-full truncate text-center text-base font-bold text-foreground"
+                      title={officeName}
+                    >
                       {officeName}
                     </p>
                   </div>
@@ -600,16 +620,13 @@ function formatQueueCodeForSpeech(code: string): string {
                   {/* Now serving / waiting — split into two colour zones */}
                   <div className="flex flex-1 flex-col overflow-hidden">
                     {/* ── SERVING zone (green tint) ── */}
-                    <div
-                      className="flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2 py-1 dark:bg-emerald-950/40"
-                      style={{ height: servingZoneHeight }}
-                    >
-                      <span className="self-start text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400/70">
+                    <div className="flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2.5 py-1 dark:bg-emerald-950/40">
+                      <span className="self-start text-[0.7rem] font-bold uppercase tracking-widest text-emerald-950 dark:text-emerald-100">
                         Now Serving
                       </span>
-                      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+                      <div className="flex min-h-0 items-start justify-center overflow-hidden pt-0.5">
                         {servingEntries.length > 0 ? (
-                          <div className="flex w-full min-h-0 flex-col items-center justify-center gap-0.5 overflow-hidden">
+                          <div className="flex w-full min-h-0 flex-col items-center justify-start gap-0.5 overflow-hidden">
                             {servingEntries.map(({ seq, windowLabel, style }) => (
                               <div
                                 key={seq.id}
@@ -645,27 +662,26 @@ function formatQueueCodeForSpeech(code: string): string {
                     <div className="w-full border-t border-dashed border-border" />
 
                     {/* ── WAITING zone (silver/slate tint) ── */}
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100 px-2 py-1 dark:bg-slate-700/30">
-                      <span className="mb-1 self-start text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400/70">
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100 px-2.5 py-1 dark:bg-slate-700/30">
+                      <span className="mb-1 self-start text-[0.7rem] font-bold uppercase tracking-widest text-black dark:text-white/85">
                         Waiting
                       </span>
                       {waitingEntries.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No waiting</p>
+                        <p className="text-xs font-medium text-black dark:text-white/85">
+                          No waiting
+                        </p>
                       ) : (
-                        <div className="grid min-h-0 flex-1 grid-cols-2 items-stretch gap-1">
-                          <div className="flex h-full min-h-0 flex-col px-1 py-0.5">
+                        <div className="grid flex-1 grid-cols-2 items-stretch gap-1">
+                          <div className="flex flex-col px-1 py-0.5">
                             <span
-                              className={`${waitingHeadingMarginClass} text-center text-[10px] font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300/90`}
+                              className={`${waitingHeadingMarginClass} w-full truncate text-center text-[0.7rem] font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300/90`}
                             >
                               Priority
                             </span>
                             {waitingPriorityVisible.length === 0 ? (
                               <div className="flex flex-1" aria-hidden="true" />
                             ) : (
-                              <ul
-                                className={`min-h-0 overflow-hidden ${waitingListGapClass}`}
-                                role="list"
-                              >
+                              <ul className="space-y-1" role="list">
                                 {waitingPriorityVisible.map(({ seq }) => (
                                   <li key={seq.id} className="flex items-center justify-center">
                                     <span
@@ -683,19 +699,16 @@ function formatQueueCodeForSpeech(code: string): string {
                             )}
                           </div>
 
-                          <div className="flex h-full min-h-0 flex-col px-1 py-0.5">
+                          <div className="flex flex-col px-1 py-0.5">
                             <span
-                              className={`${waitingHeadingMarginClass} text-center text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300/90`}
+                              className={`${waitingHeadingMarginClass} w-full truncate text-center text-[0.7rem] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300/90`}
                             >
                               Regular
                             </span>
                             {waitingRegularVisible.length === 0 ? (
                               <div className="flex flex-1" aria-hidden="true" />
                             ) : (
-                              <ul
-                                className={`min-h-0 overflow-hidden ${waitingListGapClass}`}
-                                role="list"
-                              >
+                              <ul className="space-y-1" role="list">
                                 {waitingRegularVisible.map(({ seq }) => (
                                   <li key={seq.id} className="flex items-center justify-center">
                                     <span
@@ -730,6 +743,7 @@ function formatQueueCodeForSpeech(code: string): string {
           50%       { opacity: 0; }
         }
         .queue-blink { animation: blink-queue 0.55s step-end infinite; }
+        /* Hide outer grid scrollbars for a cleaner wall-display look. */
         .queue-scroll {
           -ms-overflow-style: none;
           scrollbar-width: none;
