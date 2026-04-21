@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import {
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 
 export interface WindowItem {
-  id: string;
+  tempId: string;
   name: string;
 }
 
@@ -31,30 +31,36 @@ interface AddOfficeDialogProps {
 
 export const AddOfficeDialog = ({ isOpen, onClose, assignmentId, onSuccess }: AddOfficeDialogProps) => {
   const { addOffice, isLoading: storeLoading, error: storeError } = useOfficeStore();
-  const [formData, setFormData] = useState<OfficeFormData>({
+  const nextWindowTempId = useRef(1);
+  const createEmptyWindow = (): WindowItem => {
+    const window = { tempId: `tmp-${nextWindowTempId.current}`, name: '' };
+    nextWindowTempId.current += 1;
+    return window;
+  };
+  const [formData, setFormData] = useState<OfficeFormData>(() => ({
     officeName: '',
-    windows: [{ id: crypto.randomUUID(), name: '' }],
-  });
+    windows: [createEmptyWindow()],
+  }));
   const [error, setError] = useState<string | null>(null);
 
   const handleAddWindow = () => {
     setFormData((prev) => ({
       ...prev,
-      windows: [...prev.windows, { id: crypto.randomUUID(), name: '' }],
+      windows: [...prev.windows, createEmptyWindow()],
     }));
   };
 
-  const handleRemoveWindow = (id: string) => {
+  const handleRemoveWindow = (tempId: string) => {
     setFormData((prev) => ({
       ...prev,
-      windows: prev.windows.filter((w) => w.id !== id),
+      windows: prev.windows.filter((w) => w.tempId !== tempId),
     }));
   };
 
-  const handleWindowChange = (id: string, value: string) => {
+  const handleWindowChange = (tempId: string, value: string) => {
     setFormData((prev) => ({
       ...prev,
-      windows: prev.windows.map((w) => (w.id === id ? { ...w, name: value } : w)),
+      windows: prev.windows.map((w) => (w.tempId === tempId ? { ...w, name: value } : w)),
     }));
   };
 
@@ -85,9 +91,10 @@ export const AddOfficeDialog = ({ isOpen, onClose, assignmentId, onSuccess }: Ad
   };
 
   const handleClose = () => {
+    nextWindowTempId.current = 1;
     setFormData({
       officeName: '',
-      windows: [{ id: crypto.randomUUID(), name: '' }],
+      windows: [createEmptyWindow()],
     });
     setError(null);
     onClose();
@@ -120,18 +127,18 @@ export const AddOfficeDialog = ({ isOpen, onClose, assignmentId, onSuccess }: Ad
               <Label>Windows</Label>
               <div className="space-y-2">
                 {formData.windows.map((window, index) => (
-                  <div key={window.id} className="flex items-center gap-2">
+                  <div key={window.tempId} className="flex items-center gap-2">
                     <Input
                       placeholder={`e.g., Window ${index + 1}`}
                       value={window.name}
-                      onChange={(e) => handleWindowChange(window.id, e.target.value)}
+                      onChange={(e) => handleWindowChange(window.tempId, e.target.value)}
                     />
                     {formData.windows.length > 1 && (
                       <Button
                         type="button"
                         variant="outline"
                         size="icon"
-                        onClick={() => handleRemoveWindow(window.id)}
+                        onClick={() => handleRemoveWindow(window.tempId)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

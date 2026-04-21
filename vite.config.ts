@@ -38,5 +38,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  preview: {
+    allowedHosts: ['.sslip.io'],
+  },
   plugins: [svgr(), react()],
 });

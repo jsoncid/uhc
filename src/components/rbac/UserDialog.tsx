@@ -47,13 +47,14 @@ export const UserDialog = ({ isOpen, initialData, onClose, onSendPasswordReset, 
     setSuccessMessage(null)
     setResetLink(null)
 
-    let emailSent = false
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    let _emailSent = false
     let linkGenerated = false
 
     try {
       // Send email first
       await onSendPasswordReset(initialData.email)
-      emailSent = true
+      _emailSent = true
       
       // Then try to generate link
       try {

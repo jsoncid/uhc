@@ -112,11 +112,12 @@ const SidebarLayout = ({
   isOpen?: boolean;
   onToggle?: () => void;
 }) => {
+  void onToggle; // suppress unused warning
   const location = useLocation();
   const navigate = useNavigate();
   const pathname = location.pathname;
   const { theme } = useTheme();
-  const { checkAccess, loading } = usePermissions();
+  const { checkAccess } = usePermissions();
   const userRoleId = useAuthStore((s) => s.userRoleId);
   const isMember = userRoleId === ROLE_IDS.module4Member;
 

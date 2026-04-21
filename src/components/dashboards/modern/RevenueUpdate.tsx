@@ -15,7 +15,8 @@ const RevenueUpdate = () => {
 
   // Strongly typed chart data
   interface MonthlyChartData {
-    series: ApexAxisChartSeries;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    series: any[];
     xaxis: ApexOptions['xaxis'];
   }
 

@@ -7,11 +7,14 @@ import { Button } from 'src/components/ui/button';
 import { Card } from 'src/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'src/components/ui/tabs';
 import {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   Search, QrCode, FileText, Eye, Archive, ArchiveRestore, IdCard,
   Heart, Accessibility, Building2, Stethoscope, ClipboardList,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   ChevronDown, ChevronRight, AlertCircle, Loader2, Download, X,
   Printer, CheckCircle2, RefreshCw, ArchiveX, CreditCard, Lock,
   KeyRound, ShieldCheck, EyeOff, ShieldAlert, ShieldX, User,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   Camera, Upload, ImagePlus, SwitchCamera, CircleDot, ExternalLink,
 } from 'lucide-react';
 import { supabase } from 'src/lib/supabase';

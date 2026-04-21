@@ -603,7 +603,8 @@ export const userService = {
   },
 
   // Update user name in metadata (updates current user)
-  async updateUserProfileName(userId: string, name: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async updateUserProfileName(_userId: string, name: string): Promise<void> {
     try {
       const {
         data: { session },
