@@ -1,5 +1,6 @@
 import { useState, useEffect, useEffectEvent } from 'react';
 import { Icon } from '@iconify/react';
+import { useLocation } from 'react-router';
 import Messages from './Messages';
 import FullLogo from '../../shared/logo/FullLogo';
 import Profile from './Profile';
@@ -13,6 +14,8 @@ const Header = () => {
   const [isSticky, setIsSticky] = useState(false);
   const [mobileMenu, setMobileMenu] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const location = useLocation();
+  const shouldHideSearch = location.pathname.startsWith('/module-1/queue-display');
 
   const handleScroll = useEffectEvent(() => {
     if (window.scrollY > 50) {
@@ -66,9 +69,11 @@ const Header = () => {
             <Icon icon="tabler:menu-2" height={20} />
           </span>
 
-          <div className="hidden xl:flex items-center gap-2">
-            <Search />
-          </div>
+          {!shouldHideSearch && (
+            <div className="hidden xl:flex items-center gap-2">
+              <Search />
+            </div>
+          )}
 
           {/* mobile-logo */}
           <div className="block xl:hidden">
