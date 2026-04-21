@@ -250,7 +250,6 @@ const QueueGenerator = () => {
             .line {
               width: 100%;
               border-top: 1px dashed #afb2b6;
-              margin: 1.8mm 0;
             }
             .code {
               margin: 0;
@@ -305,7 +304,7 @@ const QueueGenerator = () => {
           <div style="width:100%;">
             <p style="margin:0;font-size:18px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">Queue Ticket</p>
           </div>
-          <div style="width:100%;border-top:1px dashed #afb2b6;margin:1.8mm 0;"></div>
+          <div style="width:100%;border-top:1px dashed #afb2b6;"></div>
           <p style="margin:0;font-size:104px;font-weight:800;letter-spacing:0.14em;line-height:1;color:${QUEUE_CODE_COLOR};">${safeCode}</p>
           <p style="margin-top:1.6mm;font-size:16.5px;font-weight:700;color:${colors.badgeText};background:${colors.badgeBg};border-radius:999px;padding:1mm 3mm;text-transform:uppercase;">${safePriority}</p>
           <p style="margin:0;font-size:14px;color:#6b7280;">${safeGeneratedAt}</p>
@@ -511,7 +510,7 @@ const QueueGenerator = () => {
       <div className="w-full">
         <span className="text-[13px] font-bold tracking-[0.1em] uppercase">Queue Ticket</span>
       </div>
-      <div className="h-px w-full bg-gray-300" />
+      <div className="h-px w-full border-t border-dashed border-gray-300" />
       <span
         className="text-[68px] leading-none font-black tracking-[0.14em] text-red-600"
       >
