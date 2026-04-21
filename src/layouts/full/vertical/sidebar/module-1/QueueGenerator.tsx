@@ -22,8 +22,8 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Generator' }];
 
-const QUEUE_TICKET_WIDTH_MM = '108';
-const QUEUE_TICKET_HEIGHT_MM = '82.5';
+const QUEUE_TICKET_WIDTH_MM = '82.5';
+const QUEUE_TICKET_HEIGHT_MM = '100';
 const QUEUE_TICKET_WIDTH_IN = Number(QUEUE_TICKET_WIDTH_MM) / 25.4;
 const QUEUE_TICKET_HEIGHT_IN = Number(QUEUE_TICKET_HEIGHT_MM) / 25.4;
 
