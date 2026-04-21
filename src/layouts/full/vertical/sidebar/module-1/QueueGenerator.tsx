@@ -2,6 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -14,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
@@ -27,6 +35,7 @@ const QUEUE_TICKET_HEIGHT_MM = '100';
 const QUEUE_TICKET_WIDTH_IN = Number(QUEUE_TICKET_WIDTH_MM) / 25.4;
 const QUEUE_TICKET_HEIGHT_IN = Number(QUEUE_TICKET_HEIGHT_MM) / 25.4;
 const QUEUE_CODE_COLOR = '#dc2626';
+const OFFICE_GRID_COLUMNS = 3;
 
 const PRIORITY_PRINT_COLORS: Record<string, { code: string; badgeBg: string; badgeText: string }> = {
   regular: { code: '#16a34a', badgeBg: '#dcfce7', badgeText: '#166534' },
@@ -87,6 +96,7 @@ const PRIORITY_COLORS: Record<string, { bg: string; text: string; badge: string;
 
 const QueueGenerator = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isOfficeDialogOpen, setIsOfficeDialogOpen] = useState(false);
   const [queueCode, setQueueCode] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
   const [selectedPriorityName, setSelectedPriorityName] = useState('');
@@ -109,6 +119,41 @@ const QueueGenerator = () => {
     return profile?.assignments?.map((a) => a.id) || [];
   }, [profile?.assignments]);
 
+  const activeOffices = useMemo(
+    () =>
+      offices
+        .filter((office) => office.status)
+        .sort((a, b) =>
+          (a.description || 'Unnamed Office').localeCompare(
+            b.description || 'Unnamed Office',
+            undefined,
+            { sensitivity: 'base', numeric: true },
+          ),
+        ),
+    [offices],
+  );
+
+  const officePickerItems = useMemo(() => {
+    const rows = Math.ceil(activeOffices.length / OFFICE_GRID_COLUMNS);
+    const reordered: typeof activeOffices = [];
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < OFFICE_GRID_COLUMNS; col += 1) {
+        const sourceIndex = col * rows + row;
+        if (sourceIndex < activeOffices.length) {
+          reordered.push(activeOffices[sourceIndex]);
+        }
+      }
+    }
+
+    return reordered;
+  }, [activeOffices]);
+
+  const selectedOfficeData = useMemo(
+    () => activeOffices.find((office) => office.id === selectedOffice),
+    [activeOffices, selectedOffice],
+  );
+
   useEffect(() => {
     fetchPriorities();
   }, [fetchPriorities]);
@@ -119,6 +164,14 @@ const QueueGenerator = () => {
       fetchOffices(userAssignmentIds.length > 0 ? userAssignmentIds : undefined);
     }
   }, [profileLoading, userAssignmentIds, fetchOffices]);
+
+  useEffect(() => {
+    if (!selectedOffice) return;
+
+    if (!activeOffices.some((office) => office.id === selectedOffice)) {
+      setSelectedOffice('');
+    }
+  }, [activeOffices, selectedOffice]);
 
   const getPriorityColor = (description: string | null) => {
     const desc = description?.toLowerCase() || '';
@@ -410,8 +463,8 @@ const QueueGenerator = () => {
 
     if (code) {
       setQueueCode(code);
-      const office = offices.find((o) => o.id === selectedOffice);
-      const officeName = office?.description || '';
+      const office = activeOffices.find((o) => o.id === selectedOffice);
+      const officeName = office?.description || 'Unnamed Office';
       setSelectedOfficeName(officeName);
       const priority = priorities.find((p) => p.id === selectedPriority);
       const priorityName = priority?.description || '';
@@ -497,20 +550,19 @@ const QueueGenerator = () => {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label className="text-base font-semibold">Select Office</Label>
-              <Select value={selectedOffice} onValueChange={setSelectedOffice} disabled={isLoading}>
-                <SelectTrigger className="w-full h-12 px-4 text-base">
-                  <SelectValue className="text-base" placeholder="Choose an office" />
-                </SelectTrigger>
-                <SelectContent className="w-[var(--radix-select-trigger-width)] min-w-[var(--radix-select-trigger-width)] text-base">
-                  {offices
-                    .filter((o) => o.status)
-                    .map((office) => (
-                      <SelectItem key={office.id} value={office.id} className="py-3 text-base">
-                        {office.description || office.id}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-12 px-4 text-base justify-between"
+                onClick={() => setIsOfficeDialogOpen(true)}
+                disabled={isLoading || activeOffices.length === 0}
+              >
+                <span className="truncate">{selectedOfficeData?.description || 'Choose an office'}</span>
+                <ChevronsUpDown className="h-4 w-4 opacity-60" />
+              </Button>
+              {activeOffices.length === 0 && !isLoading ? (
+                <p className="text-sm text-muted-foreground">No offices available.</p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -597,6 +649,51 @@ const QueueGenerator = () => {
           <DialogFooter id="queue-print-actions" className="sm:justify-center gap-2">
             <Button onClick={handlePrintDialog}>Print</Button>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isOfficeDialogOpen} onOpenChange={setIsOfficeDialogOpen}>
+        <DialogContent className="w-[96vw] max-w-5xl p-0 overflow-hidden">
+          <Command>
+            <div className="px-4 pt-4 pb-2">
+              <Label className="text-base font-semibold">Select Office</Label>
+            </div>
+            <CommandInput placeholder="Search office..." />
+            <CommandList className="max-h-[65vh] px-3 pb-3">
+              <CommandEmpty>No office found.</CommandEmpty>
+              <CommandGroup heading="Available offices" className="p-1">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+                  {officePickerItems.map((office) => {
+                    const isSelected = office.id === selectedOffice;
+
+                    return (
+                      <CommandItem
+                        key={office.id}
+                        value={office.description || 'Unnamed Office'}
+                        onSelect={() => {
+                          setSelectedOffice(office.id);
+                          setIsOfficeDialogOpen(false);
+                        }}
+                        className="h-14 rounded-md border border-border/60 px-4 text-base"
+                      >
+                        <span className="truncate font-medium">
+                          {office.description || 'Unnamed Office'}
+                        </span>
+                        <Check
+                          className={`ml-auto h-4 w-4 ${isSelected ? 'opacity-100' : 'opacity-0'}`}
+                        />
+                      </CommandItem>
+                    );
+                  })}
+                </div>
+              </CommandGroup>
+            </CommandList>
+          </Command>
+          <DialogFooter className="px-4 pb-4 pt-2">
+            <Button variant="outline" onClick={() => setIsOfficeDialogOpen(false)}>
               Close
             </Button>
           </DialogFooter>
