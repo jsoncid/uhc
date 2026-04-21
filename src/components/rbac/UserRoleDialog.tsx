@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/dialog'
 import { userService } from '@/services/userService'
 import { roleService } from '@/services/roleService'
+import { useUserProfile } from '@/hooks/useUserProfile'
+import { supabase } from '@/lib/supabase'
 
 interface AuthUser {
   id: string
@@ -55,9 +57,10 @@ export const UserRoleDialog = ({ isOpen, onClose, editingUser, existingUserRoles
   const [userSearchOpen, setUserSearchOpen] = useState(false)
   const [roleSearchTerm, setRoleSearchTerm] = useState('')
   const isEditMode = !!editingUser
+  const { profile, loading: profileLoading } = useUserProfile()
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !profileLoading) {
       fetchData()
       if (editingUser) {
         setSelectedUser(editingUser.id)
@@ -73,15 +76,63 @@ export const UserRoleDialog = ({ isOpen, onClose, editingUser, existingUserRoles
       setSelectedRoleIds(new Set())
       setError(null)
     }
-  }, [isOpen, editingUser, existingUserRoles])
+  }, [isOpen, editingUser, existingUserRoles, profileLoading])
 
   const fetchData = async () => {
     try {
-      const [usersData, rolesData] = await Promise.all([
-        userService.getAllUsers(),
-        roleService.getAllRoles()
-      ])
-      setUsers(usersData)
+      const rolesData = await roleService.getAllRoles()
+      let visibleUsers: AuthUser[] = []
+      const assignmentIds = profile?.assignments?.map((a) => a.id) || []
+
+      // Show users from the same assignment(s) as the current user.
+      if (assignmentIds.length > 0) {
+        const { data: assignmentRows, error: assignmentError } = await supabase
+          .from('user_assignment')
+          .select('user')
+          .in('assignment', assignmentIds)
+
+        if (assignmentError) throw assignmentError
+
+        const assignedUserIds = [
+          ...new Set((assignmentRows || []).map((row) => row.user).filter(Boolean)),
+        ] as string[]
+
+        if (assignedUserIds.length > 0) {
+          try {
+            visibleUsers = await userService.getUsersByIds(assignedUserIds)
+          } catch (batchErr) {
+            // Fallback when backend batch endpoint is unreachable (e.g., CORS in local dev)
+            console.warn('getUsersByIds failed, falling back to user_status:', batchErr)
+            const { data: statusUsers, error: statusError } = await supabase
+              .from('user_status')
+              .select('id, email')
+              .in('id', assignedUserIds)
+
+            if (statusError) throw statusError
+
+            visibleUsers = (statusUsers || []).map((u) => ({
+              id: u.id,
+              email: u.email || undefined,
+              created_at: '',
+            }))
+          }
+        }
+      } else {
+        // Fallback for users without assignment context (e.g., global admins)
+        visibleUsers = await userService.getAllUsers()
+      }
+
+      if (isEditMode && editingUser) {
+        const hasEditingUser = visibleUsers.some((u) => u.id === editingUser.id)
+        if (!hasEditingUser) {
+          visibleUsers = [
+            { id: editingUser.id, email: editingUser.email, created_at: '' },
+            ...visibleUsers,
+          ]
+        }
+      }
+
+      setUsers(visibleUsers)
       setRoles(rolesData)
     } catch (err) {
       setError('Failed to fetch data')
