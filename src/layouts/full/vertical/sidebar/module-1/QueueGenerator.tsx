@@ -22,14 +22,10 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Generator' }];
 
-const LONG_BOND_WIDTH_IN = 8.5;
-const LONG_BOND_HEIGHT_IN = 13;
-const QUEUE_TICKET_COLUMNS = 3;
-const QUEUE_TICKET_ROWS = 4;
-const QUEUE_TICKET_WIDTH_IN = LONG_BOND_WIDTH_IN / QUEUE_TICKET_COLUMNS;
-const QUEUE_TICKET_HEIGHT_IN = LONG_BOND_HEIGHT_IN / QUEUE_TICKET_ROWS;
-const QUEUE_TICKET_WIDTH_MM = (QUEUE_TICKET_WIDTH_IN * 25.4).toFixed(2);
-const QUEUE_TICKET_HEIGHT_MM = (QUEUE_TICKET_HEIGHT_IN * 25.4).toFixed(2);
+const QUEUE_TICKET_WIDTH_MM = '108';
+const QUEUE_TICKET_HEIGHT_MM = '82.5';
+const QUEUE_TICKET_WIDTH_IN = Number(QUEUE_TICKET_WIDTH_MM) / 25.4;
+const QUEUE_TICKET_HEIGHT_IN = Number(QUEUE_TICKET_HEIGHT_MM) / 25.4;
 
 const PRIORITY_PRINT_COLORS: Record<string, { code: string; badgeBg: string; badgeText: string }> = {
   regular: { code: '#16a34a', badgeBg: '#dcfce7', badgeText: '#166534' },
