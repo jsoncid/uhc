@@ -19,6 +19,7 @@ const MAX_OFFICES_PER_ROW = 8;
 const MAX_WAITING_PER_COLUMN = 8;
 const MARQUEE_SCROLL_SPEED_PX_PER_SEC = 8;
 const MIN_MARQUEE_DURATION_SEC = 18;
+const WAITING_MARQUEE_TRIGGER_COUNT = 5;
 
 // Full-bleed spacing and persisted office order key.
 const SCREEN_SIDE_MARGIN_PX = 8;
@@ -220,12 +221,13 @@ const WaitingQueueColumn = ({
     const updateMarquee = () => {
       const contentHeight = measureList.scrollHeight;
       const overflowing = contentHeight > container.clientHeight + 1;
-      setShouldMarquee((prev) => (prev === overflowing ? prev : overflowing));
+      const shouldRunMarquee = overflowing || entries.length > WAITING_MARQUEE_TRIGGER_COUNT;
+      setShouldMarquee((prev) => (prev === shouldRunMarquee ? prev : shouldRunMarquee));
 
-      if (overflowing) {
+      if (shouldRunMarquee) {
         const durationSeconds = Math.max(
           MIN_MARQUEE_DURATION_SEC,
-          contentHeight / MARQUEE_SCROLL_SPEED_PX_PER_SEC,
+          Math.max(contentHeight, container.clientHeight) / MARQUEE_SCROLL_SPEED_PX_PER_SEC,
         );
         container.style.setProperty('--queue-marquee-duration', `${durationSeconds}s`);
       } else {
