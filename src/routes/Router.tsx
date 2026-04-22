@@ -1,9 +1,11 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { lazy } from 'react';
-import { Navigate, createBrowserRouter } from 'react-router';
+import { lazy, useEffect } from 'react';
+import { Navigate, createBrowserRouter, useRouteError } from 'react-router';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import Spinner from '../views/spinner/Spinner';
+import { attemptChunkRecoveryReload, isChunkLoadError } from '../utils/chunkRecovery';
 
 // Import module routes
 import { module1Routes } from './m1_routes';
@@ -49,10 +51,28 @@ const SolarIcon = Loadable(lazy(() => import('../views/icons/SolarIcon')));
 
 // const SamplePage = lazy(() => import('../views/sample-page/SamplePage'));
 
+const RouteErrorFallback = () => {
+  const error = useRouteError();
+  const chunkError = isChunkLoadError(error);
+
+  useEffect(() => {
+    if (chunkError) {
+      attemptChunkRecoveryReload();
+    }
+  }, [chunkError]);
+
+  if (chunkError) {
+    return <Spinner />;
+  }
+
+  return <Navigate to="/auth/404" replace />;
+};
+
 const Router = [
   {
     path: '/',
     element: <FullLayout />,
+    errorElement: <RouteErrorFallback />,
     children: [
       {
         path: '/',
@@ -184,6 +204,7 @@ const Router = [
   {
     path: '/',
     element: <BlankLayout />,
+    errorElement: <RouteErrorFallback />,
     children: [
       { path: '/auth/auth2/login', element: <Login2 /> },
 

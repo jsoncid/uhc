@@ -956,11 +956,11 @@ const QueueDisplay = () => {
                   {/* Now serving / waiting — split into two colour zones */}
                   <div className="flex flex-col overflow-hidden">
                     {/* ── SERVING zone (green tint) ── */}
-                    <div className="queue-serving-zone flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2.5 py-1 dark:bg-emerald-950/40">
-                      <span className="self-start text-[0.7rem] font-bold uppercase tracking-widest text-emerald-950 dark:text-white">
+                    <div className="queue-serving-zone flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2.5 py-0 dark:bg-emerald-950/40">
+                      <span className="self-start text-[0.7rem] font-bold uppercase tracking-widest leading-none text-emerald-950 dark:text-white">
                         Now Serving
                       </span>
-                      <div className="queue-serving-content flex min-h-0 items-start justify-center overflow-hidden pt-0.5">
+                      <div className="queue-serving-content flex min-h-0 items-center justify-center overflow-hidden">
                         {servingEntries.length > 0 ? (
                           <ServingQueueRotator entries={servingEntries} activeNotifId={activeNotif?.id} />
                         ) : (
@@ -1040,7 +1040,7 @@ const QueueDisplay = () => {
         }
 
         .queue-serving-zone {
-          --queue-serving-content-height: 54px;
+          --queue-serving-content-height: 72px;
           --queue-serving-fade-duration: ${SERVING_FADE_DURATION_MS}ms;
         }
 
@@ -1052,7 +1052,10 @@ const QueueDisplay = () => {
 
         .queue-serving-transition {
           width: 100%;
+          height: 100%;
           min-width: 0;
+          display: flex;
+          align-items: stretch;
           opacity: 1;
           transition: opacity var(--queue-serving-fade-duration) ease-in-out;
         }
@@ -1133,13 +1136,14 @@ const QueueDisplay = () => {
 
         .queue-serving-code {
           flex: 0 0 auto;
-          font-size: 30px;
-          line-height: 1;
+          font-size: 50px;
+          line-height: 0.95;
           white-space: nowrap;
         }
 
         .queue-serving-line {
           width: 100%;
+          height: 100%;
           min-width: 0;
           display: flex;
           align-items: center;
@@ -1151,14 +1155,14 @@ const QueueDisplay = () => {
 
         .queue-serving-separator {
           flex: 0 0 auto;
-          font-size: 19px;
+          font-size: 18px;
           line-height: 1;
         }
 
         .queue-serving-window {
           min-width: 0;
-          max-width: 56%;
-          font-size: 19px;
+          max-width: 66%;
+          font-size: 15px;
           line-height: 1;
           white-space: nowrap;
           overflow: hidden;
@@ -1198,7 +1202,7 @@ const QueueDisplay = () => {
         }
 
         .queue-density-compact .queue-serving-zone {
-          --queue-serving-content-height: 46px;
+          --queue-serving-content-height: 58px;
         }
 
         .queue-density-compact .queue-waiting-zone {
@@ -1208,16 +1212,16 @@ const QueueDisplay = () => {
         }
 
         .queue-density-compact .queue-serving-code {
-          font-size: 24px;
+          font-size: 36px;
         }
 
         .queue-density-compact .queue-serving-separator {
-          font-size: 15px;
+          font-size: 14px;
         }
 
         .queue-density-compact .queue-serving-window {
-          max-width: 55%;
-          font-size: 15px;
+          max-width: 64%;
+          font-size: 12px;
         }
 
         .queue-density-compact .queue-serving-empty {
