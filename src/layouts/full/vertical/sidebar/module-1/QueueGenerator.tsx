@@ -97,18 +97,18 @@ const QueueGenerator = () => {
     <title>Queue Ticket</title>
     <style>
       @page { size: ${QUEUE_TICKET_WIDTH_MM}mm ${QUEUE_TICKET_HEIGHT_MM}mm; margin: 0; }
+      * { box-sizing: border-box; }
       html, body {
         margin: 0;
         padding: 0;
         width: ${QUEUE_TICKET_WIDTH_MM}mm;
         height: ${QUEUE_TICKET_HEIGHT_MM}mm;
+        overflow: hidden;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
-      body { display: flex; align-items: stretch; justify-content: center; }
       .ticket {
-        box-sizing: border-box;
         width: ${QUEUE_TICKET_WIDTH_MM}mm;
-        min-height: ${QUEUE_TICKET_HEIGHT_MM}mm;
+        height: ${QUEUE_TICKET_HEIGHT_MM}mm;
         padding: 4mm;
         display: flex;
         flex-direction: column;
@@ -145,7 +145,7 @@ const QueueGenerator = () => {
       }
       .time {
         font-size: 20px;
-        color: #6b7280;
+        color: #6b7288;
       }
     </style>
   </head>
@@ -162,8 +162,8 @@ const QueueGenerator = () => {
 
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
+    iframe.style.top = '0';
+    iframe.style.left = '0';
     iframe.style.width = '0';
     iframe.style.height = '0';
     iframe.style.border = '0';
