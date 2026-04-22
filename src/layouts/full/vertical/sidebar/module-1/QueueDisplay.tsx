@@ -423,6 +423,8 @@ const QueueDisplay = () => {
   const initializedRef = useRef(false);
   // Invalidate stale speech callbacks when a call is cancelled or superseded.
   const announcementRunIdRef = useRef(0);
+  // Keep current speaking sequence id in a ref for async broadcast handlers.
+  const activeNotifIdRef = useRef<string | null>(null);
   // Reference to the ping broadcast channel so the processor can send ping-done
   const pingChRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isDisplayMode = useMemo(() => {
@@ -466,6 +468,10 @@ const QueueDisplay = () => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    activeNotifIdRef.current = activeNotif?.id ?? null;
+  }, [activeNotif]);
 
   // Detect newly-serving sequences and push onto the notification queue.
   // On the very first snapshot we silently seed seenIds (no announcement on page load);
@@ -513,7 +519,16 @@ const QueueDisplay = () => {
         });
       }
     });
-    if (fresh.length > 0) setNotifQueue((prev) => [...prev, ...fresh]);
+    if (fresh.length > 0) {
+      setNotifQueue((prev) => {
+        const queuedIds = new Set(prev.map((notif) => notif.id));
+        const uniqueFresh = fresh.filter((notif) => !queuedIds.has(notif.id));
+        if (uniqueFresh.length === 0) {
+          return prev;
+        }
+        return [...prev, ...uniqueFresh];
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sequences]);
 
@@ -597,18 +612,30 @@ const QueueDisplay = () => {
         // Ignore pings without a real sequence id so stale put-back items never speak.
         if (!sequenceId) return;
 
+        // If already speaking this same sequence, do not enqueue it again.
+        if (activeNotifIdRef.current === sequenceId) return;
+
+        // Mark as seen so the serving-change detector won't enqueue a duplicate.
+        seenIds.current.add(sequenceId);
+
         const code = (payload.queueCode as string) || '---';
-        setNotifQueue((prev) => [
-          ...prev,
-          {
-            id: sequenceId,
-            queueCode: code,
-            windowLabel: (payload.windowLabel as string) || 'the window',
-            officeName: (payload.officeName as string) || '',
-            priorityText: (payload.priorityDesc as string) || 'Regular',
-            priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
-          } as CallNotification,
-        ]);
+        setNotifQueue((prev) => {
+          if (prev.some((notif) => notif.id === sequenceId)) {
+            return prev;
+          }
+
+          return [
+            ...prev,
+            {
+              id: sequenceId,
+              queueCode: code,
+              windowLabel: (payload.windowLabel as string) || 'the window',
+              officeName: (payload.officeName as string) || '',
+              priorityText: (payload.priorityDesc as string) || 'Regular',
+              priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
+            } as CallNotification,
+          ];
+        });
       })
       .on('broadcast', { event: 'stop-announcement' }, ({ payload }) => {
         const officeId = payload.officeId as string | undefined;
