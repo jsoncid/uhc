@@ -1,4 +1,4 @@
-import { JSX } from 'react';
+import { ReactNode } from 'react';
 import CardBox from '../../../../components/shared/CardBox';
 import darkLogo from 'src/assets/images/logos/dark-logo.svg';
 import lightLogo from 'src/assets/images/logos/light-logo.svg';
@@ -13,10 +13,10 @@ interface BreadCrumbType {
   subtitle?: string;
   items?: BreadcrumbItem[];
   title: string;
-  children?: JSX.Element;
+  children?: ReactNode;
 }
 
-const BreadcrumbComp = ({ title, items = [] }: BreadCrumbType) => {
+const BreadcrumbComp = ({ title, items = [], children }: BreadCrumbType) => {
   return (
     <CardBox
       className="mb-6 py-4 bg-lightsecondary overflow-hidden rounded-md border-none shadow-none! dark:shadow-none! relative"
@@ -26,10 +26,17 @@ const BreadcrumbComp = ({ title, items = [] }: BreadCrumbType) => {
           <h4 className="font-semibold text-xl">
             {title}
           </h4>
-          <div className="flex justify-center max-h-[80px] max-w-[280px]">
+          <div className="flex items-center gap-3">
+            {children ? (
+              <div className="max-w-full">
+                {children}
+              </div>
+            ) : null}
+            <div className="flex justify-center max-h-[80px] max-w-[280px]">
             <div className="hidden sm:block">
               <img src={darkLogo} alt="UHC-logo" className="block dark:hidden h-16 w-auto object-contain" />
               <img src={lightLogo} alt="UHC-logo" className="hidden dark:block h-16 w-auto object-contain" />
+            </div>
             </div>
           </div>
         </div>

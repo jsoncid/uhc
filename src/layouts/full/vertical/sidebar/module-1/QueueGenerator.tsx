@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,21 +34,11 @@ const QUEUE_TICKET_WIDTH_MM = '84.5';
 const QUEUE_TICKET_HEIGHT_MM = '108';
 const QUEUE_TICKET_WIDTH_IN = Number(QUEUE_TICKET_WIDTH_MM) / 25.4;
 const QUEUE_TICKET_HEIGHT_IN = Number(QUEUE_TICKET_HEIGHT_MM) / 25.4;
-const QUEUE_CODE_COLOR = '#dc2626';
 const OFFICE_GRID_COLUMNS = 3;
-
-const PRIORITY_PRINT_COLORS = {
-  regular: { code: '#16a34a', badgeBg: '#dcfce7', badgeText: '#166534' },
-  special: { code: '#dc2626', badgeBg: '#fee2e2', badgeText: '#991b1b' },
-};
-
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+const DEFAULT_PRINTER_VALUE = '__default_printer__';
+const DEFAULT_PAPER_SIZE_VALUE = '__printer_default_paper__';
+const PRINTER_DISCOVERY_TIMEOUT_MS = 2500;
+const DEFAULT_PRINTER_BRIDGE_PORT = '4679';
 
 const PRIORITY_COLORS = {
   regular: {
@@ -81,6 +71,415 @@ const QueueGenerator = () => {
   const [generatedAt, setGeneratedAt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [preventClose, setPreventClose] = useState(false);
+  const [selectedPrinter, setSelectedPrinter] = useState(DEFAULT_PRINTER_VALUE);
+  const [selectedPaperSize, setSelectedPaperSize] = useState(DEFAULT_PAPER_SIZE_VALUE);
+  const [printers, setPrinters] = useState<PrinterInfo[]>([]);
+  const [isPrinterLoading, setIsPrinterLoading] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const printLockRef = useRef(false);
+  const activeBridgeEndpointRef = useRef<string | null>(null);
+  const [printerDiscoveryHint, setPrinterDiscoveryHint] = useState('');
+
+  interface PrinterInfo {
+    name: string;
+    description?: string;
+    paperSize?: string;
+    paperSizes?: string[];
+    isDefault?: boolean;
+  }
+
+  type PrinterProviderLike = {
+    query: () => Promise<unknown>;
+  };
+
+  type GenericPrinterBridge = {
+    getPrinters?: () => Promise<unknown> | unknown;
+  };
+
+  interface BridgePrintTicketPayload {
+    queueCode: string;
+    priority: string;
+    generatedAt: string;
+    isSpecial: boolean;
+    printerName?: string;
+    paperSize?: string;
+  }
+
+  const getPrinterBridgeEndpoints = () => {
+    const configuredBridgeUrl = import.meta.env.VITE_PRINTER_BRIDGE_URL;
+
+    const endpoints = [
+      configuredBridgeUrl ? `${configuredBridgeUrl.replace(/\/$/, '')}/printers` : null,
+      `http://localhost:${DEFAULT_PRINTER_BRIDGE_PORT}/printers`,
+      `http://127.0.0.1:${DEFAULT_PRINTER_BRIDGE_PORT}/printers`,
+    ].filter((endpoint): endpoint is string => Boolean(endpoint));
+
+    return Array.from(new Set(endpoints));
+  };
+
+  const getPrinterBridgePrintEndpoints = () => {
+    const endpoints = getPrinterBridgeEndpoints();
+    const orderedEndpoints = activeBridgeEndpointRef.current
+      ? [
+        activeBridgeEndpointRef.current,
+        ...endpoints.filter((endpoint) => endpoint !== activeBridgeEndpointRef.current),
+      ]
+      : endpoints;
+
+    return orderedEndpoints.map((endpoint) => {
+      if (endpoint.endsWith('/printers')) {
+        return endpoint.replace(/\/printers$/, '/print-ticket');
+      }
+
+      return `${endpoint.replace(/\/$/, '')}/print-ticket`;
+    });
+  };
+
+  const fetchPrinterEndpoint = async (endpoint: string) => {
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`printer-endpoint-${response.status}`);
+    }
+
+    return response.json();
+  };
+
+  const postPrintTicketEndpoint = async (
+    endpoint: string,
+    payload: BridgePrintTicketPayload,
+  ) => {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`print-endpoint-${response.status}`);
+    }
+
+    return response.json().catch(() => ({ ok: true }));
+  };
+
+  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
+  };
+
+  const normalizePrinter = (value: unknown): PrinterInfo | null => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed ? { name: trimmed } : null;
+    }
+
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const rawPrinter = value as Record<string, unknown>;
+    const rawName = rawPrinter.name
+      ?? rawPrinter.displayName
+      ?? rawPrinter.printerName
+      ?? rawPrinter.deviceName
+      ?? rawPrinter.id;
+
+    if (typeof rawName !== 'string' || rawName.trim() === '') {
+      return null;
+    }
+
+    const rawPaperSize = rawPrinter.paperSize
+      ?? rawPrinter.PaperSize
+      ?? rawPrinter.mediaSize
+      ?? rawPrinter.media;
+
+    const rawPaperSizes = rawPrinter.paperSizes ?? rawPrinter.PaperSizes;
+
+    const rawIsDefault = rawPrinter.isDefault ?? rawPrinter.Default;
+
+    const parsedPaperSizes = Array.isArray(rawPaperSizes)
+      ? rawPaperSizes
+        .filter((paperSize): paperSize is string => typeof paperSize === 'string')
+        .map((paperSize) => paperSize.trim())
+        .filter((paperSize) => paperSize.length > 0)
+      : [];
+
+    return {
+      name: rawName.trim(),
+      description:
+        typeof rawPrinter.description === 'string'
+          ? rawPrinter.description
+          : undefined,
+      paperSize: typeof rawPaperSize === 'string' ? rawPaperSize : undefined,
+      paperSizes: Array.from(new Set(parsedPaperSizes)),
+      isDefault: Boolean(rawIsDefault),
+    };
+  };
+
+  const normalizePrinterList = (value: unknown): PrinterInfo[] => {
+    if (Array.isArray(value)) {
+      return value
+        .map(normalizePrinter)
+        .filter((printer): printer is PrinterInfo => Boolean(printer));
+    }
+
+    if (value && typeof value === 'object') {
+      const wrapped = value as Record<string, unknown>;
+      if (Array.isArray(wrapped.printers)) {
+        return wrapped.printers
+          .map(normalizePrinter)
+          .filter((printer): printer is PrinterInfo => Boolean(printer));
+      }
+    }
+
+    return [];
+  };
+
+  const getPrinterProvider = (): PrinterProviderLike | undefined => {
+    const navigatorProvider = (
+      navigator as Navigator & { printerProvider?: unknown }
+    ).printerProvider;
+
+    if (
+      navigatorProvider
+      && typeof (navigatorProvider as PrinterProviderLike).query === 'function'
+    ) {
+      return navigatorProvider as PrinterProviderLike;
+    }
+
+    const windowProvider = (
+      window as Window & { printerProvider?: unknown }
+    ).printerProvider;
+
+    if (
+      windowProvider
+      && typeof (windowProvider as PrinterProviderLike).query === 'function'
+    ) {
+      return windowProvider as PrinterProviderLike;
+    }
+
+    return undefined;
+  };
+
+  const fetchPrinters = async () => {
+    setIsPrinterLoading(true);
+    setPrinterDiscoveryHint('');
+
+    try {
+      const printerLoaders: Array<() => Promise<unknown>> = [
+        async () => {
+          const provider = getPrinterProvider();
+          return provider?.query();
+        },
+        async () => {
+          const navPrinting = (
+            navigator as Navigator & { printing?: GenericPrinterBridge }
+          ).printing;
+          return navPrinting?.getPrinters ? navPrinting.getPrinters() : undefined;
+        },
+        async () => {
+          const winPrinting = (
+            window as Window & { printing?: GenericPrinterBridge }
+          ).printing;
+          return winPrinting?.getPrinters ? winPrinting.getPrinters() : undefined;
+        },
+        async () => {
+          const navBridge = navigator as Navigator & {
+            getPrinters?: () => Promise<unknown> | unknown;
+          };
+          return navBridge.getPrinters ? navBridge.getPrinters() : undefined;
+        },
+        async () => {
+          const winBridge = window as Window & {
+            getPrinters?: () => Promise<unknown> | unknown;
+          };
+          return winBridge.getPrinters ? winBridge.getPrinters() : undefined;
+        },
+        async () => {
+          const electronBridge = (window as Window & {
+            electronAPI?: { getPrinters?: () => Promise<unknown> };
+          }).electronAPI;
+          return electronBridge?.getPrinters ? electronBridge.getPrinters() : undefined;
+        },
+      ];
+
+      const printerMap = new Map<string, PrinterInfo>();
+      let bridgeDetected = false;
+
+      for (const loadPrinters of printerLoaders) {
+        try {
+          const rawResult = await withTimeout(
+            Promise.resolve(loadPrinters()),
+            PRINTER_DISCOVERY_TIMEOUT_MS,
+          );
+
+          if (rawResult !== undefined && rawResult !== null) {
+            bridgeDetected = true;
+          }
+
+          const discoveredPrinters = normalizePrinterList(rawResult);
+
+          if (discoveredPrinters.length > 0) {
+            discoveredPrinters.forEach((printer) => {
+              if (!printerMap.has(printer.name)) {
+                printerMap.set(printer.name, printer);
+              }
+            });
+          }
+        } catch {
+          // Continue trying other discovery sources.
+        }
+      }
+
+      const bridgeEndpoints = getPrinterBridgeEndpoints();
+      let activeBridgeEndpoint: string | null = null;
+      for (const endpoint of bridgeEndpoints) {
+        try {
+          const rawResult = await withTimeout(
+            fetchPrinterEndpoint(endpoint),
+            PRINTER_DISCOVERY_TIMEOUT_MS,
+          );
+
+          bridgeDetected = true;
+          if (!activeBridgeEndpoint) {
+            activeBridgeEndpoint = endpoint;
+          }
+
+          const discoveredPrinters = normalizePrinterList(rawResult);
+          discoveredPrinters.forEach((printer) => {
+            if (!printerMap.has(printer.name)) {
+              printerMap.set(printer.name, printer);
+            }
+          });
+        } catch {
+          // Continue trying other bridge endpoints.
+        }
+      }
+
+      activeBridgeEndpointRef.current = activeBridgeEndpoint;
+
+      const result = Array.from(printerMap.values());
+      setPrinters(result);
+
+      if (!bridgeDetected) {
+        setPrinterDiscoveryHint('No printer API detected. Run local bridge on this PC: npm run printer-bridge');
+      } else if (result.length === 0) {
+        setPrinterDiscoveryHint('Printer API detected but no printers were returned.');
+      }
+
+      setSelectedPrinter((currentPrinter) => {
+        if (result.length === 0) {
+          return DEFAULT_PRINTER_VALUE;
+        }
+
+        if (
+          currentPrinter !== DEFAULT_PRINTER_VALUE
+          && result.some((printer) => printer.name === currentPrinter)
+        ) {
+          return currentPrinter;
+        }
+
+        return result[0].name;
+      });
+    } catch {
+      setPrinters([]);
+      setSelectedPrinter(DEFAULT_PRINTER_VALUE);
+      setPrinterDiscoveryHint('Unable to load printer list from available sources.');
+    } finally {
+      setIsPrinterLoading(false);
+    }
+  };
+
+  const getSelectedPrinterDetails = () => {
+    if (selectedPrinter === DEFAULT_PRINTER_VALUE) {
+      return printers.find((printer) => printer.isDefault);
+    }
+
+    return printers.find((printer) => printer.name === selectedPrinter);
+  };
+
+  const getSelectedPrinterPaperSizes = () => {
+    const selectedPrinterDetails = getSelectedPrinterDetails();
+
+    if (!selectedPrinterDetails) {
+      return [];
+    }
+
+    const sizes = selectedPrinterDetails.paperSizes || [];
+    if (sizes.length > 0) {
+      return sizes;
+    }
+
+    return selectedPrinterDetails.paperSize ? [selectedPrinterDetails.paperSize] : [];
+  };
+
+  const getSelectedPrinterPaperSize = () => {
+    const selectedPrinterDetails = getSelectedPrinterDetails();
+    return selectedPrinterDetails?.paperSize || 'Unknown';
+  };
+
+  const getSelectedPaperSizeLabel = () => {
+    if (selectedPaperSize !== DEFAULT_PAPER_SIZE_VALUE) {
+      return selectedPaperSize;
+    }
+
+    return getSelectedPrinterPaperSize();
+  };
+
+  const printWithBridge = async (payload: BridgePrintTicketPayload) => {
+    const bridgePrintEndpoints = getPrinterBridgePrintEndpoints();
+
+    for (const endpoint of bridgePrintEndpoints) {
+      try {
+        await postPrintTicketEndpoint(endpoint, payload);
+        return true;
+      } catch {
+        // Continue trying other bridge print endpoints.
+      }
+    }
+
+    return false;
+  };
+
+  useEffect(() => {
+    const availablePaperSizes = getSelectedPrinterPaperSizes();
+
+    if (availablePaperSizes.length === 0) {
+      if (selectedPaperSize !== DEFAULT_PAPER_SIZE_VALUE) {
+        setSelectedPaperSize(DEFAULT_PAPER_SIZE_VALUE);
+      }
+      return;
+    }
+
+    if (
+      selectedPaperSize !== DEFAULT_PAPER_SIZE_VALUE
+      && availablePaperSizes.includes(selectedPaperSize)
+    ) {
+      return;
+    }
+
+    setSelectedPaperSize(availablePaperSizes[0]);
+  }, [selectedPrinter, printers, selectedPaperSize]);
 
   const handleOpenChange = (open: boolean) => {
     if (!open && preventClose) return;
@@ -147,6 +546,11 @@ const QueueGenerator = () => {
     }
   }, [profileLoading, userAssignmentIds, fetchOffices]);
 
+  // Load printers on mount
+  useEffect(() => {
+    fetchPrinters();
+  }, []);
+
   useEffect(() => {
     if (!selectedOffice) return;
 
@@ -159,267 +563,6 @@ const QueueGenerator = () => {
     return isSpecialPriorityType(description)
       ? PRIORITY_COLORS.special
       : PRIORITY_COLORS.regular;
-  };
-
-  const getPriorityPrintColor = (description: string) => {
-    return isSpecialPriorityType(description)
-      ? PRIORITY_PRINT_COLORS.special
-      : PRIORITY_PRINT_COLORS.regular;
-  };
-
-  const buildTicketPrintHtml = (
-    safeOffice: string,
-    safeCode: string,
-    safePriority: string,
-    safeGeneratedAt: string,
-    colors: { code: string; badgeBg: string; badgeText: string },
-  ) => `
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Queue Ticket</title>
-          <style>
-            @page {
-              size: ${QUEUE_TICKET_WIDTH_MM}mm ${QUEUE_TICKET_HEIGHT_MM}mm;
-              margin: 0;
-            }
-            * {
-              box-sizing: border-box;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            html,
-            body {
-              margin: 0;
-              padding: 0;
-              width: ${QUEUE_TICKET_WIDTH_MM}mm;
-              height: ${QUEUE_TICKET_HEIGHT_MM}mm;
-              background: #ffffff;
-              overflow: hidden;
-              font-family: "Consolas", "Courier New", monospace;
-            }
-            .ticket-wrap {
-              width: 100%;
-              height: 100%;
-              padding: 3mm;
-            }
-            .ticket {
-              width: 100%;
-              height: 100%;
-              border: none;
-              border-radius: 2mm;
-              display: flex;
-              flex-direction: column;
-              justify-content: space-between;
-              align-items: center;
-              text-align: center;
-              padding: 2.5mm 2mm;
-            }
-            .title {
-              margin: 0;
-              font-size: 13px;
-              font-weight: 700;
-              letter-spacing: 0.08em;
-              text-transform: uppercase;
-            }
-            .line {
-              width: 100%;
-              border-top: 1px dashed #afb2b6;
-            }
-            .code {
-              margin: 0;
-              font-size: 104;
-              font-weight: 800;
-              letter-spacing: 0.14em;
-              line-height: 1;
-              color: ${colors.code};
-            }
-            .priority {
-              margin-top: 1.6mm;
-              font-size: 10.5px;
-              font-weight: 700;
-              color: ${colors.badgeText};
-              background: ${colors.badgeBg};
-              border-radius: 999px;
-              padding: 1mm 3mm;
-              text-transform: uppercase;
-            }
-            .datetime {
-              margin: 0;
-              font-size: 9px;
-              color: #6b7280;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="ticket-wrap">
-            <div class="ticket">
-              <div style="width:100%;">
-                <p class="title">Queue Ticket</p>
-              </div>
-              <div class="line"></div>
-              <p class="code">${safeCode}</p>
-              <p class="priority">${safePriority}</p>
-              <p class="datetime">${safeGeneratedAt}</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-  const buildTicketInlineMarkup = (
-    safeOffice: string,
-    safeCode: string,
-    safePriority: string,
-    safeGeneratedAt: string,
-    colors: { code: string; badgeBg: string; badgeText: string },
-  ) => `
-      <div style="width:${QUEUE_TICKET_WIDTH_MM}mm;height:${QUEUE_TICKET_HEIGHT_MM}mm;padding:3mm;box-sizing:border-box;background:#ffffff;font-family:'Consolas','Courier New',monospace;">
-        <div style="width:100%;height:100%;border:none;border-radius:2mm;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;padding:2.5mm 2mm;box-sizing:border-box;">
-          <div style="width:100%;">
-            <p style="margin:0;font-size:18px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">Queue Ticket</p>
-          </div>
-          <div style="width:100%;border-top:1px dashed #d1d5db;margin:1.8mm 0;"></div>
-          <p style="margin:0;font-size:104px;font-weight:800;letter-spacing:0.14em;line-height:1;color:${colors.code};">${safeCode}</p>
-          <p style="margin-top:1.6mm;font-size:10.5px;font-weight:700;color:${colors.badgeText};background:${colors.badgeBg};border-radius:999px;padding:1mm 3mm;text-transform:uppercase;">${safePriority}</p>
-          <p style="margin:0;font-size:9px;color:#6b7280;">${safeGeneratedAt}</p>
-        </div>
-      </div>
-    `;
-
-  const printWithCurrentWindow = (markup: string) => {
-    const existingRoot = document.getElementById('queue-inline-print-root');
-    if (existingRoot && document.body.contains(existingRoot)) {
-      document.body.removeChild(existingRoot);
-    }
-
-    const existingStyle = document.getElementById('queue-inline-print-style');
-    if (existingStyle && document.head.contains(existingStyle)) {
-      document.head.removeChild(existingStyle);
-    }
-
-    const printRoot = document.createElement('div');
-    printRoot.id = 'queue-inline-print-root';
-    printRoot.setAttribute('aria-hidden', 'true');
-    printRoot.style.position = 'fixed';
-    printRoot.style.left = '-10000px';
-    printRoot.style.top = '0';
-    printRoot.style.width = `${QUEUE_TICKET_WIDTH_MM}mm`;
-    printRoot.style.height = `${QUEUE_TICKET_HEIGHT_MM}mm`;
-    printRoot.innerHTML = markup;
-
-    const printStyle = document.createElement('style');
-    printStyle.id = 'queue-inline-print-style';
-    printStyle.textContent = `
-      @page {
-        size: ${QUEUE_TICKET_WIDTH_MM}mm ${QUEUE_TICKET_HEIGHT_MM}mm;
-        margin: 0;
-      }
-      @media print {
-        html,
-        body {
-          margin: 0 !important;
-          padding: 0 !important;
-          width: auto !important;
-          height: auto !important;
-          overflow: visible !important;
-          background: #ffffff !important;
-        }
-
-        body > *:not(#queue-inline-print-root) {
-          display: none !important;
-        }
-
-        #queue-inline-print-root,
-        #queue-inline-print-root * {
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-
-        #queue-inline-print-root {
-          display: block !important;
-          visibility: visible !important;
-          position: fixed !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: ${QUEUE_TICKET_WIDTH_MM}mm !important;
-          height: ${QUEUE_TICKET_HEIGHT_MM}mm !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: #ffffff !important;
-          z-index: 2147483647 !important;
-        }
-      }
-    `;
-
-    let hasCleanedUp = false;
-
-    const cleanup = () => {
-      if (hasCleanedUp) return;
-      hasCleanedUp = true;
-
-      window.removeEventListener('afterprint', cleanup);
-      if (document.body.contains(printRoot)) {
-        document.body.removeChild(printRoot);
-      }
-      if (document.head.contains(printStyle)) {
-        document.head.removeChild(printStyle);
-      }
-    };
-
-    document.head.appendChild(printStyle);
-    document.body.appendChild(printRoot);
-    window.addEventListener('afterprint', cleanup);
-
-    window.focus();
-    window.print();
-  };
-
-  const printWithIframe = (html: string) => {
-    const printFrame = document.createElement('iframe');
-    printFrame.setAttribute('aria-hidden', 'true');
-    printFrame.style.position = 'fixed';
-    printFrame.style.right = '0';
-    printFrame.style.bottom = '0';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    printFrame.style.border = '0';
-    document.body.appendChild(printFrame);
-
-    const frameWindow = printFrame.contentWindow;
-    const frameDocument = frameWindow?.document;
-
-    if (!frameWindow || !frameDocument) {
-      document.body.removeChild(printFrame);
-      return;
-    }
-
-    let hasPrinted = false;
-    const cleanup = () => {
-      if (!document.body.contains(printFrame)) return;
-      document.body.removeChild(printFrame);
-    };
-
-    const printReceipt = () => {
-      if (hasPrinted) return;
-      hasPrinted = true;
-
-      frameWindow.onafterprint = cleanup;
-      frameWindow.focus();
-      frameWindow.print();
-
-      // Fallback cleanup if afterprint is not emitted.
-      window.setTimeout(cleanup, 1200);
-    };
-
-    printFrame.onload = printReceipt;
-    frameDocument.open();
-    frameDocument.write(html);
-    frameDocument.close();
-
-    // Some browsers skip iframe onload when content is injected quickly.
-    window.setTimeout(printReceipt, 160);
   };
 
   const handleGenerateCode = async () => {
@@ -444,33 +587,36 @@ const QueueGenerator = () => {
     }
   };
 
-  const handlePrintDialog = () => {
-    if (!queueCode) return;
+  const handlePrintDialog = async () => {
+    if (!queueCode || isPrinting || printLockRef.current) return;
 
-    const colors = getPriorityPrintColor(selectedPriorityName || 'regular');
-    const safeCode = escapeHtml(queueCode);
-    const safePriority = escapeHtml(selectedPriorityName || 'Regular');
-    const safeGeneratedAt = escapeHtml(generatedAt || '');
-
-    const ticketInlineMarkup = buildTicketInlineMarkup(
-      '',
-      safeCode,
-      safePriority,
-      safeGeneratedAt,
-      colors,
-    );
+    printLockRef.current = true;
+    setIsPrinting(true);
 
     try {
-      printWithCurrentWindow(ticketInlineMarkup);
-    } catch {
-      const ticketHtml = buildTicketPrintHtml(
-        '',
-        safeCode,
-        safePriority,
-        safeGeneratedAt,
-        colors,
-      );
-      printWithIframe(ticketHtml);
+      const printerName = selectedPrinter === DEFAULT_PRINTER_VALUE
+        ? undefined
+        : selectedPrinter;
+
+      const paperSize = selectedPaperSize === DEFAULT_PAPER_SIZE_VALUE
+        ? undefined
+        : selectedPaperSize;
+
+      const didPrint = await printWithBridge({
+        queueCode,
+        priority: selectedPriorityName || 'Regular',
+        generatedAt,
+        isSpecial: isSpecialPriorityType(selectedPriorityName || 'regular'),
+        printerName,
+        paperSize,
+      });
+
+      if (!didPrint) {
+        setPrinterDiscoveryHint('Automatic print failed. Ensure printer bridge is running: npm run printer-bridge');
+      }
+    } finally {
+      printLockRef.current = false;
+      setIsPrinting(false);
     }
   };
 
@@ -481,6 +627,7 @@ const QueueGenerator = () => {
   const selectedPriorityColors = selectedPriorityData
     ? getPriorityColor(selectedPriorityData.description)
     : null;
+  const selectedPrinterPaperSizes = getSelectedPrinterPaperSizes();
 
   const renderQueueTicketCard = () => (
     <div className="queue-ticket-card flex h-full flex-col items-center justify-between rounded-md bg-white px-4 py-4 text-center font-mono">
@@ -504,7 +651,65 @@ const QueueGenerator = () => {
 
   return (
     <>
-      <BreadcrumbComp title="Queue Code Generator" items={BCrumb} />
+      <BreadcrumbComp title="Queue Code Generator" items={BCrumb}>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Select
+              value={selectedPrinter}
+              onValueChange={setSelectedPrinter}
+              disabled={isPrinterLoading}
+            >
+              <SelectTrigger className="h-10 w-[220px] bg-white dark:bg-dark text-sm">
+                <SelectValue placeholder="Select printer" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={DEFAULT_PRINTER_VALUE}>System Default Printer</SelectItem>
+                {printers.map((printer) => (
+                  <SelectItem key={printer.name} value={printer.name}>
+                    {printer.name || 'Default Printer'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={selectedPaperSize}
+              onValueChange={setSelectedPaperSize}
+              disabled={isPrinterLoading}
+            >
+              <SelectTrigger className="h-10 w-[180px] bg-white dark:bg-dark text-sm">
+                <SelectValue placeholder="Paper size" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={DEFAULT_PAPER_SIZE_VALUE}>Current Printer Default</SelectItem>
+                {selectedPrinterPaperSizes.map((paperSize) => (
+                  <SelectItem key={paperSize} value={paperSize}>
+                    {paperSize}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={fetchPrinters}
+              disabled={isPrinterLoading}
+              className="h-10 px-3"
+            >
+              {isPrinterLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+            </Button>
+            {selectedPrinter ? (
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                Paper: {getSelectedPaperSizeLabel()} | Ticket: {QUEUE_TICKET_WIDTH_MM}mm x {QUEUE_TICKET_HEIGHT_MM}mm
+              </span>
+            ) : null}
+          </div>
+          {printerDiscoveryHint ? (
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">
+              {printerDiscoveryHint}
+            </p>
+          ) : null}
+        </div>
+      </BreadcrumbComp>
 
       <div className="flex justify-center items-center min-h-[60vh]">
         <Card className="w-full max-w-xl border border-border/80 dark:border-white/20 bg-background/70 dark:bg-background/60 shadow-[0_6px_16px_rgba(0,0,0,0.20)]">
@@ -597,8 +802,11 @@ const QueueGenerator = () => {
             {renderQueueTicketCard()}
           </div>
           <DialogFooter id="queue-print-actions" className="sm:justify-center gap-2 mb-2">
-            <Button onClick={handlePrintDialog}>Print</Button>
-            <Button variant="outline" onClick={() => {
+            <Button type="button" onClick={handlePrintDialog} disabled={isPrinting}>
+              {isPrinting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {isPrinting ? 'Printing...' : 'Print'}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => {
                 setPreventClose(false);
                 setIsDialogOpen(false);
               }}>
