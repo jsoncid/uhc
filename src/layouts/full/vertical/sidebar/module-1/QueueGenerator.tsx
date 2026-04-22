@@ -2,6 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -14,18 +22,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
-const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Generator' }];
+const BCrumb: never[] = [];
 
-const QUEUE_TICKET_WIDTH_MM = '82.5';
-const QUEUE_TICKET_HEIGHT_MM = '100';
+const QUEUE_TICKET_WIDTH_MM = '84.5';
+const QUEUE_TICKET_HEIGHT_MM = '108';
 const QUEUE_TICKET_WIDTH_IN = Number(QUEUE_TICKET_WIDTH_MM) / 25.4;
 const QUEUE_TICKET_HEIGHT_IN = Number(QUEUE_TICKET_HEIGHT_MM) / 25.4;
+const QUEUE_CODE_COLOR = '#dc2626';
+const OFFICE_GRID_COLUMNS = 3;
 
 const PRIORITY_PRINT_COLORS = {
   regular: { code: '#16a34a', badgeBg: '#dcfce7', badgeText: '#166534' },
@@ -62,6 +72,7 @@ const isSpecialPriorityType = (description: string | null | undefined): boolean 
 
 const QueueGenerator = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isOfficeDialogOpen, setIsOfficeDialogOpen] = useState(false);
   const [queueCode, setQueueCode] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
   const [selectedPriorityName, setSelectedPriorityName] = useState('');
@@ -84,6 +95,41 @@ const QueueGenerator = () => {
     return profile?.assignments?.map((a) => a.id) || [];
   }, [profile?.assignments]);
 
+  const activeOffices = useMemo(
+    () =>
+      offices
+        .filter((office) => office.status)
+        .sort((a, b) =>
+          (a.description || 'Unnamed Office').localeCompare(
+            b.description || 'Unnamed Office',
+            undefined,
+            { sensitivity: 'base', numeric: true },
+          ),
+        ),
+    [offices],
+  );
+
+  const officePickerItems = useMemo(() => {
+    const rows = Math.ceil(activeOffices.length / OFFICE_GRID_COLUMNS);
+    const reordered: typeof activeOffices = [];
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < OFFICE_GRID_COLUMNS; col += 1) {
+        const sourceIndex = col * rows + row;
+        if (sourceIndex < activeOffices.length) {
+          reordered.push(activeOffices[sourceIndex]);
+        }
+      }
+    }
+
+    return reordered;
+  }, [activeOffices]);
+
+  const selectedOfficeData = useMemo(
+    () => activeOffices.find((office) => office.id === selectedOffice),
+    [activeOffices, selectedOffice],
+  );
+
   useEffect(() => {
     fetchPriorities();
   }, [fetchPriorities]);
@@ -94,6 +140,14 @@ const QueueGenerator = () => {
       fetchOffices(userAssignmentIds.length > 0 ? userAssignmentIds : undefined);
     }
   }, [profileLoading, userAssignmentIds, fetchOffices]);
+
+  useEffect(() => {
+    if (!selectedOffice) return;
+
+    if (!activeOffices.some((office) => office.id === selectedOffice)) {
+      setSelectedOffice('');
+    }
+  }, [activeOffices, selectedOffice]);
 
   const getPriorityColor = (description: string | null) => {
     return isSpecialPriorityType(description)
@@ -163,17 +217,9 @@ const QueueGenerator = () => {
               letter-spacing: 0.08em;
               text-transform: uppercase;
             }
-            .office {
-              margin: 1.2mm 0 0;
-              font-size: 10px;
-              color: #4b5563;
-              text-transform: uppercase;
-              line-height: 1.2;
-            }
             .line {
               width: 100%;
-              border-top: 1px dashed #d1d5db;
-              margin: 1.8mm 0;
+              border-top: 1px dashed #afb2b6;
             }
             .code {
               margin: 0;
@@ -226,7 +272,7 @@ const QueueGenerator = () => {
       <div style="width:${QUEUE_TICKET_WIDTH_MM}mm;height:${QUEUE_TICKET_HEIGHT_MM}mm;padding:3mm;box-sizing:border-box;background:#ffffff;font-family:'Consolas','Courier New',monospace;">
         <div style="width:100%;height:100%;border:none;border-radius:2mm;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;padding:2.5mm 2mm;box-sizing:border-box;">
           <div style="width:100%;">
-            <p style="margin:0;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">Queue Ticket</p>
+            <p style="margin:0;font-size:18px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">Queue Ticket</p>
           </div>
           <div style="width:100%;border-top:1px dashed #d1d5db;margin:1.8mm 0;"></div>
           <p style="margin:0;font-size:104px;font-weight:800;letter-spacing:0.14em;line-height:1;color:${colors.code};">${safeCode}</p>
@@ -379,8 +425,8 @@ const QueueGenerator = () => {
 
     if (code) {
       setQueueCode(code);
-      const office = offices.find((o) => o.id === selectedOffice);
-      const officeName = office?.description || '';
+      const office = activeOffices.find((o) => o.id === selectedOffice);
+      const officeName = office?.description || 'Unnamed Office';
       setSelectedOfficeName(officeName);
       const priority = priorities.find((p) => p.id === selectedPriority);
       const priorityName = priority?.description || '';
@@ -395,13 +441,12 @@ const QueueGenerator = () => {
     if (!queueCode) return;
 
     const colors = getPriorityPrintColor(selectedPriorityName || 'regular');
-    const safeOffice = escapeHtml(selectedOfficeName || '');
     const safeCode = escapeHtml(queueCode);
     const safePriority = escapeHtml(selectedPriorityName || 'Regular');
     const safeGeneratedAt = escapeHtml(generatedAt || '');
 
     const ticketInlineMarkup = buildTicketInlineMarkup(
-      safeOffice,
+      '',
       safeCode,
       safePriority,
       safeGeneratedAt,
@@ -412,7 +457,7 @@ const QueueGenerator = () => {
       printWithCurrentWindow(ticketInlineMarkup);
     } catch {
       const ticketHtml = buildTicketPrintHtml(
-        safeOffice,
+        '',
         safeCode,
         safePriority,
         safeGeneratedAt,
@@ -435,10 +480,7 @@ const QueueGenerator = () => {
       <div className="w-full">
         <span className="text-[13px] font-bold tracking-[0.1em] uppercase">Queue Ticket</span>
       </div>
-      <span className="text-[11px] font-medium leading-tight text-muted-foreground text-center uppercase">
-        {selectedOfficeName}
-      </span>
-      <div className="h-px w-full bg-gray-300" />
+      <div className="h-px w-full border-t border-dashed border-gray-300" />
       <span
         className={`text-[68px] leading-none font-black tracking-[0.14em] ${getPriorityColor(selectedPriorityName).text}`}
       >
@@ -458,32 +500,33 @@ const QueueGenerator = () => {
       <BreadcrumbComp title="Queue Code Generator" items={BCrumb} />
 
       <div className="flex justify-center items-center min-h-[60vh]">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Customer Check-in</CardTitle>
-            <CardDescription className="text-base">Select an office and queue type to get your number.</CardDescription>
+        <Card className="w-full max-w-xl border border-border/80 dark:border-white/20 bg-background/70 dark:bg-background/60 shadow-[0_6px_16px_rgba(0,0,0,0.20)]">
+          <CardHeader className="text-center space-y-1">
+            <CardTitle className="text-3xl">Customer Check-in</CardTitle>
+            <CardDescription className="text-lg">Select an office and queue type to get your number.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label className="text-base font-semibold">Select Office</Label>
-              <Select value={selectedOffice} onValueChange={setSelectedOffice} disabled={isLoading}>
-                <SelectTrigger className="w-full h-12 px-4 text-base">
-                  <SelectValue className="text-base" placeholder="Choose an office" />
-                </SelectTrigger>
-                <SelectContent className="w-[var(--radix-select-trigger-width)] min-w-[var(--radix-select-trigger-width)] text-base">
-                  {offices
-                    .filter((o) => o.status)
-                    .map((office) => (
-                      <SelectItem key={office.id} value={office.id} className="py-3 text-base">
-                        {office.description || office.id}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+          <CardContent className="space-y-7">
+            <div className="space-y-3">
+              <Label className="text-lg font-semibold">Select Office</Label>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-14 px-5 text-lg justify-between"
+                onClick={() => setIsOfficeDialogOpen(true)}
+                disabled={isLoading || activeOffices.length === 0}
+              >
+                <span className={`truncate ${selectedOfficeData ? 'text-black dark:text-white' : 'text-muted-foreground'}`}>
+                  {selectedOfficeData?.description || 'Choose an office'}
+                </span>
+                <ChevronsUpDown className="h-5 w-5 opacity-60" />
+              </Button>
+              {activeOffices.length === 0 && !isLoading ? (
+                <p className="text-sm text-muted-foreground">No offices available.</p>
+              ) : null}
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-base font-semibold">Select Priority Type</Label>
+            <div className="space-y-3">
+              <Label className="text-lg font-semibold">Select Priority Type</Label>
               {priorities.length > 0 ? (
                 <Select
                   value={selectedPriority}
@@ -491,15 +534,15 @@ const QueueGenerator = () => {
                   disabled={isLoading}
                 >
                   <SelectTrigger
-                    className={`w-full h-12 px-4 text-base ${selectedPriorityColors ? `border-2 ${selectedPriorityColors.border}` : ''}`}
+                    className={`w-full !h-14 data-[size=default]:!h-14 !px-5 !text-lg justify-between ${selectedPriorityColors ? `border-2 ${selectedPriorityColors.border}` : ''}`}
                   >
-                    <SelectValue className="text-base" placeholder="Choose a priority type" />
+                    <SelectValue className="text-lg" placeholder="Choose a priority type" />
                   </SelectTrigger>
-                  <SelectContent className="w-[var(--radix-select-trigger-width)] min-w-[var(--radix-select-trigger-width)] text-base">
+                  <SelectContent className="w-[var(--radix-select-trigger-width)] min-w-[var(--radix-select-trigger-width)] text-lg">
                     {priorities.map((priority) => {
                       const colors = getPriorityColor(priority.description);
                       return (
-                        <SelectItem key={priority.id} value={priority.id} className="py-3 text-base">
+                        <SelectItem key={priority.id} value={priority.id} className="py-3.5 text-base">
                           <div className="flex items-center gap-3">
                             <span className={`w-4 h-4 rounded-full ${colors.bg.split(' ')[0]}`} />
                             {priority.description || priority.id}
@@ -523,25 +566,8 @@ const QueueGenerator = () => {
               )}
             </div>
 
-            {selectedPriorityData && (
-              <div
-                className={`p-3 rounded-lg border-2 ${selectedPriorityColors?.border} ${selectedPriorityColors?.badge}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-medium">Selected Priority:</span>
-                  <span className={`text-lg font-bold ${selectedPriorityColors?.text}`}>
-                    {selectedPriorityData.description}
-                  </span>
-                </div>
-              </div>
-            )}
-
             <Button
-              className={`w-full text-lg py-6 ${
-                selectedPriorityColors
-                  ? selectedPriorityColors.bg
-                  : 'bg-primary hover:bg-primary/90'
-              }`}
+              className="w-full text-2xl py-7 bg-primary hover:bg-primary/90"
               onClick={handleGenerateCode}
               disabled={!isFormValid || isLoading}
             >
@@ -554,7 +580,7 @@ const QueueGenerator = () => {
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent
-          className="sm:max-w-none max-w-none p-0"
+          className="sm:max-w-none max-w-none p-0 bg-white text-black dark:bg-white dark:text-black"
           style={{ width: `${QUEUE_TICKET_WIDTH_IN}in` }}
         >
           <div
@@ -563,9 +589,54 @@ const QueueGenerator = () => {
           >
             {renderQueueTicketCard()}
           </div>
-          <DialogFooter id="queue-print-actions" className="sm:justify-center gap-2">
+          <DialogFooter id="queue-print-actions" className="sm:justify-center gap-2 mb-2">
             <Button onClick={handlePrintDialog}>Print</Button>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isOfficeDialogOpen} onOpenChange={setIsOfficeDialogOpen}>
+        <DialogContent className="w-[96vw] max-w-5xl p-0 overflow-hidden">
+          <Command>
+            <div className="px-4 pt-4 pb-2">
+              <Label className="text-base font-semibold">Select Office</Label>
+            </div>
+            <CommandInput placeholder="Search office..." />
+            <CommandList className="max-h-[65vh] px-3 pb-3">
+              <CommandEmpty>No office found.</CommandEmpty>
+              <CommandGroup heading="Available offices" className="p-1">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+                  {officePickerItems.map((office) => {
+                    const isSelected = office.id === selectedOffice;
+
+                    return (
+                      <CommandItem
+                        key={office.id}
+                        value={office.description || 'Unnamed Office'}
+                        onSelect={() => {
+                          setSelectedOffice(office.id);
+                          setIsOfficeDialogOpen(false);
+                        }}
+                        className={`h-14 rounded-md border px-4 text-base bg-background/60 dark:bg-background/40 border-border/80 dark:border-white/20 shadow-[0_4px_12px_rgba(0,0,0,0.20)] data-[selected=true]:text-black dark:data-[selected=true]:text-white ${isSelected ? 'bg-lightprimary text-black dark:text-white border-primary/60 ring-1 ring-primary/30 shadow-[0_6px_14px_rgba(34,197,94,0.18)]' : ''}`}
+                      >
+                        <span className={`truncate font-medium ${isSelected ? 'text-black dark:text-white' : ''}`}>
+                          {office.description || 'Unnamed Office'}
+                        </span>
+                        <Check
+                          className={`ml-auto h-4 w-4 ${isSelected ? 'opacity-100' : 'opacity-0'}`}
+                        />
+                      </CommandItem>
+                    );
+                  })}
+                </div>
+              </CommandGroup>
+            </CommandList>
+          </Command>
+          <DialogFooter className="px-4 pb-4 pt-2">
+            <Button variant="outline" onClick={() => setIsOfficeDialogOpen(false)}>
               Close
             </Button>
           </DialogFooter>

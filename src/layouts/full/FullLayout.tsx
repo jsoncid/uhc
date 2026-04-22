@@ -18,8 +18,9 @@ const FullLayout: FC = () => {
       : 'w-full max-w-none px-6 py-30';
 
   const toggleButtonClassName = isQueueDisplayRoute
-    ? 'fixed top-1/2 -translate-y-1/2 z-50 hidden xl:flex items-center justify-center h-12 w-3 rounded-r-lg bg-primary shadow-lg hover:bg-primary/80 transition-all duration-300 opacity-0 hover:opacity-100 focus:opacity-100 hover:w-6 focus:w-6 overflow-hidden'
+    ? 'fixed top-1/2 -translate-y-1/2 z-50 hidden xl:flex items-center justify-center h-16 w-5 rounded-r-xl bg-primary shadow-lg hover:bg-primary/80 transition-all duration-300 opacity-0 hover:opacity-100 focus:opacity-100 hover:w-10 focus:w-10 overflow-hidden'
     : 'fixed top-1/2 -translate-y-1/2 z-50 hidden xl:flex items-center justify-center w-6 h-12 rounded-r-lg bg-primary shadow-lg hover:bg-primary/80 transition-all duration-300';
+  const toggleIconSize = isQueueDisplayRoute ? 22 : 18;
 
   return (
     <>
@@ -45,8 +46,8 @@ const FullLayout: FC = () => {
           >
             <Icon
               icon={sidebarOpen ? 'ri:arrow-left-s-line' : 'ri:arrow-right-s-line'}
-              width={18}
-              height={18}
+              width={toggleIconSize}
+              height={toggleIconSize}
               className="text-white"
             />
           </button>

@@ -297,7 +297,22 @@ export const useAuthStore = create<AuthState>((set, get) => {
       }
     },
 
-    setUser: (user: User | null) => set({ user }),
+    setUser: (user: User | null) => {
+      if (!user) {
+        set({
+          user: null,
+          userModuleId: null,
+          userRoleId: null,
+          userAssignmentId: null,
+          userAssignmentName: null,
+          sessionExpiry: null,
+          isLoading: false,
+        });
+        return;
+      }
+
+      set({ user, isLoading: false });
+    },
 
     clearError: () => set({ error: null }),
 
