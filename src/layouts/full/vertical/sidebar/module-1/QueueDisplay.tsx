@@ -15,6 +15,8 @@ const PAUSE_BETWEEN_MS = 250; // pause between each announcement
 const POPUP_GAP_MS = 250; // gap after speech before picking up the next item
 const MAX_OFFICES_PER_ROW = 8;
 const MAX_WAITING_PER_COLUMN = 6;
+const MARQUEE_SCROLL_SPEED_PX_PER_SEC = 8;
+const MIN_MARQUEE_DURATION_SEC = 18;
 
 // Full-bleed spacing and persisted office order key.
 const SCREEN_SIDE_MARGIN_PX = 8;
@@ -173,8 +175,19 @@ const WaitingQueueColumn = ({
     }
 
     const updateMarquee = () => {
-      const overflowing = measureList.scrollHeight > container.clientHeight + 1;
+      const contentHeight = measureList.scrollHeight;
+      const overflowing = contentHeight > container.clientHeight + 1;
       setShouldMarquee((prev) => (prev === overflowing ? prev : overflowing));
+
+      if (overflowing) {
+        const durationSeconds = Math.max(
+          MIN_MARQUEE_DURATION_SEC,
+          contentHeight / MARQUEE_SCROLL_SPEED_PX_PER_SEC,
+        );
+        container.style.setProperty('--queue-marquee-duration', `${durationSeconds}s`);
+      } else {
+        container.style.removeProperty('--queue-marquee-duration');
+      }
     };
 
     let rafId: number | null = null;
@@ -842,6 +855,7 @@ const QueueDisplay = () => {
           isolation: isolate;
           contain: layout paint;
           clip-path: inset(0);
+          --queue-marquee-duration: 22s;
           --queue-waiting-row-height: 1.95rem;
           --queue-waiting-row-gap: 0.25rem;
           height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
@@ -932,7 +946,7 @@ const QueueDisplay = () => {
         }
 
         .queue-waiting-marquee {
-          animation: queue-waiting-up 22s linear infinite;
+          animation: queue-waiting-up var(--queue-marquee-duration) linear infinite;
           will-change: transform;
         }
 
