@@ -587,18 +587,13 @@ const QueueDisplay = () => {
               // Queue code typography scale.
               // Serving size is stable; waiting size adapts by density for readability.
               const servingCodeSize = 'clamp(1.92rem, 2.8vw, 2.54rem)';
-              const waitingCodeSize =
-                waitingDensity >= 6
-                  ? 'clamp(1.14rem, 1.56vw, 1.37rem)'
-                  : waitingDensity === 5
-                    ? 'clamp(1.25rem, 1.76vw, 1.51rem)'
-                    : waitingDensity === 4
-                      ? 'clamp(1.35rem, 1.95vw, 1.64rem)'
-                      : 'clamp(1.53rem, 2.34vw, 1.95rem)';
+              // Keep waiting text consistent across all column counts.
+              // This matches the visual scale used when a column shows 6 queue codes.
+              const waitingCodeSize = 'clamp(0.92rem, 1.22vw, 1.12rem)';
 
               // Small heading adjustments in dense layouts to free vertical space.
-              const waitingHeadingMarginClass = waitingDensity >= 5 ? 'mb-0.5' : 'mb-1';
-              const waitingCodeLineHeight = 1.12;
+              const waitingHeadingMarginClass = 'mb-0.5';
+              const waitingCodeLineHeight = 1.02;
 
               return (
                 <div
@@ -689,12 +684,12 @@ const QueueDisplay = () => {
                                   role="list"
                                 >
                                   {waitingPriorityVisible.map(({ seq }, idx) => (
-                                    <li key={`${seq.id}-${idx}`} className="queue-waiting-item">
-                                      <div className="flex items-center justify-center gap-1.5">
+                                    <li key={`${seq.id}-${idx}`} className="queue-waiting-item pl-0.5">
+                                      <div className="flex w-full items-center justify-start gap-1.5">
                                         <span
                                           className="font-extrabold text-rose-500/90 dark:text-rose-300/90"
                                           style={{
-                                            fontSize: 'clamp(0.68rem, 0.94vw, 0.82rem)',
+                                            fontSize: 'clamp(0.58rem, 0.82vw, 0.72rem)',
                                             lineHeight: 1,
                                           }}
                                         >
@@ -732,12 +727,12 @@ const QueueDisplay = () => {
                                   role="list"
                                 >
                                   {waitingRegularVisible.map(({ seq }, idx) => (
-                                    <li key={`${seq.id}-${idx}`} className="queue-waiting-item">
-                                      <div className="flex items-center justify-center gap-1.5">
+                                    <li key={`${seq.id}-${idx}`} className="queue-waiting-item pl-0.5">
+                                      <div className="flex w-full items-center justify-start gap-1.5">
                                         <span
                                           className="font-extrabold text-emerald-600/90 dark:text-emerald-300/90"
                                           style={{
-                                            fontSize: 'clamp(0.68rem, 0.94vw, 0.82rem)',
+                                            fontSize: 'clamp(0.58rem, 0.82vw, 0.72rem)',
                                             lineHeight: 1,
                                           }}
                                         >
