@@ -82,12 +82,27 @@ function getFemaleVoice(): SpeechSynthesisVoice | null {
 }
 
 /** Speak `text` exactly `times` times, with a pause between each. Calls `onDone` when finished. */
-function speakRepeat(text: string, times: number, onDone: () => void, rate?: number): void {
+function speakRepeat(
+  text: string,
+  times: number,
+  onDone: () => void,
+  rate?: number,
+  shouldContinue: () => boolean = () => true,
+): void {
   window.speechSynthesis.cancel();
 
   let count = 0;
 
+  const scheduleNext = () => {
+    if (!shouldContinue()) return;
+    window.setTimeout(() => {
+      speakOnce();
+    }, PAUSE_BETWEEN_MS);
+  };
+
   const speakOnce = () => {
+    if (!shouldContinue()) return;
+
     const utter = new SpeechSynthesisUtterance(text);
     const voice = getFemaleVoice();
     if (voice) utter.voice = voice;
@@ -95,17 +110,19 @@ function speakRepeat(text: string, times: number, onDone: () => void, rate?: num
     utter.rate = rate ?? 0.85; // default slower pace, or per-call override
 
     utter.onend = () => {
+      if (!shouldContinue()) return;
       count++;
       if (count < times) {
-        setTimeout(speakOnce, PAUSE_BETWEEN_MS);
+        scheduleNext();
       } else {
         onDone();
       }
     };
 
     utter.onerror = () => {
+      if (!shouldContinue()) return;
       count++;
-      if (count < times) setTimeout(speakOnce, PAUSE_BETWEEN_MS);
+      if (count < times) scheduleNext();
       else onDone();
     };
 
@@ -137,6 +154,19 @@ const getPriorityStyle = (priority: string | null | undefined) => {
     dot: 'bg-rose-500',
   };
 };
+
+const isServingSequence = (seq: Sequence): boolean =>
+  seq.is_active !== false &&
+  Boolean(seq.status_data?.description?.toLowerCase().includes('serving'));
+
+const hasServingSequenceForDisplay = (
+  sequenceId: string,
+  sequences: Sequence[],
+  activeOfficeIds: Set<string>,
+): boolean =>
+  sequences.some(
+    (seq) => seq.id === sequenceId && isServingSequence(seq) && activeOfficeIds.has(seq.office),
+  );
 
 interface WaitingQueueColumnProps {
   title: string;
@@ -295,6 +325,8 @@ const QueueDisplay = () => {
   const seenIds = useRef<Set<string>>(new Set());
   // Prevents announcements on the initial page load snapshot
   const initializedRef = useRef(false);
+  // Invalidate stale speech callbacks when a call is cancelled or superseded.
+  const announcementRunIdRef = useRef(0);
   // Reference to the ping broadcast channel so the processor can send ping-done
   const pingChRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isDisplayMode = useMemo(() => {
@@ -316,6 +348,7 @@ const QueueDisplay = () => {
     () => profile?.assignments?.map((a) => a.id) || [],
     [profile?.assignments],
   );
+  const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
   useEffect(() => {
     fetchStatuses();
@@ -347,7 +380,7 @@ const QueueDisplay = () => {
     if (!initializedRef.current) {
       // Seed all currently-serving IDs so they are never announced on refresh
       sequences.forEach((seq) => {
-        if (seq.status_data?.description?.toLowerCase().includes('serving')) {
+        if (isServingSequence(seq)) {
           seenIds.current.add(seq.id);
         }
       });
@@ -360,8 +393,7 @@ const QueueDisplay = () => {
     const fresh: CallNotification[] = [];
     sequences.forEach((seq) => {
       if (
-        seq.is_active !== false &&
-        seq.status_data?.description?.toLowerCase().includes('serving') &&
+        isServingSequence(seq) &&
         !seenIds.current.has(seq.id) &&
         activeOfficeIds.has(seq.office)
       ) {
@@ -395,9 +427,17 @@ const QueueDisplay = () => {
   useEffect(() => {
     if (activeNotif !== null || notifQueue.length === 0) return;
 
-    const next = notifQueue[0] as CallNotification & { spokenCode?: string };
-    setNotifQueue((prev) => prev.slice(1));
+    const activeOfficeIds = new Set(activeOffices.map((office) => office.id));
+    const nextIndex = notifQueue.findIndex((notif) =>
+      hasServingSequenceForDisplay(notif.id, sequences, activeOfficeIds),
+    );
+    if (nextIndex === -1) return;
+
+    const next = notifQueue[nextIndex] as CallNotification & { spokenCode?: string };
+    setNotifQueue((prev) => prev.slice(nextIndex + 1));
     setActiveNotif(next);
+    announcementRunIdRef.current += 1;
+    const runId = announcementRunIdRef.current;
 
     /** Format a queue code so each letter is spoken with a longer pause, e.g. "ABX" → "A...... B...... C...... " */
     function formatQueueCodeForSpeech(code: string): string {
@@ -412,18 +452,42 @@ const QueueDisplay = () => {
       announcement,
       REPEAT_COUNT,
       () => {
+        if (announcementRunIdRef.current !== runId) return;
         setTimeout(() => {
+          if (announcementRunIdRef.current !== runId) return;
           pingChRef.current?.send({
             type: 'broadcast',
             event: 'ping-done',
             payload: { sequenceId: next.id },
           });
-          setActiveNotif(null);
+          setActiveNotif((current) => (current?.id === next.id ? null : current));
         }, POPUP_GAP_MS);
       },
       0.85,
+      () => announcementRunIdRef.current === runId,
     );
-  }, [notifQueue, activeNotif]);
+  }, [notifQueue, activeNotif, sequences, activeOffices]);
+
+  useEffect(() => {
+    if (!activeNotif) return;
+
+    const activeOfficeIds = new Set(activeOffices.map((office) => office.id));
+    const stillServing = hasServingSequenceForDisplay(activeNotif.id, sequences, activeOfficeIds);
+
+    if (stillServing) return;
+
+    announcementRunIdRef.current += 1;
+    window.speechSynthesis.cancel();
+    setActiveNotif(null);
+  }, [activeNotif, sequences, activeOffices]);
+
+  useEffect(() => {
+    return () => {
+      announcementRunIdRef.current += 1;
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
   useEffect(() => {
     const ch = supabase
       .channel('queue-ping-broadcast', { config: { broadcast: { self: true } } })
@@ -433,13 +497,15 @@ const QueueDisplay = () => {
         const isOwnOffice = offices.some((o) => o.id === officeId && o.status);
         if (!isOwnOffice) return;
 
+        const sequenceId = payload.sequenceId as string | undefined;
+        // Ignore pings without a real sequence id so stale put-back items never speak.
+        if (!sequenceId) return;
+
         const code = (payload.queueCode as string) || '---';
-        // Use the real sequenceId as the notification id so the blink matches seq.id in the display
-        const notifId = (payload.sequenceId as string) || `ping-${Date.now()}`;
         setNotifQueue((prev) => [
           ...prev,
           {
-            id: notifId,
+            id: sequenceId,
             queueCode: code,
             windowLabel: (payload.windowLabel as string) || 'the window',
             officeName: (payload.officeName as string) || '',
@@ -447,6 +513,21 @@ const QueueDisplay = () => {
             priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
           } as CallNotification,
         ]);
+      })
+      .on('broadcast', { event: 'stop-announcement' }, ({ payload }) => {
+        const officeId = payload.officeId as string | undefined;
+        if (officeId) {
+          const isOwnOffice = offices.some((o) => o.id === officeId && o.status);
+          if (!isOwnOffice) return;
+        }
+
+        const sequenceId = payload.sequenceId as string | undefined;
+        if (!sequenceId) return;
+
+        announcementRunIdRef.current += 1;
+        window.speechSynthesis.cancel();
+        setNotifQueue((prev) => prev.filter((notif) => notif.id !== sequenceId));
+        setActiveNotif((current) => (current?.id === sequenceId ? null : current));
       })
       .subscribe();
     pingChRef.current = ch;
@@ -468,8 +549,6 @@ const QueueDisplay = () => {
     },
     { label: 'Priority', style: { text: 'text-rose-600 dark:text-rose-400', dot: 'bg-rose-500' } },
   ];
-
-  const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
   // Load any previously saved office order from localStorage.
   // This preserves the drag arrangement after page refresh.
@@ -685,12 +764,7 @@ const QueueDisplay = () => {
 
               // Use enriched status_data & window_data — no fragile ID lookup needed
               const servingEntries = sequences
-                .filter(
-                  (seq) =>
-                    seq.office === office.id &&
-                    seq.is_active !== false &&
-                    seq.status_data?.description?.toLowerCase().includes('serving'),
-                )
+                .filter((seq) => seq.office === office.id && isServingSequence(seq))
                 .map((seq) => ({
                   seq,
                   windowLabel: seq.window_data?.description || null,
