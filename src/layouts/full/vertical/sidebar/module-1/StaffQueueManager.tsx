@@ -26,6 +26,8 @@ import { useOfficeUserAssignmentStore } from '@/stores/module-1_stores/useOffice
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 type QueueBucket = 'priority' | 'regular';
+const PING_COOLDOWN_MS = 5000;
+const PING_RELEASE_FALLBACK_MS = 10000;
 
 const StaffQueueManager = () => {
   const [activeTab, setActiveTab] = useState<string>('');
@@ -34,10 +36,19 @@ const StaffQueueManager = () => {
   const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
   const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
   const [transferSuccess, setTransferSuccess] = useState<string>('');
+  const [isCallingNext, setIsCallingNext] = useState(false);
+  const [isTransferSubmitting, setIsTransferSubmitting] = useState(false);
+  const [completingIds, setCompletingIds] = useState<string[]>([]);
+  const [putBackIds, setPutBackIds] = useState<string[]>([]);
+  const [transferringIds, setTransferringIds] = useState<string[]>([]);
+  const [pingCooldownIds, setPingCooldownIds] = useState<string[]>([]);
   // Tracks which sequenceId is currently being announced; Ping is disabled until it finishes
   const [pingingId, setPingingId] = useState<string | null>(null);
   // Channel ref for receiving ping-done callbacks from QueueDisplay
   const pingDoneChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const pingCooldownTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pingReleaseTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const callNextInFlightRef = useRef(false);
 
   const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, fetchOfficeById, isLoading: officesLoading } = useOfficeStore();
@@ -89,15 +100,26 @@ const StaffQueueManager = () => {
     const ch = supabase
       .channel('queue-ping-done-listener')
       .on('broadcast', { event: 'ping-done' }, ({ payload }) => {
-        setPingingId((curr) =>
-          curr === (payload.sequenceId as string) ? null : curr,
-        );
+        const sequenceId = payload.sequenceId as string;
+        setPingingId((curr) => (curr === sequenceId ? null : curr));
+
+        const releaseTimer = pingReleaseTimersRef.current[sequenceId];
+        if (releaseTimer) {
+          clearTimeout(releaseTimer);
+          delete pingReleaseTimersRef.current[sequenceId];
+        }
       })
       .subscribe();
     pingDoneChannelRef.current = ch;
     return () => {
       supabase.removeChannel(ch);
       pingDoneChannelRef.current = null;
+
+      Object.values(pingCooldownTimersRef.current).forEach((timer) => clearTimeout(timer));
+      pingCooldownTimersRef.current = {};
+
+      Object.values(pingReleaseTimersRef.current).forEach((timer) => clearTimeout(timer));
+      pingReleaseTimersRef.current = {};
     };
   }, []);
 
@@ -218,6 +240,15 @@ const StaffQueueManager = () => {
   );
 
   const handleCallNext = async (officeId: string, bucket: QueueBucket) => {
+    if (callNextInFlightRef.current) {
+      console.log('Call Next is already processing');
+      return;
+    }
+
+    callNextInFlightRef.current = true;
+    setIsCallingNext(true);
+
+    try {
     const servingStatus = getStatusByDescription('serving');
 
     if (!servingStatus) {
@@ -226,7 +257,7 @@ const StaffQueueManager = () => {
     }
 
     if (hasAnyServingAcrossAssignedOffices) {
-      console.log('ℹCall Next is blocked while there is an active serving queue');
+      console.log('Call Next is blocked while there is an active serving queue');
       return;
     }
 
@@ -235,7 +266,7 @@ const StaffQueueManager = () => {
     // Guard: block if this window already has someone serving/arrived
     const currentServing = getServingSequence(officeId, windowId);
     if (currentServing) {
-      console.log('ℹSomeone is already being served, Call Next is blocked');
+      console.log('Someone is already being served, Call Next is blocked');
       return;
     }
 
@@ -254,66 +285,138 @@ const StaffQueueManager = () => {
     const nextForBucket = waitingByBucket[0];
 
     if (!nextForBucket) {
-      console.log(`ℹNo one waiting in ${bucket} queue`);
+      console.log(`No one waiting in ${bucket} queue`);
       return;
     }
 
     // Move only the selected bucket's first waiting queue to serving.
     await updateSequenceStatus(nextForBucket.id, servingStatus.id, windowId);
+    } finally {
+      callNextInFlightRef.current = false;
+      setIsCallingNext(false);
+    }
   };
 
   const handleComplete = async (sequenceId: string, officeId: string) => {
+    if (completingIds.includes(sequenceId)) {
+      console.log('Complete is already processing for this queue');
+      return;
+    }
+
     const office = offices.find((o) => o.id === officeId);
     if (!office?.is_complete_capable) {
-      console.log('ℹ Complete action is disabled for this office');
+      console.log('Complete action is disabled for this office');
       return;
     }
 
     const completedStatus = getStatusByDescription('completed');
-    if (completedStatus) {
+    if (!completedStatus) {
+      return;
+    }
+
+    setCompletingIds((prev) => (prev.includes(sequenceId) ? prev : [...prev, sequenceId]));
+
+    try {
       await updateSequenceStatus(sequenceId, completedStatus.id);
+    } finally {
+      setCompletingIds((prev) => prev.filter((id) => id !== sequenceId));
     }
   };
 
   const handlePing = async (serving: Sequence, officeName: string, officeId: string) => {
+    if (pingingId === serving.id || pingCooldownIds.includes(serving.id)) {
+      console.log('Ping is cooling down for this queue');
+      return;
+    }
+
+    setPingingId(serving.id);
+    setPingCooldownIds((prev) => (prev.includes(serving.id) ? prev : [...prev, serving.id]));
+
+    const existingCooldownTimer = pingCooldownTimersRef.current[serving.id];
+    if (existingCooldownTimer) {
+      clearTimeout(existingCooldownTimer);
+    }
+    pingCooldownTimersRef.current[serving.id] = setTimeout(() => {
+      setPingCooldownIds((prev) => prev.filter((id) => id !== serving.id));
+      delete pingCooldownTimersRef.current[serving.id];
+    }, PING_COOLDOWN_MS);
+
+    const existingReleaseTimer = pingReleaseTimersRef.current[serving.id];
+    if (existingReleaseTimer) {
+      clearTimeout(existingReleaseTimer);
+    }
+    pingReleaseTimersRef.current[serving.id] = setTimeout(() => {
+      setPingingId((curr) => (curr === serving.id ? null : curr));
+      delete pingReleaseTimersRef.current[serving.id];
+    }, PING_RELEASE_FALLBACK_MS);
+
     // Use the Supabase REST broadcast API — no WebSocket subscription needed,
     // fires instantly on the very first click with no channel-ready race condition.
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-    await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            topic: 'queue-ping-broadcast',
-            event: 'ping',
-            payload: {
-              sequenceId: serving.id,
-              officeId,
-              queueCode: serving.queue_data?.code || '---',
-              windowLabel: serving.window_data?.description || 'the window',
-              officeName,
-              priorityDesc: serving.priority_data?.description || null,
+    try {
+      await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              topic: 'queue-ping-broadcast',
+              event: 'ping',
+              payload: {
+                sequenceId: serving.id,
+                officeId,
+                queueCode: serving.queue_data?.code || '---',
+                windowLabel: serving.window_data?.description || 'the window',
+                officeName,
+                priorityDesc: serving.priority_data?.description || null,
+              },
             },
-          },
-        ],
-      }),
-    });
-    // Disable the button immediately — re-enabled when QueueDisplay broadcasts ping-done
-    setPingingId(serving.id);
+          ],
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to ping queue:', error);
+
+      const releaseTimer = pingReleaseTimersRef.current[serving.id];
+      if (releaseTimer) {
+        clearTimeout(releaseTimer);
+        delete pingReleaseTimersRef.current[serving.id];
+      }
+      setPingingId((curr) => (curr === serving.id ? null : curr));
+
+      const cooldownTimer = pingCooldownTimersRef.current[serving.id];
+      if (cooldownTimer) {
+        clearTimeout(cooldownTimer);
+        delete pingCooldownTimersRef.current[serving.id];
+      }
+      setPingCooldownIds((prev) => prev.filter((id) => id !== serving.id));
+    }
   };
 
   const handlePutBackOnQueue = async (sequenceId: string) => {
+    if (putBackIds.includes(sequenceId)) {
+      console.log('Put Back is already processing for this queue');
+      return;
+    }
+
     const pendingStatus = getStatusByDescription('pending');
-    if (pendingStatus) {
+    if (!pendingStatus) {
+      return;
+    }
+
+    setPutBackIds((prev) => (prev.includes(sequenceId) ? prev : [...prev, sequenceId]));
+
+    try {
       // Put back to pending status with no window assignment
       // The new created_at timestamp will automatically place it at the end of the queue
       await updateSequenceStatus(sequenceId, pendingStatus.id, null);
+    } finally {
+      setPutBackIds((prev) => prev.filter((id) => id !== sequenceId));
     }
   };
 
@@ -338,22 +441,36 @@ const StaffQueueManager = () => {
   };
 
   const handleTransfer = async () => {
-    if (!transferringSequence || !transferTargetOffice) return;
+    if (!transferringSequence || !transferTargetOffice || isTransferSubmitting) return;
+
+    if (transferringIds.includes(transferringSequence.id)) {
+      console.log('Transfer is already processing for this queue');
+      return;
+    }
+
+    setIsTransferSubmitting(true);
+    setTransferringIds((prev) =>
+      prev.includes(transferringSequence.id) ? prev : [...prev, transferringSequence.id],
+    );
 
     const targetOffice = offices.find((o) => o.id === transferTargetOffice);
+    try {
+      await transferSequence(transferringSequence.id, transferTargetOffice, null);
 
-    await transferSequence(transferringSequence.id, transferTargetOffice, null);
+      // Show success message
+      const message = `Queue ${transferringSequence?.queue_data?.code} transferred to ${targetOffice?.description}. It will be queued based on priority.`;
+      setTransferSuccess(message);
 
-    // Show success message
-    const message = `✓ Queue ${transferringSequence?.queue_data?.code} transferred to ${targetOffice?.description}. It will be queued based on priority.`;
-    setTransferSuccess(message);
+      setTransferDialogOpen(false);
+      setTransferringSequence(null);
+      setTransferTargetOffice('');
 
-    setTransferDialogOpen(false);
-    setTransferringSequence(null);
-    setTransferTargetOffice('');
-
-    // Clear success message after 3 seconds
-    setTimeout(() => setTransferSuccess(''), 3000);
+      // Clear success message after 3 seconds
+      setTimeout(() => setTransferSuccess(''), 3000);
+    } finally {
+      setTransferringIds((prev) => prev.filter((id) => id !== transferringSequence.id));
+      setIsTransferSubmitting(false);
+    }
   };
 
   const getPriorityColor = (priority: string | null | undefined) => {
@@ -455,7 +572,11 @@ const StaffQueueManager = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => handleComplete(serving.id, office.id)}
-                                  disabled={isLoading || !canCompleteInOffice}
+                                  disabled={
+                                    isLoading ||
+                                    !canCompleteInOffice ||
+                                    completingIds.includes(serving.id)
+                                  }
                                   title={
                                     canCompleteInOffice
                                       ? 'Mark this queue as completed'
@@ -469,7 +590,11 @@ const StaffQueueManager = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => handleOpenTransferDialog(serving)}
-                                  disabled={isLoading}
+                                  disabled={
+                                    isLoading ||
+                                    isTransferSubmitting ||
+                                    transferringIds.includes(serving.id)
+                                  }
                                   className="w-full justify-center bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                                 >
                                   <ArrowRightLeft className="h-4 w-4 mr-2" />
@@ -478,7 +603,11 @@ const StaffQueueManager = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => handlePing(serving, office.description || '', office.id)}
-                                  disabled={isLoading || pingingId === serving.id}
+                                  disabled={
+                                    isLoading ||
+                                    pingingId === serving.id ||
+                                    pingCooldownIds.includes(serving.id)
+                                  }
                                   title="Re-announce this queue on the display"
                                   className="w-full justify-center bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
                                 >
@@ -488,7 +617,7 @@ const StaffQueueManager = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => handlePutBackOnQueue(serving.id)}
-                                  disabled={isLoading}
+                                  disabled={isLoading || putBackIds.includes(serving.id)}
                                   title="Put back to end of queue (customer didn't arrive)"
                                   className="w-full justify-center bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
                                 >
@@ -520,6 +649,7 @@ const StaffQueueManager = () => {
                                   onClick={() => handleCallNext(office.id, 'priority')}
                                   disabled={
                                     isLoading ||
+                                    isCallingNext ||
                                     hasAnyServingAcrossAssignedOffices ||
                                     !!serving ||
                                     priorityWaiting.length === 0
@@ -547,7 +677,11 @@ const StaffQueueManager = () => {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => handleOpenTransferDialog(seq)}
-                                        disabled={isLoading}
+                                        disabled={
+                                          isLoading ||
+                                          isTransferSubmitting ||
+                                          transferringIds.includes(seq.id)
+                                        }
                                       >
                                         <ArrowRightLeft className="h-4 w-4" />
                                       </Button>
@@ -571,6 +705,7 @@ const StaffQueueManager = () => {
                                   onClick={() => handleCallNext(office.id, 'regular')}
                                   disabled={
                                     isLoading ||
+                                    isCallingNext ||
                                     hasAnyServingAcrossAssignedOffices ||
                                     !!serving ||
                                     regularWaiting.length === 0
@@ -598,7 +733,11 @@ const StaffQueueManager = () => {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => handleOpenTransferDialog(seq)}
-                                        disabled={isLoading}
+                                        disabled={
+                                          isLoading ||
+                                          isTransferSubmitting ||
+                                          transferringIds.includes(seq.id)
+                                        }
                                       >
                                         <ArrowRightLeft className="h-4 w-4" />
                                       </Button>
@@ -668,8 +807,11 @@ const StaffQueueManager = () => {
             <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleTransfer} disabled={!transferTargetOffice || isLoading}>
-              {isLoading ? (
+            <Button
+              onClick={handleTransfer}
+              disabled={!transferTargetOffice || isLoading || isTransferSubmitting}
+            >
+              {isLoading || isTransferSubmitting ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <ArrowRightLeft className="h-4 w-4 mr-2" />
