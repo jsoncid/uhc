@@ -569,7 +569,7 @@ const QueueGenerator = () => {
             <Button
               className="w-full text-2xl py-7 bg-primary hover:bg-primary/90"
               onClick={handleGenerateCode}
-              disabled={!isFormValid || isLoading}
+              disabled={!isFormValid || isLoading || isGenerating}
             >
               {isGenerating ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
               Generate Queue Code
