@@ -80,6 +80,12 @@ const QueueGenerator = () => {
   const [selectedOfficeName, setSelectedOfficeName] = useState('');
   const [generatedAt, setGeneratedAt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [preventClose, setPreventClose] = useState(false);
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open && preventClose) return;
+    setIsDialogOpen(open);
+  };
 
   const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
@@ -432,6 +438,7 @@ const QueueGenerator = () => {
       const priorityName = priority?.description || '';
       setSelectedPriorityName(priorityName);
       setGeneratedAt(new Date().toLocaleString());
+      setPreventClose(true);
       setIsDialogOpen(true);
       // Notification is handled automatically via Postgres Changes on sequence table
     }
@@ -578,7 +585,7 @@ const QueueGenerator = () => {
         </Card>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
         <DialogContent
           className="sm:max-w-none max-w-none p-0 bg-white text-black dark:bg-white dark:text-black"
           style={{ width: `${QUEUE_TICKET_WIDTH_IN}in` }}
@@ -591,7 +598,10 @@ const QueueGenerator = () => {
           </div>
           <DialogFooter id="queue-print-actions" className="sm:justify-center gap-2 mb-2">
             <Button onClick={handlePrintDialog}>Print</Button>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="outline" onClick={() => {
+                setPreventClose(false);
+                setIsDialogOpen(false);
+              }}>
               Close
             </Button>
           </DialogFooter>
