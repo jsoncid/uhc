@@ -4,7 +4,6 @@ import {
   Check,
   Loader2,
   ArrowRightLeft,
-  UserCheck,
   Bell,
   RotateCcw,
 } from 'lucide-react';
@@ -228,15 +227,15 @@ const StaffQueueManager = () => {
 
   const getServingSequence = (officeId: string, windowId?: string): Sequence | undefined => {
     const servingStatus = getStatusByDescription('serving');
-    const arrivedStatus = getStatusByDescription('arrived');
-    const activeStatusIds = [servingStatus?.id, arrivedStatus?.id].filter(Boolean) as string[];
     const officeSequences = getSequencesForOffice(officeId); // already filters is_active
-    if (windowId) {
-      return officeSequences.find(
-        (seq) => activeStatusIds.includes(seq.status) && seq.window === windowId,
-      );
+    if (!servingStatus) {
+      return undefined;
     }
-    return officeSequences.find((seq) => activeStatusIds.includes(seq.status));
+
+    if (windowId) {
+      return officeSequences.find((seq) => seq.status === servingStatus.id && seq.window === windowId);
+    }
+    return officeSequences.find((seq) => seq.status === servingStatus.id);
   };
 
   // Global guard: if the staff is currently serving in any assigned office/window,
@@ -269,7 +268,7 @@ const StaffQueueManager = () => {
 
       const windowId = selectedWindowByOffice[officeId];
 
-      // Guard: block if this window already has someone serving/arrived
+      // Guard: block if this window already has someone serving
       const currentServing = getServingSequence(officeId, windowId);
       if (currentServing) {
         console.log('Someone is already being served, Call Next is blocked');
@@ -326,13 +325,6 @@ const StaffQueueManager = () => {
       await updateSequenceStatus(sequenceId, completedStatus.id);
     } finally {
       setCompletingIds((prev) => prev.filter((id) => id !== sequenceId));
-    }
-  };
-
-  const handleArrived = async (sequenceId: string, windowId: string) => {
-    const arrivedStatus = getStatusByDescription('arrived');
-    if (arrivedStatus) {
-      await updateSequenceStatus(sequenceId, arrivedStatus.id, windowId);
     }
   };
 
@@ -651,22 +643,6 @@ const StaffQueueManager = () => {
                                 >
                                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                                   Transfer
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={() =>
-                                    handleArrived(serving.id, selectedWindowByOffice[office.id])
-                                  }
-                                  disabled={
-                                    isLoading ||
-                                    serving.status_data?.description
-                                      ?.toLowerCase()
-                                      .includes('arrived')
-                                  }
-                                  className="w-full justify-center bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-                                >
-                                  <UserCheck className="h-4 w-4 mr-2" />
-                                  Arrived
                                 </Button>
                                 <Button
                                   size="sm"
