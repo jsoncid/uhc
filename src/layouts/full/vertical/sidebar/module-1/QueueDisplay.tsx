@@ -13,7 +13,7 @@ const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 const REPEAT_COUNT = 2; // how many times to announce
 const PAUSE_BETWEEN_MS = 250; // pause between each announcement
 const POPUP_GAP_MS = 250; // gap after speech before picking up the next item
-const MAX_OFFICES_PER_ROW = 7;
+const MAX_OFFICES_PER_ROW = 8;
 const MAX_WAITING_PER_COLUMN = 6;
 
 // Full-bleed spacing and persisted office order key.
@@ -262,26 +262,30 @@ const QueueDisplay = () => {
     setNotifQueue((prev) => prev.slice(1));
     setActiveNotif(next);
 
-/** Format a queue code so each letter is spoken with a longer pause, e.g. "ABX" → "A...... B...... C...... " */
-function formatQueueCodeForSpeech(code: string): string {
-  return ((code || '').split('').join('... ') + '... ');
-}
+    /** Format a queue code so each letter is spoken with a longer pause, e.g. "ABX" → "A...... B...... C...... " */
+    function formatQueueCodeForSpeech(code: string): string {
+      return (code || '').split('').join('... ') + '... ';
+    }
 
     const spokenCode = formatQueueCodeForSpeech(next.queueCode);
     // Announce once: "Now calling, V...... A...... X...... , at the office. Please proceed to Window 1."
-    const announcement =
-      `Now calling, ${spokenCode}to ${next.officeName || 'the office'}. Please proceed to ${next.windowLabel}.`;
+    const announcement = `Now calling, ${spokenCode}to ${next.officeName || 'the office'}. Please proceed to ${next.windowLabel}.`;
 
-    speakRepeat(announcement, REPEAT_COUNT, () => {
-      setTimeout(() => {
-        pingChRef.current?.send({
-          type: 'broadcast',
-          event: 'ping-done',
-          payload: { sequenceId: next.id },
-        });
-        setActiveNotif(null);
-      }, POPUP_GAP_MS);
-    }, 0.85);
+    speakRepeat(
+      announcement,
+      REPEAT_COUNT,
+      () => {
+        setTimeout(() => {
+          pingChRef.current?.send({
+            type: 'broadcast',
+            event: 'ping-done',
+            payload: { sequenceId: next.id },
+          });
+          setActiveNotif(null);
+        }, POPUP_GAP_MS);
+      },
+      0.85,
+    );
   }, [notifQueue, activeNotif]);
   useEffect(() => {
     const ch = supabase
@@ -621,7 +625,7 @@ function formatQueueCodeForSpeech(code: string): string {
                   <div className="flex flex-1 flex-col overflow-hidden">
                     {/* ── SERVING zone (green tint) ── */}
                     <div className="flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2.5 py-1 dark:bg-emerald-950/40">
-                      <span className="self-start text-[0.7rem] font-bold uppercase tracking-widest text-emerald-950 dark:text-emerald-100">
+                      <span className="self-start text-[0.7rem] font-bold uppercase tracking-widest text-emerald-950 dark:text-white">
                         Now Serving
                       </span>
                       <div className="flex min-h-0 items-start justify-center overflow-hidden pt-0.5">
@@ -663,13 +667,11 @@ function formatQueueCodeForSpeech(code: string): string {
 
                     {/* ── WAITING zone (silver/slate tint) ── */}
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100 px-2.5 py-1 dark:bg-slate-700/30">
-                      <span className="mb-1 self-start text-[0.7rem] font-bold uppercase tracking-widest text-black dark:text-white/85">
+                      <span className="mb-1 self-start text-[0.7rem] font-bold uppercase tracking-widest text-black dark:text-white">
                         Waiting
                       </span>
                       {waitingEntries.length === 0 ? (
-                        <p className="text-xs font-medium text-black dark:text-white/85">
-                          No waiting
-                        </p>
+                        <p className="text-xs font-medium text-black dark:text-white">No waiting</p>
                       ) : (
                         <div className="grid flex-1 grid-cols-2 items-stretch gap-1">
                           <div className="flex flex-col px-1 py-0.5">
