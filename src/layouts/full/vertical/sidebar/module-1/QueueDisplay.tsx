@@ -13,8 +13,10 @@ const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 const REPEAT_COUNT = 2; // how many times to announce
 const PAUSE_BETWEEN_MS = 250; // pause between each announcement
 const POPUP_GAP_MS = 250; // gap after speech before picking up the next item
+const SERVING_ROTATE_INTERVAL_MS = 2800;
+const SERVING_FADE_DURATION_MS = 320;
 const MAX_OFFICES_PER_ROW = 8;
-const MAX_WAITING_PER_COLUMN = 6;
+const MAX_WAITING_PER_COLUMN = 8;
 const MARQUEE_SCROLL_SPEED_PX_PER_SEC = 8;
 const MIN_MARQUEE_DURATION_SEC = 18;
 
@@ -148,6 +150,17 @@ interface WaitingQueueColumnProps {
   waitingHeadingMarginClass: string;
 }
 
+interface ServingQueueEntry {
+  seq: Sequence;
+  windowLabel: string | null;
+  style: ReturnType<typeof getPriorityStyle>;
+}
+
+interface ServingQueueRotatorProps {
+  entries: ServingQueueEntry[];
+  activeNotifId?: string;
+}
+
 const WaitingQueueColumn = ({
   title,
   titleClassName,
@@ -278,6 +291,89 @@ const WaitingQueueColumn = ({
             ))}
           </ul>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const ServingQueueRotator = ({ entries, activeNotifId }: ServingQueueRotatorProps) => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isFadingOut, setIsFadingOut] = useState(false);
+
+  const entrySignature = useMemo(
+    () =>
+      entries
+        .map(({ seq, windowLabel }) => `${seq.id}:${seq.queue_data?.code || ''}:${windowLabel || ''}`)
+        .join('|'),
+    [entries],
+  );
+
+  useEffect(() => {
+    setActiveIndex(0);
+    setIsFadingOut(false);
+  }, [entrySignature]);
+
+  useEffect(() => {
+    if (entries.length <= 1) return;
+    if (
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    )
+      return;
+
+    let fadeTimeoutId: number | null = null;
+    const intervalId = window.setInterval(() => {
+      setIsFadingOut(true);
+      fadeTimeoutId = window.setTimeout(() => {
+        setActiveIndex((prev) => (prev + 1) % entries.length);
+        setIsFadingOut(false);
+      }, SERVING_FADE_DURATION_MS);
+    }, SERVING_ROTATE_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+      if (fadeTimeoutId !== null) {
+        window.clearTimeout(fadeTimeoutId);
+      }
+    };
+  }, [entries.length, entrySignature]);
+
+  const activeEntry = entries[activeIndex] || entries[0];
+  if (!activeEntry) return null;
+
+  const { seq, windowLabel, style } = activeEntry;
+  const windowWords = windowLabel?.trim().split(/\s+/).filter(Boolean) || [];
+  const isTwoWordWindow = windowWords.length === 2;
+
+  return (
+    <div className={`queue-serving-transition ${isFadingOut ? 'queue-serving-fade-out' : ''}`}>
+      <div className="queue-serving-line">
+        <span
+          className={`queue-serving-code text-center font-black tracking-[0.08em] ${style.text}${seq.id === activeNotifId ? ' queue-blink' : ''}`}
+          aria-live="polite"
+        >
+          {seq.queue_data?.code || '---'}
+        </span>
+        {windowLabel && (
+          <>
+            <span className={`queue-serving-separator font-black ${style.text}`} aria-hidden="true">
+              -
+            </span>
+            {isTwoWordWindow ? (
+              <span
+                className={`queue-serving-window queue-serving-window-stacked font-bold ${style.text}`}
+                title={windowLabel}
+              >
+                <span>{windowWords[0]}</span>
+                <span>{windowWords[1]}</span>
+              </span>
+            ) : (
+              <span className={`queue-serving-window font-bold ${style.text}`} title={windowLabel}>
+                {windowLabel}
+              </span>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -758,49 +854,7 @@ const QueueDisplay = () => {
                       </span>
                       <div className="queue-serving-content flex min-h-0 items-start justify-center overflow-hidden pt-0.5">
                         {servingEntries.length > 0 ? (
-                          <div className="flex w-full min-h-0 flex-col items-center justify-start gap-px overflow-hidden">
-                            {servingEntries.map(({ seq, windowLabel, style }) => (
-                              <div key={seq.id} className="queue-serving-line">
-                                <span
-                                  className={`queue-serving-code text-center font-black tracking-[0.08em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
-                                  aria-live="polite"
-                                >
-                                  {seq.queue_data?.code || '---'}
-                                </span>
-                                {windowLabel && (() => {
-                                  const windowWords = windowLabel.trim().split(/\s+/).filter(Boolean);
-                                  const isTwoWordWindow = windowWords.length === 2;
-
-                                  return (
-                                    <>
-                                      <span
-                                        className={`queue-serving-separator font-black ${style.text}`}
-                                        aria-hidden="true"
-                                      >
-                                        -
-                                      </span>
-                                      {isTwoWordWindow ? (
-                                        <span
-                                          className={`queue-serving-window queue-serving-window-stacked font-bold ${style.text}`}
-                                          title={windowLabel}
-                                        >
-                                          <span>{windowWords[0]}</span>
-                                          <span>{windowWords[1]}</span>
-                                        </span>
-                                      ) : (
-                                        <span
-                                          className={`queue-serving-window font-bold ${style.text}`}
-                                          title={windowLabel}
-                                        >
-                                          {windowLabel}
-                                        </span>
-                                      )}
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            ))}
-                          </div>
+                          <ServingQueueRotator entries={servingEntries} activeNotifId={activeNotif?.id} />
                         ) : (
                           <span className="queue-serving-empty font-bold text-emerald-400 dark:text-emerald-700/50">
                             —
@@ -879,6 +933,7 @@ const QueueDisplay = () => {
 
         .queue-serving-zone {
           --queue-serving-content-height: 54px;
+          --queue-serving-fade-duration: ${SERVING_FADE_DURATION_MS}ms;
         }
 
         .queue-serving-content {
@@ -887,9 +942,20 @@ const QueueDisplay = () => {
           max-height: var(--queue-serving-content-height);
         }
 
+        .queue-serving-transition {
+          width: 100%;
+          min-width: 0;
+          opacity: 1;
+          transition: opacity var(--queue-serving-fade-duration) ease-in-out;
+        }
+
+        .queue-serving-fade-out {
+          opacity: 0;
+        }
+
         .queue-waiting-zone {
           --queue-marquee-duration: 22s;
-          --queue-waiting-row-height: 24px;
+          --queue-waiting-row-height: 20px;
           --queue-waiting-row-gap: 0px;
           --queue-waiting-column-heading-height: 18px;
           --queue-waiting-window-height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
@@ -962,17 +1028,6 @@ const QueueDisplay = () => {
           font-size: 30px;
           line-height: 1;
           white-space: nowrap;
-          -webkit-text-stroke: 1.1px #ffffff;
-          paint-order: stroke fill;
-          text-shadow:
-            1px 0 0 #ffffff,
-            -1px 0 0 #ffffff,
-            0 1px 0 #ffffff,
-            0 -1px 0 #ffffff,
-            1px 1px 0 #ffffff,
-            -1px 1px 0 #ffffff,
-            1px -1px 0 #ffffff,
-            -1px -1px 0 #ffffff;
         }
 
         .queue-serving-line {
@@ -1039,7 +1094,7 @@ const QueueDisplay = () => {
         }
 
         .queue-density-compact .queue-waiting-zone {
-          --queue-waiting-row-height: 22px;
+          --queue-waiting-row-height: 18px;
           --queue-waiting-row-gap: 0px;
           --queue-waiting-column-heading-height: 16px;
         }
@@ -1076,6 +1131,10 @@ const QueueDisplay = () => {
         }
 
         @media (prefers-reduced-motion: reduce) {
+          .queue-serving-transition {
+            transition: none;
+          }
+
           .queue-waiting-marquee {
             animation: none;
           }
