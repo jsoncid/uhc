@@ -10,7 +10,7 @@ import { SettingsProvider } from './context/SettingsContext';
 function App() {
   return (
     <>
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <SettingsProvider>
           <AuthProvider>
             <PermissionsProvider>
