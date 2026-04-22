@@ -580,6 +580,8 @@ const QueueGenerator = () => {
       const priority = priorities.find((p) => p.id === selectedPriority);
       const priorityName = priority?.description || '';
       setSelectedPriorityName(priorityName);
+      setSelectedOffice('');
+      setSelectedPriority('');
       setGeneratedAt(new Date().toLocaleString());
       setPreventClose(true);
       setIsDialogOpen(true);
