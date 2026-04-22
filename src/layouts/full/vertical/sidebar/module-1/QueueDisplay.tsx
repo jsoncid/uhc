@@ -115,16 +115,6 @@ function speakRepeat(text: string, times: number, onDone: () => void, rate?: num
 
 // ── Pure helpers at module scope so effects can reference them without stale-closure issues ──
 
-const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
-  const desc = (priorityDescription ?? '').toLowerCase();
-  if (desc.includes('urgent')) return 1;
-  if (desc.includes('vip')) return 2;
-  if (desc.includes('priority')) return 3;
-  if (desc.includes('pwd')) return 4;
-  if (desc.includes('senior')) return 5;
-  return 10;
-};
-
 const isRegularPriority = (priority: string | null | undefined): boolean => {
   const desc = (priority ?? '').toLowerCase();
   return desc === '' || desc.includes('regular');
@@ -553,9 +543,6 @@ function formatQueueCodeForSpeech(code: string): string {
                 )
                 .map((seq) => ({ seq }))
                 .sort((a, b) => {
-                  const pa = getPriorityWeight(a.seq.priority_data?.description);
-                  const pb = getPriorityWeight(b.seq.priority_data?.description);
-                  if (pa !== pb) return pa - pb;
                   return (
                     new Date(a.seq.created_at).getTime() - new Date(b.seq.created_at).getTime()
                   );

@@ -152,16 +152,6 @@ const StaffQueueManager = () => {
     return sequences.filter((seq) => seq.office === officeId && seq.is_active !== false);
   };
 
-  const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
-    const desc = priorityDescription?.toLowerCase() || '';
-    if (desc.includes('urgent')) return 1;
-    if (desc.includes('vip')) return 2;
-    if (desc.includes('priority')) return 3;
-    if (desc.includes('pwd')) return 4;
-    if (desc.includes('senior')) return 5;
-    return 10; // Regular/default - lowest priority
-  };
-
   const isRegularPriority = (priorityDescription: string | null | undefined): boolean => {
     const desc = priorityDescription?.toLowerCase() || '';
     return desc === '' || desc.includes('regular');
@@ -178,11 +168,8 @@ const StaffQueueManager = () => {
       pending = pending.filter((seq) => seq.window === windowId || !seq.window);
     }
 
-    // Sort by priority weight (lower = higher priority), then by created_at (FIFO)
+    // Strict FIFO by created_at so call-next follows queue creation time.
     return pending.sort((a, b) => {
-      const priorityA = getPriorityWeight(a.priority_data?.description);
-      const priorityB = getPriorityWeight(b.priority_data?.description);
-      if (priorityA !== priorityB) return priorityA - priorityB;
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   };

@@ -26,15 +26,10 @@ const QUEUE_TICKET_WIDTH_MM = '82.5';
 const QUEUE_TICKET_HEIGHT_MM = '100';
 const QUEUE_TICKET_WIDTH_IN = Number(QUEUE_TICKET_WIDTH_MM) / 25.4;
 const QUEUE_TICKET_HEIGHT_IN = Number(QUEUE_TICKET_HEIGHT_MM) / 25.4;
-const QUEUE_CODE_COLOR = '#dc2626';
 
-const PRIORITY_PRINT_COLORS: Record<string, { code: string; badgeBg: string; badgeText: string }> = {
+const PRIORITY_PRINT_COLORS = {
   regular: { code: '#16a34a', badgeBg: '#dcfce7', badgeText: '#166534' },
-  senior: { code: '#2563eb', badgeBg: '#dbeafe', badgeText: '#1e3a8a' },
-  pwd: { code: '#9333ea', badgeBg: '#f3e8ff', badgeText: '#6b21a8' },
-  priority: { code: '#dc2626', badgeBg: '#fee2e2', badgeText: '#991b1b' },
-  urgent: { code: '#ea580c', badgeBg: '#ffedd5', badgeText: '#9a3412' },
-  vip: { code: '#ca8a04', badgeBg: '#fef9c3', badgeText: '#854d0e' },
+  special: { code: '#dc2626', badgeBg: '#fee2e2', badgeText: '#991b1b' },
 };
 
 const escapeHtml = (value: string) =>
@@ -45,45 +40,25 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 
-const PRIORITY_COLORS: Record<string, { bg: string; text: string; badge: string; border: string }> =
-  {
-    regular: {
-      bg: 'bg-green-600 hover:bg-green-700',
-      text: 'text-green-600',
-      badge: 'bg-green-100 text-green-700',
-      border: 'border-green-500',
-    },
-    senior: {
-      bg: 'bg-blue-600 hover:bg-blue-700',
-      text: 'text-blue-600',
-      badge: 'bg-blue-100 text-blue-700',
-      border: 'border-blue-500',
-    },
-    pwd: {
-      bg: 'bg-purple-600 hover:bg-purple-700',
-      text: 'text-purple-600',
-      badge: 'bg-purple-100 text-purple-700',
-      border: 'border-purple-500',
-    },
-    priority: {
-      bg: 'bg-red-600 hover:bg-red-700',
-      text: 'text-red-600',
-      badge: 'bg-red-100 text-red-700',
-      border: 'border-red-500',
-    },
-    urgent: {
-      bg: 'bg-orange-600 hover:bg-orange-700',
-      text: 'text-orange-600',
-      badge: 'bg-orange-100 text-orange-700',
-      border: 'border-orange-500',
-    },
-    vip: {
-      bg: 'bg-yellow-600 hover:bg-yellow-700',
-      text: 'text-yellow-600',
-      badge: 'bg-yellow-100 text-yellow-700',
-      border: 'border-yellow-500',
-    },
-  };
+const PRIORITY_COLORS = {
+  regular: {
+    bg: 'bg-green-600 hover:bg-green-700',
+    text: 'text-green-600',
+    badge: 'bg-green-100 text-green-700',
+    border: 'border-green-500',
+  },
+  special: {
+    bg: 'bg-red-600 hover:bg-red-700',
+    text: 'text-red-600',
+    badge: 'bg-red-100 text-red-700',
+    border: 'border-red-500',
+  },
+};
+
+const isSpecialPriorityType = (description: string | null | undefined): boolean => {
+  const desc = (description || '').toLowerCase();
+  return desc.includes('senior') || desc.includes('pwd') || desc.includes('ob');
+};
 
 const QueueGenerator = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -121,21 +96,15 @@ const QueueGenerator = () => {
   }, [profileLoading, userAssignmentIds, fetchOffices]);
 
   const getPriorityColor = (description: string | null) => {
-    const desc = description?.toLowerCase() || '';
-    for (const [key, colors] of Object.entries(PRIORITY_COLORS)) {
-      if (desc.includes(key)) {
-        return colors;
-      }
-    }
-    return PRIORITY_COLORS.regular;
+    return isSpecialPriorityType(description)
+      ? PRIORITY_COLORS.special
+      : PRIORITY_COLORS.regular;
   };
 
   const getPriorityPrintColor = (description: string) => {
-    const desc = description.toLowerCase();
-    for (const [key, colors] of Object.entries(PRIORITY_PRINT_COLORS)) {
-      if (desc.includes(key)) return colors;
-    }
-    return PRIORITY_PRINT_COLORS.regular;
+    return isSpecialPriorityType(description)
+      ? PRIORITY_PRINT_COLORS.special
+      : PRIORITY_PRINT_COLORS.regular;
   };
 
   const buildTicketPrintHtml = (
@@ -212,7 +181,7 @@ const QueueGenerator = () => {
               font-weight: 800;
               letter-spacing: 0.14em;
               line-height: 1;
-              color: ${QUEUE_CODE_COLOR};
+              color: ${colors.code};
             }
             .priority {
               margin-top: 1.6mm;
@@ -260,7 +229,7 @@ const QueueGenerator = () => {
             <p style="margin:0;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">Queue Ticket</p>
           </div>
           <div style="width:100%;border-top:1px dashed #d1d5db;margin:1.8mm 0;"></div>
-          <p style="margin:0;font-size:104px;font-weight:800;letter-spacing:0.14em;line-height:1;color:${QUEUE_CODE_COLOR};">${safeCode}</p>
+          <p style="margin:0;font-size:104px;font-weight:800;letter-spacing:0.14em;line-height:1;color:${colors.code};">${safeCode}</p>
           <p style="margin-top:1.6mm;font-size:10.5px;font-weight:700;color:${colors.badgeText};background:${colors.badgeBg};border-radius:999px;padding:1mm 3mm;text-transform:uppercase;">${safePriority}</p>
           <p style="margin:0;font-size:9px;color:#6b7280;">${safeGeneratedAt}</p>
         </div>
@@ -471,7 +440,7 @@ const QueueGenerator = () => {
       </span>
       <div className="h-px w-full bg-gray-300" />
       <span
-        className="text-[68px] leading-none font-black tracking-[0.14em] text-red-600"
+        className={`text-[68px] leading-none font-black tracking-[0.14em] ${getPriorityColor(selectedPriorityName).text}`}
       >
         {queueCode}
       </span>
