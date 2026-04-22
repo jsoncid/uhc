@@ -752,11 +752,11 @@ const QueueDisplay = () => {
                   {/* Now serving / waiting — split into two colour zones */}
                   <div className="flex flex-col overflow-hidden">
                     {/* ── SERVING zone (green tint) ── */}
-                    <div className="flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2.5 py-1 dark:bg-emerald-950/40">
+                    <div className="queue-serving-zone flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2.5 py-1 dark:bg-emerald-950/40">
                       <span className="self-start text-[0.7rem] font-bold uppercase tracking-widest text-emerald-950 dark:text-white">
                         Now Serving
                       </span>
-                      <div className="flex min-h-0 items-start justify-center overflow-hidden pt-0.5">
+                      <div className="queue-serving-content flex min-h-0 items-start justify-center overflow-hidden pt-0.5">
                         {servingEntries.length > 0 ? (
                           <div className="flex w-full min-h-0 flex-col items-center justify-start gap-px overflow-hidden">
                             {servingEntries.map(({ seq, windowLabel, style }) => (
@@ -813,16 +813,18 @@ const QueueDisplay = () => {
                     <div className="w-full border-t border-dashed border-border" />
 
                     {/* ── WAITING zone (silver/slate tint) ── */}
-                    <div className="flex shrink-0 flex-col overflow-hidden bg-slate-100 px-2 py-[3px] dark:bg-slate-700/30">
+                    <div className="queue-waiting-zone flex shrink-0 flex-col overflow-hidden bg-slate-100 px-2 py-[3px] dark:bg-slate-700/30">
                       <span className="mb-0.5 self-start text-[13px] font-bold uppercase tracking-[0.16em] text-black dark:text-white">
                         Waiting
                       </span>
                       {waitingEntries.length === 0 ? (
-                        <p className="text-[14px] font-medium leading-[1.1] text-black dark:text-white">
-                          No waiting
-                        </p>
+                        <div className="queue-waiting-empty-state">
+                          <p className="text-[14px] font-medium leading-[1.1] text-black dark:text-white">
+                            No waiting
+                          </p>
+                        </div>
                       ) : (
-                        <div className="grid flex-1 grid-cols-2 items-stretch gap-0.5">
+                        <div className="queue-waiting-columns grid flex-1 grid-cols-2 items-stretch gap-0.5">
                           <WaitingQueueColumn
                             title="Priority"
                             titleClassName="text-rose-700 dark:text-rose-300/90"
@@ -875,17 +877,47 @@ const QueueDisplay = () => {
           to { transform: translateY(-50%); }
         }
 
+        .queue-serving-zone {
+          --queue-serving-content-height: 54px;
+        }
+
+        .queue-serving-content {
+          height: var(--queue-serving-content-height);
+          min-height: var(--queue-serving-content-height);
+          max-height: var(--queue-serving-content-height);
+        }
+
+        .queue-waiting-zone {
+          --queue-marquee-duration: 22s;
+          --queue-waiting-row-height: 24px;
+          --queue-waiting-row-gap: 0px;
+          --queue-waiting-column-heading-height: 18px;
+          --queue-waiting-window-height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
+          --queue-waiting-columns-height: calc(var(--queue-waiting-column-heading-height) + var(--queue-waiting-window-height));
+        }
+
+        .queue-waiting-columns,
+        .queue-waiting-empty-state {
+          height: var(--queue-waiting-columns-height);
+          min-height: var(--queue-waiting-columns-height);
+          max-height: var(--queue-waiting-columns-height);
+        }
+
+        .queue-waiting-empty-state {
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-start;
+          padding-top: 1px;
+        }
+
         .queue-waiting-window {
           position: relative;
           isolation: isolate;
           contain: layout paint;
           clip-path: inset(0);
-          --queue-marquee-duration: 22s;
-          --queue-waiting-row-height: 24px;
-          --queue-waiting-row-gap: 0px;
-          height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
-          min-height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
-          max-height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
+          height: var(--queue-waiting-window-height);
+          min-height: var(--queue-waiting-window-height);
+          max-height: var(--queue-waiting-window-height);
           overflow: hidden;
         }
 
@@ -1002,9 +1034,14 @@ const QueueDisplay = () => {
           text-overflow: ellipsis;
         }
 
-        .queue-density-compact .queue-waiting-window {
+        .queue-density-compact .queue-serving-zone {
+          --queue-serving-content-height: 46px;
+        }
+
+        .queue-density-compact .queue-waiting-zone {
           --queue-waiting-row-height: 22px;
           --queue-waiting-row-gap: 0px;
+          --queue-waiting-column-heading-height: 16px;
         }
 
         .queue-density-compact .queue-serving-code {
