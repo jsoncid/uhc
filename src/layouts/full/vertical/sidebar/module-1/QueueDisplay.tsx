@@ -639,17 +639,24 @@ const QueueDisplay = () => {
       })
       .on('broadcast', { event: 'stop-announcement' }, ({ payload }) => {
         const officeId = payload.officeId as string | undefined;
-        if (officeId) {
-          const isOwnOffice = offices.some((o) => o.id === officeId && o.status);
-          if (!isOwnOffice) return;
-        }
+        // Ignore malformed/global stop events that don't specify an office scope.
+        if (!officeId) return;
+
+        const isOwnOffice = offices.some((o) => o.id === officeId && o.status);
+        if (!isOwnOffice) return;
 
         const sequenceId = payload.sequenceId as string | undefined;
         if (!sequenceId) return;
 
+        setNotifQueue((prev) => prev.filter((notif) => notif.id !== sequenceId));
+
+        // Cancel speech only when the currently speaking sequence is the one being stopped.
+        if (activeNotifIdRef.current !== sequenceId) {
+          return;
+        }
+
         announcementRunIdRef.current += 1;
         window.speechSynthesis.cancel();
-        setNotifQueue((prev) => prev.filter((notif) => notif.id !== sequenceId));
         setActiveNotif((current) => (current?.id === sequenceId ? null : current));
       })
       .subscribe();
