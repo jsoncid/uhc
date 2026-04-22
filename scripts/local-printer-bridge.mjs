@@ -11,17 +11,31 @@ const TICKET_HEIGHT_MM = 108;
 
 const mmToHundredthsInch = (mm) => Math.round((mm / 25.4) * 100);
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Access-Control-Request-Private-Network',
+  'Access-Control-Allow-Private-Network': 'true',
+  'Access-Control-Max-Age': '600',
+  Vary: 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Access-Control-Request-Private-Network',
+};
+
 let lastPrintSignature = '';
 let lastPrintAt = 0;
 
 const sendJson = (res, statusCode, payload) => {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    ...CORS_HEADERS,
   });
   res.end(JSON.stringify(payload));
+};
+
+const sendNoContent = (res, statusCode = 204) => {
+  res.writeHead(statusCode, {
+    ...CORS_HEADERS,
+  });
+  res.end();
 };
 
 const readJsonBody = async (req) => {
@@ -346,7 +360,7 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname;
 
   if (req.method === 'OPTIONS') {
-    sendJson(res, 204, {});
+    sendNoContent(res);
     return;
   }
 

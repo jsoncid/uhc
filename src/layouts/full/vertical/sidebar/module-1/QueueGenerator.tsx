@@ -35,10 +35,13 @@ const QUEUE_TICKET_HEIGHT_MM = '108';
 const QUEUE_TICKET_WIDTH_IN = Number(QUEUE_TICKET_WIDTH_MM) / 25.4;
 const QUEUE_TICKET_HEIGHT_IN = Number(QUEUE_TICKET_HEIGHT_MM) / 25.4;
 const OFFICE_GRID_COLUMNS = 3;
-const DEFAULT_PRINTER_VALUE = '__default_printer__';
-const DEFAULT_PAPER_SIZE_VALUE = '__printer_default_paper__';
-const PRINTER_DISCOVERY_TIMEOUT_MS = 2500;
-const DEFAULT_PRINTER_BRIDGE_PORT = '4679';
+
+const escapeHtml = (value: string) => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
 
 const PRIORITY_COLORS = {
   regular: {
@@ -67,419 +70,131 @@ const QueueGenerator = () => {
   const [selectedPriority, setSelectedPriority] = useState('');
   const [selectedPriorityName, setSelectedPriorityName] = useState('');
   const [selectedOffice, setSelectedOffice] = useState('');
-  const [selectedOfficeName, setSelectedOfficeName] = useState('');
   const [generatedAt, setGeneratedAt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [preventClose, setPreventClose] = useState(false);
-  const [selectedPrinter, setSelectedPrinter] = useState(DEFAULT_PRINTER_VALUE);
-  const [selectedPaperSize, setSelectedPaperSize] = useState(DEFAULT_PAPER_SIZE_VALUE);
-  const [printers, setPrinters] = useState<PrinterInfo[]>([]);
-  const [isPrinterLoading, setIsPrinterLoading] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const printLockRef = useRef(false);
-  const activeBridgeEndpointRef = useRef<string | null>(null);
-  const [printerDiscoveryHint, setPrinterDiscoveryHint] = useState('');
+  const [printSuccess, setPrintSuccess] = useState(false);
 
-  interface PrinterInfo {
-    name: string;
-    description?: string;
-    paperSize?: string;
-    paperSizes?: string[];
-    isDefault?: boolean;
-  }
-
-  type PrinterProviderLike = {
-    query: () => Promise<unknown>;
-  };
-
-  type GenericPrinterBridge = {
-    getPrinters?: () => Promise<unknown> | unknown;
-  };
-
-  interface BridgePrintTicketPayload {
+  interface QueueTicketPrintPayload {
     queueCode: string;
     priority: string;
     generatedAt: string;
     isSpecial: boolean;
-    printerName?: string;
-    paperSize?: string;
   }
 
-  const getPrinterBridgeEndpoints = () => {
-    const configuredBridgeUrl = import.meta.env.VITE_PRINTER_BRIDGE_URL;
+  const printWithBrowserKiosk = async (payload: QueueTicketPrintPayload) => {
+    const priorityText = (payload.priority || 'Regular').toUpperCase();
+    const codeColor = payload.isSpecial ? '#dc2626' : '#16a34a';
+    const badgeBorder = payload.isSpecial ? '#dc2626' : '#16a34a';
+    const badgeTextColor = payload.isSpecial ? '#dc2626' : '#16a34a';
 
-    const endpoints = [
-      configuredBridgeUrl ? `${configuredBridgeUrl.replace(/\/$/, '')}/printers` : null,
-      `http://localhost:${DEFAULT_PRINTER_BRIDGE_PORT}/printers`,
-      `http://127.0.0.1:${DEFAULT_PRINTER_BRIDGE_PORT}/printers`,
-    ].filter((endpoint): endpoint is string => Boolean(endpoint));
-
-    return Array.from(new Set(endpoints));
-  };
-
-  const getPrinterBridgePrintEndpoints = () => {
-    const endpoints = getPrinterBridgeEndpoints();
-    const orderedEndpoints = activeBridgeEndpointRef.current
-      ? [
-        activeBridgeEndpointRef.current,
-        ...endpoints.filter((endpoint) => endpoint !== activeBridgeEndpointRef.current),
-      ]
-      : endpoints;
-
-    return orderedEndpoints.map((endpoint) => {
-      if (endpoint.endsWith('/printers')) {
-        return endpoint.replace(/\/printers$/, '/print-ticket');
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Queue Ticket</title>
+    <style>
+      @page { size: ${QUEUE_TICKET_WIDTH_MM}mm ${QUEUE_TICKET_HEIGHT_MM}mm; margin: 0; }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: ${QUEUE_TICKET_WIDTH_MM}mm;
+        height: ${QUEUE_TICKET_HEIGHT_MM}mm;
+        overflow: hidden;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
+      .ticket {
+        width: ${QUEUE_TICKET_WIDTH_MM}mm;
+        height: ${QUEUE_TICKET_HEIGHT_MM}mm;
+        padding: 4mm;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        text-align: center;
+      }
+      .title {
+        width: 100%;
+        font-size: 23px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .line {
+        width: 100%;
+        border-top: 1px dashed #d1d5db;
+      }
+      .code {
+        color: ${codeColor};
+        font-size: 90px;
+        line-height: 1;
+        font-weight: 900;
+        letter-spacing: 0.14em;
+      }
+      .priority {
+        color: ${badgeTextColor};
+        border: 2px solid ${badgeBorder};
+        border-radius: 9999px;
+        padding: 4px 12px;
+        font-size: 22px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .time {
+        font-size: 20px;
+        color: #6b7288;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ticket">
+      <div class="title">Queue Ticket</div>
+      <div class="line"></div>
+      <div class="code">${escapeHtml(payload.queueCode)}</div>
+      <div class="priority">${escapeHtml(priorityText)}</div>
+      <div class="time">${escapeHtml(payload.generatedAt)}</div>
+    </div>
+  </body>
+</html>`;
 
-      return `${endpoint.replace(/\/$/, '')}/print-ticket`;
-    });
-  };
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.top = '0';
+    iframe.style.left = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.setAttribute('aria-hidden', 'true');
 
-  const fetchPrinterEndpoint = async (endpoint: string) => {
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`printer-endpoint-${response.status}`);
-    }
-
-    return response.json();
-  };
-
-  const postPrintTicketEndpoint = async (
-    endpoint: string,
-    payload: BridgePrintTicketPayload,
-  ) => {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      throw new Error(`print-endpoint-${response.status}`);
-    }
-
-    return response.json().catch(() => ({ ok: true }));
-  };
-
-  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    document.body.appendChild(iframe);
 
     try {
-      return await Promise.race([
-        promise,
-        new Promise<T>((_, reject) => {
-          timeoutId = setTimeout(() => reject(new Error('timeout')), timeoutMs);
-        }),
-      ]);
-    } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    }
-  };
-
-  const normalizePrinter = (value: unknown): PrinterInfo | null => {
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      return trimmed ? { name: trimmed } : null;
-    }
-
-    if (!value || typeof value !== 'object') {
-      return null;
-    }
-
-    const rawPrinter = value as Record<string, unknown>;
-    const rawName = rawPrinter.name
-      ?? rawPrinter.displayName
-      ?? rawPrinter.printerName
-      ?? rawPrinter.deviceName
-      ?? rawPrinter.id;
-
-    if (typeof rawName !== 'string' || rawName.trim() === '') {
-      return null;
-    }
-
-    const rawPaperSize = rawPrinter.paperSize
-      ?? rawPrinter.PaperSize
-      ?? rawPrinter.mediaSize
-      ?? rawPrinter.media;
-
-    const rawPaperSizes = rawPrinter.paperSizes ?? rawPrinter.PaperSizes;
-
-    const rawIsDefault = rawPrinter.isDefault ?? rawPrinter.Default;
-
-    const parsedPaperSizes = Array.isArray(rawPaperSizes)
-      ? rawPaperSizes
-        .filter((paperSize): paperSize is string => typeof paperSize === 'string')
-        .map((paperSize) => paperSize.trim())
-        .filter((paperSize) => paperSize.length > 0)
-      : [];
-
-    return {
-      name: rawName.trim(),
-      description:
-        typeof rawPrinter.description === 'string'
-          ? rawPrinter.description
-          : undefined,
-      paperSize: typeof rawPaperSize === 'string' ? rawPaperSize : undefined,
-      paperSizes: Array.from(new Set(parsedPaperSizes)),
-      isDefault: Boolean(rawIsDefault),
-    };
-  };
-
-  const normalizePrinterList = (value: unknown): PrinterInfo[] => {
-    if (Array.isArray(value)) {
-      return value
-        .map(normalizePrinter)
-        .filter((printer): printer is PrinterInfo => Boolean(printer));
-    }
-
-    if (value && typeof value === 'object') {
-      const wrapped = value as Record<string, unknown>;
-      if (Array.isArray(wrapped.printers)) {
-        return wrapped.printers
-          .map(normalizePrinter)
-          .filter((printer): printer is PrinterInfo => Boolean(printer));
-      }
-    }
-
-    return [];
-  };
-
-  const getPrinterProvider = (): PrinterProviderLike | undefined => {
-    const navigatorProvider = (
-      navigator as Navigator & { printerProvider?: unknown }
-    ).printerProvider;
-
-    if (
-      navigatorProvider
-      && typeof (navigatorProvider as PrinterProviderLike).query === 'function'
-    ) {
-      return navigatorProvider as PrinterProviderLike;
-    }
-
-    const windowProvider = (
-      window as Window & { printerProvider?: unknown }
-    ).printerProvider;
-
-    if (
-      windowProvider
-      && typeof (windowProvider as PrinterProviderLike).query === 'function'
-    ) {
-      return windowProvider as PrinterProviderLike;
-    }
-
-    return undefined;
-  };
-
-  const fetchPrinters = async () => {
-    setIsPrinterLoading(true);
-    setPrinterDiscoveryHint('');
-
-    try {
-      const printerLoaders: Array<() => Promise<unknown>> = [
-        async () => {
-          const provider = getPrinterProvider();
-          return provider?.query();
-        },
-        async () => {
-          const navPrinting = (
-            navigator as Navigator & { printing?: GenericPrinterBridge }
-          ).printing;
-          return navPrinting?.getPrinters ? navPrinting.getPrinters() : undefined;
-        },
-        async () => {
-          const winPrinting = (
-            window as Window & { printing?: GenericPrinterBridge }
-          ).printing;
-          return winPrinting?.getPrinters ? winPrinting.getPrinters() : undefined;
-        },
-        async () => {
-          const navBridge = navigator as Navigator & {
-            getPrinters?: () => Promise<unknown> | unknown;
-          };
-          return navBridge.getPrinters ? navBridge.getPrinters() : undefined;
-        },
-        async () => {
-          const winBridge = window as Window & {
-            getPrinters?: () => Promise<unknown> | unknown;
-          };
-          return winBridge.getPrinters ? winBridge.getPrinters() : undefined;
-        },
-        async () => {
-          const electronBridge = (window as Window & {
-            electronAPI?: { getPrinters?: () => Promise<unknown> };
-          }).electronAPI;
-          return electronBridge?.getPrinters ? electronBridge.getPrinters() : undefined;
-        },
-      ];
-
-      const printerMap = new Map<string, PrinterInfo>();
-      let bridgeDetected = false;
-
-      for (const loadPrinters of printerLoaders) {
-        try {
-          const rawResult = await withTimeout(
-            Promise.resolve(loadPrinters()),
-            PRINTER_DISCOVERY_TIMEOUT_MS,
-          );
-
-          if (rawResult !== undefined && rawResult !== null) {
-            bridgeDetected = true;
-          }
-
-          const discoveredPrinters = normalizePrinterList(rawResult);
-
-          if (discoveredPrinters.length > 0) {
-            discoveredPrinters.forEach((printer) => {
-              if (!printerMap.has(printer.name)) {
-                printerMap.set(printer.name, printer);
-              }
-            });
-          }
-        } catch {
-          // Continue trying other discovery sources.
-        }
+      const frameWindow = iframe.contentWindow;
+      if (!frameWindow) {
+        return false;
       }
 
-      const bridgeEndpoints = getPrinterBridgeEndpoints();
-      let activeBridgeEndpoint: string | null = null;
-      for (const endpoint of bridgeEndpoints) {
-        try {
-          const rawResult = await withTimeout(
-            fetchPrinterEndpoint(endpoint),
-            PRINTER_DISCOVERY_TIMEOUT_MS,
-          );
+      const frameDoc = frameWindow.document;
+      frameDoc.open();
+      frameDoc.write(html);
+      frameDoc.close();
 
-          bridgeDetected = true;
-          if (!activeBridgeEndpoint) {
-            activeBridgeEndpoint = endpoint;
-          }
-
-          const discoveredPrinters = normalizePrinterList(rawResult);
-          discoveredPrinters.forEach((printer) => {
-            if (!printerMap.has(printer.name)) {
-              printerMap.set(printer.name, printer);
-            }
-          });
-        } catch {
-          // Continue trying other bridge endpoints.
-        }
-      }
-
-      activeBridgeEndpointRef.current = activeBridgeEndpoint;
-
-      const result = Array.from(printerMap.values());
-      setPrinters(result);
-
-      if (!bridgeDetected) {
-        setPrinterDiscoveryHint('No printer API detected. Run local bridge on this PC: npm run printer-bridge');
-      } else if (result.length === 0) {
-        setPrinterDiscoveryHint('Printer API detected but no printers were returned.');
-      }
-
-      setSelectedPrinter((currentPrinter) => {
-        if (result.length === 0) {
-          return DEFAULT_PRINTER_VALUE;
-        }
-
-        if (
-          currentPrinter !== DEFAULT_PRINTER_VALUE
-          && result.some((printer) => printer.name === currentPrinter)
-        ) {
-          return currentPrinter;
-        }
-
-        return result[0].name;
-      });
+      frameWindow.focus();
+      frameWindow.print();
+      return true;
     } catch {
-      setPrinters([]);
-      setSelectedPrinter(DEFAULT_PRINTER_VALUE);
-      setPrinterDiscoveryHint('Unable to load printer list from available sources.');
+      return false;
     } finally {
-      setIsPrinterLoading(false);
+      setTimeout(() => {
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+      }, 1000);
     }
   };
-
-  const getSelectedPrinterDetails = () => {
-    if (selectedPrinter === DEFAULT_PRINTER_VALUE) {
-      return printers.find((printer) => printer.isDefault);
-    }
-
-    return printers.find((printer) => printer.name === selectedPrinter);
-  };
-
-  const getSelectedPrinterPaperSizes = () => {
-    const selectedPrinterDetails = getSelectedPrinterDetails();
-
-    if (!selectedPrinterDetails) {
-      return [];
-    }
-
-    const sizes = selectedPrinterDetails.paperSizes || [];
-    if (sizes.length > 0) {
-      return sizes;
-    }
-
-    return selectedPrinterDetails.paperSize ? [selectedPrinterDetails.paperSize] : [];
-  };
-
-  const getSelectedPrinterPaperSize = () => {
-    const selectedPrinterDetails = getSelectedPrinterDetails();
-    return selectedPrinterDetails?.paperSize || 'Unknown';
-  };
-
-  const getSelectedPaperSizeLabel = () => {
-    if (selectedPaperSize !== DEFAULT_PAPER_SIZE_VALUE) {
-      return selectedPaperSize;
-    }
-
-    return getSelectedPrinterPaperSize();
-  };
-
-  const printWithBridge = async (payload: BridgePrintTicketPayload) => {
-    const bridgePrintEndpoints = getPrinterBridgePrintEndpoints();
-
-    for (const endpoint of bridgePrintEndpoints) {
-      try {
-        await postPrintTicketEndpoint(endpoint, payload);
-        return true;
-      } catch {
-        // Continue trying other bridge print endpoints.
-      }
-    }
-
-    return false;
-  };
-
-  useEffect(() => {
-    const availablePaperSizes = getSelectedPrinterPaperSizes();
-
-    if (availablePaperSizes.length === 0) {
-      if (selectedPaperSize !== DEFAULT_PAPER_SIZE_VALUE) {
-        setSelectedPaperSize(DEFAULT_PAPER_SIZE_VALUE);
-      }
-      return;
-    }
-
-    if (
-      selectedPaperSize !== DEFAULT_PAPER_SIZE_VALUE
-      && availablePaperSizes.includes(selectedPaperSize)
-    ) {
-      return;
-    }
-
-    setSelectedPaperSize(availablePaperSizes[0]);
-  }, [selectedPrinter, printers, selectedPaperSize]);
 
   const handleOpenChange = (open: boolean) => {
     if (!open && preventClose) return;
@@ -546,11 +261,6 @@ const QueueGenerator = () => {
     }
   }, [profileLoading, userAssignmentIds, fetchOffices]);
 
-  // Load printers on mount
-  useEffect(() => {
-    fetchPrinters();
-  }, []);
-
   useEffect(() => {
     if (!selectedOffice) return;
 
@@ -574,9 +284,6 @@ const QueueGenerator = () => {
 
     if (code) {
       setQueueCode(code);
-      const office = activeOffices.find((o) => o.id === selectedOffice);
-      const officeName = office?.description || 'Unnamed Office';
-      setSelectedOfficeName(officeName);
       const priority = priorities.find((p) => p.id === selectedPriority);
       const priorityName = priority?.description || '';
       setSelectedPriorityName(priorityName);
@@ -596,25 +303,25 @@ const QueueGenerator = () => {
     setIsPrinting(true);
 
     try {
-      const printerName = selectedPrinter === DEFAULT_PRINTER_VALUE
-        ? undefined
-        : selectedPrinter;
-
-      const paperSize = selectedPaperSize === DEFAULT_PAPER_SIZE_VALUE
-        ? undefined
-        : selectedPaperSize;
-
-      const didPrint = await printWithBridge({
+      const payload: QueueTicketPrintPayload = {
         queueCode,
         priority: selectedPriorityName || 'Regular',
         generatedAt,
         isSpecial: isSpecialPriorityType(selectedPriorityName || 'regular'),
-        printerName,
-        paperSize,
-      });
+      };
 
-      if (!didPrint) {
-        setPrinterDiscoveryHint('Automatic print failed. Ensure printer bridge is running: npm run printer-bridge');
+      const didPrint = await printWithBrowserKiosk(payload);
+
+      if (didPrint) {
+        setPrintSuccess(true);
+        setTimeout(() => {
+          setPrintSuccess(false);
+          setPreventClose(false);
+          setIsDialogOpen(false);
+          setQueueCode('');
+          setSelectedPriorityName('');
+          setGeneratedAt('');
+        }, 1500);
       }
     } finally {
       printLockRef.current = false;
@@ -629,8 +336,6 @@ const QueueGenerator = () => {
   const selectedPriorityColors = selectedPriorityData
     ? getPriorityColor(selectedPriorityData.description)
     : null;
-  const selectedPrinterPaperSizes = getSelectedPrinterPaperSizes();
-
   const renderQueueTicketCard = () => (
     <div className="queue-ticket-card flex h-full flex-col items-center justify-between rounded-md bg-white px-4 py-4 text-center font-mono">
       <div className="w-full">
@@ -654,63 +359,6 @@ const QueueGenerator = () => {
   return (
     <>
       <BreadcrumbComp title="Queue Code Generator" items={BCrumb}>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Select
-              value={selectedPrinter}
-              onValueChange={setSelectedPrinter}
-              disabled={isPrinterLoading}
-            >
-              <SelectTrigger className="h-10 w-[220px] bg-white dark:bg-dark text-sm">
-                <SelectValue placeholder="Select printer" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={DEFAULT_PRINTER_VALUE}>System Default Printer</SelectItem>
-                {printers.map((printer) => (
-                  <SelectItem key={printer.name} value={printer.name}>
-                    {printer.name || 'Default Printer'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={selectedPaperSize}
-              onValueChange={setSelectedPaperSize}
-              disabled={isPrinterLoading}
-            >
-              <SelectTrigger className="h-10 w-[180px] bg-white dark:bg-dark text-sm">
-                <SelectValue placeholder="Paper size" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={DEFAULT_PAPER_SIZE_VALUE}>Current Printer Default</SelectItem>
-                {selectedPrinterPaperSizes.map((paperSize) => (
-                  <SelectItem key={paperSize} value={paperSize}>
-                    {paperSize}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={fetchPrinters}
-              disabled={isPrinterLoading}
-              className="h-10 px-3"
-            >
-              {isPrinterLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
-            </Button>
-            {selectedPrinter ? (
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                Paper: {getSelectedPaperSizeLabel()} | Ticket: {QUEUE_TICKET_WIDTH_MM}mm x {QUEUE_TICKET_HEIGHT_MM}mm
-              </span>
-            ) : null}
-          </div>
-          {printerDiscoveryHint ? (
-            <p className="text-[11px] text-amber-700 dark:text-amber-400">
-              {printerDiscoveryHint}
-            </p>
-          ) : null}
-        </div>
       </BreadcrumbComp>
 
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -797,6 +445,12 @@ const QueueGenerator = () => {
           className="sm:max-w-none max-w-none p-0 bg-white text-black dark:bg-white dark:text-black"
           style={{ width: `${QUEUE_TICKET_WIDTH_IN}in` }}
         >
+          {printSuccess && (
+            <div className="flex items-center justify-center gap-2 rounded-lg border border-green-500 bg-green-50 px-4 py-3 text-green-700">
+              <Check className="h-5 w-5 text-green-600" />
+              <span className="text-sm font-medium">Printed successfully!</span>
+            </div>
+          )}
           <div
             className="p-4"
             style={{ width: `${QUEUE_TICKET_WIDTH_IN}in`, minHeight: `${QUEUE_TICKET_HEIGHT_IN}in` }}

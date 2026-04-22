@@ -13,8 +13,10 @@ const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 const REPEAT_COUNT = 2; // how many times to announce
 const PAUSE_BETWEEN_MS = 250; // pause between each announcement
 const POPUP_GAP_MS = 250; // gap after speech before picking up the next item
+const SERVING_ROTATE_INTERVAL_MS = 2800;
+const SERVING_FADE_DURATION_MS = 320;
 const MAX_OFFICES_PER_ROW = 8;
-const MAX_WAITING_PER_COLUMN = 6;
+const MAX_WAITING_PER_COLUMN = 8;
 const MARQUEE_SCROLL_SPEED_PX_PER_SEC = 8;
 const MIN_MARQUEE_DURATION_SEC = 18;
 
@@ -178,6 +180,17 @@ interface WaitingQueueColumnProps {
   waitingHeadingMarginClass: string;
 }
 
+interface ServingQueueEntry {
+  seq: Sequence;
+  windowLabel: string | null;
+  style: ReturnType<typeof getPriorityStyle>;
+}
+
+interface ServingQueueRotatorProps {
+  entries: ServingQueueEntry[];
+  activeNotifId?: string;
+}
+
 const WaitingQueueColumn = ({
   title,
   titleClassName,
@@ -250,9 +263,9 @@ const WaitingQueueColumn = ({
 
   if (entries.length === 0) {
     return (
-      <div className="flex flex-col px-1 py-0.5">
+      <div className="flex flex-col px-[2px] py-0">
         <span
-          className={`${waitingHeadingMarginClass} w-full truncate text-center text-[0.7rem] font-bold uppercase tracking-wide ${titleClassName}`}
+          className={`${waitingHeadingMarginClass} w-full truncate text-center text-[13px] font-bold uppercase tracking-[0.14em] ${titleClassName}`}
         >
           {title}
         </span>
@@ -264,9 +277,9 @@ const WaitingQueueColumn = ({
   const renderedEntries = shouldMarquee ? [...entries, ...entries] : entries;
 
   return (
-    <div className="flex flex-col px-1 py-0.5">
+    <div className="flex flex-col px-[2px] py-0">
       <span
-        className={`${waitingHeadingMarginClass} w-full truncate text-center text-[0.7rem] font-bold uppercase tracking-wide ${titleClassName}`}
+        className={`${waitingHeadingMarginClass} w-full truncate text-center text-[13px] font-bold uppercase tracking-[0.14em] ${titleClassName}`}
       >
         {title}
       </span>
@@ -277,8 +290,8 @@ const WaitingQueueColumn = ({
           aria-hidden="true"
         >
           {entries.map(({ seq }, idx) => (
-            <li key={`${seq.id}-measure-${idx}`} className="queue-waiting-item pl-0.5">
-              <div className="flex w-full min-w-0 items-center justify-start gap-1.5">
+            <li key={`${seq.id}-measure-${idx}`} className="queue-waiting-item">
+              <div className="flex w-full min-w-0 items-center justify-start gap-px">
                 <span className={`${numberClassName} queue-waiting-order shrink-0`}>
                   {orderBySeqId.get(seq.id)}.
                 </span>
@@ -295,8 +308,8 @@ const WaitingQueueColumn = ({
             role="list"
           >
             {renderedEntries.map(({ seq }, idx) => (
-              <li key={`${seq.id}-${idx}`} className="queue-waiting-item pl-0.5">
-                <div className="flex w-full min-w-0 items-center justify-start gap-1.5">
+              <li key={`${seq.id}-${idx}`} className="queue-waiting-item">
+                <div className="flex w-full min-w-0 items-center justify-start gap-px">
                   <span className={`${numberClassName} queue-waiting-order shrink-0`}>
                     {orderBySeqId.get(seq.id)}.
                   </span>
@@ -308,6 +321,89 @@ const WaitingQueueColumn = ({
             ))}
           </ul>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const ServingQueueRotator = ({ entries, activeNotifId }: ServingQueueRotatorProps) => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isFadingOut, setIsFadingOut] = useState(false);
+
+  const entrySignature = useMemo(
+    () =>
+      entries
+        .map(({ seq, windowLabel }) => `${seq.id}:${seq.queue_data?.code || ''}:${windowLabel || ''}`)
+        .join('|'),
+    [entries],
+  );
+
+  useEffect(() => {
+    setActiveIndex(0);
+    setIsFadingOut(false);
+  }, [entrySignature]);
+
+  useEffect(() => {
+    if (entries.length <= 1) return;
+    if (
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    )
+      return;
+
+    let fadeTimeoutId: number | null = null;
+    const intervalId = window.setInterval(() => {
+      setIsFadingOut(true);
+      fadeTimeoutId = window.setTimeout(() => {
+        setActiveIndex((prev) => (prev + 1) % entries.length);
+        setIsFadingOut(false);
+      }, SERVING_FADE_DURATION_MS);
+    }, SERVING_ROTATE_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+      if (fadeTimeoutId !== null) {
+        window.clearTimeout(fadeTimeoutId);
+      }
+    };
+  }, [entries.length, entrySignature]);
+
+  const activeEntry = entries[activeIndex] || entries[0];
+  if (!activeEntry) return null;
+
+  const { seq, windowLabel, style } = activeEntry;
+  const windowWords = windowLabel?.trim().split(/\s+/).filter(Boolean) || [];
+  const isTwoWordWindow = windowWords.length === 2;
+
+  return (
+    <div className={`queue-serving-transition ${isFadingOut ? 'queue-serving-fade-out' : ''}`}>
+      <div className="queue-serving-line">
+        <span
+          className={`queue-serving-code text-center font-black tracking-[0.08em] ${style.text}${seq.id === activeNotifId ? ' queue-blink' : ''}`}
+          aria-live="polite"
+        >
+          {seq.queue_data?.code || '---'}
+        </span>
+        {windowLabel && (
+          <>
+            <span className={`queue-serving-separator font-black ${style.text}`} aria-hidden="true">
+              -
+            </span>
+            {isTwoWordWindow ? (
+              <span
+                className={`queue-serving-window queue-serving-window-stacked font-bold ${style.text}`}
+                title={windowLabel}
+              >
+                <span>{windowWords[0]}</span>
+                <span>{windowWords[1]}</span>
+              </span>
+            ) : (
+              <span className={`queue-serving-window font-bold ${style.text}`} title={windowLabel}>
+                {windowLabel}
+              </span>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -826,32 +922,13 @@ const QueueDisplay = () => {
                   {/* Now serving / waiting — split into two colour zones */}
                   <div className="flex flex-col overflow-hidden">
                     {/* ── SERVING zone (green tint) ── */}
-                    <div className="flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2.5 py-1 dark:bg-emerald-950/40">
+                    <div className="queue-serving-zone flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2.5 py-1 dark:bg-emerald-950/40">
                       <span className="self-start text-[0.7rem] font-bold uppercase tracking-widest text-emerald-950 dark:text-white">
                         Now Serving
                       </span>
-                      <div className="flex min-h-0 items-start justify-center overflow-hidden pt-0.5">
+                      <div className="queue-serving-content flex min-h-0 items-start justify-center overflow-hidden pt-0.5">
                         {servingEntries.length > 0 ? (
-                          <div className="flex w-full min-h-0 flex-col items-center justify-start gap-0.5 overflow-hidden">
-                            {servingEntries.map(({ seq, windowLabel, style }) => (
-                              <div
-                                key={seq.id}
-                                className="flex w-full flex-col items-center gap-0.5 overflow-hidden"
-                              >
-                                <span
-                                  className={`queue-serving-code text-center font-black tracking-[0.12em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
-                                  aria-live="polite"
-                                >
-                                  {seq.queue_data?.code || '---'}
-                                </span>
-                                {windowLabel && (
-                                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300/80">
-                                    {windowLabel}
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                          <ServingQueueRotator entries={servingEntries} activeNotifId={activeNotif?.id} />
                         ) : (
                           <span className="queue-serving-empty font-bold text-emerald-400 dark:text-emerald-700/50">
                             —
@@ -864,19 +941,23 @@ const QueueDisplay = () => {
                     <div className="w-full border-t border-dashed border-border" />
 
                     {/* ── WAITING zone (silver/slate tint) ── */}
-                    <div className="flex shrink-0 flex-col overflow-hidden bg-slate-100 px-2.5 py-1 dark:bg-slate-700/30">
-                      <span className="mb-1 self-start text-[0.7rem] font-bold uppercase tracking-widest text-black dark:text-white">
+                    <div className="queue-waiting-zone flex shrink-0 flex-col overflow-hidden bg-slate-100 px-2 py-[3px] dark:bg-slate-700/30">
+                      <span className="mb-0.5 self-start text-[13px] font-bold uppercase tracking-[0.16em] text-black dark:text-white">
                         Waiting
                       </span>
                       {waitingEntries.length === 0 ? (
-                        <p className="text-xs font-medium text-black dark:text-white">No waiting</p>
+                        <div className="queue-waiting-empty-state">
+                          <p className="text-[14px] font-medium leading-[1.1] text-black dark:text-white">
+                            No waiting
+                          </p>
+                        </div>
                       ) : (
-                        <div className="grid flex-1 grid-cols-2 items-stretch gap-1">
+                        <div className="queue-waiting-columns grid flex-1 grid-cols-2 items-stretch gap-0.5">
                           <WaitingQueueColumn
                             title="Priority"
                             titleClassName="text-rose-700 dark:text-rose-300/90"
                             numberClassName="font-extrabold text-rose-500/90 dark:text-rose-300/90"
-                            codeClassName="font-black tracking-wide text-rose-600 dark:text-rose-400"
+                            codeClassName="font-black tracking-[0.02em] text-rose-600 dark:text-rose-400"
                             entries={waitingPriorityEntries}
                             orderBySeqId={waitingPriorityOrderBySeqId}
                             waitingHeadingMarginClass={waitingHeadingMarginClass}
@@ -886,7 +967,7 @@ const QueueDisplay = () => {
                             title="Regular"
                             titleClassName="text-emerald-700 dark:text-emerald-300/90"
                             numberClassName="font-extrabold text-emerald-600/90 dark:text-emerald-300/90"
-                            codeClassName="font-black tracking-wide text-emerald-700 dark:text-emerald-400"
+                            codeClassName="font-black tracking-[0.02em] text-emerald-700 dark:text-emerald-400"
                             entries={waitingRegularEntries}
                             orderBySeqId={waitingRegularOrderBySeqId}
                             waitingHeadingMarginClass={waitingHeadingMarginClass}
@@ -924,17 +1005,59 @@ const QueueDisplay = () => {
           to { transform: translateY(-50%); }
         }
 
+        .queue-serving-zone {
+          --queue-serving-content-height: 54px;
+          --queue-serving-fade-duration: ${SERVING_FADE_DURATION_MS}ms;
+        }
+
+        .queue-serving-content {
+          height: var(--queue-serving-content-height);
+          min-height: var(--queue-serving-content-height);
+          max-height: var(--queue-serving-content-height);
+        }
+
+        .queue-serving-transition {
+          width: 100%;
+          min-width: 0;
+          opacity: 1;
+          transition: opacity var(--queue-serving-fade-duration) ease-in-out;
+        }
+
+        .queue-serving-fade-out {
+          opacity: 0;
+        }
+
+        .queue-waiting-zone {
+          --queue-marquee-duration: 22s;
+          --queue-waiting-row-height: 20px;
+          --queue-waiting-row-gap: 0px;
+          --queue-waiting-column-heading-height: 18px;
+          --queue-waiting-window-height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
+          --queue-waiting-columns-height: calc(var(--queue-waiting-column-heading-height) + var(--queue-waiting-window-height));
+        }
+
+        .queue-waiting-columns,
+        .queue-waiting-empty-state {
+          height: var(--queue-waiting-columns-height);
+          min-height: var(--queue-waiting-columns-height);
+          max-height: var(--queue-waiting-columns-height);
+        }
+
+        .queue-waiting-empty-state {
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-start;
+          padding-top: 1px;
+        }
+
         .queue-waiting-window {
           position: relative;
           isolation: isolate;
           contain: layout paint;
           clip-path: inset(0);
-          --queue-marquee-duration: 22s;
-          --queue-waiting-row-height: 1.95rem;
-          --queue-waiting-row-gap: 0.25rem;
-          height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
-          min-height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
-          max-height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
+          height: var(--queue-waiting-window-height);
+          min-height: var(--queue-waiting-window-height);
+          max-height: var(--queue-waiting-window-height);
           overflow: hidden;
         }
 
@@ -965,6 +1088,7 @@ const QueueDisplay = () => {
           align-items: center;
           justify-content: center;
           height: var(--queue-waiting-row-height);
+          line-height: 1;
           overflow: hidden;
         }
 
@@ -974,9 +1098,49 @@ const QueueDisplay = () => {
         }
 
         .queue-serving-code {
-          font-size: 1.42rem;
-          line-height: 1.08;
+          flex: 0 0 auto;
+          font-size: 30px;
+          line-height: 1;
           white-space: nowrap;
+        }
+
+        .queue-serving-line {
+          width: 100%;
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+          overflow: hidden;
+          white-space: nowrap;
+        }
+
+        .queue-serving-separator {
+          flex: 0 0 auto;
+          font-size: 19px;
+          line-height: 1;
+        }
+
+        .queue-serving-window {
+          min-width: 0;
+          max-width: 56%;
+          font-size: 19px;
+          line-height: 1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .queue-serving-window-stacked {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-start;
+          justify-content: center;
+          gap: 0;
+          line-height: 0.95;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: clip;
         }
 
         .queue-serving-empty {
@@ -985,26 +1149,41 @@ const QueueDisplay = () => {
         }
 
         .queue-waiting-order {
-          font-size: 0.62rem;
+          font-size: 13px;
           line-height: 1;
+          margin-right: 0;
         }
 
         .queue-waiting-code {
           min-width: 0;
-          font-size: 0.9rem;
-          line-height: 1.02;
+          font-size: 20px;
+          line-height: 0.96;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
-        .queue-density-compact .queue-waiting-window {
-          --queue-waiting-row-height: 1.72rem;
-          --queue-waiting-row-gap: 0.18rem;
+        .queue-density-compact .queue-serving-zone {
+          --queue-serving-content-height: 46px;
+        }
+
+        .queue-density-compact .queue-waiting-zone {
+          --queue-waiting-row-height: 18px;
+          --queue-waiting-row-gap: 0px;
+          --queue-waiting-column-heading-height: 16px;
         }
 
         .queue-density-compact .queue-serving-code {
-          font-size: 1.26rem;
+          font-size: 24px;
+        }
+
+        .queue-density-compact .queue-serving-separator {
+          font-size: 15px;
+        }
+
+        .queue-density-compact .queue-serving-window {
+          max-width: 55%;
+          font-size: 15px;
         }
 
         .queue-density-compact .queue-serving-empty {
@@ -1012,11 +1191,12 @@ const QueueDisplay = () => {
         }
 
         .queue-density-compact .queue-waiting-order {
-          font-size: 0.54rem;
+          font-size: 10px;
         }
 
         .queue-density-compact .queue-waiting-code {
-          font-size: 0.78rem;
+          font-size: 17px;
+          line-height: 0.95;
         }
 
         .queue-waiting-marquee {
@@ -1025,6 +1205,10 @@ const QueueDisplay = () => {
         }
 
         @media (prefers-reduced-motion: reduce) {
+          .queue-serving-transition {
+            transition: none;
+          }
+
           .queue-waiting-marquee {
             animation: none;
           }
