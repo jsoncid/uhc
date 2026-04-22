@@ -9,14 +9,15 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -464,12 +465,18 @@ const StaffQueueManager = () => {
     if (!transferringSequence) return [];
     const sourceOffice = offices.find((o) => o.id === transferringSequence.office);
     if (!sourceOffice) return [];
-    return offices.filter(
-      (o) =>
-        o.status &&
-        o.assignment === sourceOffice.assignment &&
-        o.id !== transferringSequence.office,
-    );
+    return offices
+      .filter(
+        (o) =>
+          o.status &&
+          o.assignment === sourceOffice.assignment &&
+          o.id !== transferringSequence.office,
+      )
+      .sort((a, b) => {
+        const aName = (a.description || a.id).trim();
+        const bName = (b.description || b.id).trim();
+        return aName.localeCompare(bName);
+      });
   }, [offices, transferringSequence]);
 
   const handleOpenTransferDialog = (sequence: Sequence) => {
@@ -831,29 +838,41 @@ const StaffQueueManager = () => {
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label>Target Office</Label>
-              <Select
-                value={transferTargetOffice}
-                onValueChange={(v) => {
-                  setTransferTargetOffice(v);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select office" />
-                </SelectTrigger>
-                <SelectContent>
-                  {transferableOffices.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      No other offices available
-                    </div>
-                  ) : (
-                    transferableOffices.map((office) => (
-                      <SelectItem key={office.id} value={office.id}>
-                        {office.description || office.id}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              {transferableOffices.length === 0 ? (
+                <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+                  No other offices available
+                </div>
+              ) : (
+                <Command className="rounded-md border">
+                  <CommandInput
+                    placeholder="Search target office..."
+                    autoFocus
+                  />
+                  <CommandList className="max-h-64">
+                    <CommandEmpty>No matching office found.</CommandEmpty>
+                    <CommandGroup heading="Available offices">
+                      {transferableOffices.map((office) => {
+                        const officeLabel = office.description || office.id;
+                        const isSelected = transferTargetOffice === office.id;
+
+                        return (
+                          <CommandItem
+                            key={office.id}
+                            value={`${officeLabel} ${office.id}`}
+                            onSelect={() => setTransferTargetOffice(office.id)}
+                          >
+                            <span className="truncate">{officeLabel}</span>
+                            <Check className={`ml-auto h-4 w-4 ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Type to search, use arrow keys to navigate, then press Enter to select.
+              </p>
             </div>
           </div>
 
