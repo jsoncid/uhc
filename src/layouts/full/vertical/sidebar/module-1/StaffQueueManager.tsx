@@ -51,12 +51,33 @@ const StaffQueueManager = () => {
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
-  const { myAssignment, myAssignmentLoaded, fetchMyAssignment } = useOfficeUserAssignmentStore();
+  const { myAssignments, myAssignment, myAssignmentLoaded, fetchMyAssignment } =
+    useOfficeUserAssignmentStore();
 
   // Get assignment IDs from user profile
   const userAssignmentIds = useMemo(() => {
     return profile?.assignments?.map((a) => a.id) || [];
   }, [profile?.assignments]);
+
+  const assignedOfficeEntries = useMemo(() => {
+    const fallbackAssignments = myAssignment ? [myAssignment] : [];
+    const sourceAssignments = myAssignments.length > 0 ? myAssignments : fallbackAssignments;
+    const byOffice = new Map<string, (typeof sourceAssignments)[number]>();
+
+    sourceAssignments.forEach((assignment) => {
+      if (!assignment.office) return;
+      if (!byOffice.has(assignment.office)) {
+        byOffice.set(assignment.office, assignment);
+      }
+    });
+
+    return byOffice;
+  }, [myAssignments, myAssignment]);
+
+  const assignedOfficeIds = useMemo(
+    () => new Set(Array.from(assignedOfficeEntries.keys())),
+    [assignedOfficeEntries],
+  );
 
   useEffect(() => {
     fetchStatuses();
@@ -87,13 +108,15 @@ const StaffQueueManager = () => {
     }
   }, [profileLoading, userAssignmentIds, fetchOffices]);
 
-  // Ensure the office from the user's direct office assignment is always fetched,
-  // even if it doesn't appear in the RBAC assignment filter above.
+  // Ensure all offices from the user's direct office assignments are fetched,
+  // even if they don't appear in the RBAC assignment filter above.
   useEffect(() => {
-    if (myAssignment?.office) {
-      fetchOfficeById(myAssignment.office);
-    }
-  }, [myAssignment?.office, fetchOfficeById]);
+    assignedOfficeEntries.forEach((assignment, officeId) => {
+      if (assignment.office) {
+        fetchOfficeById(officeId);
+      }
+    });
+  }, [assignedOfficeEntries, fetchOfficeById]);
 
   useEffect(() => {
     const unsubscribe = subscribeToSequences();
@@ -113,8 +136,9 @@ const StaffQueueManager = () => {
     setSelectedWindowByOffice((prev) => {
       const next = { ...prev };
       offices.forEach((office) => {
-        if (myAssignment?.office === office.id && myAssignment?.window) {
-          next[office.id] = myAssignment.window;
+        const officeAssignment = assignedOfficeEntries.get(office.id);
+        if (officeAssignment?.window) {
+          next[office.id] = officeAssignment.window;
           return;
         }
         const activeWindows = (office.windows || []).filter((w) => w.status);
@@ -124,15 +148,15 @@ const StaffQueueManager = () => {
       });
       return next;
     });
-  }, [offices, myAssignment]);
+  }, [offices, assignedOfficeEntries]);
 
   // Scope visible offices: only the office assigned to the current user.
   // If the user has no assignment, nothing is shown.
   const activeOffices = useMemo(() => {
     if (!myAssignmentLoaded) return [];
-    if (!myAssignment?.office) return [];
-    return offices.filter((o) => o.status && o.id === myAssignment.office);
-  }, [offices, myAssignment, myAssignmentLoaded]);
+    if (assignedOfficeIds.size === 0) return [];
+    return offices.filter((o) => o.status && assignedOfficeIds.has(o.id));
+  }, [offices, assignedOfficeIds, myAssignmentLoaded]);
 
   // Keep activeTab in sync with visible offices
   useEffect(() => {
@@ -187,6 +211,12 @@ const StaffQueueManager = () => {
     return officeSequences.find((seq) => activeStatusIds.includes(seq.status));
   };
 
+  // Global guard: if the staff is currently serving in any assigned office/window,
+  // disable calling next in all assigned offices.
+  const hasAnyServingAcrossAssignedOffices = activeOffices.some((office) =>
+    Boolean(getServingSequence(office.id, selectedWindowByOffice[office.id]))
+  );
+
   const handleCallNext = async (officeId: string, bucket: QueueBucket) => {
     const servingStatus = getStatusByDescription('serving');
 
@@ -195,12 +225,17 @@ const StaffQueueManager = () => {
       return;
     }
 
+    if (hasAnyServingAcrossAssignedOffices) {
+      console.log('ℹCall Next is blocked while there is an active serving queue');
+      return;
+    }
+
     const windowId = selectedWindowByOffice[officeId];
 
     // Guard: block if this window already has someone serving/arrived
     const currentServing = getServingSequence(officeId, windowId);
     if (currentServing) {
-      console.log('ℹ️ Someone is already being served, Call Next is blocked');
+      console.log('ℹSomeone is already being served, Call Next is blocked');
       return;
     }
 
@@ -219,7 +254,7 @@ const StaffQueueManager = () => {
     const nextForBucket = waitingByBucket[0];
 
     if (!nextForBucket) {
-      console.log(`ℹ️ No one waiting in ${bucket} queue`);
+      console.log(`ℹNo one waiting in ${bucket} queue`);
       return;
     }
 
@@ -365,6 +400,7 @@ const StaffQueueManager = () => {
           )}
 
           {activeOffices.map((office) => {
+            const officeAssignment = assignedOfficeEntries.get(office.id);
             const serving = getServingSequence(office.id, selectedWindowByOffice[office.id]);
             const waiting = getWaitingSequences(office.id, selectedWindowByOffice[office.id]);
             const priorityWaiting = waiting.filter(
@@ -381,15 +417,15 @@ const StaffQueueManager = () => {
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <CardTitle>{office.description || office.id} Queue</CardTitle>
                       <div className="flex items-center gap-3">
-                        {myAssignment?.window && (
+                        {officeAssignment?.window && (
                           <div className="flex items-center gap-2">
                             <Label className="text-sm text-muted-foreground whitespace-nowrap">
                               Window
                             </Label>
                             <div className="px-3 py-2 border rounded-md text-sm bg-muted w-45">
-                              {(office.windows || []).find((w) => w.id === myAssignment.window)
+                              {(office.windows || []).find((w) => w.id === officeAssignment.window)
                                 ?.description ||
-                                myAssignment.window_description ||
+                                officeAssignment.window_description ||
                                 'Assigned Window'}
                             </div>
                           </div>
@@ -486,7 +522,12 @@ const StaffQueueManager = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => handleCallNext(office.id, 'priority')}
-                                  disabled={isLoading || !!serving || priorityWaiting.length === 0}
+                                  disabled={
+                                    isLoading ||
+                                    hasAnyServingAcrossAssignedOffices ||
+                                    !!serving ||
+                                    priorityWaiting.length === 0
+                                  }
                                 >
                                   {isLoading ? (
                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -532,7 +573,12 @@ const StaffQueueManager = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => handleCallNext(office.id, 'regular')}
-                                  disabled={isLoading || !!serving || regularWaiting.length === 0}
+                                  disabled={
+                                    isLoading ||
+                                    hasAnyServingAcrossAssignedOffices ||
+                                    !!serving ||
+                                    regularWaiting.length === 0
+                                  }
                                 >
                                   {isLoading ? (
                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
