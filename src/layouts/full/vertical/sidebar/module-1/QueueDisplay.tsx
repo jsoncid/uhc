@@ -1054,7 +1054,7 @@ const QueueDisplay = () => {
         .queue-serving-window {
           min-width: 0;
           max-width: 66%;
-          font-size: 18px;
+          font-size: 15px;
           line-height: 1;
           white-space: nowrap;
           overflow: hidden;
@@ -1113,7 +1113,7 @@ const QueueDisplay = () => {
 
         .queue-density-compact .queue-serving-window {
           max-width: 64%;
-          font-size: 14px;
+          font-size: 12px;
         }
 
         .queue-density-compact .queue-serving-empty {
