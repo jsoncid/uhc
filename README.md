@@ -123,6 +123,10 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 # Backend API URL
 VITE_API_URL=your_backend_api_url
 
+# Queue printing mode
+# Queue Generator uses browser kiosk printing (default printer)
+# Launch Chrome/Edge with --kiosk-printing for silent print behavior
+
 # Module Page UUIDs (from the modules table in Supabase)
 VITE_module_1_QG_page=
 VITE_module_1_SQM_page=
