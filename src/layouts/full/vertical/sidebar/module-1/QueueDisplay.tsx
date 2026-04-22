@@ -220,9 +220,9 @@ const WaitingQueueColumn = ({
 
   if (entries.length === 0) {
     return (
-      <div className="flex flex-col px-1 py-0.5">
+      <div className="flex flex-col px-[2px] py-0">
         <span
-          className={`${waitingHeadingMarginClass} w-full truncate text-center text-[0.7rem] font-bold uppercase tracking-wide ${titleClassName}`}
+          className={`${waitingHeadingMarginClass} w-full truncate text-center text-[13px] font-bold uppercase tracking-[0.14em] ${titleClassName}`}
         >
           {title}
         </span>
@@ -234,9 +234,9 @@ const WaitingQueueColumn = ({
   const renderedEntries = shouldMarquee ? [...entries, ...entries] : entries;
 
   return (
-    <div className="flex flex-col px-1 py-0.5">
+    <div className="flex flex-col px-[2px] py-0">
       <span
-        className={`${waitingHeadingMarginClass} w-full truncate text-center text-[0.7rem] font-bold uppercase tracking-wide ${titleClassName}`}
+        className={`${waitingHeadingMarginClass} w-full truncate text-center text-[13px] font-bold uppercase tracking-[0.14em] ${titleClassName}`}
       >
         {title}
       </span>
@@ -247,8 +247,8 @@ const WaitingQueueColumn = ({
           aria-hidden="true"
         >
           {entries.map(({ seq }, idx) => (
-            <li key={`${seq.id}-measure-${idx}`} className="queue-waiting-item pl-0.5">
-              <div className="flex w-full min-w-0 items-center justify-start gap-1.5">
+            <li key={`${seq.id}-measure-${idx}`} className="queue-waiting-item">
+              <div className="flex w-full min-w-0 items-center justify-start gap-px">
                 <span className={`${numberClassName} queue-waiting-order shrink-0`}>
                   {orderBySeqId.get(seq.id)}.
                 </span>
@@ -265,8 +265,8 @@ const WaitingQueueColumn = ({
             role="list"
           >
             {renderedEntries.map(({ seq }, idx) => (
-              <li key={`${seq.id}-${idx}`} className="queue-waiting-item pl-0.5">
-                <div className="flex w-full min-w-0 items-center justify-start gap-1.5">
+              <li key={`${seq.id}-${idx}`} className="queue-waiting-item">
+                <div className="flex w-full min-w-0 items-center justify-start gap-px">
                   <span className={`${numberClassName} queue-waiting-order shrink-0`}>
                     {orderBySeqId.get(seq.id)}.
                   </span>
@@ -758,23 +758,46 @@ const QueueDisplay = () => {
                       </span>
                       <div className="flex min-h-0 items-start justify-center overflow-hidden pt-0.5">
                         {servingEntries.length > 0 ? (
-                          <div className="flex w-full min-h-0 flex-col items-center justify-start gap-0.5 overflow-hidden">
+                          <div className="flex w-full min-h-0 flex-col items-center justify-start gap-px overflow-hidden">
                             {servingEntries.map(({ seq, windowLabel, style }) => (
-                              <div
-                                key={seq.id}
-                                className="flex w-full flex-col items-center gap-0.5 overflow-hidden"
-                              >
+                              <div key={seq.id} className="queue-serving-line">
                                 <span
-                                  className={`queue-serving-code text-center font-black tracking-[0.12em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
+                                  className={`queue-serving-code text-center font-black tracking-[0.08em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
                                   aria-live="polite"
                                 >
                                   {seq.queue_data?.code || '---'}
                                 </span>
-                                {windowLabel && (
-                                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300/80">
-                                    {windowLabel}
-                                  </span>
-                                )}
+                                {windowLabel && (() => {
+                                  const windowWords = windowLabel.trim().split(/\s+/).filter(Boolean);
+                                  const isTwoWordWindow = windowWords.length === 2;
+
+                                  return (
+                                    <>
+                                      <span
+                                        className={`queue-serving-separator font-black ${style.text}`}
+                                        aria-hidden="true"
+                                      >
+                                        -
+                                      </span>
+                                      {isTwoWordWindow ? (
+                                        <span
+                                          className={`queue-serving-window queue-serving-window-stacked font-bold ${style.text}`}
+                                          title={windowLabel}
+                                        >
+                                          <span>{windowWords[0]}</span>
+                                          <span>{windowWords[1]}</span>
+                                        </span>
+                                      ) : (
+                                        <span
+                                          className={`queue-serving-window font-bold ${style.text}`}
+                                          title={windowLabel}
+                                        >
+                                          {windowLabel}
+                                        </span>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
                             ))}
                           </div>
@@ -790,19 +813,21 @@ const QueueDisplay = () => {
                     <div className="w-full border-t border-dashed border-border" />
 
                     {/* ── WAITING zone (silver/slate tint) ── */}
-                    <div className="flex shrink-0 flex-col overflow-hidden bg-slate-100 px-2.5 py-1 dark:bg-slate-700/30">
-                      <span className="mb-1 self-start text-[0.7rem] font-bold uppercase tracking-widest text-black dark:text-white">
+                    <div className="flex shrink-0 flex-col overflow-hidden bg-slate-100 px-2 py-[3px] dark:bg-slate-700/30">
+                      <span className="mb-0.5 self-start text-[13px] font-bold uppercase tracking-[0.16em] text-black dark:text-white">
                         Waiting
                       </span>
                       {waitingEntries.length === 0 ? (
-                        <p className="text-xs font-medium text-black dark:text-white">No waiting</p>
+                        <p className="text-[14px] font-medium leading-[1.1] text-black dark:text-white">
+                          No waiting
+                        </p>
                       ) : (
-                        <div className="grid flex-1 grid-cols-2 items-stretch gap-1">
+                        <div className="grid flex-1 grid-cols-2 items-stretch gap-0.5">
                           <WaitingQueueColumn
                             title="Priority"
                             titleClassName="text-rose-700 dark:text-rose-300/90"
                             numberClassName="font-extrabold text-rose-500/90 dark:text-rose-300/90"
-                            codeClassName="font-black tracking-wide text-rose-600 dark:text-rose-400"
+                            codeClassName="font-black tracking-[0.02em] text-rose-600 dark:text-rose-400"
                             entries={waitingPriorityEntries}
                             orderBySeqId={waitingPriorityOrderBySeqId}
                             waitingHeadingMarginClass={waitingHeadingMarginClass}
@@ -812,7 +837,7 @@ const QueueDisplay = () => {
                             title="Regular"
                             titleClassName="text-emerald-700 dark:text-emerald-300/90"
                             numberClassName="font-extrabold text-emerald-600/90 dark:text-emerald-300/90"
-                            codeClassName="font-black tracking-wide text-emerald-700 dark:text-emerald-400"
+                            codeClassName="font-black tracking-[0.02em] text-emerald-700 dark:text-emerald-400"
                             entries={waitingRegularEntries}
                             orderBySeqId={waitingRegularOrderBySeqId}
                             waitingHeadingMarginClass={waitingHeadingMarginClass}
@@ -856,8 +881,8 @@ const QueueDisplay = () => {
           contain: layout paint;
           clip-path: inset(0);
           --queue-marquee-duration: 22s;
-          --queue-waiting-row-height: 1.95rem;
-          --queue-waiting-row-gap: 0.25rem;
+          --queue-waiting-row-height: 24px;
+          --queue-waiting-row-gap: 0px;
           height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
           min-height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
           max-height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
@@ -891,6 +916,7 @@ const QueueDisplay = () => {
           align-items: center;
           justify-content: center;
           height: var(--queue-waiting-row-height);
+          line-height: 1;
           overflow: hidden;
         }
 
@@ -900,9 +926,49 @@ const QueueDisplay = () => {
         }
 
         .queue-serving-code {
-          font-size: 1.42rem;
-          line-height: 1.08;
+          flex: 0 0 auto;
+          font-size: 30px;
+          line-height: 1;
           white-space: nowrap;
+        }
+
+        .queue-serving-line {
+          width: 100%;
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+          overflow: hidden;
+          white-space: nowrap;
+        }
+
+        .queue-serving-separator {
+          flex: 0 0 auto;
+          font-size: 19px;
+          line-height: 1;
+        }
+
+        .queue-serving-window {
+          min-width: 0;
+          max-width: 56%;
+          font-size: 19px;
+          line-height: 1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .queue-serving-window-stacked {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-start;
+          justify-content: center;
+          gap: 0;
+          line-height: 0.95;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: clip;
         }
 
         .queue-serving-empty {
@@ -911,26 +977,36 @@ const QueueDisplay = () => {
         }
 
         .queue-waiting-order {
-          font-size: 0.62rem;
+          font-size: 13px;
           line-height: 1;
+          margin-right: 0;
         }
 
         .queue-waiting-code {
           min-width: 0;
-          font-size: 0.9rem;
-          line-height: 1.02;
+          font-size: 20px;
+          line-height: 0.96;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
         .queue-density-compact .queue-waiting-window {
-          --queue-waiting-row-height: 1.72rem;
-          --queue-waiting-row-gap: 0.18rem;
+          --queue-waiting-row-height: 22px;
+          --queue-waiting-row-gap: 0px;
         }
 
         .queue-density-compact .queue-serving-code {
-          font-size: 1.26rem;
+          font-size: 24px;
+        }
+
+        .queue-density-compact .queue-serving-separator {
+          font-size: 15px;
+        }
+
+        .queue-density-compact .queue-serving-window {
+          max-width: 55%;
+          font-size: 15px;
         }
 
         .queue-density-compact .queue-serving-empty {
@@ -938,11 +1014,12 @@ const QueueDisplay = () => {
         }
 
         .queue-density-compact .queue-waiting-order {
-          font-size: 0.54rem;
+          font-size: 10px;
         }
 
         .queue-density-compact .queue-waiting-code {
-          font-size: 0.78rem;
+          font-size: 17px;
+          line-height: 0.95;
         }
 
         .queue-waiting-marquee {
