@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronRight, Check, Loader2, ArrowRightLeft, Bell, RotateCcw } from 'lucide-react';
+import {
+  ChevronRight,
+  Check,
+  Loader2,
+  ArrowRightLeft,
+  Bell,
+  RotateCcw,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -205,9 +212,7 @@ const StaffQueueManager = () => {
 
   const getWaitingSequences = (officeId: string, windowId?: string): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
-    let pending = getSequencesForOffice(officeId).filter(
-      (seq) => seq.status === pendingStatus?.id,
-    );
+    let pending = getSequencesForOffice(officeId).filter((seq) => seq.status === pendingStatus?.id);
 
     // Filter by window if provided - show sequences assigned to this window OR unassigned
     if (windowId) {
@@ -222,21 +227,21 @@ const StaffQueueManager = () => {
 
   const getServingSequence = (officeId: string, windowId?: string): Sequence | undefined => {
     const servingStatus = getStatusByDescription('serving');
-    const arrivedStatus = getStatusByDescription('arrived');
-    const activeStatusIds = [servingStatus?.id, arrivedStatus?.id].filter(Boolean) as string[];
     const officeSequences = getSequencesForOffice(officeId); // already filters is_active
-    if (windowId) {
-      return officeSequences.find(
-        (seq) => activeStatusIds.includes(seq.status) && seq.window === windowId,
-      );
+    if (!servingStatus) {
+      return undefined;
     }
-    return officeSequences.find((seq) => activeStatusIds.includes(seq.status));
+
+    if (windowId) {
+      return officeSequences.find((seq) => seq.status === servingStatus.id && seq.window === windowId);
+    }
+    return officeSequences.find((seq) => seq.status === servingStatus.id);
   };
 
   // Global guard: if the staff is currently serving in any assigned office/window,
   // disable calling next in all assigned offices.
   const hasAnyServingAcrossAssignedOffices = activeOffices.some((office) =>
-    Boolean(getServingSequence(office.id, selectedWindowByOffice[office.id]))
+    Boolean(getServingSequence(office.id, selectedWindowByOffice[office.id])),
   );
 
   const handleCallNext = async (officeId: string, bucket: QueueBucket) => {
@@ -249,48 +254,48 @@ const StaffQueueManager = () => {
     setIsCallingNext(true);
 
     try {
-    const servingStatus = getStatusByDescription('serving');
+      const servingStatus = getStatusByDescription('serving');
 
-    if (!servingStatus) {
-      console.error('Serving status not found. Available statuses:', statuses);
-      return;
-    }
+      if (!servingStatus) {
+        console.error('Serving status not found. Available statuses:', statuses);
+        return;
+      }
 
-    if (hasAnyServingAcrossAssignedOffices) {
-      console.log('Call Next is blocked while there is an active serving queue');
-      return;
-    }
+      if (hasAnyServingAcrossAssignedOffices) {
+        console.log('Call Next is blocked while there is an active serving queue');
+        return;
+      }
 
-    const windowId = selectedWindowByOffice[officeId];
+      const windowId = selectedWindowByOffice[officeId];
 
-    // Guard: block if this window already has someone serving/arrived
-    const currentServing = getServingSequence(officeId, windowId);
-    if (currentServing) {
-      console.log('Someone is already being served, Call Next is blocked');
-      return;
-    }
+      // Guard: block if this window already has someone serving
+      const currentServing = getServingSequence(officeId, windowId);
+      if (currentServing) {
+        console.log('Someone is already being served, Call Next is blocked');
+        return;
+      }
 
-    if (!windowId) {
-      console.error('No window selected');
-      return;
-    }
+      if (!windowId) {
+        console.error('No window selected');
+        return;
+      }
 
-    const waiting = getWaitingSequences(officeId, windowId);
-    const waitingByBucket = waiting.filter((seq) =>
-      bucket === 'regular'
-        ? isRegularPriority(seq.priority_data?.description)
-        : !isRegularPriority(seq.priority_data?.description),
-    );
+      const waiting = getWaitingSequences(officeId, windowId);
+      const waitingByBucket = waiting.filter((seq) =>
+        bucket === 'regular'
+          ? isRegularPriority(seq.priority_data?.description)
+          : !isRegularPriority(seq.priority_data?.description),
+      );
 
-    const nextForBucket = waitingByBucket[0];
+      const nextForBucket = waitingByBucket[0];
 
-    if (!nextForBucket) {
-      console.log(`No one waiting in ${bucket} queue`);
-      return;
-    }
+      if (!nextForBucket) {
+        console.log(`No one waiting in ${bucket} queue`);
+        return;
+      }
 
-    // Move only the selected bucket's first waiting queue to serving.
-    await updateSequenceStatus(nextForBucket.id, servingStatus.id, windowId);
+      // Move only the selected bucket's first waiting queue to serving.
+      await updateSequenceStatus(nextForBucket.id, servingStatus.id, windowId);
     } finally {
       callNextInFlightRef.current = false;
       setIsCallingNext(false);
@@ -398,7 +403,37 @@ const StaffQueueManager = () => {
     }
   };
 
-  const handlePutBackOnQueue = async (sequenceId: string) => {
+  const broadcastStopAnnouncement = async (sequenceId: string, officeId: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+    try {
+      await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              topic: 'queue-ping-broadcast',
+              event: 'stop-announcement',
+              payload: {
+                sequenceId,
+                officeId,
+              },
+            },
+          ],
+        }),
+      });
+    } catch (error) {
+      console.error('❌ Failed to broadcast stop-announcement:', error);
+    }
+  };
+
+  const handlePutBackOnQueue = async (sequenceId: string, officeId: string) => {
     if (putBackIds.includes(sequenceId)) {
       console.log('Put Back is already processing for this queue');
       return;
@@ -412,6 +447,9 @@ const StaffQueueManager = () => {
     setPutBackIds((prev) => (prev.includes(sequenceId) ? prev : [...prev, sequenceId]));
 
     try {
+      await broadcastStopAnnouncement(sequenceId, officeId);
+      setPingingId((curr) => (curr === sequenceId ? null : curr));
+
       // Put back to pending status with no window assignment
       // The new created_at timestamp will automatically place it at the end of the queue
       await updateSequenceStatus(sequenceId, pendingStatus.id, null);
@@ -436,7 +474,7 @@ const StaffQueueManager = () => {
 
   const handleOpenTransferDialog = (sequence: Sequence) => {
     setTransferringSequence(sequence);
-    setTransferTargetOffice('');     // reset — user must pick a different office
+    setTransferTargetOffice(''); // reset — user must pick a different office
     setTransferDialogOpen(true);
   };
 
@@ -455,8 +493,10 @@ const StaffQueueManager = () => {
 
     const targetOffice = offices.find((o) => o.id === transferTargetOffice);
     try {
-      await transferSequence(transferringSequence.id, transferTargetOffice, null);
+      await broadcastStopAnnouncement(transferringSequence.id, transferringSequence.office);
+      setPingingId((curr) => (curr === transferringSequence.id ? null : curr));
 
+      await transferSequence(transferringSequence.id, transferTargetOffice, null);
       // Show success message
       const message = `Queue ${transferringSequence?.queue_data?.code} transferred to ${targetOffice?.description}. It will be queued based on priority.`;
       setTransferSuccess(message);
@@ -504,7 +544,11 @@ const StaffQueueManager = () => {
           </CardContent>
         </Card>
       ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 md:space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="w-full space-y-4 md:space-y-6"
+        >
           {activeOffices.length > 1 && (
             <TabsList>
               {activeOffices.map((office) => (
@@ -602,7 +646,9 @@ const StaffQueueManager = () => {
                                 </Button>
                                 <Button
                                   size="sm"
-                                  onClick={() => handlePing(serving, office.description || '', office.id)}
+                                  onClick={() =>
+                                    handlePing(serving, office.description || '', office.id)
+                                  }
                                   disabled={
                                     isLoading ||
                                     pingingId === serving.id ||
@@ -616,7 +662,7 @@ const StaffQueueManager = () => {
                                 </Button>
                                 <Button
                                   size="sm"
-                                  onClick={() => handlePutBackOnQueue(serving.id)}
+                                  onClick={() => handlePutBackOnQueue(serving.id, office.id)}
                                   disabled={isLoading || putBackIds.includes(serving.id)}
                                   title="Put back to end of queue (customer didn't arrive)"
                                   className="w-full justify-center bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
@@ -637,7 +683,9 @@ const StaffQueueManager = () => {
                       {/* Waiting Section */}
                       <Card className="bg-muted/50">
                         <CardContent className="pt-2 pb-3 md:pt-3 md:pb-4">
-                          <h3 className="font-semibold text-xl md:text-2xl mb-4">Waiting ({waiting.length})</h3>
+                          <h3 className="font-semibold text-xl md:text-2xl mb-4">
+                            Waiting ({waiting.length})
+                          </h3>
                           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                             <div className="rounded-md border bg-background p-4 h-full flex flex-col gap-4">
                               <div className="flex items-center justify-between gap-2">
@@ -665,9 +713,12 @@ const StaffQueueManager = () => {
                               </div>
 
                               {priorityWaiting.length > 0 ? (
-                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[12rem]">
+                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-48">
                                   {priorityWaiting.map((seq) => (
-                                    <div key={seq.id} className="flex items-center justify-between py-1">
+                                    <div
+                                      key={seq.id}
+                                      className="flex items-center justify-between py-1"
+                                    >
                                       <div
                                         className={`text-3xl md:text-4xl 2xl:text-5xl font-semibold tracking-wide leading-none ${getPriorityColor(seq.priority_data?.description)}`}
                                       >
@@ -721,9 +772,12 @@ const StaffQueueManager = () => {
                               </div>
 
                               {regularWaiting.length > 0 ? (
-                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[12rem]">
+                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-48">
                                   {regularWaiting.map((seq) => (
-                                    <div key={seq.id} className="flex items-center justify-between py-1">
+                                    <div
+                                      key={seq.id}
+                                      className="flex items-center justify-between py-1"
+                                    >
                                       <div
                                         className={`text-3xl md:text-4xl 2xl:text-5xl font-semibold tracking-wide leading-none ${getPriorityColor(seq.priority_data?.description)}`}
                                       >
