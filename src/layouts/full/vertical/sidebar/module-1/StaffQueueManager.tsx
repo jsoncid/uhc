@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell, RotateCcw } from 'lucide-react';
+import { ChevronRight, Check, Loader2, ArrowRightLeft, Bell, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -262,17 +262,16 @@ const StaffQueueManager = () => {
     await updateSequenceStatus(nextForBucket.id, servingStatus.id, windowId);
   };
 
-  const handleComplete = async (sequenceId: string) => {
+  const handleComplete = async (sequenceId: string, officeId: string) => {
+    const office = offices.find((o) => o.id === officeId);
+    if (!office?.is_complete_capable) {
+      console.log('ℹ Complete action is disabled for this office');
+      return;
+    }
+
     const completedStatus = getStatusByDescription('completed');
     if (completedStatus) {
       await updateSequenceStatus(sequenceId, completedStatus.id);
-    }
-  };
-
-  const handleArrived = async (sequenceId: string, windowId: string) => {
-    const arrivedStatus = getStatusByDescription('arrived');
-    if (arrivedStatus) {
-      await updateSequenceStatus(sequenceId, arrivedStatus.id, windowId);
     }
   };
 
@@ -400,6 +399,7 @@ const StaffQueueManager = () => {
           )}
 
           {activeOffices.map((office) => {
+            const canCompleteInOffice = Boolean(office.is_complete_capable);
             const officeAssignment = assignedOfficeEntries.get(office.id);
             const serving = getServingSequence(office.id, selectedWindowByOffice[office.id]);
             const waiting = getWaitingSequences(office.id, selectedWindowByOffice[office.id]);
@@ -454,8 +454,13 @@ const StaffQueueManager = () => {
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                 <Button
                                   size="sm"
-                                  onClick={() => handleComplete(serving.id)}
-                                  disabled={isLoading || !serving.status_data?.description?.toLowerCase().includes('arrived')}
+                                  onClick={() => handleComplete(serving.id, office.id)}
+                                  disabled={isLoading || !canCompleteInOffice}
+                                  title={
+                                    canCompleteInOffice
+                                      ? 'Mark this queue as completed'
+                                      : 'This office cannot complete queue codes'
+                                  }
                                   className="w-full justify-center bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                                 >
                                   <Check className="h-4 w-4 mr-2" />
@@ -469,15 +474,6 @@ const StaffQueueManager = () => {
                                 >
                                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                                   Transfer
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleArrived(serving.id, selectedWindowByOffice[office.id])}
-                                  disabled={isLoading || serving.status_data?.description?.toLowerCase().includes('arrived')}
-                                  className="w-full justify-center bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-                                >
-                                  <UserCheck className="h-4 w-4 mr-2" />
-                                  Arrived
                                 </Button>
                                 <Button
                                   size="sm"

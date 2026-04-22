@@ -17,6 +17,7 @@ export interface Office {
   assignment: string;
   status: boolean;
   description: string | null;
+  is_complete_capable?: boolean;
   windows?: Window[];
 }
 
@@ -130,6 +131,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
           assignment: assignmentId,
           description,
           status: true,
+          is_complete_capable: false,
         })
         .select()
         .single();
