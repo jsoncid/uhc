@@ -930,6 +930,17 @@ const QueueDisplay = () => {
           font-size: 30px;
           line-height: 1;
           white-space: nowrap;
+          -webkit-text-stroke: 1.1px #ffffff;
+          paint-order: stroke fill;
+          text-shadow:
+            1px 0 0 #ffffff,
+            -1px 0 0 #ffffff,
+            0 1px 0 #ffffff,
+            0 -1px 0 #ffffff,
+            1px 1px 0 #ffffff,
+            -1px 1px 0 #ffffff,
+            1px -1px 0 #ffffff,
+            -1px -1px 0 #ffffff;
         }
 
         .queue-serving-line {
