@@ -74,6 +74,7 @@ interface QueueState {
   getServingSequenceForWindow: (windowId: string) => Sequence | undefined;
   callNextSequence: (officeId: string, servingStatusId: string, windowId: string) => Promise<boolean>;
   subscribeToSequences: () => () => void;
+  clearAllActiveSequences: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -255,6 +256,25 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to delete status',
         isLoading: false,
       });
+    }
+  },
+
+  clearAllActiveSequences: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await module1
+        .from('sequence')
+        .update({ is_active: false })
+        .eq('is_active', true);
+
+      if (error) throw error;
+
+      set((state) => ({
+        sequences: state.sequences.map((s) => (s.is_active !== false ? { ...s, is_active: false } : s)),
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to clear sequences', isLoading: false });
     }
   },
 

@@ -66,6 +66,7 @@ const AdminPage = () => {
     addStatus,
     updateStatus,
     deleteStatus,
+    clearAllActiveSequences,
   } = useQueueStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [userAssignmentSearchTerm, setUserAssignmentSearchTerm] = useState('');
@@ -124,6 +125,9 @@ const AdminPage = () => {
     isOpen: false,
     status: null,
   });
+
+  // Clear all sequences confirmation
+  const [clearAllConfirm, setClearAllConfirm] = useState(false);
 
   useEffect(() => {
     const loadUserAssignment = async () => {
@@ -386,6 +390,12 @@ const AdminPage = () => {
     setFilterOffice('all');
     setFilterActive('all');
     setSortBy('date-desc');
+  };
+
+  const handleClearAllSequences = async () => {
+    await clearAllActiveSequences();
+    setClearAllConfirm(false);
+    fetchAllSequencesForLogs();
   };
 
   // Get unique offices from sequences for filter
@@ -962,10 +972,19 @@ const AdminPage = () => {
                   <ClipboardList className="h-5 w-5" />
                   Queue Logs
                 </CardTitle>
-                <Button variant="outline" onClick={handleRefreshQueueLogs} disabled={isLoading}>
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    onClick={() => setClearAllConfirm(true)}
+                    disabled={isLoading || sequences.filter(s => s.is_active !== false).length === 0}
+                  >
+                    Clear All Active Sequences
+                  </Button>
+                  <Button variant="outline" onClick={handleRefreshQueueLogs} disabled={isLoading}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -1219,6 +1238,16 @@ const AdminPage = () => {
         description={`Are you sure you want to delete the status type "${deleteStatusConfirm.status?.description || 'this status'}"? This action cannot be undone.`}
         confirmText="Delete"
         isLoading={isLoadingPriorities}
+      />
+
+      <ConfirmDialog
+        isOpen={clearAllConfirm}
+        onClose={() => setClearAllConfirm(false)}
+        onConfirm={handleClearAllSequences}
+        title="Clear All Active Sequences"
+        description="Are you sure you want to set all active sequences to inactive? This will mark all current active queue entries as inactive. This action cannot be undone."
+        confirmText="Clear All"
+        isLoading={isLoading}
       />
     </>
   );
