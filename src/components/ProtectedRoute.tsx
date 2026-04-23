@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router';
 import { useAuthStore } from '@/stores/useAuthStore';
+import Spinner from '@/views/spinner/Spinner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,7 +11,7 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 
   // Wait for auth initialization before deciding to redirect
   if (isLoading) {
-    return null; // Or a loading spinner
+    return <Spinner />;
   }
 
   if (!user) {

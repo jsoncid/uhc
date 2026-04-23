@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { ROLE_IDS } from 'src/constants/moduleAccess';
+import Spinner from '@/views/spinner/Spinner';
 
 /**
  * Route guard that blocks access for member-role users.
@@ -13,7 +14,7 @@ export const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const isLoading = useAuthStore((s) => s.isLoading);
 
   // Wait for auth initialization before deciding to redirect
-  if (isLoading) return null;
+  if (isLoading) return <Spinner />;
 
   if (!user) return <Navigate to="/auth/auth2/login" replace />;
   if (userRoleId === ROLE_IDS.module4Member) return <Navigate to="/auth/unauthorized" replace />;
