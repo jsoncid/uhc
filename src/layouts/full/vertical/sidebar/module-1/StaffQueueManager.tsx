@@ -40,6 +40,12 @@ const PING_RELEASE_FALLBACK_MS = 10000;
 const StaffQueueManager = () => {
   const [activeTab, setActiveTab] = useState<string>('');
   const [selectedWindowByOffice, setSelectedWindowByOffice] = useState<Record<string, string>>({});
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [pendingComplete, setPendingComplete] = useState<{
+    sequenceId: string;
+    officeId: string;
+    queueCode: string;
+  } | null>(null);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
   const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
@@ -327,6 +333,30 @@ const StaffQueueManager = () => {
     } finally {
       setCompletingIds((prev) => prev.filter((id) => id !== sequenceId));
     }
+  };
+
+  const handleOpenCompleteDialog = (sequence: Sequence, officeId: string) => {
+    setPendingComplete({
+      sequenceId: sequence.id,
+      officeId,
+      queueCode: sequence.queue_data?.code || '---',
+    });
+    setCompleteDialogOpen(true);
+  };
+
+  const handleCompleteDialogOpenChange = (open: boolean) => {
+    setCompleteDialogOpen(open);
+    if (!open) {
+      setPendingComplete(null);
+    }
+  };
+
+  const handleConfirmComplete = async () => {
+    if (!pendingComplete) return;
+
+    await handleComplete(pendingComplete.sequenceId, pendingComplete.officeId);
+    setCompleteDialogOpen(false);
+    setPendingComplete(null);
   };
 
   const handlePing = async (serving: Sequence, officeName: string, officeId: string) => {
@@ -620,24 +650,18 @@ const StaffQueueManager = () => {
                                 {serving.priority_data?.description || 'Regular'}
                               </div>
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleComplete(serving.id, office.id)}
-                                  disabled={
-                                    isLoading ||
-                                    !canCompleteInOffice ||
-                                    completingIds.includes(serving.id)
-                                  }
-                                  title={
-                                    canCompleteInOffice
-                                      ? 'Mark this queue as completed'
-                                      : 'This office cannot complete queue codes'
-                                  }
-                                  className="w-full justify-center bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                                >
-                                  <Check className="h-4 w-4 mr-2" />
-                                  Complete
-                                </Button>
+                                {canCompleteInOffice && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleOpenCompleteDialog(serving, office.id)}
+                                    disabled={isLoading || completingIds.includes(serving.id)}
+                                    title="Mark this queue as completed"
+                                    className="w-full justify-center bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                                  >
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Complete
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   onClick={() => handleOpenTransferDialog(serving)}
@@ -822,6 +846,43 @@ const StaffQueueManager = () => {
           })}
         </Tabs>
       )}
+
+      {/* Complete Confirmation Dialog */}
+      <Dialog open={completeDialogOpen} onOpenChange={handleCompleteDialogOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Completion</DialogTitle>
+            <DialogDescription>
+              Are you sure this queue is really finished?
+            </DialogDescription>
+          </DialogHeader>
+
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleCompleteDialogOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmComplete}
+              disabled={
+                !pendingComplete ||
+                isLoading ||
+                (pendingComplete
+                  ? completingIds.includes(pendingComplete.sequenceId)
+                  : false)
+              }
+              className="bg-green-600 text-white hover:bg-green-700"
+            >
+              {pendingComplete && completingIds.includes(pendingComplete.sequenceId) ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 mr-2" />
+              )}
+              Complete Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Transfer Dialog */}
       <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
