@@ -903,7 +903,14 @@ const StaffQueueManager = () => {
             <DialogTitle>Transfer Queue</DialogTitle>
             <DialogDescription>
               Transfer queue code{' '}
-              <span className="font-bold">{transferringSequence?.queue_data?.code}</span> to another
+              <span
+                className={`inline-block text-2xl font-extrabold tracking-wide align-middle ${getPriorityColor(
+                  transferringSequence?.priority_data?.description,
+                )}`}
+              >
+                {transferringSequence?.queue_data?.code}
+              </span>{' '}
+              to another
               office.
             </DialogDescription>
           </DialogHeader>
