@@ -65,6 +65,12 @@ interface QueueState {
     statusId: string,
     windowId?: string | null,
   ) => Promise<void>;
+  updateSequence: (
+    sequenceId: string,
+    statusId: string,
+    isActive: boolean,
+    officeId?: string,
+  ) => Promise<{ error: Error | null }>;
   transferSequence: (
     sequenceId: string,
     targetOfficeId: string,
@@ -564,6 +570,39 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       set({
         error: errorMessage,
       });
+    }
+  },
+
+  updateSequence: async (sequenceId: string, statusId: string, isActive: boolean, officeId?: string) => {
+    set({ error: null });
+    try {
+      // Build update payload
+      const updatePayload: { status: string; is_active: boolean; office?: string } = {
+        status: statusId,
+        is_active: isActive,
+      };
+      
+      // Only include office if provided (for office change)
+      if (officeId) {
+        updatePayload.office = officeId;
+      }
+
+      const { error: updateError } = await module1
+        .from('sequence')
+        .update(updatePayload)
+        .eq('id', sequenceId);
+
+      if (updateError) throw updateError;
+
+      // Refresh sequences to reflect the change
+      await get().fetchAllSequencesForLogs();
+      return { error: null };
+    } catch (error: unknown) {
+      console.error('Failed to update sequence:', error);
+      const errorObj = error as { message?: string };
+      const errorMessage = errorObj.message || (error instanceof Error ? error.message : 'Failed to update sequence');
+      set({ error: errorMessage });
+      return { error: error as Error };
     }
   },
 
