@@ -28,6 +28,7 @@ const QUEUE_UI_SCALE = 1.79;
 
 interface CallNotification {
   id: string;
+  officeId: string;
   queueCode: string;
   windowLabel: string;
   officeName: string;
@@ -511,6 +512,7 @@ const QueueDisplay = () => {
           '';
         fresh.push({
           id: seq.id,
+          officeId: seq.office,
           queueCode: seq.queue_data?.code || '---',
           windowLabel: seq.window_data?.description || 'the window',
           officeName,
@@ -558,8 +560,10 @@ const QueueDisplay = () => {
     }
 
     const spokenCode = formatQueueCodeForSpeech(next.queueCode);
+    const resolvedOfficeName =
+      offices.find((office) => office.id === next.officeId)?.description || next.officeName;
     // Announce once: "Now calling, V...... A...... X...... , at the office. Please proceed to Window 1."
-    const announcement = `Now calling, ${spokenCode}to ${next.officeName || 'the office'}. Please proceed to ${next.windowLabel}.`;
+    const announcement = `Now calling, ${spokenCode}to ${resolvedOfficeName || 'the office'}. Please proceed to ${next.windowLabel}.`;
 
     speakRepeat(
       announcement,
@@ -579,7 +583,7 @@ const QueueDisplay = () => {
       0.85,
       () => announcementRunIdRef.current === runId,
     );
-  }, [notifQueue, activeNotif, sequences, activeOffices]);
+  }, [notifQueue, activeNotif, sequences, activeOffices, offices]);
 
   useEffect(() => {
     if (!activeNotif) return;
@@ -630,9 +634,12 @@ const QueueDisplay = () => {
             ...prev,
             {
               id: sequenceId,
+              officeId,
               queueCode: code,
               windowLabel: (payload.windowLabel as string) || 'the window',
-              officeName: (payload.officeName as string) || '',
+              officeName:
+                offices.find((office) => office.id === officeId)?.description ||
+                ((payload.officeName as string) || ''),
               priorityText: (payload.priorityDesc as string) || 'Regular',
               priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
             } as CallNotification,
