@@ -74,6 +74,7 @@ const QueueGenerator = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [preventClose, setPreventClose] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [printDisabled, setPrintDisabled] = useState(false);
   const printLockRef = useRef(false);
   const [printSuccess, setPrintSuccess] = useState(false);
 
@@ -291,16 +292,18 @@ const QueueGenerator = () => {
       setSelectedPriority('');
       setGeneratedAt(new Date().toLocaleString());
       setPreventClose(true);
+      setPrintDisabled(false);
       setIsDialogOpen(true);
       // Notification is handled automatically via Postgres Changes on sequence table
     }
   };
 
   const handlePrintDialog = async () => {
-    if (!queueCode || isPrinting || printLockRef.current) return;
+    if (!queueCode || isPrinting || printLockRef.current || printDisabled) return;
 
     printLockRef.current = true;
     setIsPrinting(true);
+    setPrintDisabled(true);
 
     try {
       const payload: QueueTicketPrintPayload = {
@@ -458,7 +461,7 @@ const QueueGenerator = () => {
             {renderQueueTicketCard()}
           </div>
           <DialogFooter id="queue-print-actions" className="sm:justify-center gap-2 mb-2">
-            <Button type="button" onClick={handlePrintDialog} disabled={isPrinting}>
+            <Button type="button" onClick={handlePrintDialog} disabled={isPrinting || printDisabled}>
               {isPrinting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               {isPrinting ? 'Printing...' : 'Print'}
             </Button>
