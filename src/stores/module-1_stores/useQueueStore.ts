@@ -2,6 +2,29 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 
 const module1 = supabase.schema('module1');
+const LOOKUP_BATCH_SIZE = 100;
+
+const fetchByIdsInBatches = async <T,>(
+  table: 'office' | 'queue' | 'priority' | 'status' | 'window',
+  selectColumns: string,
+  ids: string[],
+): Promise<T[]> => {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  if (uniqueIds.length === 0) return [];
+
+  const rows: T[] = [];
+
+  for (let i = 0; i < uniqueIds.length; i += LOOKUP_BATCH_SIZE) {
+    const idBatch = uniqueIds.slice(i, i + LOOKUP_BATCH_SIZE);
+    const { data, error } = await module1.from(table).select(selectColumns).in('id', idBatch);
+    if (error) throw error;
+    if (data) {
+      rows.push(...(data as T[]));
+    }
+  }
+
+  return rows;
+};
 
 export interface Priority {
   id: string;
@@ -318,22 +341,20 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         ),
       ];
 
-      const [officesResult, queuesResult, prioritiesResult, statusesResult, windowsResult] =
+      const [officesData, queuesData, prioritiesData, statusesData, windowsData] =
         await Promise.all([
-          module1.from('office').select('id, description').in('id', officeIds),
-          module1.from('queue').select('*').in('id', queueIds),
-          module1.from('priority').select('*').in('id', priorityIds),
-          module1.from('status').select('*').in('id', statusIds),
-          windowIds.length > 0
-            ? module1.from('window').select('id, description').in('id', windowIds)
-            : Promise.resolve({ data: [] }),
+          fetchByIdsInBatches<{ id: string; description: string }>('office', 'id, description', officeIds),
+          fetchByIdsInBatches<Queue>('queue', '*', queueIds),
+          fetchByIdsInBatches<Priority>('priority', '*', priorityIds),
+          fetchByIdsInBatches<Status>('status', '*', statusIds),
+          fetchByIdsInBatches<{ id: string; description: string | null }>('window', 'id, description', windowIds),
         ]);
 
-      const officesMap = new Map(officesResult.data?.map((o) => [o.id, o]) || []);
-      const queuesMap = new Map(queuesResult.data?.map((q) => [q.id, q]) || []);
-      const prioritiesMap = new Map(prioritiesResult.data?.map((p) => [p.id, p]) || []);
-      const statusesMap = new Map(statusesResult.data?.map((s) => [s.id, s]) || []);
-      const windowsMap = new Map((windowsResult.data || []).map((w) => [w.id, w]));
+      const officesMap = new Map(officesData.map((o) => [o.id, o]));
+      const queuesMap = new Map(queuesData.map((q) => [q.id, q]));
+      const prioritiesMap = new Map(prioritiesData.map((p) => [p.id, p]));
+      const statusesMap = new Map(statusesData.map((s) => [s.id, s]));
+      const windowsMap = new Map(windowsData.map((w) => [w.id, w]));
 
       const enrichedSequences: Sequence[] = sequencesData.map((seq) => {
         const row = seq as { window?: string | null; is_active?: boolean };
@@ -385,22 +406,20 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         ),
       ];
 
-      const [officesResult, queuesResult, prioritiesResult, statusesResult, windowsResult] =
+      const [officesData, queuesData, prioritiesData, statusesData, windowsData] =
         await Promise.all([
-          module1.from('office').select('id, description').in('id', officeIds),
-          module1.from('queue').select('*').in('id', queueIds),
-          module1.from('priority').select('*').in('id', priorityIds),
-          module1.from('status').select('*').in('id', statusIds),
-          windowIds.length > 0
-            ? module1.from('window').select('id, description').in('id', windowIds)
-            : Promise.resolve({ data: [] }),
+          fetchByIdsInBatches<{ id: string; description: string }>('office', 'id, description', officeIds),
+          fetchByIdsInBatches<Queue>('queue', '*', queueIds),
+          fetchByIdsInBatches<Priority>('priority', '*', priorityIds),
+          fetchByIdsInBatches<Status>('status', '*', statusIds),
+          fetchByIdsInBatches<{ id: string; description: string | null }>('window', 'id, description', windowIds),
         ]);
 
-      const officesMap = new Map(officesResult.data?.map((o) => [o.id, o]) || []);
-      const queuesMap = new Map(queuesResult.data?.map((q) => [q.id, q]) || []);
-      const prioritiesMap = new Map(prioritiesResult.data?.map((p) => [p.id, p]) || []);
-      const statusesMap = new Map(statusesResult.data?.map((s) => [s.id, s]) || []);
-      const windowsMap = new Map((windowsResult.data || []).map((w) => [w.id, w]));
+      const officesMap = new Map(officesData.map((o) => [o.id, o]));
+      const queuesMap = new Map(queuesData.map((q) => [q.id, q]));
+      const prioritiesMap = new Map(prioritiesData.map((p) => [p.id, p]));
+      const statusesMap = new Map(statusesData.map((s) => [s.id, s]));
+      const windowsMap = new Map(windowsData.map((w) => [w.id, w]));
 
       const enrichedSequences: Sequence[] = sequencesData.map((seq) => {
         const row = seq as { window?: string | null; is_active?: boolean };
