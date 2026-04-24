@@ -329,6 +329,13 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             : Promise.resolve({ data: [] }),
         ]);
 
+      // Propagate errors so empty maps don't silently zero out queue_data
+      if (officesResult.error) throw officesResult.error;
+      if (queuesResult.error) throw queuesResult.error;
+      if (prioritiesResult.error) throw prioritiesResult.error;
+      if (statusesResult.error) throw statusesResult.error;
+      if ('error' in windowsResult && windowsResult.error) throw windowsResult.error;
+
       const officesMap = new Map(officesResult.data?.map((o) => [o.id, o]) || []);
       const queuesMap = new Map(queuesResult.data?.map((q) => [q.id, q]) || []);
       const prioritiesMap = new Map(prioritiesResult.data?.map((p) => [p.id, p]) || []);
