@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { userService } from '@/services/userService';
@@ -19,16 +19,26 @@ const checkUserActiveStatus = async (userId: string): Promise<boolean> => {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { setUser, initialize } = useAuthStore();
+  const initializationRef = useRef(false);
 
   useEffect(() => {
+    // Prevent double initialization in strict mode / React 18
+    if (initializationRef.current) return;
+    initializationRef.current = true;
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        const isActive = await checkUserActiveStatus(session.user.id);
-        if (isActive) {
-          await initialize(); 
-        } else {
-          console.log('User is not active, signing out...');
-          await supabase.auth.signOut();
+        try {
+          const isActive = await checkUserActiveStatus(session.user.id);
+          if (isActive) {
+            await initialize(); 
+          } else {
+            console.log('User is not active, signing out...');
+            await supabase.auth.signOut();
+            setUser(null);
+          }
+        } catch (err) {
+          console.error('Auth initialization error:', err);
           setUser(null);
         }
       } else {
@@ -47,12 +57,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') return;
 
       if (session?.user) {
-        const isActive = await checkUserActiveStatus(session.user.id);
-        if (isActive) {
-          await initialize(); 
-        } else {
-          console.log('User is not active, signing out...');
-          await supabase.auth.signOut();
+        try {
+          const isActive = await checkUserActiveStatus(session.user.id);
+          if (isActive) {
+            await initialize(); 
+          } else {
+            console.log('User is not active, signing out...');
+            await supabase.auth.signOut();
+            setUser(null);
+          }
+        } catch (err) {
+          console.error('Auth state change error:', err);
           setUser(null);
         }
       } else {
