@@ -13,20 +13,43 @@ import {
   Dialog,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import { useOfficeStore } from '@/stores/module-1_stores/useOfficeStore';
 import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { cn } from '@/lib/utils';
+
+/** Custom DialogContent without X/close button for the queue ticket dialog */
+const DialogContentNoClose = ({
+  className,
+  children,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) => (
+  <DialogPrimitive.Portal>
+    <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+    <DialogPrimitive.Content
+      className={cn(
+        'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 bg-white dark:bg-dark p-6 shadow-lg duration-200 rounded-lg',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out',
+        'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+        'data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-top-[48%]',
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </DialogPrimitive.Content>
+  </DialogPrimitive.Portal>
+);
 
 const BCrumb: never[] = [];
 
@@ -444,7 +467,7 @@ const QueueGenerator = () => {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
-        <DialogContent
+        <DialogContentNoClose
           className="sm:max-w-none max-w-none p-0 bg-white text-black dark:bg-white dark:text-black"
           style={{ width: `${QUEUE_TICKET_WIDTH_IN}in` }}
         >
@@ -465,14 +488,8 @@ const QueueGenerator = () => {
               {isPrinting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               {isPrinting ? 'Printing...' : 'Print'}
             </Button>
-            <Button type="button" variant="outline" onClick={() => {
-                setPreventClose(false);
-                setIsDialogOpen(false);
-              }}>
-              Close
-            </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogContentNoClose>
       </Dialog>
 
       <Dialog open={isOfficeDialogOpen} onOpenChange={setIsOfficeDialogOpen}>
