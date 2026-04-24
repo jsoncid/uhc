@@ -32,6 +32,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           setUser(null);
         }
       } else {
+        await supabase.auth.signOut();
         setUser(null);
       }
     });
