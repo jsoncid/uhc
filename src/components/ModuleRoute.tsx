@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { usePermissions, type PermissionAction } from '@/context/PermissionsContext';
+import Spinner from '@/views/spinner/Spinner';
 
 interface ModuleRouteProps {
   /** Must match `module.description` in the database (case-insensitive). */
@@ -35,7 +36,7 @@ export const ModuleRoute = ({
 
   // Wait for auth initialization before deciding to redirect
   if (isAuthLoading) {
-    return null;
+    return <Spinner />;
   }
 
   // Not authenticated → login
@@ -45,7 +46,7 @@ export const ModuleRoute = ({
 
   // Still fetching permissions → render nothing (avoids flash-redirect)
   if (loading) {
-    return null;
+    return <Spinner />;
   }
 
   // Permission denied → unauthorized page

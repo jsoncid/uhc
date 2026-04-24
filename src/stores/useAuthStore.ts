@@ -28,36 +28,60 @@ interface AuthState {
 }
 
 const fetchRoleAndModule = async (userId: string) => {
-  const { data: userRole, error: roleError } = await supabase
-    .from('user_role')
-    .select('role')
-    .eq('user', userId)
-    .limit(1)
-    .maybeSingle();
+  // Fetch user_role and user_assignment in parallel
+  const [userRoleResult, userAssignmentResult] = await Promise.all([
+    supabase
+      .from('user_role')
+      .select('role')
+      .eq('user', userId)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('user_assignment')
+      .select('assignment, is_active')
+      .eq('user', userId)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const { data: userRole, error: roleError } = userRoleResult;
+  const { data: userAssignment, error: assignError } = userAssignmentResult;
 
   if (roleError || !userRole) {
     console.error('Failed to fetch user role:', roleError);
-    return { roleId: null, moduleId: null };
+    return { roleId: null, moduleId: null, assignmentId: null, assignmentName: null, isAssignmentActive: false };
   }
 
-  const { data: roleModuleAccess, error: moduleError } = await supabase
-    .from('role_module_access')
-    .select('module')
-    .eq('role', userRole.role)
-    .limit(1)
-    .maybeSingle();
+  // Fetch role_module_access and assignment description in parallel (after getting userRole.role and userAssignment.assignment)
+  const [moduleAccessResult, assignmentDescResult] = await Promise.all([
+    supabase
+      .from('role_module_access')
+      .select('module')
+      .eq('role', userRole.role)
+      .limit(1)
+      .maybeSingle(),
+    userAssignment?.assignment
+      ? supabase
+          .from('assignment')
+          .select('description')
+          .eq('id', userAssignment.assignment)
+          .single()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  const { data: roleModuleAccess, error: moduleError } = moduleAccessResult;
+  const { data: asgnData } = assignmentDescResult;
 
   if (moduleError || !roleModuleAccess) {
     console.error('Failed to fetch role module access:', moduleError);
-    return { roleId: userRole.role, moduleId: null };
+    return {
+      roleId: userRole.role as string,
+      moduleId: null,
+      assignmentId: (userAssignment?.assignment as string) ?? null,
+      assignmentName: asgnData?.description ?? null,
+      isAssignmentActive: userAssignment?.is_active ?? false,
+    };
   }
-
-  const { data: userAssignment, error: assignError } = await supabase
-    .from('user_assignment')
-    .select('assignment, is_active')
-    .eq('user', userId)
-    .limit(1)
-    .maybeSingle();
 
   if (assignError) {
     console.error('Failed to fetch user assignment:', assignError);
@@ -65,21 +89,11 @@ const fetchRoleAndModule = async (userId: string) => {
 
   console.log('user_assignment record:', userAssignment);
 
-  let assignmentName: string | null = null;
-  if (userAssignment?.assignment) {
-    const { data: asgnData } = await supabase
-      .from('assignment')
-      .select('description')
-      .eq('id', userAssignment.assignment)
-      .single();
-    assignmentName = asgnData?.description ?? null;
-  }
-
   return {
     roleId: userRole.role as string,
     moduleId: roleModuleAccess.module as string,
     assignmentId: (userAssignment?.assignment as string) ?? null,
-    assignmentName,
+    assignmentName: asgnData?.description ?? null,
     isAssignmentActive: userAssignment?.is_active ?? false,
   };
 };

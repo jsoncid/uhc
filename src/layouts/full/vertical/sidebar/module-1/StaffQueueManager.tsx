@@ -10,13 +10,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import {
@@ -49,6 +48,7 @@ const StaffQueueManager = () => {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
   const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
+  const [transferOfficeSearch, setTransferOfficeSearch] = useState('');
   const [transferSuccess, setTransferSuccess] = useState<string>('');
   const [isCallingNext, setIsCallingNext] = useState(false);
   const [isTransferSubmitting, setIsTransferSubmitting] = useState(false);
@@ -509,9 +509,20 @@ const StaffQueueManager = () => {
       });
   }, [offices, transferringSequence]);
 
+  const filteredTransferableOffices = useMemo(() => {
+    const query = transferOfficeSearch.trim().toLowerCase();
+    if (!query) return transferableOffices;
+
+    return transferableOffices.filter((office) => {
+      const label = `${office.description || ''} ${office.id}`.toLowerCase();
+      return label.includes(query);
+    });
+  }, [transferableOffices, transferOfficeSearch]);
+
   const handleOpenTransferDialog = (sequence: Sequence) => {
     setTransferringSequence(sequence);
     setTransferTargetOffice(''); // reset — user must pick a different office
+    setTransferOfficeSearch('');
     setTransferDialogOpen(true);
   };
 
@@ -541,6 +552,7 @@ const StaffQueueManager = () => {
       setTransferDialogOpen(false);
       setTransferringSequence(null);
       setTransferTargetOffice('');
+      setTransferOfficeSearch('');
 
       // Clear success message after 3 seconds
       setTimeout(() => setTransferSuccess(''), 3000);
@@ -891,7 +903,14 @@ const StaffQueueManager = () => {
             <DialogTitle>Transfer Queue</DialogTitle>
             <DialogDescription>
               Transfer queue code{' '}
-              <span className="font-bold">{transferringSequence?.queue_data?.code}</span> to another
+              <span
+                className={`inline-block text-2xl font-extrabold tracking-wide align-middle ${getPriorityColor(
+                  transferringSequence?.priority_data?.description,
+                )}`}
+              >
+                {transferringSequence?.queue_data?.code}
+              </span>{' '}
+              to another
               office.
             </DialogDescription>
           </DialogHeader>
@@ -904,36 +923,36 @@ const StaffQueueManager = () => {
                   No other offices available
                 </div>
               ) : (
-                <Command className="rounded-md border">
-                  <CommandInput
-                    placeholder="Search target office..."
-                    autoFocus
-                  />
-                  <CommandList className="max-h-64">
-                    <CommandEmpty>No matching office found.</CommandEmpty>
-                    <CommandGroup heading="Available offices">
-                      {transferableOffices.map((office) => {
-                        const officeLabel = office.description || office.id;
-                        const isSelected = transferTargetOffice === office.id;
-
-                        return (
-                          <CommandItem
-                            key={office.id}
-                            value={`${officeLabel} ${office.id}`}
-                            onSelect={() => setTransferTargetOffice(office.id)}
-                          >
-                            <span className="truncate">{officeLabel}</span>
-                            <Check className={`ml-auto h-4 w-4 ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
+                <Select value={transferTargetOffice} onValueChange={setTransferTargetOffice}>
+                  <SelectTrigger className="w-full py-5 text-base border border-green-600 [&>span]:!leading-[2rem] hover:bg-accent hover:text-accent-foreground transition-colors [&_.lucide-chevron-down]:!text-green-600">
+                    <SelectValue placeholder="Select target office" />
+                  </SelectTrigger>
+                  <SelectContent maxItems={8}>
+                    <div className="sticky top-0 z-10 bg-popover p-1">
+                      <input
+                        type="text"
+                        value={transferOfficeSearch}
+                        onChange={(e) => setTransferOfficeSearch(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        placeholder="Search office..."
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    </div>
+                    {filteredTransferableOffices.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">No matching office found.</div>
+                    )}
+                    {filteredTransferableOffices.map((office) => (
+                      <SelectItem 
+                        key={office.id} 
+                        value={office.id}
+                        className="hover:bg-accent hover:text-accent-foreground transition-colors"
+                      >
+                        {office.description || 'Unnamed'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
-              <p className="text-xs text-muted-foreground">
-                Type to search, use arrow keys to navigate, then press Enter to select.
-              </p>
             </div>
           </div>
 
