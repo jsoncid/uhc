@@ -788,7 +788,32 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   subscribeToSequences: () => {
-    const enrichRow = async (row: {
+    // Cache for lookup tables so enrichRow can resolve IDs without per-event queries.
+    // Populated on first sequence fetch; refreshed whenever fetchSequences runs.
+    let cachedEnrichment: {
+      officesMap: Map<string, { id: string; description: string }>;
+      queuesMap: Map<string, Queue>;
+      prioritiesMap: Map<string, Priority>;
+      statusesMap: Map<string, Status>;
+      windowsMap: Map<string, { id: string; description: string | null }>;
+    } | null = null;
+
+    const ensureCache = () => {
+      if (!cachedEnrichment) {
+        const { sequences } = get();
+        if (sequences.length === 0) return false;
+        cachedEnrichment = {
+          officesMap: new Map(sequences.filter((s) => s.office_data).map((s) => [s.office, s.office_data!])),
+          queuesMap: new Map(sequences.filter((s) => s.queue_data).map((s) => [s.queue, s.queue_data!])),
+          prioritiesMap: new Map(sequences.filter((s) => s.priority_data).map((s) => [s.priority, s.priority_data!])),
+          statusesMap: new Map(sequences.filter((s) => s.status_data).map((s) => [s.status, s.status_data!])),
+          windowsMap: new Map(sequences.filter((s) => s.window_data).map((s) => [s.window!, s.window_data!])),
+        };
+      }
+      return true;
+    };
+
+    const enrichRow = (row: {
       id: string;
       created_at: string;
       office: string;
@@ -797,26 +822,17 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       status: string;
       window?: string | null;
       is_active?: boolean;
-    }): Promise<Sequence> => {
-      const [officeRes, queueRes, priorityRes, statusRes, windowRes] = await Promise.all([
-        module1.from('office').select('id, description').eq('id', row.office).single(),
-        module1.from('queue').select('*').eq('id', row.queue).single(),
-        module1.from('priority').select('*').eq('id', row.priority).single(),
-        module1.from('status').select('*').eq('id', row.status).single(),
-        row.window != null
-          ? module1.from('window').select('id, description').eq('id', row.window).single()
-          : Promise.resolve({ data: null }),
-      ]);
-
+    }): Sequence => {
+      const hasCache = ensureCache();
       return {
         ...row,
         window: row.window ?? null,
         is_active: row.is_active ?? true,
-        office_data: officeRes.data || undefined,
-        queue_data: queueRes.data || undefined,
-        priority_data: priorityRes.data || undefined,
-        status_data: statusRes.data || undefined,
-        window_data: windowRes.data || undefined,
+        office_data: hasCache ? cachedEnrichment!.officesMap.get(row.office) : undefined,
+        queue_data: hasCache ? cachedEnrichment!.queuesMap.get(row.queue) : undefined,
+        priority_data: hasCache ? cachedEnrichment!.prioritiesMap.get(row.priority) : undefined,
+        status_data: hasCache ? cachedEnrichment!.statusesMap.get(row.status) : undefined,
+        window_data: row.window != null && hasCache ? cachedEnrichment!.windowsMap.get(row.window) : undefined,
       };
     };
 
@@ -843,7 +859,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             window?: string | null;
             is_active?: boolean;
           };
-          const enriched = await enrichRow(newRow);
+          const enriched = enrichRow(newRow);
           set((state) => {
             if (state.sequences.some((seq) => seq.id === newRow.id)) return state;
             return { sequences: [...state.sequences, enriched] };
@@ -869,7 +885,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             window?: string | null;
             is_active?: boolean;
           };
-          const enriched = await enrichRow(updatedRow);
+          const enriched = enrichRow(updatedRow);
           set((state) => ({
             sequences: state.sequences.map((seq) => (seq.id === updatedRow.id ? enriched : seq)),
           }));

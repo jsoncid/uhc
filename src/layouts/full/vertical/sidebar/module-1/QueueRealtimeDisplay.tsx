@@ -63,21 +63,20 @@ const PRIORITY_COLORS: Record<string, { bg: string; text: string; badge: string 
 
 const module1 = supabase.schema('module1');
 
-// Helper to fetch and enrich a sequence row on-demand
-const fetchEnrichedSequence = async (row: SequenceRow): Promise<Sequence> => {
-  const [officeRes, priorityRes, statusRes] = await Promise.all([
-    module1.from('office').select('*').eq('id', row.office).single(),
-    module1.from('priority').select('*').eq('id', row.priority).single(),
-    module1.from('status').select('*').eq('id', row.status).single(),
-  ]);
-
-  return {
-    ...row,
-    office_data: officeRes.data || undefined,
-    priority_data: priorityRes.data || undefined,
-    status_data: statusRes.data || undefined,
-  };
+// Cache for enrichment data so realtime events don't need per-event queries.
+// Populated during fetchAllData; refreshed whenever fetchAllData runs.
+const enrichmentCache = {
+  officesMap: new Map<string, Office>(),
+  prioritiesMap: new Map<string, Priority>(),
+  statusesMap: new Map<string, Status>(),
 };
+
+const fetchEnrichedSequence = (row: SequenceRow): Sequence => ({
+  ...row,
+  office_data: enrichmentCache.officesMap.get(row.office),
+  priority_data: enrichmentCache.prioritiesMap.get(row.priority),
+  status_data: enrichmentCache.statusesMap.get(row.status),
+});
 
 const QueueRealtimeDisplay = () => {
   const [sequences, setSequences] = useState<Sequence[]>([]);
@@ -124,6 +123,11 @@ const QueueRealtimeDisplay = () => {
       const statusesData = statusesRes.data || [];
       const sequencesData = sequencesRes.data || [];
 
+      // Populate module-level cache for use by realtime event handlers
+      enrichmentCache.officesMap = new Map(officesData.map((o) => [o.id, o]));
+      enrichmentCache.prioritiesMap = new Map(prioritiesData.map((p) => [p.id, p]));
+      enrichmentCache.statusesMap = new Map(statusesData.map((s) => [s.id, s]));
+
       setOffices(officesData);
       setStatuses(statusesData);
 
@@ -166,7 +170,7 @@ const QueueRealtimeDisplay = () => {
           console.log('🟢 INSERT:', newRow);
 
           // Fetch enriched data on-demand
-          const enriched = await fetchEnrichedSequence(newRow);
+          const enriched = fetchEnrichedSequence(newRow);
 
           setSequences((prev) => {
             if (prev.some((seq) => seq.id === newRow.id)) return prev;
@@ -186,7 +190,7 @@ const QueueRealtimeDisplay = () => {
           console.log('🟡 UPDATE:', updatedRow);
 
           // Fetch enriched data on-demand
-          const enriched = await fetchEnrichedSequence(updatedRow);
+          const enriched = fetchEnrichedSequence(updatedRow);
 
           setSequences((prev) => prev.map((seq) => (seq.id === updatedRow.id ? enriched : seq)));
         },
