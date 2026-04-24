@@ -58,6 +58,7 @@ const QUEUE_TICKET_HEIGHT_MM = '108';
 const QUEUE_TICKET_WIDTH_IN = Number(QUEUE_TICKET_WIDTH_MM) / 25.4;
 const QUEUE_TICKET_HEIGHT_IN = Number(QUEUE_TICKET_HEIGHT_MM) / 25.4;
 const OFFICE_GRID_COLUMNS = 3;
+const PRINT_CLICK_COOLDOWN_MS = 1200;
 
 const escapeHtml = (value: string) => value
   .replace(/&/g, '&amp;')
@@ -99,6 +100,7 @@ const QueueGenerator = () => {
   const [isPrinting, setIsPrinting] = useState(false);
   const [printDisabled, setPrintDisabled] = useState(false);
   const printLockRef = useRef(false);
+  const lastPrintClickAtRef = useRef(0);
   const [printSuccess, setPrintSuccess] = useState(false);
 
   interface QueueTicketPrintPayload {
@@ -322,6 +324,10 @@ const QueueGenerator = () => {
   };
 
   const handlePrintDialog = async () => {
+    const now = Date.now();
+    if (now - lastPrintClickAtRef.current < PRINT_CLICK_COOLDOWN_MS) return;
+    lastPrintClickAtRef.current = now;
+
     if (!queueCode || isPrinting || printLockRef.current || printDisabled) return;
 
     printLockRef.current = true;
