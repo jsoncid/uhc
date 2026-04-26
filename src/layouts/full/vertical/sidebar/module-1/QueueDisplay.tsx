@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useMemo, DragEvent } from 'react';
 import { Loader2 } from 'lucide-react';
 import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
@@ -8,7 +9,9 @@ import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore'
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { supabase } from '@/lib/supabase';
 
+
 const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
+
 
 const REPEAT_COUNT = 2; // how many times to announce
 const PAUSE_BETWEEN_MS = 250; // pause between each announcement
@@ -28,6 +31,10 @@ const QUEUE_UI_SCALE = 1.79;
 
 interface CallNotification {
   id: string;
+
+
+
+
   officeId: string;
   queueCode: string;
   windowLabel: string;
@@ -81,9 +88,22 @@ function getFemaleVoice(): SpeechSynthesisVoice | null {
   );
   if (likely) return likely;
 
+
+
+
+
+
+
+
+
+
   // Priority 3: first english voice
   return englishVoices[0] ?? null;
 }
+
+
+
+
 
 /** Speak `text` exactly `times` times, with a pause between each. Calls `onDone` when finished. */
 function speakRepeat(
@@ -95,7 +115,25 @@ function speakRepeat(
 ): void {
   window.speechSynthesis.cancel();
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   let count = 0;
+
+
+
+
 
   const scheduleNext = () => {
     if (!shouldContinue()) return;
@@ -104,14 +142,25 @@ function speakRepeat(
     }, PAUSE_BETWEEN_MS);
   };
 
+
+
+
+
+
+
+
+
   const speakOnce = () => {
     if (!shouldContinue()) return;
+
 
     const utter = new SpeechSynthesisUtterance(text);
     const voice = getFemaleVoice();
     if (voice) utter.voice = voice;
     utter.pitch = 1.05;
     utter.rate = rate ?? 0.85; // default slower pace, or per-call override
+
+
 
     utter.onend = () => {
       if (!shouldContinue()) return;
@@ -123,6 +172,7 @@ function speakRepeat(
       }
     };
 
+
     utter.onerror = () => {
       if (!shouldContinue()) return;
       count++;
@@ -130,18 +180,33 @@ function speakRepeat(
       else onDone();
     };
 
+
     window.speechSynthesis.speak(utter);
   };
+
+
+
+
 
   speakOnce();
 }
 
+
+
+
+
+
 // ── Pure helpers at module scope so effects can reference them without stale-closure issues ──
+
 
 const isRegularPriority = (priority: string | null | undefined): boolean => {
   const desc = (priority ?? '').toLowerCase();
   return desc === '' || desc.includes('regular');
 };
+
+
+
+
 
 const getPriorityStyle = (priority: string | null | undefined) => {
   // Anything that is not explicitly "regular" is treated as priority (red)
@@ -159,9 +224,24 @@ const getPriorityStyle = (priority: string | null | undefined) => {
   };
 };
 
+
+
+
+
+
+
+
+
 const isServingSequence = (seq: Sequence): boolean =>
   seq.is_active !== false &&
   Boolean(seq.status_data?.description?.toLowerCase().includes('serving'));
+
+
+
+
+
+
+
 
 const hasServingSequenceForDisplay = (
   sequenceId: string,
@@ -171,6 +251,7 @@ const hasServingSequenceForDisplay = (
   sequences.some(
     (seq) => seq.id === sequenceId && isServingSequence(seq) && activeOfficeIds.has(seq.office),
   );
+
 
 interface WaitingQueueColumnProps {
   title: string;
@@ -182,16 +263,31 @@ interface WaitingQueueColumnProps {
   waitingHeadingMarginClass: string;
 }
 
+
+
+
+
 interface ServingQueueEntry {
   seq: Sequence;
   windowLabel: string | null;
   style: ReturnType<typeof getPriorityStyle>;
 }
 
+
+
+
+
 interface ServingQueueRotatorProps {
   entries: ServingQueueEntry[];
   activeNotifId?: string;
 }
+
+
+
+
+
+
+
 
 const WaitingQueueColumn = ({
   title,
@@ -219,11 +315,26 @@ const WaitingQueueColumn = ({
       return;
     }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const updateMarquee = () => {
       const contentHeight = measureList.scrollHeight;
       const overflowing = contentHeight > container.clientHeight + 1;
       const shouldRunMarquee = overflowing || entries.length > WAITING_MARQUEE_TRIGGER_COUNT;
       setShouldMarquee((prev) => (prev === shouldRunMarquee ? prev : shouldRunMarquee));
+
 
       if (shouldRunMarquee) {
         const durationSeconds = Math.max(
@@ -236,6 +347,12 @@ const WaitingQueueColumn = ({
       }
     };
 
+
+
+
+
+
+
     let rafId: number | null = null;
     const scheduleUpdate = () => {
       if (rafId !== null) {
@@ -247,7 +364,9 @@ const WaitingQueueColumn = ({
       });
     };
 
+
     scheduleUpdate();
+
 
     const resizeObserver =
       typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleUpdate) : null;
@@ -263,6 +382,12 @@ const WaitingQueueColumn = ({
       resizeObserver?.disconnect();
     };
   }, [entrySignature]);
+
+
+
+
+
+
 
   if (entries.length === 0) {
     return (
@@ -460,17 +585,34 @@ const QueueDisplay = () => {
     if (!profileLoading) {
       fetchOffices(userAssignmentIds.length > 0 ? userAssignmentIds : undefined);
     }
+
   }, [profileLoading, userAssignmentIds, fetchOffices]);
+
+
+
+
+
+
+
 
   useEffect(() => {
     const unsub = subscribeToSequences();
     return () => unsub();
   }, [subscribeToSequences]);
 
+
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+
+
+
+
+
+
+
 
   useEffect(() => {
     activeNotifIdRef.current = activeNotif?.id ?? null;
@@ -492,6 +634,14 @@ const QueueDisplay = () => {
       initializedRef.current = true;
       return; // do not announce anything from the initial load
     }
+
+
+
+
+
+
+
+
 
     // Realtime path — only runs after initialisation
     const activeOfficeIds = new Set(activeOffices.map((o) => o.id));
@@ -536,11 +686,24 @@ const QueueDisplay = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sequences]);
 
+
   // Sequential processor: one announcement at a time.
   // Uses activeNotif (state) as the sole lock — clearing it triggers a re-run
   // so the next queued item is always picked up correctly.
   useEffect(() => {
     if (activeNotif !== null || notifQueue.length === 0) return;
+
+
+
+
+
+
+
+
+
+
+
+
 
     const activeOfficeIds = new Set(activeOffices.map((office) => office.id));
     const nextIndex = notifQueue.findIndex((notif) =>
@@ -559,11 +722,21 @@ const QueueDisplay = () => {
       return (code || '').split('').join('... ') + '... ';
     }
 
+
+
+
+
+
+
+
+
+
     const spokenCode = formatQueueCodeForSpeech(next.queueCode);
     const resolvedOfficeName =
       offices.find((office) => office.id === next.officeId)?.description || next.officeName;
     // Announce once: "Now calling, V...... A...... X...... , at the office. Please proceed to Window 1."
     const announcement = `Now calling, ${spokenCode}to ${resolvedOfficeName || 'the office'}. Please proceed to ${next.windowLabel}.`;
+
 
     speakRepeat(
       announcement,
@@ -584,6 +757,17 @@ const QueueDisplay = () => {
       () => announcementRunIdRef.current === runId,
     );
   }, [notifQueue, activeNotif, sequences, activeOffices, offices]);
+
+
+
+
+
+
+
+
+
+
+
 
   useEffect(() => {
     if (!activeNotif) return;
@@ -697,12 +881,29 @@ const QueueDisplay = () => {
       return;
     }
 
+
+
+
     try {
+
       const raw = window.localStorage.getItem(OFFICE_ORDER_STORAGE_KEY);
       if (!raw) return;
 
+
       const parsed: unknown = JSON.parse(raw);
       if (!Array.isArray(parsed)) return;
+
+
+
+
+
+
+
+
+
+
+
+
 
       const savedOrder = parsed.filter((id): id is string => typeof id === 'string');
       if (savedOrder.length > 0) {
@@ -713,13 +914,22 @@ const QueueDisplay = () => {
     } finally {
       setIsOfficeOrderHydrated(true);
     }
+
   }, []);
+
+
+
+
+
+
+
 
   // Persist office order whenever it changes.
   useEffect(() => {
     if (!isOfficeOrderHydrated || typeof window === 'undefined') return;
     window.localStorage.setItem(OFFICE_ORDER_STORAGE_KEY, JSON.stringify(officeOrderIds));
   }, [officeOrderIds, isOfficeOrderHydrated]);
+
 
   // Keep the saved order in sync with active offices.
   // 1) remove ids that are no longer active
@@ -729,13 +939,24 @@ const QueueDisplay = () => {
     setOfficeOrderIds((prev) => {
       if (activeIds.length === 0) return prev;
 
+
       const retained = prev.filter((id) => activeIds.includes(id));
       const added = activeIds.filter((id) => !retained.includes(id));
       const next = [...retained, ...added];
 
+
       if (next.length === prev.length && next.every((id, idx) => id === prev[idx])) {
         return prev;
       }
+
+
+
+
+
+
+
+
+
 
       return next;
     });
@@ -804,9 +1025,14 @@ const QueueDisplay = () => {
     if (droppedOfficeId) {
       moveOffice(droppedOfficeId, officeId);
     }
+
     setDraggedOfficeId(null);
     setDragOverOfficeId(null);
   };
+
+
+
+
 
   const handleOfficeDragEnd = () => {
     setDraggedOfficeId(null);
@@ -898,7 +1124,7 @@ const QueueDisplay = () => {
               No active offices
             </div>
           ) : (
-            orderedActiveOffices.map((office: Office) => {
+            orderedActiveOffices.map((office) => {
               const officeName = office.description || office.id;
 
               // Use enriched status_data & window_data — no fragile ID lookup needed
@@ -950,10 +1176,11 @@ const QueueDisplay = () => {
                   onDragEnter={() => handleOfficeDragEnter(office.id)}
                   onDrop={(event) => handleOfficeDrop(event, office.id)}
                   onDragEnd={handleOfficeDragEnd}
-                  className={`queue-office-card flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card transition-opacity duration-150 ${draggedOfficeId === office.id ? 'cursor-grabbing opacity-75' : 'cursor-grab'} ${dragOverOfficeId === office.id && draggedOfficeId !== office.id ? 'ring-2 ring-emerald-400/70' : ''}`}
-                >
-                  {/* Office header */}
-                  <div className="shrink-0 border-b border-border px-2.5 py-0.5">
+                  className={`queue-office-card flex min-h-0 flex-col overflow-hidden rounded-lg border-[5px] bg-card transition-opacity duration-150 ${draggedOfficeId === office.id ? 'cursor-grabbing opacity-75' : 'cursor-grab'} ${dragOverOfficeId === office.id && draggedOfficeId !== office.id ? 'ring-2 ring-emerald-400/70' : ''}`}
+                                    style={office.office_color ? { borderColor: office.office_color } : undefined}
+                                  >
+                                    {/* Office header */}
+                                    <div className="shrink-0 border-b border-border px-2.5 py-0.5">
                     <p
                       className="w-full truncate text-center text-base font-bold text-foreground"
                       title={officeName}

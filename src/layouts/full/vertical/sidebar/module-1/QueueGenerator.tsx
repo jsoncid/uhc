@@ -95,6 +95,8 @@ const QueueGenerator = () => {
   const [selectedPriorityName, setSelectedPriorityName] = useState('');
   const [selectedOffice, setSelectedOffice] = useState('');
   const [generatedAt, setGeneratedAt] = useState('');
+  const [ticketBorderColor, setTicketBorderColor] = useState('');
+  const [ticketOfficeDescription, setTicketOfficeDescription] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [preventClose, setPreventClose] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -104,17 +106,21 @@ const QueueGenerator = () => {
   const [printSuccess, setPrintSuccess] = useState(false);
 
   interface QueueTicketPrintPayload {
-    queueCode: string;
-    priority: string;
-    generatedAt: string;
-    isSpecial: boolean;
-  }
+      queueCode: string;
+      priority: string;
+      generatedAt: string;
+      isSpecial: boolean;
+      borderColor?: string;
+      officeDescription?: string;
+    }
 
   const printWithBrowserKiosk = async (payload: QueueTicketPrintPayload) => {
-    const priorityText = (payload.priority || 'Regular').toUpperCase();
-    const codeColor = payload.isSpecial ? '#dc2626' : '#16a34a';
-    const badgeBorder = payload.isSpecial ? '#dc2626' : '#16a34a';
-    const badgeTextColor = payload.isSpecial ? '#dc2626' : '#16a34a';
+      const priorityText = (payload.priority || 'Regular').toUpperCase();
+      const codeColor = payload.isSpecial ? '#dc2626' : '#16a34a';
+      const badgeBorder = payload.isSpecial ? '#dc2626' : '#16a34a';
+      const badgeTextColor = payload.isSpecial ? '#dc2626' : '#16a34a';
+      const ticketBorder = payload.borderColor || '#d1d5db';
+    const officeDescription = payload.officeDescription || '';
 
     const html = `<!doctype html>
 <html>
@@ -133,15 +139,16 @@ const QueueGenerator = () => {
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
       .ticket {
-        width: ${QUEUE_TICKET_WIDTH_MM}mm;
-        height: ${QUEUE_TICKET_HEIGHT_MM}mm;
-        padding: 4mm;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: space-between;
-        text-align: center;
-      }
+              width: ${QUEUE_TICKET_WIDTH_MM}mm;
+              height: ${QUEUE_TICKET_HEIGHT_MM}mm;
+              padding: 4mm;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: space-between;
+              text-align: center;
+              border: 6px solid ${ticketBorder};
+            }
       .title {
         width: 100%;
         font-size: 23px;
@@ -150,9 +157,17 @@ const QueueGenerator = () => {
         letter-spacing: 0.08em;
       }
       .line {
-        width: 100%;
-        border-top: 1px dashed #d1d5db;
-      }
+              width: 100%;
+              border-top: 1px dashed #d1d5db;
+            }
+            .office {
+              width: 100%;
+              font-size: 18px;
+              font-weight: 700;
+              color: #374151;
+              text-transform: uppercase;
+              letter-spacing: 0.06em;
+            }
       .code {
         color: ${codeColor};
         font-size: 90px;
@@ -177,8 +192,9 @@ const QueueGenerator = () => {
   </head>
   <body>
     <div class="ticket">
-      <div class="title">Queue Ticket</div>
-      <div class="line"></div>
+          <div class="title">Queue Ticket</div>
+          ${officeDescription ? `<div class="line"></div><div class="office">${escapeHtml(officeDescription)}</div>` : ''}
+          <div class="line"></div>
       <div class="code">${escapeHtml(payload.queueCode)}</div>
       <div class="priority">${escapeHtml(priorityText)}</div>
       <div class="time">${escapeHtml(payload.generatedAt)}</div>
@@ -309,16 +325,20 @@ const QueueGenerator = () => {
     setIsGenerating(false);
 
     if (code) {
-      setQueueCode(code);
-      const priority = priorities.find((p) => p.id === selectedPriority);
-      const priorityName = priority?.description || '';
-      setSelectedPriorityName(priorityName);
-      setSelectedOffice('');
-      setSelectedPriority('');
-      setGeneratedAt(new Date().toLocaleString());
-      setPreventClose(true);
-      setPrintDisabled(false);
-      setIsDialogOpen(true);
+          setQueueCode(code);
+          const priority = priorities.find((p) => p.id === selectedPriority);
+          const priorityName = priority?.description || '';
+          const officeColor = selectedOfficeData?.office_color || '';
+                    const officeDesc = selectedOfficeData?.description || '';
+                    setTicketBorderColor(officeColor);
+                    setTicketOfficeDescription(officeDesc);
+          setSelectedPriorityName(priorityName);
+          setSelectedOffice('');
+          setSelectedPriority('');
+          setGeneratedAt(new Date().toLocaleString());
+          setPreventClose(true);
+          setPrintDisabled(false);
+          setIsDialogOpen(true);
       // Notification is handled automatically via Postgres Changes on sequence table
     }
   };
@@ -336,24 +356,28 @@ const QueueGenerator = () => {
 
     try {
       const payload: QueueTicketPrintPayload = {
-        queueCode,
-        priority: selectedPriorityName || 'Regular',
-        generatedAt,
-        isSpecial: isSpecialPriorityType(selectedPriorityName || 'regular'),
-      };
+              queueCode,
+              priority: selectedPriorityName || 'Regular',
+              generatedAt,
+              isSpecial: isSpecialPriorityType(selectedPriorityName || 'regular'),
+              borderColor: ticketBorderColor,
+              officeDescription: ticketOfficeDescription,
+            };
 
       const didPrint = await printWithBrowserKiosk(payload);
 
       if (didPrint) {
         setPrintSuccess(true);
         setTimeout(() => {
-          setPrintSuccess(false);
-          setPreventClose(false);
-          setIsDialogOpen(false);
-          setQueueCode('');
-          setSelectedPriorityName('');
-          setGeneratedAt('');
-        }, 1500);
+                  setPrintSuccess(false);
+                  setPreventClose(false);
+                  setIsDialogOpen(false);
+                  setQueueCode('');
+                  setSelectedPriorityName('');
+                  setGeneratedAt('');
+                  setTicketBorderColor('');
+                  setTicketOfficeDescription('');
+                }, 1500);
       }
     } finally {
       printLockRef.current = false;
@@ -369,11 +393,22 @@ const QueueGenerator = () => {
     ? getPriorityColor(selectedPriorityData.description)
     : null;
   const renderQueueTicketCard = () => (
-    <div className="queue-ticket-card flex h-full flex-col items-center justify-between rounded-md bg-white px-4 py-4 text-center font-mono">
+      <div
+        className="queue-ticket-card flex h-full flex-col items-center justify-between rounded-md bg-white px-4 py-4 text-center font-mono border-[10px]"
+        style={ticketBorderColor ? { borderColor: ticketBorderColor } : undefined}
+      >
       <div className="w-full">
-        <span className="text-[13px] font-bold tracking-[0.1em] uppercase">Queue Ticket</span>
-      </div>
-      <div className="h-px w-full border-t border-dashed border-gray-300" />
+              <span className="text-[13px] font-bold tracking-[0.1em] uppercase">Queue Ticket</span>
+            </div>
+            {ticketOfficeDescription && (
+              <>
+                <div className="h-px w-full border-t border-dashed border-gray-300" />
+                <span className="w-full text-[15px] font-bold uppercase tracking-[0.06em] text-foreground">
+                  {ticketOfficeDescription}
+                </span>
+              </>
+            )}
+            <div className="h-px w-full border-t border-dashed border-gray-300" />
       <span
         className={`text-[68px] leading-none font-black tracking-[0.14em] ${getPriorityColor(selectedPriorityName).text}`}
       >

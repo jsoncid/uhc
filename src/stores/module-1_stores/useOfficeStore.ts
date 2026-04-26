@@ -19,6 +19,7 @@ export interface Office {
   description: string | null;
   is_complete_capable?: boolean;
   windows?: Window[];
+  office_color?: string | null;
 }
 
 interface OfficeState {
