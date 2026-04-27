@@ -48,7 +48,7 @@ export default defineConfig({
     },
   },
   preview: {
-    allowedHosts: ['.sslip.io', '.adncn.org'],
+    allowedHosts: ['.sslip.io', '.adncn.org','queue.adn.local'],
   },
   plugins: [svgr(), react()],
 });
