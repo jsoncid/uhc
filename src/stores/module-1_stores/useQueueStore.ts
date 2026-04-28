@@ -105,6 +105,7 @@ interface QueueState {
   subscribeToSequences: () => () => void;
   clearAllActiveSequences: () => Promise<void>;
   clearError: () => void;
+  resetSequences: () => void;
 }
 
 export const useQueueStore = create<QueueState>((set, get) => ({
@@ -846,5 +847,9 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  resetSequences: () => {
+    set({ sequences: [] });
   },
 }));

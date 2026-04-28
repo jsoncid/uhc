@@ -549,6 +549,8 @@ const QueueDisplay = () => {
   const seenIds = useRef<Set<string>>(new Set());
   // Prevents announcements on the initial page load snapshot
   const initializedRef = useRef(false);
+  // Track previous assignment IDs to detect actual changes (not initial mount)
+  const prevAssignmentIdsRef = useRef<string[] | null>(null);
   // Invalidate stale speech callbacks when a call is cancelled or superseded.
   const announcementRunIdRef = useRef(0);
   // Keep current speaking sequence id in a ref for async broadcast handlers.
@@ -561,12 +563,13 @@ const QueueDisplay = () => {
   }, []);
 
   const { profile, loading: profileLoading } = useUserProfile();
-  const { offices, fetchOffices, isLoading: officesLoading } = useOfficeStore();
+  const { offices, fetchOffices, resetOffices, isLoading: officesLoading } = useOfficeStore();
   const {
     sequences,
     fetchSequences,
     fetchStatuses,
     subscribeToSequences,
+    resetSequences,
     isLoading: queueLoading,
   } = useQueueStore();
 
@@ -583,10 +586,24 @@ const QueueDisplay = () => {
 
   useEffect(() => {
     if (!profileLoading) {
-      fetchOffices(userAssignmentIds.length > 0 ? userAssignmentIds : undefined);
+      const prevIds = prevAssignmentIdsRef.current;
+      const currentIds = userAssignmentIds;
+      const hasChanged = prevIds !== null && 
+        (prevIds.length !== currentIds.length || 
+         prevIds.some((id, idx) => id !== currentIds[idx]));
+      
+      if (hasChanged) {
+        // Assignment changed - reset and refetch
+        resetOffices();
+        resetSequences();
+      }
+      
+      fetchOffices(currentIds.length > 0 ? currentIds : undefined);
+      
+      // Update ref for next comparison
+      prevAssignmentIdsRef.current = currentIds;
     }
-
-  }, [profileLoading, userAssignmentIds, fetchOffices]);
+  }, [profileLoading, userAssignmentIds, fetchOffices, resetOffices, resetSequences]);
 
 
 

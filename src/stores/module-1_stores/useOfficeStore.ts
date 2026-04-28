@@ -40,6 +40,7 @@ interface OfficeState {
   deleteWindow: (windowId: string) => Promise<void>;
   deleteOffice: (officeId: string) => Promise<void>;
   clearError: () => void;
+  resetOffices: () => void;
 }
 
 export const useOfficeStore = create<OfficeState>((set, get) => ({
@@ -282,5 +283,9 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  resetOffices: () => {
+    set({ offices: [] });
   },
 }));

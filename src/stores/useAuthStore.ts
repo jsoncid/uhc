@@ -3,6 +3,8 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { AuthCodeService } from '../services/authCodeService';
 import { userService } from '../services/userService';
+import { useQueueStore } from './module-1_stores/useQueueStore';
+import { useOfficeStore } from './module-1_stores/useOfficeStore';
 
 interface AuthState {
   user: User | null;
@@ -293,6 +295,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
         
         // Clear all localStorage data related to auth/session using AuthCodeService
         AuthCodeService.clearAllSessionData();
+        
+        // Clear module stores to prevent stale data on next login
+        useQueueStore.getState().resetSequences();
+        useOfficeStore.getState().resetOffices();
         
         set({
           user: null,
