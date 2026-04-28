@@ -17,8 +17,12 @@ const FullLayout: FC = () => {
       ? 'container mx-auto px-6 py-30'
       : 'w-full max-w-none px-6 py-30';
 
+  const queueDisplayToggleBase =
+    'fixed top-1/2 -translate-y-1/2 z-50 hidden xl:flex items-center justify-center h-16 w-5 rounded-r-xl bg-primary shadow-lg hover:bg-primary/80 transition-all duration-300 hover:w-10 focus-visible:w-10 overflow-hidden';
   const toggleButtonClassName = isQueueDisplayRoute
-    ? 'fixed top-1/2 -translate-y-1/2 z-50 hidden xl:flex items-center justify-center h-16 w-5 rounded-r-xl bg-primary shadow-lg hover:bg-primary/80 transition-all duration-300 opacity-0 hover:opacity-100 focus:opacity-100 hover:w-10 focus:w-10 overflow-hidden'
+    ? sidebarOpen
+      ? `${queueDisplayToggleBase} opacity-100`
+      : `${queueDisplayToggleBase} opacity-0 hover:opacity-100 focus-visible:opacity-100`
     : 'fixed top-1/2 -translate-y-1/2 z-50 hidden xl:flex items-center justify-center w-6 h-12 rounded-r-lg bg-primary shadow-lg hover:bg-primary/80 transition-all duration-300';
   const toggleIconSize = isQueueDisplayRoute ? 22 : 18;
 
