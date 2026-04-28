@@ -816,8 +816,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             schema: 'module1',
             table: 'sequence',
           },
-          async (payload) => {
-            console.log('INSERT event received:', payload);
+          async () => {
             await get().fetchSequences();
           },
         )
@@ -828,8 +827,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             schema: 'module1',
             table: 'sequence',
           },
-          async (payload) => {
-            console.log('UPDATE event received:', payload);
+          async () => {
             await get().fetchSequences();
           },
         )
@@ -840,16 +838,13 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             schema: 'module1',
             table: 'sequence',
           },
-          async (payload) => {
-            console.log('DELETE event received:', payload);
+          async () => {
             await get().fetchSequences();
           },
         )
         .subscribe((status, err) => {
-          console.log('Subscription status:', status);
-
           if (status === 'SUBSCRIBED') {
-            console.log('Successfully subscribed to module1.sequence changes');
+            console.log('🔌 Realtime connected: module1.sequence');
             retryCount = 0; // Reset retry count on success
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             console.error('Subscription error:', err || status);

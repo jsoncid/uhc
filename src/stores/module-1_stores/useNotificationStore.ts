@@ -401,10 +401,8 @@ export const useNotificationStore = create<NotificationState>()(
               handleSequenceInsert,
             )
             .subscribe((status) => {
-              console.log('📡 Sequence channel status:', status);
-
               if (status === 'SUBSCRIBED') {
-                console.log('🔔 Successfully subscribed to sequence notifications');
+                console.log('🔔 Realtime connected: sequence notifications');
                 retryCount = 0; // Reset retry count on success
               } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
                 console.error('🔔 Notification subscription error:', status);
