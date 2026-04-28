@@ -788,54 +788,6 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   subscribeToSequences: () => {
-    // Cache for lookup tables so enrichRow can resolve IDs without per-event queries.
-    // Populated on first sequence fetch; refreshed whenever fetchSequences runs.
-    let cachedEnrichment: {
-      officesMap: Map<string, { id: string; description: string }>;
-      queuesMap: Map<string, Queue>;
-      prioritiesMap: Map<string, Priority>;
-      statusesMap: Map<string, Status>;
-      windowsMap: Map<string, { id: string; description: string | null }>;
-    } | null = null;
-
-    const ensureCache = () => {
-      if (!cachedEnrichment) {
-        const { sequences } = get();
-        if (sequences.length === 0) return false;
-        cachedEnrichment = {
-          officesMap: new Map(sequences.filter((s) => s.office_data).map((s) => [s.office, s.office_data!])),
-          queuesMap: new Map(sequences.filter((s) => s.queue_data).map((s) => [s.queue, s.queue_data!])),
-          prioritiesMap: new Map(sequences.filter((s) => s.priority_data).map((s) => [s.priority, s.priority_data!])),
-          statusesMap: new Map(sequences.filter((s) => s.status_data).map((s) => [s.status, s.status_data!])),
-          windowsMap: new Map(sequences.filter((s) => s.window_data).map((s) => [s.window!, s.window_data!])),
-        };
-      }
-      return true;
-    };
-
-    const enrichRow = (row: {
-      id: string;
-      created_at: string;
-      office: string;
-      queue: string;
-      priority: string;
-      status: string;
-      window?: string | null;
-      is_active?: boolean;
-    }): Sequence => {
-      const hasCache = ensureCache();
-      return {
-        ...row,
-        window: row.window ?? null,
-        is_active: row.is_active ?? true,
-        office_data: hasCache ? cachedEnrichment!.officesMap.get(row.office) : undefined,
-        queue_data: hasCache ? cachedEnrichment!.queuesMap.get(row.queue) : undefined,
-        priority_data: hasCache ? cachedEnrichment!.prioritiesMap.get(row.priority) : undefined,
-        status_data: hasCache ? cachedEnrichment!.statusesMap.get(row.status) : undefined,
-        window_data: row.window != null && hasCache ? cachedEnrichment!.windowsMap.get(row.window) : undefined,
-      };
-    };
-
     console.log('🔌 Setting up realtime subscription for module1.sequence...');
 
     const channel = supabase
@@ -849,21 +801,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         },
         async (payload) => {
           console.log('INSERT event received:', payload);
-          const newRow = payload.new as {
-            id: string;
-            created_at: string;
-            office: string;
-            queue: string;
-            priority: string;
-            status: string;
-            window?: string | null;
-            is_active?: boolean;
-          };
-          const enriched = enrichRow(newRow);
-          set((state) => {
-            if (state.sequences.some((seq) => seq.id === newRow.id)) return state;
-            return { sequences: [...state.sequences, enriched] };
-          });
+          await get().fetchSequences();
         },
       )
       .on(
@@ -875,20 +813,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         },
         async (payload) => {
           console.log('UPDATE event received:', payload);
-          const updatedRow = payload.new as {
-            id: string;
-            created_at: string;
-            office: string;
-            queue: string;
-            priority: string;
-            status: string;
-            window?: string | null;
-            is_active?: boolean;
-          };
-          const enriched = enrichRow(updatedRow);
-          set((state) => ({
-            sequences: state.sequences.map((seq) => (seq.id === updatedRow.id ? enriched : seq)),
-          }));
+          await get().fetchSequences();
         },
       )
       .on(
@@ -898,12 +823,9 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           schema: 'module1',
           table: 'sequence',
         },
-        (payload) => {
+        async (payload) => {
           console.log('DELETE event received:', payload);
-          const deletedRow = payload.old as { id: string };
-          set((state) => ({
-            sequences: state.sequences.filter((seq) => seq.id !== deletedRow.id),
-          }));
+          await get().fetchSequences();
         },
       )
       .subscribe((status, err) => {
