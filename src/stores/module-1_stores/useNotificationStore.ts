@@ -325,72 +325,132 @@ export const useNotificationStore = create<NotificationState>()(
         console.log('🔔 Subscribing to sequence changes for offices:', officeIds);
         isCurrentlySubscribed = true;
 
-        const channel = supabase
-          .channel('sequence-notifications')
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'module1',
-              table: 'sequence',
-            },
-            async (payload) => {
-              console.log('📥 Received sequence INSERT:', payload);
+        let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+        let retryCount = 0;
+        let isUnsubscribed = false;
+        const MAX_RETRIES = 10;
+        const BASE_DELAY_MS = 1000;
+        const MAX_DELAY_MS = 30000;
 
-              const newSeq = payload.new as {
-                id: string;
-                office: string;
-                queue: string;
-                priority: string;
-                created_at: string;
-              };
+        const getRetryDelay = () => {
+          const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount), MAX_DELAY_MS);
+          return delay + Math.random() * 1000; // Add jitter
+        };
 
-              // Only process if it's for one of user's offices
-              if (!officeIds.includes(newSeq.office)) {
-                console.log('🔕 Ignoring sequence for different office');
-                return;
+        const handleSequenceInsert = async (payload: { new: Record<string, unknown> }) => {
+          console.log('📥 Received sequence INSERT:', payload);
+
+          const newSeq = payload.new as {
+            id: string;
+            office: string;
+            queue: string;
+            priority: string;
+            created_at: string;
+          };
+
+          // Only process if it's for one of user's offices
+          if (!officeIds.includes(newSeq.office)) {
+            console.log('🔕 Ignoring sequence for different office');
+            return;
+          }
+
+          // Core deduplication: seenQueueIds holds every queue ID we have already
+          // notified (or seen during initial load). The very first INSERT for a
+          // queue ID is the customer-generated one — notify it and add to the set.
+          // Every subsequent INSERT for that same queue ID (Complete, Arrived,
+          // Transfer, Call Next) hits this guard and is silently dropped.
+          if (get().seenQueueIds.has(newSeq.queue)) {
+            console.log(
+              '🔕 Ignoring staff-action sequence for already-seen queue:',
+              newSeq.queue,
+            );
+            return;
+          }
+          try {
+            const [officeResult, queueResult, priorityResult] = await Promise.all([
+              module1.from('office').select('description').eq('id', newSeq.office).single(),
+              module1.from('queue').select('code').eq('id', newSeq.queue).single(),
+              module1.from('priority').select('description').eq('id', newSeq.priority).single(),
+            ]);
+
+            get().addNotification({
+              sequenceId: newSeq.id,
+              queueId: newSeq.queue,
+              officeId: newSeq.office,
+              officeName: officeResult.data?.description || 'Unknown Office',
+              queueCode: queueResult.data?.code || 'Unknown',
+              priorityType: priorityResult.data?.description || 'Regular',
+            });
+          } catch (err) {
+            console.error('Error fetching sequence details:', err);
+          }
+        };
+
+        const createSubscription = () => {
+          if (isUnsubscribed) return;
+
+          const channel = supabase
+            .channel(`sequence-notifications-${Date.now()}`)
+            .on(
+              'postgres_changes',
+              {
+                event: 'INSERT',
+                schema: 'module1',
+                table: 'sequence',
+              },
+              handleSequenceInsert,
+            )
+            .subscribe((status) => {
+              console.log('📡 Sequence channel status:', status);
+
+              if (status === 'SUBSCRIBED') {
+                console.log('🔔 Successfully subscribed to sequence notifications');
+                retryCount = 0; // Reset retry count on success
+              } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                console.error('🔔 Notification subscription error:', status);
+                scheduleRetry();
+              } else if (status === 'CLOSED') {
+                console.warn('🔔 Notification subscription closed, attempting to reconnect...');
+                scheduleRetry();
               }
+            });
 
-              // Core deduplication: seenQueueIds holds every queue ID we have already
-              // notified (or seen during initial load). The very first INSERT for a
-              // queue ID is the customer-generated one — notify it and add to the set.
-              // Every subsequent INSERT for that same queue ID (Complete, Arrived,
-              // Transfer, Call Next) hits this guard and is silently dropped.
-              if (get().seenQueueIds.has(newSeq.queue)) {
-                console.log(
-                  '🔕 Ignoring staff-action sequence for already-seen queue:',
-                  newSeq.queue,
-                );
-                return;
-              }
-              try {
-                const [officeResult, queueResult, priorityResult] = await Promise.all([
-                  module1.from('office').select('description').eq('id', newSeq.office).single(),
-                  module1.from('queue').select('code').eq('id', newSeq.queue).single(),
-                  module1.from('priority').select('description').eq('id', newSeq.priority).single(),
-                ]);
+          activeChannel = channel;
+        };
 
-                get().addNotification({
-                  sequenceId: newSeq.id,
-                  queueId: newSeq.queue,
-                  officeId: newSeq.office,
-                  officeName: officeResult.data?.description || 'Unknown Office',
-                  queueCode: queueResult.data?.code || 'Unknown',
-                  priorityType: priorityResult.data?.description || 'Regular',
-                });
-              } catch (err) {
-                console.error('Error fetching sequence details:', err);
-              }
-            },
-          )
-          .subscribe((status) => {
-            console.log('📡 Sequence channel status:', status);
-          });
+        const scheduleRetry = () => {
+          if (isUnsubscribed || retryCount >= MAX_RETRIES) {
+            if (retryCount >= MAX_RETRIES) {
+              console.error('🔔 Max retries reached for notification subscription');
+            }
+            return;
+          }
 
-        activeChannel = channel;
+          // Clean up old channel before retry
+          if (activeChannel) {
+            supabase.removeChannel(activeChannel);
+            activeChannel = null;
+          }
+
+          const delay = getRetryDelay();
+          retryCount++;
+          console.log(`🔔 Retrying notification subscription in ${Math.round(delay)}ms (attempt ${retryCount}/${MAX_RETRIES})...`);
+
+          retryTimeoutId = setTimeout(() => {
+            createSubscription();
+          }, delay);
+        };
+
+        // Start initial subscription
+        createSubscription();
 
         return () => {
           console.log('🔔 Cleaning up sequence subscription');
+          isUnsubscribed = true;
+          if (retryTimeoutId) {
+            clearTimeout(retryTimeoutId);
+            retryTimeoutId = null;
+          }
           if (activeChannel) {
             supabase.removeChannel(activeChannel);
             activeChannel = null;

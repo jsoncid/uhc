@@ -789,59 +789,115 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   subscribeToSequences: () => {
-    console.log('🔌 Setting up realtime subscription for module1.sequence...');
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
+    let isUnsubscribed = false;
+    const MAX_RETRIES = 10;
+    const BASE_DELAY_MS = 1000;
+    const MAX_DELAY_MS = 30000;
 
-    const channel = supabase
-      .channel('sequence-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'module1',
-          table: 'sequence',
-        },
-        async (payload) => {
-          console.log('INSERT event received:', payload);
-          await get().fetchSequences();
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'module1',
-          table: 'sequence',
-        },
-        async (payload) => {
-          console.log('UPDATE event received:', payload);
-          await get().fetchSequences();
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'module1',
-          table: 'sequence',
-        },
-        async (payload) => {
-          console.log('DELETE event received:', payload);
-          await get().fetchSequences();
-        },
-      )
-      .subscribe((status, err) => {
-        console.log('Subscription status:', status);
-        if (err) {
-          console.error('Subscription error:', err);
+    const getRetryDelay = () => {
+      const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount), MAX_DELAY_MS);
+      return delay + Math.random() * 1000; // Add jitter
+    };
+
+    const createSubscription = () => {
+      if (isUnsubscribed) return;
+
+      console.log('🔌 Setting up realtime subscription for module1.sequence...');
+
+      channel = supabase
+        .channel(`sequence-changes-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'module1',
+            table: 'sequence',
+          },
+          async (payload) => {
+            console.log('INSERT event received:', payload);
+            await get().fetchSequences();
+          },
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'module1',
+            table: 'sequence',
+          },
+          async (payload) => {
+            console.log('UPDATE event received:', payload);
+            await get().fetchSequences();
+          },
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'module1',
+            table: 'sequence',
+          },
+          async (payload) => {
+            console.log('DELETE event received:', payload);
+            await get().fetchSequences();
+          },
+        )
+        .subscribe((status, err) => {
+          console.log('Subscription status:', status);
+
+          if (status === 'SUBSCRIBED') {
+            console.log('Successfully subscribed to module1.sequence changes');
+            retryCount = 0; // Reset retry count on success
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.error('Subscription error:', err || status);
+            scheduleRetry();
+          } else if (status === 'CLOSED') {
+            console.warn('Subscription closed, attempting to reconnect...');
+            scheduleRetry();
+          }
+        });
+    };
+
+    const scheduleRetry = () => {
+      if (isUnsubscribed || retryCount >= MAX_RETRIES) {
+        if (retryCount >= MAX_RETRIES) {
+          console.error('🔌 Max retries reached for sequence subscription');
         }
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to module1.sequence changes');
-        }
-      });
+        return;
+      }
+
+      // Clean up old channel before retry
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
+
+      const delay = getRetryDelay();
+      retryCount++;
+      console.log(`🔌 Retrying subscription in ${Math.round(delay)}ms (attempt ${retryCount}/${MAX_RETRIES})...`);
+
+      retryTimeoutId = setTimeout(() => {
+        createSubscription();
+      }, delay);
+    };
+
+    // Start initial subscription
+    createSubscription();
 
     return () => {
       console.log('🔌 Unsubscribing from realtime...');
-      supabase.removeChannel(channel);
+      isUnsubscribed = true;
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId);
+        retryTimeoutId = null;
+      }
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
     };
   },
 
