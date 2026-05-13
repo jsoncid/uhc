@@ -100,17 +100,6 @@ const QueueRealtimeDisplay = () => {
     return PRIORITY_COLORS.regular;
   };
 
-  // Helper to get priority weight for sorting
-  const getPriorityWeight = (description: string | null | undefined): number => {
-    const desc = description?.toLowerCase() || '';
-    if (desc.includes('urgent')) return 1;
-    if (desc.includes('vip')) return 2;
-    if (desc.includes('priority')) return 3;
-    if (desc.includes('pwd')) return 4;
-    if (desc.includes('senior')) return 5;
-    return 10;
-  };
-
   // Initial fetch of all data
   const fetchAllData = async () => {
     setIsLoading(true);
@@ -256,7 +245,7 @@ const QueueRealtimeDisplay = () => {
     return statuses.find((s) => s.description?.toLowerCase().includes(description.toLowerCase()));
   };
 
-  // Get pending sequences sorted by priority
+  // Get pending sequences sorted by created_at (FIFO)
   const getPendingSequences = (): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
     const pending = sequences.filter(
@@ -264,10 +253,6 @@ const QueueRealtimeDisplay = () => {
     );
 
     return pending.sort((a, b) => {
-      const priorityA = getPriorityWeight(a.priority_data?.description);
-      const priorityB = getPriorityWeight(b.priority_data?.description);
-
-      if (priorityA !== priorityB) return priorityA - priorityB;
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   };

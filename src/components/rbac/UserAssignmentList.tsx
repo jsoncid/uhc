@@ -404,11 +404,13 @@ export const UserAssignmentList = () => {
       return 0
     })
 
+  const userEmailById = new Map(usersWithStatus.map((u) => [u.id, u.email]))
+
   // Filter user roles based on search term
   const filteredUserRoles = userRoles.filter((userRole) => {
     if (!searchTerm) return true
     const lowerSearchTerm = searchTerm.toLowerCase()
-    const userEmail = userRole.users?.email?.toLowerCase() || ''
+    const userEmail = (userRole.users?.email || userEmailById.get(userRole.user) || '').toLowerCase()
     const userId = userRole.user?.toLowerCase() || ''
     const roleDesc = userRole.roleData?.description?.toLowerCase() || ''
     const roleId = userRole.role?.toLowerCase() || ''
@@ -425,7 +427,7 @@ export const UserAssignmentList = () => {
     if (!acc[userId]) {
       acc[userId] = {
         user: userId,
-        email: userRole.users?.email,
+        email: userRole.users?.email || userEmailById.get(userId),
         roles: [],
         created_at: userRole.created_at
       }
@@ -501,57 +503,51 @@ export const UserAssignmentList = () => {
       return 0
     })
 
-  // Group role module access by role
-  const groupedRoleModuleAccess = filteredRoleModuleAccess.reduce((acc, access) => {
-    const roleId = access.role
-    if (!acc[roleId]) {
-      acc[roleId] = {
-        role: roleId,
-        roleDescription: (access as any).roleDescription || roleId,
-        modules: [],
-        created_at: access.created_at
-      }
-    }
-    acc[roleId].modules.push({
-      id: access.id,
-      module: access.module,
-      moduleDescription: (access as any).moduleDescription || access.module,
-      description: access.description,
-      is_select: access.is_select,
-      is_insert: access.is_insert,
-      is_update: access.is_update,
-      is_delete: access.is_delete,
-      created_at: access.created_at
-    })
-    // Use the earliest created_at date
-    if (access.created_at < acc[roleId].created_at) {
-      acc[roleId].created_at = access.created_at
-    }
-    return acc
-  }, {} as Record<string, { 
-    role: string; 
-    roleDescription: string; 
-    modules: Array<{ 
-      id: string; 
-      module: string; 
-      moduleDescription: string; 
-      description: string | null; 
-      is_select: boolean; 
-      is_insert: boolean; 
-      is_update: boolean; 
-      is_delete: boolean; 
-      created_at: string 
-    }>; 
-    created_at: string 
-  }>)
+  const groupedRoleModuleAccessArray = roles
+    .filter((role) => roleModuleRoleFilter === 'all' || role.id === roleModuleRoleFilter)
+    .map((role) => {
+      const lowerSearchTerm = roleModuleSearchTerm.toLowerCase()
+      const roleDescription = role.description || role.id
+      const roleMatchesSearch =
+        !roleModuleSearchTerm || roleDescription.toLowerCase().includes(lowerSearchTerm)
 
-  const groupedRoleModuleAccessArray = Object.values(groupedRoleModuleAccess)
-    .map(roleAccess => ({
-      ...roleAccess,
-      modules: roleAccess.modules.sort((a, b) => 
-        a.moduleDescription.toLowerCase().localeCompare(b.moduleDescription.toLowerCase())
-      )
-    }))
+      const modules = roleModuleAccess
+        .filter((access) => access.role === role.id)
+        .filter((access) => {
+          if (!roleModuleSearchTerm || roleMatchesSearch) return true
+          const moduleDesc = ((access as any).moduleDescription || access.module || '').toLowerCase()
+          const description = (access.description || '').toLowerCase()
+          return moduleDesc.includes(lowerSearchTerm) || description.includes(lowerSearchTerm)
+        })
+        .map((access) => ({
+          id: access.id,
+          module: access.module,
+          moduleDescription: (access as any).moduleDescription || access.module,
+          description: access.description,
+          is_select: access.is_select,
+          is_insert: access.is_insert,
+          is_update: access.is_update,
+          is_delete: access.is_delete,
+          created_at: access.created_at,
+        }))
+        .sort((a, b) => a.moduleDescription.toLowerCase().localeCompare(b.moduleDescription.toLowerCase()))
+
+      const createdAt = modules.length > 0
+        ? modules.reduce((earliest, m) => (m.created_at < earliest ? m.created_at : earliest), modules[0].created_at)
+        : role.created_at
+
+      return {
+        role: role.id,
+        roleDescription,
+        modules,
+        created_at: createdAt,
+        roleMatchesSearch,
+      }
+    })
+    .filter((roleAccess) => {
+      if (!roleModuleSearchTerm) return true
+      return roleAccess.roleMatchesSearch || roleAccess.modules.length > 0
+    })
     .sort((a, b) => {
       let aValue: any, bValue: any
       
@@ -984,7 +980,7 @@ export const UserAssignmentList = () => {
                 </div>
               )}
               
-              {roleModuleAccess.length > 0 ? (
+              {roles.length > 0 ? (
                   <div className="mt-6">
                     <h3 className="text-lg font-semibold mb-4">
                       Current Role Module Access ({filteredRoleModuleAccess.length} modules in {groupedRoleModuleAccessArray.length} roles)
@@ -1016,7 +1012,11 @@ export const UserAssignmentList = () => {
                               </TableCell>
                               <TableCell>
                                 <div className="space-y-2">
-                                  {roleAccess.modules.map((module) => (
+                                  {roleAccess.modules.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground p-2 rounded border bg-muted/20">
+                                      No modules assigned yet
+                                    </div>
+                                  ) : roleAccess.modules.map((module) => (
                                     <div key={module.id} className="flex items-center gap-2 p-2 rounded border bg-muted/30">
                                       <div className="flex-1">
                                         <div className="font-medium text-sm">{module.moduleDescription}</div>

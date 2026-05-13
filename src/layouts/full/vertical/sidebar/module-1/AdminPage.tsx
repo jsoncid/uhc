@@ -26,13 +26,14 @@ import { AddOfficeDialog } from './AddOfficeDialog';
 import { EditOfficeDialog } from './EditOfficeDialog';
 import { AssignUserToOfficeDialog } from './AssignUserToOfficeDialog';
 import { EditUserOfficeAssignmentDialog } from './EditUserOfficeAssignmentDialog';
+import { EditQueueLogDialog } from './EditQueueLogDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useOfficeStore, type Office } from '@/stores/module-1_stores/useOfficeStore';
 import {
   useOfficeUserAssignmentStore,
   type OfficeUserAssignment,
 } from '@/stores/module-1_stores/useOfficeUserAssignmentStore';
-import { useQueueStore, type Priority, type Status } from '@/stores/module-1_stores/useQueueStore';
+import { useQueueStore, type Priority, type Status, type Sequence } from '@/stores/module-1_stores/useQueueStore';
 import { userService } from '@/services/userService';
 
 interface Assignment {
@@ -66,6 +67,7 @@ const AdminPage = () => {
     addStatus,
     updateStatus,
     deleteStatus,
+    clearAllActiveSequences,
   } = useQueueStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [userAssignmentSearchTerm, setUserAssignmentSearchTerm] = useState('');
@@ -98,6 +100,10 @@ const AdminPage = () => {
   const [editingStatus, setEditingStatus] = useState<Status | null>(null);
   const [editStatusName, setEditStatusName] = useState('');
 
+  // Queue logs pagination states
+  const [queueLogsPage, setQueueLogsPage] = useState(1);
+  const queueLogsPageSize = 15;
+
   // Delete confirmation states
   const [deleteOfficeConfirm, setDeleteOfficeConfirm] = useState<{ isOpen: boolean; office: Office | null }>({
     isOpen: false,
@@ -124,6 +130,13 @@ const AdminPage = () => {
     isOpen: false,
     status: null,
   });
+
+  // Queue log edit state
+  const [isEditQueueLogDialogOpen, setIsEditQueueLogDialogOpen] = useState(false);
+  const [editingQueueLog, setEditingQueueLog] = useState<Sequence | null>(null);
+
+  // Clear all sequences confirmation
+  const [clearAllConfirm, setClearAllConfirm] = useState(false);
 
   useEffect(() => {
     const loadUserAssignment = async () => {
@@ -388,10 +401,29 @@ const AdminPage = () => {
     setSortBy('date-desc');
   };
 
+  const handleClearAllSequences = async () => {
+    await clearAllActiveSequences();
+    setClearAllConfirm(false);
+    fetchAllSequencesForLogs();
+  };
+
   // Get unique offices from sequences for filter
   const uniqueOffices = Array.from(
     new Map(sequences.map(s => [s.office, s.office_data])).values()
   ).filter(Boolean);
+
+  // Pagination calculations
+  const totalQueueLogsPages = Math.ceil(filteredQueueLogs.length / queueLogsPageSize);
+  const paginatedQueueLogs = filteredQueueLogs.slice(
+    (queueLogsPage - 1) * queueLogsPageSize,
+    queueLogsPage * queueLogsPageSize
+  );
+
+  // Reset to page 1 when filters change
+  const handleQueueLogsFilterChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (value: string) => {
+    setter(value);
+    setQueueLogsPage(1);
+  };
 
   return (
     <>
@@ -962,16 +994,25 @@ const AdminPage = () => {
                   <ClipboardList className="h-5 w-5" />
                   Queue Logs
                 </CardTitle>
-                <Button variant="outline" onClick={handleRefreshQueueLogs} disabled={isLoading}>
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    onClick={() => setClearAllConfirm(true)}
+                    disabled={isLoading || sequences.filter(s => s.is_active !== false).length === 0}
+                  >
+                    Clear All Active Sequences
+                  </Button>
+                  <Button variant="outline" onClick={handleRefreshQueueLogs} disabled={isLoading}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               <div className="mb-4 p-3 bg-muted rounded-md">
                 <span className="text-sm text-muted-foreground">
-                  View all queue sequences and their status from the sequence table. Total records: {sequences.length} | Filtered: {filteredQueueLogs.length}
+                  View all queue sequences and their status from the sequence table. Total records: {sequences.length} | Filtered: {filteredQueueLogs.length} | Showing {paginatedQueueLogs.length} per page
                 </span>
               </div>
 
@@ -982,7 +1023,10 @@ const AdminPage = () => {
                   <Input
                     placeholder="Search by queue code, office, status, or priority..."
                     value={queueLogsSearchTerm}
-                    onChange={(e) => setQueueLogsSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      setQueueLogsSearchTerm(e.target.value);
+                      setQueueLogsPage(1);
+                    }}
                     className="max-w-md"
                   />
                 </div>
@@ -991,7 +1035,7 @@ const AdminPage = () => {
                 <div className="flex flex-wrap gap-3 items-center">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-muted-foreground">Status:</span>
-                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <Select value={filterStatus} onValueChange={handleQueueLogsFilterChange(setFilterStatus)}>
                       <SelectTrigger className="w-[150px]">
                         <SelectValue placeholder="All Statuses" />
                       </SelectTrigger>
@@ -1008,7 +1052,7 @@ const AdminPage = () => {
 
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-muted-foreground">Priority:</span>
-                    <Select value={filterPriority} onValueChange={setFilterPriority}>
+                    <Select value={filterPriority} onValueChange={handleQueueLogsFilterChange(setFilterPriority)}>
                       <SelectTrigger className="w-[150px]">
                         <SelectValue placeholder="All Priorities" />
                       </SelectTrigger>
@@ -1025,7 +1069,7 @@ const AdminPage = () => {
 
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-muted-foreground">Office:</span>
-                    <Select value={filterOffice} onValueChange={setFilterOffice}>
+                    <Select value={filterOffice} onValueChange={handleQueueLogsFilterChange(setFilterOffice)}>
                       <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder="All Offices" />
                       </SelectTrigger>
@@ -1042,7 +1086,7 @@ const AdminPage = () => {
 
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-muted-foreground">Active:</span>
-                    <Select value={filterActive} onValueChange={setFilterActive}>
+                    <Select value={filterActive} onValueChange={handleQueueLogsFilterChange(setFilterActive)}>
                       <SelectTrigger className="w-[130px]">
                         <SelectValue placeholder="All" />
                       </SelectTrigger>
@@ -1073,7 +1117,10 @@ const AdminPage = () => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={handleClearFilters}
+                    onClick={() => {
+                      handleClearFilters();
+                      setQueueLogsPage(1);
+                    }}
                     className="ml-auto"
                   >
                     Clear Filters
@@ -1092,25 +1139,26 @@ const AdminPage = () => {
                       <TableHead>Window</TableHead>
                       <TableHead>Active</TableHead>
                       <TableHead>Created At</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoadingPriorities ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           Loading queue logs...
                         </TableCell>
                       </TableRow>
-                    ) : filteredQueueLogs.length === 0 ? (
+                    ) : paginatedQueueLogs.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           {queueLogsSearchTerm || filterStatus !== 'all' || filterPriority !== 'all' || filterOffice !== 'all' || filterActive !== 'all'
                             ? 'No queue logs match your filters'
                             : 'No queue logs found.'}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredQueueLogs.map((sequence) => (
+                      paginatedQueueLogs.map((sequence) => (
                         <TableRow key={sequence.id}>
                           <TableCell className="font-medium">
                             <code className="text-sm font-mono">{sequence.queue_data?.code || 'N/A'}</code>
@@ -1137,12 +1185,73 @@ const AdminPage = () => {
                           <TableCell className="text-sm text-muted-foreground">
                             {new Date(sequence.created_at).toLocaleString()}
                           </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingQueueLog(sequence);
+                                setIsEditQueueLogDialogOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Pagination */}
+              {totalQueueLogsPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Page {queueLogsPage} of {totalQueueLogsPages} ({filteredQueueLogs.length} total records)
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setQueueLogsPage((p) => Math.max(1, p - 1))}
+                      disabled={queueLogsPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    {Array.from({ length: Math.min(5, totalQueueLogsPages) }, (_, i) => {
+                      let pageNum: number;
+                      if (totalQueueLogsPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (queueLogsPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (queueLogsPage >= totalQueueLogsPages - 2) {
+                        pageNum = totalQueueLogsPages - 4 + i;
+                      } else {
+                        pageNum = queueLogsPage - 2 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={queueLogsPage === pageNum ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setQueueLogsPage(pageNum)}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setQueueLogsPage((p) => Math.min(totalQueueLogsPages, p + 1))}
+                      disabled={queueLogsPage === totalQueueLogsPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1219,6 +1328,26 @@ const AdminPage = () => {
         description={`Are you sure you want to delete the status type "${deleteStatusConfirm.status?.description || 'this status'}"? This action cannot be undone.`}
         confirmText="Delete"
         isLoading={isLoadingPriorities}
+      />
+
+      <EditQueueLogDialog
+        isOpen={isEditQueueLogDialogOpen}
+        onClose={() => {
+          setIsEditQueueLogDialogOpen(false);
+          setEditingQueueLog(null);
+        }}
+        sequence={editingQueueLog}
+        onSuccess={handleRefreshQueueLogs}
+      />
+
+      <ConfirmDialog
+        isOpen={clearAllConfirm}
+        onClose={() => setClearAllConfirm(false)}
+        onConfirm={handleClearAllSequences}
+        title="Clear All Active Sequences"
+        description="Are you sure you want to set all active sequences to inactive? This will mark all current active queue entries as inactive. This action cannot be undone."
+        confirmText="Clear All"
+        isLoading={isLoading}
       />
     </>
   );

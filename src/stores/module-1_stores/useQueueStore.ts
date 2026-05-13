@@ -65,6 +65,12 @@ interface QueueState {
     statusId: string,
     windowId?: string | null,
   ) => Promise<void>;
+  updateSequence: (
+    sequenceId: string,
+    statusId: string,
+    isActive: boolean,
+    officeId?: string,
+  ) => Promise<{ error: Error | null }>;
   transferSequence: (
     sequenceId: string,
     targetOfficeId: string,
@@ -74,6 +80,7 @@ interface QueueState {
   getServingSequenceForWindow: (windowId: string) => Sequence | undefined;
   callNextSequence: (officeId: string, servingStatusId: string, windowId: string) => Promise<boolean>;
   subscribeToSequences: () => () => void;
+  clearAllActiveSequences: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -258,6 +265,25 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     }
   },
 
+  clearAllActiveSequences: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await module1
+        .from('sequence')
+        .update({ is_active: false })
+        .eq('is_active', true);
+
+      if (error) throw error;
+
+      set((state) => ({
+        sequences: state.sequences.map((s) => (s.is_active !== false ? { ...s, is_active: false } : s)),
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to clear sequences', isLoading: false });
+    }
+  },
+
   fetchSequences: async (officeId?: string) => {
     set({ isLoading: true, error: null });
     try {
@@ -302,6 +328,13 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             ? module1.from('window').select('id, description').in('id', windowIds)
             : Promise.resolve({ data: [] }),
         ]);
+
+      // Propagate errors so empty maps don't silently zero out queue_data
+      if (officesResult.error) throw officesResult.error;
+      if (queuesResult.error) throw queuesResult.error;
+      if (prioritiesResult.error) throw prioritiesResult.error;
+      if (statusesResult.error) throw statusesResult.error;
+      if ('error' in windowsResult && windowsResult.error) throw windowsResult.error;
 
       const officesMap = new Map(officesResult.data?.map((o) => [o.id, o]) || []);
       const queuesMap = new Map(queuesResult.data?.map((q) => [q.id, q]) || []);
@@ -369,6 +402,13 @@ export const useQueueStore = create<QueueState>((set, get) => ({
             ? module1.from('window').select('id, description').in('id', windowIds)
             : Promise.resolve({ data: [] }),
         ]);
+
+      // Propagate errors so empty maps don't silently zero out queue_data
+      if (officesResult.error) throw officesResult.error;
+      if (queuesResult.error) throw queuesResult.error;
+      if (prioritiesResult.error) throw prioritiesResult.error;
+      if (statusesResult.error) throw statusesResult.error;
+      if ('error' in windowsResult && windowsResult.error) throw windowsResult.error;
 
       const officesMap = new Map(officesResult.data?.map((o) => [o.id, o]) || []);
       const queuesMap = new Map(queuesResult.data?.map((q) => [q.id, q]) || []);
@@ -475,7 +515,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       const targetStatus = statuses.find((s) => s.id === statusId);
       const isCompleted = targetStatus?.description?.toLowerCase().includes('completed') || false;
 
-      console.log('📝 Processing sequence transition:', {
+      console.log('Processing sequence transition:', {
         sequenceId,
         statusId,
         windowId,
@@ -484,16 +524,29 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       });
 
       // Step 1: Set current sequence as inactive
-      const { error: deactivateError } = await module1
+      const { data: deactivatedRow, error: deactivateError } = await module1
         .from('sequence')
         .update({ is_active: false })
-        .eq('id', sequenceId);
+        .eq('id', sequenceId)
+        .eq('is_active', true)
+        .select('id')
+        .maybeSingle();
 
       if (deactivateError) {
-        console.error('❌ Failed to deactivate current sequence:', deactivateError);
+        console.error('Failed to deactivate current sequence:', deactivateError);
         throw deactivateError;
       }
-      console.log('✅ Current sequence deactivated');
+
+      // If nothing was deactivated, this sequence was already transitioned
+      // (e.g., double-click / duplicate request). Skip creating another serving row.
+      if (!deactivatedRow) {
+        console.warn('Sequence transition skipped because sequence is already inactive:', {
+          sequenceId,
+          statusId,
+        });
+        return;
+      }
+      console.log('Current sequence deactivated');
 
       // Step 2: Insert new sequence record with updated status/window
       // If windowId is explicitly provided (even null), use it. Otherwise preserve the existing window.
@@ -515,30 +568,30 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         .single();
 
       if (insertError) {
-        console.error('❌ Failed to insert new sequence:', insertError);
+        console.error('Failed to insert new sequence:', insertError);
         throw insertError;
       }
-      console.log('✅ New sequence created:', newSequence);
+      console.log('New sequence created:', newSequence);
 
       // Step 3: If completed, also set queue status to false
       if (isCompleted && currentSequence.queue) {
-        console.log('📝 Setting queue status to false:', currentSequence.queue);
+        console.log('Setting queue status to false:', currentSequence.queue);
         const { error: queueError } = await module1
           .from('queue')
           .update({ status: false })
           .eq('id', currentSequence.queue);
 
         if (queueError) {
-          console.error('❌ Queue update error:', queueError);
+          console.error('Queue update error:', queueError);
         } else {
-          console.log('✅ Queue status updated to false');
+          console.log('Queue status updated to false');
         }
       }
 
       // Refresh sequences to get the updated list
       await get().fetchSequences();
     } catch (error: unknown) {
-      console.error('❌ Failed to update sequence status:', error);
+      console.error('Failed to update sequence status:', error);
       const errorObj = error as {
         message?: string;
         code?: string;
@@ -551,6 +604,39 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       set({
         error: errorMessage,
       });
+    }
+  },
+
+  updateSequence: async (sequenceId: string, statusId: string, isActive: boolean, officeId?: string) => {
+    set({ error: null });
+    try {
+      // Build update payload
+      const updatePayload: { status: string; is_active: boolean; office?: string } = {
+        status: statusId,
+        is_active: isActive,
+      };
+      
+      // Only include office if provided (for office change)
+      if (officeId) {
+        updatePayload.office = officeId;
+      }
+
+      const { error: updateError } = await module1
+        .from('sequence')
+        .update(updatePayload)
+        .eq('id', sequenceId);
+
+      if (updateError) throw updateError;
+
+      // Refresh sequences to reflect the change
+      await get().fetchAllSequencesForLogs();
+      return { error: null };
+    } catch (error: unknown) {
+      console.error('Failed to update sequence:', error);
+      const errorObj = error as { message?: string };
+      const errorMessage = errorObj.message || (error instanceof Error ? error.message : 'Failed to update sequence');
+      set({ error: errorMessage });
+      return { error: error as Error };
     }
   },
 
@@ -598,7 +684,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       await get().fetchSequences();
       return true;
     } catch (error: unknown) {
-      console.error('❌ Failed to claim next sequence:', error);
+      console.error('Failed to claim next sequence:', error);
       const errorObj = error as { message?: string };
       set({ error: errorObj.message || 'Failed to call next sequence' });
       return false;
@@ -632,15 +718,26 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         priority: currentSequence.priority_data?.description,
       });
 
-      // Step 1: Deactivate current sequence
-      const { error: deactivateError } = await module1
+      // Step 1: Deactivate current sequence only if it is still active.
+      const { data: deactivatedRow, error: deactivateError } = await module1
         .from('sequence')
         .update({ is_active: false })
-        .eq('id', sequenceId);
+        .eq('id', sequenceId)
+        .eq('is_active', true)
+        .select('id')
+        .maybeSingle();
 
       if (deactivateError) {
-        console.error('❌ Failed to deactivate current sequence:', deactivateError);
+        console.error('Failed to deactivate current sequence:', deactivateError);
         throw deactivateError;
+      }
+
+      if (!deactivatedRow) {
+        console.warn('Transfer skipped because sequence is already inactive:', {
+          sequenceId,
+          targetOfficeId,
+        });
+        return;
       }
       console.log('✅ Current sequence deactivated');
 
@@ -661,15 +758,15 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         .single();
 
       if (insertError) {
-        console.error('❌ Failed to insert transferred sequence:', insertError);
+        console.error('Failed to insert transferred sequence:', insertError);
         throw insertError;
       }
-      console.log('✅ Transferred sequence created:', newSequence);
+      console.log('Transferred sequence created:', newSequence);
 
       // Refresh sequences
       await get().fetchSequences();
     } catch (error: unknown) {
-      console.error('❌ Failed to transfer sequence:', error);
+      console.error('Failed to transfer sequence:', error);
       const errorObj = error as {
         message?: string;
         code?: string;
@@ -730,7 +827,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           table: 'sequence',
         },
         async (payload) => {
-          console.log('🟢 INSERT event received:', payload);
+          console.log('INSERT event received:', payload);
           const newRow = payload.new as {
             id: string;
             created_at: string;
@@ -756,7 +853,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           table: 'sequence',
         },
         async (payload) => {
-          console.log('🟡 UPDATE event received:', payload);
+          console.log('UPDATE event received:', payload);
           const updatedRow = payload.new as {
             id: string;
             created_at: string;
@@ -781,7 +878,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           table: 'sequence',
         },
         (payload) => {
-          console.log('🔴 DELETE event received:', payload);
+          console.log('DELETE event received:', payload);
           const deletedRow = payload.old as { id: string };
           set((state) => ({
             sequences: state.sequences.filter((seq) => seq.id !== deletedRow.id),
@@ -789,12 +886,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         },
       )
       .subscribe((status, err) => {
-        console.log('📡 Subscription status:', status);
+        console.log('Subscription status:', status);
         if (err) {
-          console.error('❌ Subscription error:', err);
+          console.error('Subscription error:', err);
         }
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Successfully subscribed to module1.sequence changes');
+          console.log('Successfully subscribed to module1.sequence changes');
         }
       });
 

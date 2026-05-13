@@ -3,7 +3,6 @@ import { Navigate } from 'react-router';
 import AuthRegister from "../authforms/AuthRegister";
 import FullLogo from "src/layouts/full/shared/logo/FullLogo";
 import { useAuthStore } from '@/stores/useAuthStore';
-import Threads from '@/components/ui/Threads';
 
 const Register = () => {
   const { user } = useAuthStore();
@@ -14,14 +13,7 @@ const Register = () => {
 
   return (
     <div className="relative overflow-hidden h-screen">
-      {/* Full Screen Animated Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-background to-primary/5 dark:from-primary/15 dark:via-dark dark:to-primary/10">
-        <Threads
-          amplitude={2.1}
-          distance={0}
-          enableMouseInteraction
-        />
-      </div>
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-background to-primary/5 dark:from-primary/15 dark:via-dark dark:to-primary/10" />
 
       {/* Centered Content */}
       <div className="relative z-10 flex flex-col items-center justify-center h-full px-6 py-12">

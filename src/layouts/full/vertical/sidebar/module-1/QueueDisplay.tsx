@@ -4,7 +4,7 @@ import BreadcrumbComp from 'src/layouts/full/shared/breadcrumb/BreadcrumbComp';
 import darkLogo from 'src/assets/images/logos/dark-logo.svg';
 import lightLogo from 'src/assets/images/logos/light-logo.svg';
 import { useOfficeStore, Office } from '@/stores/module-1_stores/useOfficeStore';
-import { useQueueStore } from '@/stores/module-1_stores/useQueueStore';
+import { useQueueStore, Sequence } from '@/stores/module-1_stores/useQueueStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { supabase } from '@/lib/supabase';
 
@@ -13,8 +13,13 @@ const BCrumb = [{ to: '/', title: 'Home' }, { title: 'Queue Display' }];
 const REPEAT_COUNT = 2; // how many times to announce
 const PAUSE_BETWEEN_MS = 250; // pause between each announcement
 const POPUP_GAP_MS = 250; // gap after speech before picking up the next item
-const MAX_OFFICES_PER_ROW = 7;
-const MAX_WAITING_PER_COLUMN = 6;
+const SERVING_ROTATE_INTERVAL_MS = 2800;
+const SERVING_FADE_DURATION_MS = 400;
+const MAX_OFFICES_PER_ROW = 8;
+const MAX_WAITING_PER_COLUMN = 8;
+const MARQUEE_SCROLL_SPEED_PX_PER_SEC = 8;
+const MIN_MARQUEE_DURATION_SEC = 18;
+const WAITING_MARQUEE_TRIGGER_COUNT = 5;
 
 // Full-bleed spacing and persisted office order key.
 const SCREEN_SIDE_MARGIN_PX = 8;
@@ -23,6 +28,7 @@ const QUEUE_UI_SCALE = 1.79;
 
 interface CallNotification {
   id: string;
+  officeId: string;
   queueCode: string;
   windowLabel: string;
   officeName: string;
@@ -80,12 +86,27 @@ function getFemaleVoice(): SpeechSynthesisVoice | null {
 }
 
 /** Speak `text` exactly `times` times, with a pause between each. Calls `onDone` when finished. */
-function speakRepeat(text: string, times: number, onDone: () => void, rate?: number): void {
+function speakRepeat(
+  text: string,
+  times: number,
+  onDone: () => void,
+  rate?: number,
+  shouldContinue: () => boolean = () => true,
+): void {
   window.speechSynthesis.cancel();
 
   let count = 0;
 
+  const scheduleNext = () => {
+    if (!shouldContinue()) return;
+    window.setTimeout(() => {
+      speakOnce();
+    }, PAUSE_BETWEEN_MS);
+  };
+
   const speakOnce = () => {
+    if (!shouldContinue()) return;
+
     const utter = new SpeechSynthesisUtterance(text);
     const voice = getFemaleVoice();
     if (voice) utter.voice = voice;
@@ -93,17 +114,19 @@ function speakRepeat(text: string, times: number, onDone: () => void, rate?: num
     utter.rate = rate ?? 0.85; // default slower pace, or per-call override
 
     utter.onend = () => {
+      if (!shouldContinue()) return;
       count++;
       if (count < times) {
-        setTimeout(speakOnce, PAUSE_BETWEEN_MS);
+        scheduleNext();
       } else {
         onDone();
       }
     };
 
     utter.onerror = () => {
+      if (!shouldContinue()) return;
       count++;
-      if (count < times) setTimeout(speakOnce, PAUSE_BETWEEN_MS);
+      if (count < times) scheduleNext();
       else onDone();
     };
 
@@ -114,16 +137,6 @@ function speakRepeat(text: string, times: number, onDone: () => void, rate?: num
 }
 
 // ── Pure helpers at module scope so effects can reference them without stale-closure issues ──
-
-const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
-  const desc = (priorityDescription ?? '').toLowerCase();
-  if (desc.includes('urgent')) return 1;
-  if (desc.includes('vip')) return 2;
-  if (desc.includes('priority')) return 3;
-  if (desc.includes('pwd')) return 4;
-  if (desc.includes('senior')) return 5;
-  return 10;
-};
 
 const isRegularPriority = (priority: string | null | undefined): boolean => {
   const desc = (priority ?? '').toLowerCase();
@@ -146,6 +159,259 @@ const getPriorityStyle = (priority: string | null | undefined) => {
   };
 };
 
+const isServingSequence = (seq: Sequence): boolean =>
+  seq.is_active !== false &&
+  Boolean(seq.status_data?.description?.toLowerCase().includes('serving'));
+
+const hasServingSequenceForDisplay = (
+  sequenceId: string,
+  sequences: Sequence[],
+  activeOfficeIds: Set<string>,
+): boolean =>
+  sequences.some(
+    (seq) => seq.id === sequenceId && isServingSequence(seq) && activeOfficeIds.has(seq.office),
+  );
+
+interface WaitingQueueColumnProps {
+  title: string;
+  titleClassName: string;
+  numberClassName: string;
+  codeClassName: string;
+  entries: { seq: Sequence }[];
+  orderBySeqId: Map<string, number>;
+  waitingHeadingMarginClass: string;
+}
+
+interface ServingQueueEntry {
+  seq: Sequence;
+  windowLabel: string | null;
+  style: ReturnType<typeof getPriorityStyle>;
+}
+
+interface ServingQueueRotatorProps {
+  entries: ServingQueueEntry[];
+  activeNotifId?: string;
+}
+
+const WaitingQueueColumn = ({
+  title,
+  titleClassName,
+  numberClassName,
+  codeClassName,
+  entries,
+  orderBySeqId,
+  waitingHeadingMarginClass,
+}: WaitingQueueColumnProps) => {
+  const windowRef = useRef<HTMLDivElement | null>(null);
+  const measureListRef = useRef<HTMLUListElement | null>(null);
+  const [shouldMarquee, setShouldMarquee] = useState(false);
+
+  const entrySignature = useMemo(
+    () => entries.map(({ seq }) => `${seq.id}:${seq.queue_data?.code || ''}`).join('|'),
+    [entries],
+  );
+
+  useEffect(() => {
+    const container = windowRef.current;
+    const measureList = measureListRef.current;
+    if (!container || !measureList) {
+      setShouldMarquee(false);
+      return;
+    }
+
+    const updateMarquee = () => {
+      const contentHeight = measureList.scrollHeight;
+      const overflowing = contentHeight > container.clientHeight + 1;
+      const shouldRunMarquee = overflowing || entries.length > WAITING_MARQUEE_TRIGGER_COUNT;
+      setShouldMarquee((prev) => (prev === shouldRunMarquee ? prev : shouldRunMarquee));
+
+      if (shouldRunMarquee) {
+        const durationSeconds = Math.max(
+          MIN_MARQUEE_DURATION_SEC,
+          Math.max(contentHeight, container.clientHeight) / MARQUEE_SCROLL_SPEED_PX_PER_SEC,
+        );
+        container.style.setProperty('--queue-marquee-duration', `${durationSeconds}s`);
+      } else {
+        container.style.removeProperty('--queue-marquee-duration');
+      }
+    };
+
+    let rafId: number | null = null;
+    const scheduleUpdate = () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      rafId = window.requestAnimationFrame(() => {
+        updateMarquee();
+        rafId = null;
+      });
+    };
+
+    scheduleUpdate();
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleUpdate) : null;
+    resizeObserver?.observe(container);
+    resizeObserver?.observe(measureList);
+    window.addEventListener('resize', scheduleUpdate);
+
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener('resize', scheduleUpdate);
+      resizeObserver?.disconnect();
+    };
+  }, [entrySignature]);
+
+  if (entries.length === 0) {
+    return (
+      <div className="flex flex-col px-[2px] py-0">
+        <span
+          className={`${waitingHeadingMarginClass} w-full truncate text-center text-[13px] font-bold uppercase tracking-[0.14em] ${titleClassName}`}
+        >
+          {title}
+        </span>
+        <div className="flex flex-1" aria-hidden="true" />
+      </div>
+    );
+  }
+
+  const renderedEntries = shouldMarquee ? [...entries, ...entries] : entries;
+
+  return (
+    <div className="flex flex-col px-[2px] py-0">
+      <span
+        className={`${waitingHeadingMarginClass} w-full truncate text-center text-[13px] font-bold uppercase tracking-[0.14em] ${titleClassName}`}
+      >
+        {title}
+      </span>
+      <div ref={windowRef} className="queue-waiting-window">
+        <ul
+          ref={measureListRef}
+          className="queue-waiting-list queue-waiting-measure"
+          aria-hidden="true"
+        >
+          {entries.map(({ seq }, idx) => (
+            <li key={`${seq.id}-measure-${idx}`} className="queue-waiting-item">
+              <div className="flex w-full min-w-0 items-center justify-start gap-px">
+                <span className={`${numberClassName} queue-waiting-order shrink-0`}>
+                  {orderBySeqId.get(seq.id)}.
+                </span>
+                <span className={`${codeClassName} queue-waiting-code`}>
+                  {seq.queue_data?.code || '---'}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <div className="queue-waiting-track">
+          <ul
+            className={`queue-waiting-list ${shouldMarquee ? 'queue-waiting-marquee' : ''}`}
+            role="list"
+          >
+            {renderedEntries.map(({ seq }, idx) => (
+              <li key={`${seq.id}-${idx}`} className="queue-waiting-item">
+                <div className="flex w-full min-w-0 items-center justify-start gap-px">
+                  <span className={`${numberClassName} queue-waiting-order shrink-0`}>
+                    {orderBySeqId.get(seq.id)}.
+                  </span>
+                  <span className={`${codeClassName} queue-waiting-code`}>
+                    {seq.queue_data?.code || '---'}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ServingQueueRotator = ({ entries, activeNotifId }: ServingQueueRotatorProps) => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isFadingOut, setIsFadingOut] = useState(false);
+
+  const entrySignature = useMemo(
+    () =>
+      entries
+        .map(({ seq, windowLabel }) => `${seq.id}:${seq.queue_data?.code || ''}:${windowLabel || ''}`)
+        .join('|'),
+    [entries],
+  );
+
+  useEffect(() => {
+    setActiveIndex(0);
+    setIsFadingOut(false);
+  }, [entrySignature]);
+
+  useEffect(() => {
+    if (entries.length <= 1) return;
+    if (
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    )
+      return;
+
+    let fadeTimeoutId: number | null = null;
+    const intervalId = window.setInterval(() => {
+      setIsFadingOut(true);
+      fadeTimeoutId = window.setTimeout(() => {
+        setActiveIndex((prev) => (prev + 1) % entries.length);
+        setIsFadingOut(false);
+      }, SERVING_FADE_DURATION_MS);
+    }, SERVING_ROTATE_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+      if (fadeTimeoutId !== null) {
+        window.clearTimeout(fadeTimeoutId);
+      }
+    };
+  }, [entries.length, entrySignature]);
+
+  const activeEntry = entries[activeIndex] || entries[0];
+  if (!activeEntry) return null;
+
+  const { seq, windowLabel, style } = activeEntry;
+  const windowWords = windowLabel?.trim().split(/\s+/).filter(Boolean) || [];
+  const isTwoWordWindow = windowWords.length === 2;
+
+  return (
+    <div className={`queue-serving-transition ${isFadingOut ? 'queue-serving-fade-out' : ''}`}>
+      <div className="queue-serving-line">
+        <span
+          className={`queue-serving-code text-center font-black tracking-[0.08em] ${style.text}${seq.id === activeNotifId ? ' queue-blink' : ''}`}
+          aria-live="polite"
+        >
+          {seq.queue_data?.code || '---'}
+        </span>
+        {windowLabel && (
+          <>
+            <span className={`queue-serving-separator font-black ${style.text}`} aria-hidden="true">
+              -
+            </span>
+            {isTwoWordWindow ? (
+              <span
+                className={`queue-serving-window queue-serving-window-stacked font-bold ${style.text}`}
+                title={windowLabel}
+              >
+                <span>{windowWords[0]}</span>
+                <span>{windowWords[1]}</span>
+              </span>
+            ) : (
+              <span className={`queue-serving-window font-bold ${style.text}`} title={windowLabel}>
+                {windowLabel}
+              </span>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const QueueDisplay = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [notifQueue, setNotifQueue] = useState<CallNotification[]>([]);
@@ -158,6 +424,10 @@ const QueueDisplay = () => {
   const seenIds = useRef<Set<string>>(new Set());
   // Prevents announcements on the initial page load snapshot
   const initializedRef = useRef(false);
+  // Invalidate stale speech callbacks when a call is cancelled or superseded.
+  const announcementRunIdRef = useRef(0);
+  // Keep current speaking sequence id in a ref for async broadcast handlers.
+  const activeNotifIdRef = useRef<string | null>(null);
   // Reference to the ping broadcast channel so the processor can send ping-done
   const pingChRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isDisplayMode = useMemo(() => {
@@ -179,6 +449,7 @@ const QueueDisplay = () => {
     () => profile?.assignments?.map((a) => a.id) || [],
     [profile?.assignments],
   );
+  const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
   useEffect(() => {
     fetchStatuses();
@@ -201,6 +472,10 @@ const QueueDisplay = () => {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    activeNotifIdRef.current = activeNotif?.id ?? null;
+  }, [activeNotif]);
+
   // Detect newly-serving sequences and push onto the notification queue.
   // On the very first snapshot we silently seed seenIds (no announcement on page load);
   // every subsequent change is treated as a realtime event and will be announced.
@@ -210,7 +485,7 @@ const QueueDisplay = () => {
     if (!initializedRef.current) {
       // Seed all currently-serving IDs so they are never announced on refresh
       sequences.forEach((seq) => {
-        if (seq.status_data?.description?.toLowerCase().includes('serving')) {
+        if (isServingSequence(seq)) {
           seenIds.current.add(seq.id);
         }
       });
@@ -223,8 +498,7 @@ const QueueDisplay = () => {
     const fresh: CallNotification[] = [];
     sequences.forEach((seq) => {
       if (
-        seq.is_active !== false &&
-        seq.status_data?.description?.toLowerCase().includes('serving') &&
+        isServingSequence(seq) &&
         !seenIds.current.has(seq.id) &&
         activeOfficeIds.has(seq.office)
       ) {
@@ -238,6 +512,7 @@ const QueueDisplay = () => {
           '';
         fresh.push({
           id: seq.id,
+          officeId: seq.office,
           queueCode: seq.queue_data?.code || '---',
           windowLabel: seq.window_data?.description || 'the window',
           officeName,
@@ -248,7 +523,16 @@ const QueueDisplay = () => {
         });
       }
     });
-    if (fresh.length > 0) setNotifQueue((prev) => [...prev, ...fresh]);
+    if (fresh.length > 0) {
+      setNotifQueue((prev) => {
+        const queuedIds = new Set(prev.map((notif) => notif.id));
+        const uniqueFresh = fresh.filter((notif) => !queuedIds.has(notif.id));
+        if (uniqueFresh.length === 0) {
+          return prev;
+        }
+        return [...prev, ...uniqueFresh];
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sequences]);
 
@@ -258,31 +542,69 @@ const QueueDisplay = () => {
   useEffect(() => {
     if (activeNotif !== null || notifQueue.length === 0) return;
 
-    const next = notifQueue[0] as CallNotification & { spokenCode?: string };
-    setNotifQueue((prev) => prev.slice(1));
-    setActiveNotif(next);
+    const activeOfficeIds = new Set(activeOffices.map((office) => office.id));
+    const nextIndex = notifQueue.findIndex((notif) =>
+      hasServingSequenceForDisplay(notif.id, sequences, activeOfficeIds),
+    );
+    if (nextIndex === -1) return;
 
-/** Format a queue code so each letter is spoken with a longer pause, e.g. "ABX" → "A...... B...... C...... " */
-function formatQueueCodeForSpeech(code: string): string {
-  return ((code || '').split('').join('... ') + '... ');
-}
+    const next = notifQueue[nextIndex] as CallNotification & { spokenCode?: string };
+    setNotifQueue((prev) => prev.slice(nextIndex + 1));
+    setActiveNotif(next);
+    announcementRunIdRef.current += 1;
+    const runId = announcementRunIdRef.current;
+
+    /** Format a queue code so each letter is spoken with a longer pause, e.g. "ABX" → "A...... B...... C...... " */
+    function formatQueueCodeForSpeech(code: string): string {
+      return (code || '').split('').join('... ') + '... ';
+    }
 
     const spokenCode = formatQueueCodeForSpeech(next.queueCode);
+    const resolvedOfficeName =
+      offices.find((office) => office.id === next.officeId)?.description || next.officeName;
     // Announce once: "Now calling, V...... A...... X...... , at the office. Please proceed to Window 1."
-    const announcement =
-      `Now calling, ${spokenCode}to ${next.officeName || 'the office'}. Please proceed to ${next.windowLabel}.`;
+    const announcement = `Now calling, ${spokenCode}to ${resolvedOfficeName || 'the office'}. Please proceed to ${next.windowLabel}.`;
 
-    speakRepeat(announcement, REPEAT_COUNT, () => {
-      setTimeout(() => {
-        pingChRef.current?.send({
-          type: 'broadcast',
-          event: 'ping-done',
-          payload: { sequenceId: next.id },
-        });
-        setActiveNotif(null);
-      }, POPUP_GAP_MS);
-    }, 0.85);
-  }, [notifQueue, activeNotif]);
+    speakRepeat(
+      announcement,
+      REPEAT_COUNT,
+      () => {
+        if (announcementRunIdRef.current !== runId) return;
+        setTimeout(() => {
+          if (announcementRunIdRef.current !== runId) return;
+          pingChRef.current?.send({
+            type: 'broadcast',
+            event: 'ping-done',
+            payload: { sequenceId: next.id },
+          });
+          setActiveNotif((current) => (current?.id === next.id ? null : current));
+        }, POPUP_GAP_MS);
+      },
+      0.85,
+      () => announcementRunIdRef.current === runId,
+    );
+  }, [notifQueue, activeNotif, sequences, activeOffices, offices]);
+
+  useEffect(() => {
+    if (!activeNotif) return;
+
+    const activeOfficeIds = new Set(activeOffices.map((office) => office.id));
+    const stillServing = hasServingSequenceForDisplay(activeNotif.id, sequences, activeOfficeIds);
+
+    if (stillServing) return;
+
+    announcementRunIdRef.current += 1;
+    window.speechSynthesis.cancel();
+    setActiveNotif(null);
+  }, [activeNotif, sequences, activeOffices]);
+
+  useEffect(() => {
+    return () => {
+      announcementRunIdRef.current += 1;
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
   useEffect(() => {
     const ch = supabase
       .channel('queue-ping-broadcast', { config: { broadcast: { self: true } } })
@@ -292,20 +614,59 @@ function formatQueueCodeForSpeech(code: string): string {
         const isOwnOffice = offices.some((o) => o.id === officeId && o.status);
         if (!isOwnOffice) return;
 
+        const sequenceId = payload.sequenceId as string | undefined;
+        // Ignore pings without a real sequence id so stale put-back items never speak.
+        if (!sequenceId) return;
+
+        // If already speaking this same sequence, do not enqueue it again.
+        if (activeNotifIdRef.current === sequenceId) return;
+
+        // Mark as seen so the serving-change detector won't enqueue a duplicate.
+        seenIds.current.add(sequenceId);
+
         const code = (payload.queueCode as string) || '---';
-        // Use the real sequenceId as the notification id so the blink matches seq.id in the display
-        const notifId = (payload.sequenceId as string) || `ping-${Date.now()}`;
-        setNotifQueue((prev) => [
-          ...prev,
-          {
-            id: notifId,
-            queueCode: code,
-            windowLabel: (payload.windowLabel as string) || 'the window',
-            officeName: (payload.officeName as string) || '',
-            priorityText: (payload.priorityDesc as string) || 'Regular',
-            priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
-          } as CallNotification,
-        ]);
+        setNotifQueue((prev) => {
+          if (prev.some((notif) => notif.id === sequenceId)) {
+            return prev;
+          }
+
+          return [
+            ...prev,
+            {
+              id: sequenceId,
+              officeId,
+              queueCode: code,
+              windowLabel: (payload.windowLabel as string) || 'the window',
+              officeName:
+                offices.find((office) => office.id === officeId)?.description ||
+                ((payload.officeName as string) || ''),
+              priorityText: (payload.priorityDesc as string) || 'Regular',
+              priorityStyle: getPriorityStyle(payload.priorityDesc as string | null),
+            } as CallNotification,
+          ];
+        });
+      })
+      .on('broadcast', { event: 'stop-announcement' }, ({ payload }) => {
+        const officeId = payload.officeId as string | undefined;
+        // Ignore malformed/global stop events that don't specify an office scope.
+        if (!officeId) return;
+
+        const isOwnOffice = offices.some((o) => o.id === officeId && o.status);
+        if (!isOwnOffice) return;
+
+        const sequenceId = payload.sequenceId as string | undefined;
+        if (!sequenceId) return;
+
+        setNotifQueue((prev) => prev.filter((notif) => notif.id !== sequenceId));
+
+        // Cancel speech only when the currently speaking sequence is the one being stopped.
+        if (activeNotifIdRef.current !== sequenceId) {
+          return;
+        }
+
+        announcementRunIdRef.current += 1;
+        window.speechSynthesis.cancel();
+        setActiveNotif((current) => (current?.id === sequenceId ? null : current));
       })
       .subscribe();
     pingChRef.current = ch;
@@ -327,8 +688,6 @@ function formatQueueCodeForSpeech(code: string): string {
     },
     { label: 'Priority', style: { text: 'text-rose-600 dark:text-rose-400', dot: 'bg-rose-500' } },
   ];
-
-  const activeOffices = useMemo(() => offices.filter((o) => o.status), [offices]);
 
   // Load any previously saved office order from localStorage.
   // This preserves the drag arrangement after page refresh.
@@ -391,6 +750,18 @@ function formatQueueCodeForSpeech(code: string): string {
       .map((officeId) => officeById.get(officeId))
       .filter((office): office is Office => Boolean(office));
   }, [activeOffices, officeOrderIds]);
+
+  const officeColumnCount = useMemo(
+    () => Math.max(1, Math.min(orderedActiveOffices.length, MAX_OFFICES_PER_ROW)),
+    [orderedActiveOffices.length],
+  );
+
+  const officeRowCount = useMemo(() => {
+    if (orderedActiveOffices.length === 0) return 1;
+    return Math.ceil(orderedActiveOffices.length / officeColumnCount);
+  }, [orderedActiveOffices.length, officeColumnCount]);
+
+  const isCompactQueueLayout = officeColumnCount >= 7 || officeRowCount >= 2;
 
   // Move one office id before/into another position during drag reorder.
   const moveOffice = (sourceId: string, targetId: string) => {
@@ -475,7 +846,7 @@ function formatQueueCodeForSpeech(code: string): string {
         style={queueScaledStyle}
         className={`flex h-screen flex-col overflow-hidden text-foreground ${
           isDisplayMode ? 'px-0 py-1 md:py-1.5' : 'px-0 py-1 md:py-1.5'
-        } gap-1.5 md:gap-2`}
+        } ${isCompactQueueLayout ? 'queue-density-compact' : ''} gap-1.5 md:gap-2`}
       >
         {/* Header: title + clock */}
         <header className="flex shrink-0 items-center justify-between border-b border-border pb-2.5">
@@ -516,10 +887,10 @@ function formatQueueCodeForSpeech(code: string): string {
 
         {/* Bottom section: per-office columns */}
         <div
-          className="queue-scroll min-h-0 flex-1 grid gap-2 overflow-x-hidden overflow-y-auto"
+          className="queue-scroll min-h-0 flex-1 content-start items-start grid gap-2 overflow-x-hidden overflow-y-auto"
           style={{
-            gridTemplateColumns: `repeat(${Math.max(1, Math.min(orderedActiveOffices.length, MAX_OFFICES_PER_ROW))}, minmax(0, 1fr))`,
-            gridAutoRows: 'max-content',
+            gridTemplateColumns: `repeat(${officeColumnCount}, minmax(0, 1fr))`,
+            gridAutoRows: 'auto',
           }}
         >
           {orderedActiveOffices.length === 0 ? (
@@ -532,12 +903,7 @@ function formatQueueCodeForSpeech(code: string): string {
 
               // Use enriched status_data & window_data — no fragile ID lookup needed
               const servingEntries = sequences
-                .filter(
-                  (seq) =>
-                    seq.office === office.id &&
-                    seq.is_active !== false &&
-                    seq.status_data?.description?.toLowerCase().includes('serving'),
-                )
+                .filter((seq) => seq.office === office.id && isServingSequence(seq))
                 .map((seq) => ({
                   seq,
                   windowLabel: seq.window_data?.description || null,
@@ -553,9 +919,6 @@ function formatQueueCodeForSpeech(code: string): string {
                 )
                 .map((seq) => ({ seq }))
                 .sort((a, b) => {
-                  const pa = getPriorityWeight(a.seq.priority_data?.description);
-                  const pb = getPriorityWeight(b.seq.priority_data?.description);
-                  if (pa !== pb) return pa - pb;
                   return (
                     new Date(a.seq.created_at).getTime() - new Date(b.seq.created_at).getTime()
                   );
@@ -567,34 +930,16 @@ function formatQueueCodeForSpeech(code: string): string {
               const waitingRegularEntries = waitingEntries.filter(({ seq }) =>
                 isRegularPriority(seq.priority_data?.description),
               );
-              const waitingPriorityVisible = waitingPriorityEntries.slice(
-                0,
-                MAX_WAITING_PER_COLUMN,
+              const waitingPriorityOrderBySeqId = new Map(
+                waitingPriorityEntries.map(({ seq }, idx) => [seq.id, idx + 1]),
               );
-              const waitingRegularVisible = waitingRegularEntries.slice(0, MAX_WAITING_PER_COLUMN);
-
-              // Density = max rows shown in either waiting column.
-              // We use this to scale code font sizes and vertical spacing.
-              const waitingDensity = Math.max(
-                waitingPriorityVisible.length,
-                waitingRegularVisible.length,
+              const waitingRegularOrderBySeqId = new Map(
+                waitingRegularEntries.map(({ seq }, idx) => [seq.id, idx + 1]),
               );
 
               // Queue code typography scale.
-              // Serving size is stable; waiting size adapts by density for readability.
-              const servingCodeSize = 'clamp(1.92rem, 2.8vw, 2.54rem)';
-              const waitingCodeSize =
-                waitingDensity >= 6
-                  ? 'clamp(1.14rem, 1.56vw, 1.37rem)'
-                  : waitingDensity === 5
-                    ? 'clamp(1.25rem, 1.76vw, 1.51rem)'
-                    : waitingDensity === 4
-                      ? 'clamp(1.35rem, 1.95vw, 1.64rem)'
-                      : 'clamp(1.53rem, 2.34vw, 1.95rem)';
-
               // Small heading adjustments in dense layouts to free vertical space.
-              const waitingHeadingMarginClass = waitingDensity >= 5 ? 'mb-0.5' : 'mb-1';
-              const waitingCodeLineHeight = 1.12;
+              const waitingHeadingMarginClass = isCompactQueueLayout ? 'mb-0' : 'mb-0.5';
 
               return (
                 <div
@@ -605,7 +950,7 @@ function formatQueueCodeForSpeech(code: string): string {
                   onDragEnter={() => handleOfficeDragEnter(office.id)}
                   onDrop={(event) => handleOfficeDrop(event, office.id)}
                   onDragEnd={handleOfficeDragEnd}
-                  className={`flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-opacity duration-150 ${draggedOfficeId === office.id ? 'cursor-grabbing opacity-75' : 'cursor-grab'} ${dragOverOfficeId === office.id && draggedOfficeId !== office.id ? 'ring-2 ring-emerald-400/70' : ''}`}
+                  className={`queue-office-card flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card transition-opacity duration-150 ${draggedOfficeId === office.id ? 'cursor-grabbing opacity-75' : 'cursor-grab'} ${dragOverOfficeId === office.id && draggedOfficeId !== office.id ? 'ring-2 ring-emerald-400/70' : ''}`}
                 >
                   {/* Office header */}
                   <div className="shrink-0 border-b border-border px-2.5 py-0.5">
@@ -618,40 +963,17 @@ function formatQueueCodeForSpeech(code: string): string {
                   </div>
 
                   {/* Now serving / waiting — split into two colour zones */}
-                  <div className="flex flex-1 flex-col overflow-hidden">
+                  <div className="flex flex-col overflow-hidden">
                     {/* ── SERVING zone (green tint) ── */}
-                    <div className="flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2.5 py-1 dark:bg-emerald-950/40">
-                      <span className="self-start text-[0.7rem] font-bold uppercase tracking-widest text-emerald-950 dark:text-emerald-100">
+                    <div className="queue-serving-zone flex shrink-0 flex-col overflow-hidden bg-emerald-100 px-2.5 py-0 dark:bg-emerald-950/40">
+                      <span className="self-start text-[0.7rem] font-bold uppercase tracking-widest leading-none text-emerald-950 dark:text-white">
                         Now Serving
                       </span>
-                      <div className="flex min-h-0 items-start justify-center overflow-hidden pt-0.5">
+                      <div className="queue-serving-content flex min-h-0 items-center justify-center overflow-hidden">
                         {servingEntries.length > 0 ? (
-                          <div className="flex w-full min-h-0 flex-col items-center justify-start gap-0.5 overflow-hidden">
-                            {servingEntries.map(({ seq, windowLabel, style }) => (
-                              <div
-                                key={seq.id}
-                                className="flex w-full flex-col items-center gap-0.5 overflow-hidden"
-                              >
-                                <span
-                                  className={`text-center font-black tracking-[0.12em] ${style.text}${seq.id === activeNotif?.id ? ' queue-blink' : ''}`}
-                                  style={{ fontSize: servingCodeSize, lineHeight: 1.1 }}
-                                  aria-live="polite"
-                                >
-                                  {seq.queue_data?.code || '---'}
-                                </span>
-                                {windowLabel && (
-                                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300/80">
-                                    {windowLabel}
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                          <ServingQueueRotator entries={servingEntries} activeNotifId={activeNotif?.id} />
                         ) : (
-                          <span
-                            className="font-bold text-emerald-400 dark:text-emerald-700/50"
-                            style={{ fontSize: 'clamp(1.1rem, 2.6vw, 1.7rem)' }}
-                          >
+                          <span className="queue-serving-empty font-bold text-emerald-400 dark:text-emerald-700/50">
                             —
                           </span>
                         )}
@@ -662,69 +984,37 @@ function formatQueueCodeForSpeech(code: string): string {
                     <div className="w-full border-t border-dashed border-border" />
 
                     {/* ── WAITING zone (silver/slate tint) ── */}
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100 px-2.5 py-1 dark:bg-slate-700/30">
-                      <span className="mb-1 self-start text-[0.7rem] font-bold uppercase tracking-widest text-black dark:text-white/85">
+                    <div className="queue-waiting-zone flex shrink-0 flex-col overflow-hidden bg-slate-100 px-2 py-[3px] dark:bg-slate-700/30">
+                      <span className="mb-0.5 self-start text-[13px] font-bold uppercase tracking-[0.16em] text-black dark:text-white">
                         Waiting
                       </span>
                       {waitingEntries.length === 0 ? (
-                        <p className="text-xs font-medium text-black dark:text-white/85">
-                          No waiting
-                        </p>
+                        <div className="queue-waiting-empty-state">
+                          <p className="text-[14px] font-medium leading-[1.1] text-black dark:text-white">
+                            No waiting
+                          </p>
+                        </div>
                       ) : (
-                        <div className="grid flex-1 grid-cols-2 items-stretch gap-1">
-                          <div className="flex flex-col px-1 py-0.5">
-                            <span
-                              className={`${waitingHeadingMarginClass} w-full truncate text-center text-[0.7rem] font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300/90`}
-                            >
-                              Priority
-                            </span>
-                            {waitingPriorityVisible.length === 0 ? (
-                              <div className="flex flex-1" aria-hidden="true" />
-                            ) : (
-                              <ul className="space-y-1" role="list">
-                                {waitingPriorityVisible.map(({ seq }) => (
-                                  <li key={seq.id} className="flex items-center justify-center">
-                                    <span
-                                      className="font-black tracking-wide text-rose-600 dark:text-rose-400"
-                                      style={{
-                                        fontSize: waitingCodeSize,
-                                        lineHeight: waitingCodeLineHeight,
-                                      }}
-                                    >
-                                      {seq.queue_data?.code || '---'}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
+                        <div className="queue-waiting-columns grid flex-1 grid-cols-2 items-stretch gap-0.5">
+                          <WaitingQueueColumn
+                            title="Priority"
+                            titleClassName="text-rose-700 dark:text-rose-300/90"
+                            numberClassName="font-extrabold text-rose-500/90 dark:text-rose-300/90"
+                            codeClassName="font-black tracking-[0.02em] text-rose-600 dark:text-rose-400"
+                            entries={waitingPriorityEntries}
+                            orderBySeqId={waitingPriorityOrderBySeqId}
+                            waitingHeadingMarginClass={waitingHeadingMarginClass}
+                          />
 
-                          <div className="flex flex-col px-1 py-0.5">
-                            <span
-                              className={`${waitingHeadingMarginClass} w-full truncate text-center text-[0.7rem] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300/90`}
-                            >
-                              Regular
-                            </span>
-                            {waitingRegularVisible.length === 0 ? (
-                              <div className="flex flex-1" aria-hidden="true" />
-                            ) : (
-                              <ul className="space-y-1" role="list">
-                                {waitingRegularVisible.map(({ seq }) => (
-                                  <li key={seq.id} className="flex items-center justify-center">
-                                    <span
-                                      className="font-black tracking-wide text-emerald-700 dark:text-emerald-400"
-                                      style={{
-                                        fontSize: waitingCodeSize,
-                                        lineHeight: waitingCodeLineHeight,
-                                      }}
-                                    >
-                                      {seq.queue_data?.code || '---'}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
+                          <WaitingQueueColumn
+                            title="Regular"
+                            titleClassName="text-emerald-700 dark:text-emerald-300/90"
+                            numberClassName="font-extrabold text-emerald-600/90 dark:text-emerald-300/90"
+                            codeClassName="font-black tracking-[0.02em] text-emerald-700 dark:text-emerald-400"
+                            entries={waitingRegularEntries}
+                            orderBySeqId={waitingRegularOrderBySeqId}
+                            waitingHeadingMarginClass={waitingHeadingMarginClass}
+                          />
                         </div>
                       )}
                     </div>
@@ -752,6 +1042,225 @@ function formatQueueCodeForSpeech(code: string): string {
           width: 0;
           height: 0;
         }
+
+        @keyframes queue-waiting-up {
+          from { transform: translateY(0); }
+          to { transform: translateY(-50%); }
+        }
+
+        .queue-serving-zone {
+          --queue-serving-content-height: 72px;
+          --queue-serving-fade-duration: ${SERVING_FADE_DURATION_MS}ms;
+        }
+
+        .queue-serving-content {
+          height: var(--queue-serving-content-height);
+          min-height: var(--queue-serving-content-height);
+          max-height: var(--queue-serving-content-height);
+        }
+
+        .queue-serving-transition {
+          width: 100%;
+          height: 100%;
+          min-width: 0;
+          display: flex;
+          align-items: stretch;
+          opacity: 1;
+          transition: opacity var(--queue-serving-fade-duration) ease-in-out;
+        }
+
+        .queue-serving-fade-out {
+          opacity: 0;
+        }
+
+        .queue-waiting-zone {
+          --queue-marquee-duration: 22s;
+          --queue-waiting-row-height: 20px;
+          --queue-waiting-row-gap: 0px;
+          --queue-waiting-column-heading-height: 18px;
+          --queue-waiting-window-height: calc((var(--queue-waiting-row-height) * ${MAX_WAITING_PER_COLUMN}) + (var(--queue-waiting-row-gap) * ${MAX_WAITING_PER_COLUMN - 1}));
+          --queue-waiting-columns-height: calc(var(--queue-waiting-column-heading-height) + var(--queue-waiting-window-height));
+        }
+
+        .queue-waiting-columns,
+        .queue-waiting-empty-state {
+          height: var(--queue-waiting-columns-height);
+          min-height: var(--queue-waiting-columns-height);
+          max-height: var(--queue-waiting-columns-height);
+        }
+
+        .queue-waiting-empty-state {
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-start;
+          padding-top: 1px;
+        }
+
+        .queue-waiting-window {
+          position: relative;
+          isolation: isolate;
+          contain: layout paint;
+          clip-path: inset(0);
+          height: var(--queue-waiting-window-height);
+          min-height: var(--queue-waiting-window-height);
+          max-height: var(--queue-waiting-window-height);
+          overflow: hidden;
+        }
+
+        .queue-waiting-track {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+        }
+
+        .queue-waiting-list {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: var(--queue-waiting-row-gap);
+        }
+
+        .queue-waiting-measure {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          visibility: hidden;
+          pointer-events: none;
+        }
+
+        .queue-waiting-item {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: var(--queue-waiting-row-height);
+          line-height: 1;
+          overflow: hidden;
+        }
+
+        .queue-office-card {
+          isolation: isolate;
+          contain: layout paint;
+        }
+
+        .queue-serving-code {
+          flex: 0 0 auto;
+          font-size: 50px;
+          line-height: 0.95;
+          white-space: nowrap;
+        }
+
+        .queue-serving-line {
+          width: 100%;
+          height: 100%;
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+          overflow: hidden;
+          white-space: nowrap;
+        }
+
+        .queue-serving-separator {
+          flex: 0 0 auto;
+          font-size: 18px;
+          line-height: 1;
+        }
+
+        .queue-serving-window {
+          min-width: 0;
+          max-width: 66%;
+          font-size: 15px;
+          line-height: 1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .queue-serving-window-stacked {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-start;
+          justify-content: center;
+          gap: 0;
+          line-height: 0.95;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: clip;
+        }
+
+        .queue-serving-empty {
+          font-size: 1.15rem;
+          line-height: 1;
+        }
+
+        .queue-waiting-order {
+          font-size: 13px;
+          line-height: 1;
+          margin-right: 0;
+        }
+
+        .queue-waiting-code {
+          min-width: 0;
+          font-size: 20px;
+          line-height: 0.96;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .queue-density-compact .queue-serving-zone {
+          --queue-serving-content-height: 58px;
+        }
+
+        .queue-density-compact .queue-waiting-zone {
+          --queue-waiting-row-height: 18px;
+          --queue-waiting-row-gap: 0px;
+          --queue-waiting-column-heading-height: 16px;
+        }
+
+        .queue-density-compact .queue-serving-code {
+          font-size: 36px;
+        }
+
+        .queue-density-compact .queue-serving-separator {
+          font-size: 14px;
+        }
+
+        .queue-density-compact .queue-serving-window {
+          max-width: 64%;
+          font-size: 12px;
+        }
+
+        .queue-density-compact .queue-serving-empty {
+          font-size: 1rem;
+        }
+
+        .queue-density-compact .queue-waiting-order {
+          font-size: 10px;
+        }
+
+        .queue-density-compact .queue-waiting-code {
+          font-size: 17px;
+          line-height: 0.95;
+        }
+
+        .queue-waiting-marquee {
+          animation: queue-waiting-up var(--queue-marquee-duration) linear infinite;
+          will-change: transform;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .queue-serving-transition {
+            transition: none;
+          }
+
+          .queue-waiting-marquee {
+            animation: none;
+          }
+        }
+
       `}</style>
     </>
   );

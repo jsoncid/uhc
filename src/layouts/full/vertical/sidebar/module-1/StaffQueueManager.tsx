@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronRight, Check, Loader2, ArrowRightLeft, UserCheck, Bell, RotateCcw } from 'lucide-react';
+import {
+  ChevronRight,
+  Check,
+  Loader2,
+  ArrowRightLeft,
+  Bell,
+  RotateCcw,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -10,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -26,18 +33,36 @@ import { useOfficeUserAssignmentStore } from '@/stores/module-1_stores/useOffice
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 type QueueBucket = 'priority' | 'regular';
+const PING_COOLDOWN_MS = 5000;
+const PING_RELEASE_FALLBACK_MS = 10000;
 
 const StaffQueueManager = () => {
   const [activeTab, setActiveTab] = useState<string>('');
   const [selectedWindowByOffice, setSelectedWindowByOffice] = useState<Record<string, string>>({});
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [pendingComplete, setPendingComplete] = useState<{
+    sequenceId: string;
+    officeId: string;
+    queueCode: string;
+  } | null>(null);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferringSequence, setTransferringSequence] = useState<Sequence | null>(null);
   const [transferTargetOffice, setTransferTargetOffice] = useState<string>('');
+  const [transferOfficeSearch, setTransferOfficeSearch] = useState('');
   const [transferSuccess, setTransferSuccess] = useState<string>('');
+  const [isCallingNext, setIsCallingNext] = useState(false);
+  const [isTransferSubmitting, setIsTransferSubmitting] = useState(false);
+  const [completingIds, setCompletingIds] = useState<string[]>([]);
+  const [putBackIds, setPutBackIds] = useState<string[]>([]);
+  const [transferringIds, setTransferringIds] = useState<string[]>([]);
+  const [pingCooldownIds, setPingCooldownIds] = useState<string[]>([]);
   // Tracks which sequenceId is currently being announced; Ping is disabled until it finishes
   const [pingingId, setPingingId] = useState<string | null>(null);
   // Channel ref for receiving ping-done callbacks from QueueDisplay
   const pingDoneChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const pingCooldownTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pingReleaseTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const callNextInFlightRef = useRef(false);
 
   const { profile, loading: profileLoading } = useUserProfile();
   const { offices, fetchOffices, fetchOfficeById, isLoading: officesLoading } = useOfficeStore();
@@ -51,12 +76,33 @@ const StaffQueueManager = () => {
     subscribeToSequences,
     isLoading: queueLoading,
   } = useQueueStore();
-  const { myAssignment, myAssignmentLoaded, fetchMyAssignment } = useOfficeUserAssignmentStore();
+  const { myAssignments, myAssignment, myAssignmentLoaded, fetchMyAssignment } =
+    useOfficeUserAssignmentStore();
 
   // Get assignment IDs from user profile
   const userAssignmentIds = useMemo(() => {
     return profile?.assignments?.map((a) => a.id) || [];
   }, [profile?.assignments]);
+
+  const assignedOfficeEntries = useMemo(() => {
+    const fallbackAssignments = myAssignment ? [myAssignment] : [];
+    const sourceAssignments = myAssignments.length > 0 ? myAssignments : fallbackAssignments;
+    const byOffice = new Map<string, (typeof sourceAssignments)[number]>();
+
+    sourceAssignments.forEach((assignment) => {
+      if (!assignment.office) return;
+      if (!byOffice.has(assignment.office)) {
+        byOffice.set(assignment.office, assignment);
+      }
+    });
+
+    return byOffice;
+  }, [myAssignments, myAssignment]);
+
+  const assignedOfficeIds = useMemo(
+    () => new Set(Array.from(assignedOfficeEntries.keys())),
+    [assignedOfficeEntries],
+  );
 
   useEffect(() => {
     fetchStatuses();
@@ -68,15 +114,26 @@ const StaffQueueManager = () => {
     const ch = supabase
       .channel('queue-ping-done-listener')
       .on('broadcast', { event: 'ping-done' }, ({ payload }) => {
-        setPingingId((curr) =>
-          curr === (payload.sequenceId as string) ? null : curr,
-        );
+        const sequenceId = payload.sequenceId as string;
+        setPingingId((curr) => (curr === sequenceId ? null : curr));
+
+        const releaseTimer = pingReleaseTimersRef.current[sequenceId];
+        if (releaseTimer) {
+          clearTimeout(releaseTimer);
+          delete pingReleaseTimersRef.current[sequenceId];
+        }
       })
       .subscribe();
     pingDoneChannelRef.current = ch;
     return () => {
       supabase.removeChannel(ch);
       pingDoneChannelRef.current = null;
+
+      Object.values(pingCooldownTimersRef.current).forEach((timer) => clearTimeout(timer));
+      pingCooldownTimersRef.current = {};
+
+      Object.values(pingReleaseTimersRef.current).forEach((timer) => clearTimeout(timer));
+      pingReleaseTimersRef.current = {};
     };
   }, []);
 
@@ -87,13 +144,15 @@ const StaffQueueManager = () => {
     }
   }, [profileLoading, userAssignmentIds, fetchOffices]);
 
-  // Ensure the office from the user's direct office assignment is always fetched,
-  // even if it doesn't appear in the RBAC assignment filter above.
+  // Ensure all offices from the user's direct office assignments are fetched,
+  // even if they don't appear in the RBAC assignment filter above.
   useEffect(() => {
-    if (myAssignment?.office) {
-      fetchOfficeById(myAssignment.office);
-    }
-  }, [myAssignment?.office, fetchOfficeById]);
+    assignedOfficeEntries.forEach((assignment, officeId) => {
+      if (assignment.office) {
+        fetchOfficeById(officeId);
+      }
+    });
+  }, [assignedOfficeEntries, fetchOfficeById]);
 
   useEffect(() => {
     const unsubscribe = subscribeToSequences();
@@ -113,8 +172,9 @@ const StaffQueueManager = () => {
     setSelectedWindowByOffice((prev) => {
       const next = { ...prev };
       offices.forEach((office) => {
-        if (myAssignment?.office === office.id && myAssignment?.window) {
-          next[office.id] = myAssignment.window;
+        const officeAssignment = assignedOfficeEntries.get(office.id);
+        if (officeAssignment?.window) {
+          next[office.id] = officeAssignment.window;
           return;
         }
         const activeWindows = (office.windows || []).filter((w) => w.status);
@@ -124,15 +184,15 @@ const StaffQueueManager = () => {
       });
       return next;
     });
-  }, [offices, myAssignment]);
+  }, [offices, assignedOfficeEntries]);
 
   // Scope visible offices: only the office assigned to the current user.
   // If the user has no assignment, nothing is shown.
   const activeOffices = useMemo(() => {
     if (!myAssignmentLoaded) return [];
-    if (!myAssignment?.office) return [];
-    return offices.filter((o) => o.status && o.id === myAssignment.office);
-  }, [offices, myAssignment, myAssignmentLoaded]);
+    if (assignedOfficeIds.size === 0) return [];
+    return offices.filter((o) => o.status && assignedOfficeIds.has(o.id));
+  }, [offices, assignedOfficeIds, myAssignmentLoaded]);
 
   // Keep activeTab in sync with visible offices
   useEffect(() => {
@@ -152,16 +212,6 @@ const StaffQueueManager = () => {
     return sequences.filter((seq) => seq.office === officeId && seq.is_active !== false);
   };
 
-  const getPriorityWeight = (priorityDescription: string | null | undefined): number => {
-    const desc = priorityDescription?.toLowerCase() || '';
-    if (desc.includes('urgent')) return 1;
-    if (desc.includes('vip')) return 2;
-    if (desc.includes('priority')) return 3;
-    if (desc.includes('pwd')) return 4;
-    if (desc.includes('senior')) return 5;
-    return 10; // Regular/default - lowest priority
-  };
-
   const isRegularPriority = (priorityDescription: string | null | undefined): boolean => {
     const desc = priorityDescription?.toLowerCase() || '';
     return desc === '' || desc.includes('regular');
@@ -169,130 +219,273 @@ const StaffQueueManager = () => {
 
   const getWaitingSequences = (officeId: string, windowId?: string): Sequence[] => {
     const pendingStatus = getStatusByDescription('pending');
-    let pending = getSequencesForOffice(officeId).filter(
-      (seq) => seq.status === pendingStatus?.id,
-    );
+    let pending = getSequencesForOffice(officeId).filter((seq) => seq.status === pendingStatus?.id);
 
     // Filter by window if provided - show sequences assigned to this window OR unassigned
     if (windowId) {
       pending = pending.filter((seq) => seq.window === windowId || !seq.window);
     }
 
-    // Sort by priority weight (lower = higher priority), then by created_at (FIFO)
+    // Strict FIFO by created_at so call-next follows queue creation time.
     return pending.sort((a, b) => {
-      const priorityA = getPriorityWeight(a.priority_data?.description);
-      const priorityB = getPriorityWeight(b.priority_data?.description);
-      if (priorityA !== priorityB) return priorityA - priorityB;
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   };
 
   const getServingSequence = (officeId: string, windowId?: string): Sequence | undefined => {
     const servingStatus = getStatusByDescription('serving');
-    const arrivedStatus = getStatusByDescription('arrived');
-    const activeStatusIds = [servingStatus?.id, arrivedStatus?.id].filter(Boolean) as string[];
     const officeSequences = getSequencesForOffice(officeId); // already filters is_active
-    if (windowId) {
-      return officeSequences.find(
-        (seq) => activeStatusIds.includes(seq.status) && seq.window === windowId,
-      );
+    if (!servingStatus) {
+      return undefined;
     }
-    return officeSequences.find((seq) => activeStatusIds.includes(seq.status));
+
+    if (windowId) {
+      return officeSequences.find((seq) => seq.status === servingStatus.id && seq.window === windowId);
+    }
+    return officeSequences.find((seq) => seq.status === servingStatus.id);
   };
+
+  // Global guard: if the staff is currently serving in any assigned office/window,
+  // disable calling next in all assigned offices.
+  const hasAnyServingAcrossAssignedOffices = activeOffices.some((office) =>
+    Boolean(getServingSequence(office.id, selectedWindowByOffice[office.id])),
+  );
 
   const handleCallNext = async (officeId: string, bucket: QueueBucket) => {
-    const servingStatus = getStatusByDescription('serving');
-
-    if (!servingStatus) {
-      console.error('Serving status not found. Available statuses:', statuses);
+    if (callNextInFlightRef.current) {
+      console.log('Call Next is already processing');
       return;
     }
 
-    const windowId = selectedWindowByOffice[officeId];
+    callNextInFlightRef.current = true;
+    setIsCallingNext(true);
 
-    // Guard: block if this window already has someone serving/arrived
-    const currentServing = getServingSequence(officeId, windowId);
-    if (currentServing) {
-      console.log('ℹ️ Someone is already being served, Call Next is blocked');
-      return;
+    try {
+      const servingStatus = getStatusByDescription('serving');
+
+      if (!servingStatus) {
+        console.error('Serving status not found. Available statuses:', statuses);
+        return;
+      }
+
+      if (hasAnyServingAcrossAssignedOffices) {
+        console.log('Call Next is blocked while there is an active serving queue');
+        return;
+      }
+
+      const windowId = selectedWindowByOffice[officeId];
+
+      // Guard: block if this window already has someone serving
+      const currentServing = getServingSequence(officeId, windowId);
+      if (currentServing) {
+        console.log('Someone is already being served, Call Next is blocked');
+        return;
+      }
+
+      if (!windowId) {
+        console.error('No window selected');
+        return;
+      }
+
+      const waiting = getWaitingSequences(officeId, windowId);
+      const waitingByBucket = waiting.filter((seq) =>
+        bucket === 'regular'
+          ? isRegularPriority(seq.priority_data?.description)
+          : !isRegularPriority(seq.priority_data?.description),
+      );
+
+      const nextForBucket = waitingByBucket[0];
+
+      if (!nextForBucket) {
+        console.log(`No one waiting in ${bucket} queue`);
+        return;
+      }
+
+      // Move only the selected bucket's first waiting queue to serving.
+      await updateSequenceStatus(nextForBucket.id, servingStatus.id, windowId);
+    } finally {
+      callNextInFlightRef.current = false;
+      setIsCallingNext(false);
     }
-
-    if (!windowId) {
-      console.error('No window selected');
-      return;
-    }
-
-    const waiting = getWaitingSequences(officeId, windowId);
-    const waitingByBucket = waiting.filter((seq) =>
-      bucket === 'regular'
-        ? isRegularPriority(seq.priority_data?.description)
-        : !isRegularPriority(seq.priority_data?.description),
-    );
-
-    const nextForBucket = waitingByBucket[0];
-
-    if (!nextForBucket) {
-      console.log(`ℹ️ No one waiting in ${bucket} queue`);
-      return;
-    }
-
-    // Move only the selected bucket's first waiting queue to serving.
-    await updateSequenceStatus(nextForBucket.id, servingStatus.id, windowId);
   };
 
-  const handleComplete = async (sequenceId: string) => {
+  const handleComplete = async (sequenceId: string, officeId: string) => {
+    if (completingIds.includes(sequenceId)) {
+      console.log('Complete is already processing for this queue');
+      return;
+    }
+
+    const office = offices.find((o) => o.id === officeId);
+    if (!office?.is_complete_capable) {
+      console.log('Complete action is disabled for this office');
+      return;
+    }
+
     const completedStatus = getStatusByDescription('completed');
-    if (completedStatus) {
+    if (!completedStatus) {
+      return;
+    }
+
+    setCompletingIds((prev) => (prev.includes(sequenceId) ? prev : [...prev, sequenceId]));
+
+    try {
       await updateSequenceStatus(sequenceId, completedStatus.id);
+    } finally {
+      setCompletingIds((prev) => prev.filter((id) => id !== sequenceId));
     }
   };
 
-  const handleArrived = async (sequenceId: string, windowId: string) => {
-    const arrivedStatus = getStatusByDescription('arrived');
-    if (arrivedStatus) {
-      await updateSequenceStatus(sequenceId, arrivedStatus.id, windowId);
+  const handleOpenCompleteDialog = (sequence: Sequence, officeId: string) => {
+    setPendingComplete({
+      sequenceId: sequence.id,
+      officeId,
+      queueCode: sequence.queue_data?.code || '---',
+    });
+    setCompleteDialogOpen(true);
+  };
+
+  const handleCompleteDialogOpenChange = (open: boolean) => {
+    setCompleteDialogOpen(open);
+    if (!open) {
+      setPendingComplete(null);
     }
+  };
+
+  const handleConfirmComplete = async () => {
+    if (!pendingComplete) return;
+
+    await handleComplete(pendingComplete.sequenceId, pendingComplete.officeId);
+    setCompleteDialogOpen(false);
+    setPendingComplete(null);
   };
 
   const handlePing = async (serving: Sequence, officeName: string, officeId: string) => {
+    if (pingingId === serving.id || pingCooldownIds.includes(serving.id)) {
+      console.log('Ping is cooling down for this queue');
+      return;
+    }
+
+    setPingingId(serving.id);
+    setPingCooldownIds((prev) => (prev.includes(serving.id) ? prev : [...prev, serving.id]));
+
+    const existingCooldownTimer = pingCooldownTimersRef.current[serving.id];
+    if (existingCooldownTimer) {
+      clearTimeout(existingCooldownTimer);
+    }
+    pingCooldownTimersRef.current[serving.id] = setTimeout(() => {
+      setPingCooldownIds((prev) => prev.filter((id) => id !== serving.id));
+      delete pingCooldownTimersRef.current[serving.id];
+    }, PING_COOLDOWN_MS);
+
+    const existingReleaseTimer = pingReleaseTimersRef.current[serving.id];
+    if (existingReleaseTimer) {
+      clearTimeout(existingReleaseTimer);
+    }
+    pingReleaseTimersRef.current[serving.id] = setTimeout(() => {
+      setPingingId((curr) => (curr === serving.id ? null : curr));
+      delete pingReleaseTimersRef.current[serving.id];
+    }, PING_RELEASE_FALLBACK_MS);
+
     // Use the Supabase REST broadcast API — no WebSocket subscription needed,
     // fires instantly on the very first click with no channel-ready race condition.
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-    await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            topic: 'queue-ping-broadcast',
-            event: 'ping',
-            payload: {
-              sequenceId: serving.id,
-              officeId,
-              queueCode: serving.queue_data?.code || '---',
-              windowLabel: serving.window_data?.description || 'the window',
-              officeName,
-              priorityDesc: serving.priority_data?.description || null,
+    try {
+      await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              topic: 'queue-ping-broadcast',
+              event: 'ping',
+              payload: {
+                sequenceId: serving.id,
+                officeId,
+                queueCode: serving.queue_data?.code || '---',
+                windowLabel: serving.window_data?.description || 'the window',
+                officeName,
+                priorityDesc: serving.priority_data?.description || null,
+              },
             },
-          },
-        ],
-      }),
-    });
-    // Disable the button immediately — re-enabled when QueueDisplay broadcasts ping-done
-    setPingingId(serving.id);
+          ],
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to ping queue:', error);
+
+      const releaseTimer = pingReleaseTimersRef.current[serving.id];
+      if (releaseTimer) {
+        clearTimeout(releaseTimer);
+        delete pingReleaseTimersRef.current[serving.id];
+      }
+      setPingingId((curr) => (curr === serving.id ? null : curr));
+
+      const cooldownTimer = pingCooldownTimersRef.current[serving.id];
+      if (cooldownTimer) {
+        clearTimeout(cooldownTimer);
+        delete pingCooldownTimersRef.current[serving.id];
+      }
+      setPingCooldownIds((prev) => prev.filter((id) => id !== serving.id));
+    }
   };
 
-  const handlePutBackOnQueue = async (sequenceId: string) => {
+  const broadcastStopAnnouncement = async (sequenceId: string, officeId: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+    try {
+      await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              topic: 'queue-ping-broadcast',
+              event: 'stop-announcement',
+              payload: {
+                sequenceId,
+                officeId,
+              },
+            },
+          ],
+        }),
+      });
+    } catch (error) {
+      console.error('❌ Failed to broadcast stop-announcement:', error);
+    }
+  };
+
+  const handlePutBackOnQueue = async (sequenceId: string, officeId: string) => {
+    if (putBackIds.includes(sequenceId)) {
+      console.log('Put Back is already processing for this queue');
+      return;
+    }
+
     const pendingStatus = getStatusByDescription('pending');
-    if (pendingStatus) {
+    if (!pendingStatus) {
+      return;
+    }
+
+    setPutBackIds((prev) => (prev.includes(sequenceId) ? prev : [...prev, sequenceId]));
+
+    try {
+      await broadcastStopAnnouncement(sequenceId, officeId);
+      setPingingId((curr) => (curr === sequenceId ? null : curr));
+
       // Put back to pending status with no window assignment
       // The new created_at timestamp will automatically place it at the end of the queue
       await updateSequenceStatus(sequenceId, pendingStatus.id, null);
+    } finally {
+      setPutBackIds((prev) => prev.filter((id) => id !== sequenceId));
     }
   };
 
@@ -302,37 +495,71 @@ const StaffQueueManager = () => {
     if (!transferringSequence) return [];
     const sourceOffice = offices.find((o) => o.id === transferringSequence.office);
     if (!sourceOffice) return [];
-    return offices.filter(
-      (o) =>
-        o.status &&
-        o.assignment === sourceOffice.assignment &&
-        o.id !== transferringSequence.office,
-    );
+    return offices
+      .filter(
+        (o) =>
+          o.status &&
+          o.assignment === sourceOffice.assignment &&
+          o.id !== transferringSequence.office,
+      )
+      .sort((a, b) => {
+        const aName = (a.description || a.id).trim();
+        const bName = (b.description || b.id).trim();
+        return aName.localeCompare(bName);
+      });
   }, [offices, transferringSequence]);
+
+  const filteredTransferableOffices = useMemo(() => {
+    const query = transferOfficeSearch.trim().toLowerCase();
+    if (!query) return transferableOffices;
+
+    return transferableOffices.filter((office) => {
+      const label = `${office.description || ''} ${office.id}`.toLowerCase();
+      return label.includes(query);
+    });
+  }, [transferableOffices, transferOfficeSearch]);
 
   const handleOpenTransferDialog = (sequence: Sequence) => {
     setTransferringSequence(sequence);
-    setTransferTargetOffice('');     // reset — user must pick a different office
+    setTransferTargetOffice(''); // reset — user must pick a different office
+    setTransferOfficeSearch('');
     setTransferDialogOpen(true);
   };
 
   const handleTransfer = async () => {
-    if (!transferringSequence || !transferTargetOffice) return;
+    if (!transferringSequence || !transferTargetOffice || isTransferSubmitting) return;
+
+    if (transferringIds.includes(transferringSequence.id)) {
+      console.log('Transfer is already processing for this queue');
+      return;
+    }
+
+    setIsTransferSubmitting(true);
+    setTransferringIds((prev) =>
+      prev.includes(transferringSequence.id) ? prev : [...prev, transferringSequence.id],
+    );
 
     const targetOffice = offices.find((o) => o.id === transferTargetOffice);
+    try {
+      await broadcastStopAnnouncement(transferringSequence.id, transferringSequence.office);
+      setPingingId((curr) => (curr === transferringSequence.id ? null : curr));
 
-    await transferSequence(transferringSequence.id, transferTargetOffice, null);
+      await transferSequence(transferringSequence.id, transferTargetOffice, null);
+      // Show success message
+      const message = `Queue ${transferringSequence?.queue_data?.code} transferred to ${targetOffice?.description}. It will be queued based on priority.`;
+      setTransferSuccess(message);
 
-    // Show success message
-    const message = `✓ Queue ${transferringSequence?.queue_data?.code} transferred to ${targetOffice?.description}. It will be queued based on priority.`;
-    setTransferSuccess(message);
+      setTransferDialogOpen(false);
+      setTransferringSequence(null);
+      setTransferTargetOffice('');
+      setTransferOfficeSearch('');
 
-    setTransferDialogOpen(false);
-    setTransferringSequence(null);
-    setTransferTargetOffice('');
-
-    // Clear success message after 3 seconds
-    setTimeout(() => setTransferSuccess(''), 3000);
+      // Clear success message after 3 seconds
+      setTimeout(() => setTransferSuccess(''), 3000);
+    } finally {
+      setTransferringIds((prev) => prev.filter((id) => id !== transferringSequence.id));
+      setIsTransferSubmitting(false);
+    }
   };
 
   const getPriorityColor = (priority: string | null | undefined) => {
@@ -366,7 +593,11 @@ const StaffQueueManager = () => {
           </CardContent>
         </Card>
       ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 md:space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="w-full space-y-4 md:space-y-6"
+        >
           {activeOffices.length > 1 && (
             <TabsList>
               {activeOffices.map((office) => (
@@ -378,6 +609,8 @@ const StaffQueueManager = () => {
           )}
 
           {activeOffices.map((office) => {
+            const canCompleteInOffice = Boolean(office.is_complete_capable);
+            const officeAssignment = assignedOfficeEntries.get(office.id);
             const serving = getServingSequence(office.id, selectedWindowByOffice[office.id]);
             const waiting = getWaitingSequences(office.id, selectedWindowByOffice[office.id]);
             const priorityWaiting = waiting.filter(
@@ -394,15 +627,15 @@ const StaffQueueManager = () => {
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <CardTitle>{office.description || office.id} Queue</CardTitle>
                       <div className="flex items-center gap-3">
-                        {myAssignment?.window && (
+                        {officeAssignment?.window && (
                           <div className="flex items-center gap-2">
                             <Label className="text-sm text-muted-foreground whitespace-nowrap">
                               Window
                             </Label>
                             <div className="px-3 py-2 border rounded-md text-sm bg-muted w-45">
-                              {(office.windows || []).find((w) => w.id === myAssignment.window)
+                              {(office.windows || []).find((w) => w.id === officeAssignment.window)
                                 ?.description ||
-                                myAssignment.window_description ||
+                                officeAssignment.window_description ||
                                 'Assigned Window'}
                             </div>
                           </div>
@@ -429,19 +662,26 @@ const StaffQueueManager = () => {
                                 {serving.priority_data?.description || 'Regular'}
                               </div>
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleComplete(serving.id)}
-                                  disabled={isLoading || !serving.status_data?.description?.toLowerCase().includes('arrived')}
-                                  className="w-full justify-center bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                                >
-                                  <Check className="h-4 w-4 mr-2" />
-                                  Complete
-                                </Button>
+                                {canCompleteInOffice && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleOpenCompleteDialog(serving, office.id)}
+                                    disabled={isLoading || completingIds.includes(serving.id)}
+                                    title="Mark this queue as completed"
+                                    className="w-full justify-center bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                                  >
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Complete
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   onClick={() => handleOpenTransferDialog(serving)}
-                                  disabled={isLoading}
+                                  disabled={
+                                    isLoading ||
+                                    isTransferSubmitting ||
+                                    transferringIds.includes(serving.id)
+                                  }
                                   className="w-full justify-center bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                                 >
                                   <ArrowRightLeft className="h-4 w-4 mr-2" />
@@ -449,17 +689,14 @@ const StaffQueueManager = () => {
                                 </Button>
                                 <Button
                                   size="sm"
-                                  onClick={() => handleArrived(serving.id, selectedWindowByOffice[office.id])}
-                                  disabled={isLoading || serving.status_data?.description?.toLowerCase().includes('arrived')}
-                                  className="w-full justify-center bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-                                >
-                                  <UserCheck className="h-4 w-4 mr-2" />
-                                  Arrived
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={() => handlePing(serving, office.description || '', office.id)}
-                                  disabled={isLoading || pingingId === serving.id}
+                                  onClick={() =>
+                                    handlePing(serving, office.description || '', office.id)
+                                  }
+                                  disabled={
+                                    isLoading ||
+                                    pingingId === serving.id ||
+                                    pingCooldownIds.includes(serving.id)
+                                  }
                                   title="Re-announce this queue on the display"
                                   className="w-full justify-center bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
                                 >
@@ -468,8 +705,8 @@ const StaffQueueManager = () => {
                                 </Button>
                                 <Button
                                   size="sm"
-                                  onClick={() => handlePutBackOnQueue(serving.id)}
-                                  disabled={isLoading}
+                                  onClick={() => handlePutBackOnQueue(serving.id, office.id)}
+                                  disabled={isLoading || putBackIds.includes(serving.id)}
                                   title="Put back to end of queue (customer didn't arrive)"
                                   className="w-full justify-center bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
                                 >
@@ -489,7 +726,9 @@ const StaffQueueManager = () => {
                       {/* Waiting Section */}
                       <Card className="bg-muted/50">
                         <CardContent className="pt-2 pb-3 md:pt-3 md:pb-4">
-                          <h3 className="font-semibold text-xl md:text-2xl mb-4">Waiting ({waiting.length})</h3>
+                          <h3 className="font-semibold text-xl md:text-2xl mb-4">
+                            Waiting ({waiting.length})
+                          </h3>
                           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                             <div className="rounded-md border bg-background p-4 h-full flex flex-col gap-4">
                               <div className="flex items-center justify-between gap-2">
@@ -499,7 +738,13 @@ const StaffQueueManager = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => handleCallNext(office.id, 'priority')}
-                                  disabled={isLoading || !!serving || priorityWaiting.length === 0}
+                                  disabled={
+                                    isLoading ||
+                                    isCallingNext ||
+                                    hasAnyServingAcrossAssignedOffices ||
+                                    !!serving ||
+                                    priorityWaiting.length === 0
+                                  }
                                 >
                                   {isLoading ? (
                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -511,9 +756,12 @@ const StaffQueueManager = () => {
                               </div>
 
                               {priorityWaiting.length > 0 ? (
-                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[12rem]">
+                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-48">
                                   {priorityWaiting.map((seq) => (
-                                    <div key={seq.id} className="flex items-center justify-between py-1">
+                                    <div
+                                      key={seq.id}
+                                      className="flex items-center justify-between py-1"
+                                    >
                                       <div
                                         className={`text-3xl md:text-4xl 2xl:text-5xl font-semibold tracking-wide leading-none ${getPriorityColor(seq.priority_data?.description)}`}
                                       >
@@ -523,7 +771,11 @@ const StaffQueueManager = () => {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => handleOpenTransferDialog(seq)}
-                                        disabled={isLoading}
+                                        disabled={
+                                          isLoading ||
+                                          isTransferSubmitting ||
+                                          transferringIds.includes(seq.id)
+                                        }
                                       >
                                         <ArrowRightLeft className="h-4 w-4" />
                                       </Button>
@@ -545,7 +797,13 @@ const StaffQueueManager = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => handleCallNext(office.id, 'regular')}
-                                  disabled={isLoading || !!serving || regularWaiting.length === 0}
+                                  disabled={
+                                    isLoading ||
+                                    isCallingNext ||
+                                    hasAnyServingAcrossAssignedOffices ||
+                                    !!serving ||
+                                    regularWaiting.length === 0
+                                  }
                                 >
                                   {isLoading ? (
                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -557,9 +815,12 @@ const StaffQueueManager = () => {
                               </div>
 
                               {regularWaiting.length > 0 ? (
-                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[12rem]">
+                                <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-48">
                                   {regularWaiting.map((seq) => (
-                                    <div key={seq.id} className="flex items-center justify-between py-1">
+                                    <div
+                                      key={seq.id}
+                                      className="flex items-center justify-between py-1"
+                                    >
                                       <div
                                         className={`text-3xl md:text-4xl 2xl:text-5xl font-semibold tracking-wide leading-none ${getPriorityColor(seq.priority_data?.description)}`}
                                       >
@@ -569,7 +830,11 @@ const StaffQueueManager = () => {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => handleOpenTransferDialog(seq)}
-                                        disabled={isLoading}
+                                        disabled={
+                                          isLoading ||
+                                          isTransferSubmitting ||
+                                          transferringIds.includes(seq.id)
+                                        }
                                       >
                                         <ArrowRightLeft className="h-4 w-4" />
                                       </Button>
@@ -594,6 +859,43 @@ const StaffQueueManager = () => {
         </Tabs>
       )}
 
+      {/* Complete Confirmation Dialog */}
+      <Dialog open={completeDialogOpen} onOpenChange={handleCompleteDialogOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Completion</DialogTitle>
+            <DialogDescription>
+              Are you sure this queue is really finished?
+            </DialogDescription>
+          </DialogHeader>
+
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleCompleteDialogOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmComplete}
+              disabled={
+                !pendingComplete ||
+                isLoading ||
+                (pendingComplete
+                  ? completingIds.includes(pendingComplete.sequenceId)
+                  : false)
+              }
+              className="bg-green-600 text-white hover:bg-green-700"
+            >
+              {pendingComplete && completingIds.includes(pendingComplete.sequenceId) ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 mr-2" />
+              )}
+              Complete Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Transfer Dialog */}
       <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
         <DialogContent className="sm:max-w-106.25">
@@ -601,7 +903,14 @@ const StaffQueueManager = () => {
             <DialogTitle>Transfer Queue</DialogTitle>
             <DialogDescription>
               Transfer queue code{' '}
-              <span className="font-bold">{transferringSequence?.queue_data?.code}</span> to another
+              <span
+                className={`inline-block text-2xl font-extrabold tracking-wide align-middle ${getPriorityColor(
+                  transferringSequence?.priority_data?.description,
+                )}`}
+              >
+                {transferringSequence?.queue_data?.code}
+              </span>{' '}
+              to another
               office.
             </DialogDescription>
           </DialogHeader>
@@ -609,29 +918,41 @@ const StaffQueueManager = () => {
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label>Target Office</Label>
-              <Select
-                value={transferTargetOffice}
-                onValueChange={(v) => {
-                  setTransferTargetOffice(v);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select office" />
-                </SelectTrigger>
-                <SelectContent>
-                  {transferableOffices.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      No other offices available
+              {transferableOffices.length === 0 ? (
+                <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+                  No other offices available
+                </div>
+              ) : (
+                <Select value={transferTargetOffice} onValueChange={setTransferTargetOffice}>
+                  <SelectTrigger className="w-full py-5 text-base border border-green-600 [&>span]:!leading-[2rem] hover:bg-accent hover:text-accent-foreground transition-colors [&_.lucide-chevron-down]:!text-green-600">
+                    <SelectValue placeholder="Select target office" />
+                  </SelectTrigger>
+                  <SelectContent maxItems={8}>
+                    <div className="sticky top-0 z-10 bg-popover p-1">
+                      <input
+                        type="text"
+                        value={transferOfficeSearch}
+                        onChange={(e) => setTransferOfficeSearch(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        placeholder="Search office..."
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
                     </div>
-                  ) : (
-                    transferableOffices.map((office) => (
-                      <SelectItem key={office.id} value={office.id}>
-                        {office.description || office.id}
+                    {filteredTransferableOffices.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">No matching office found.</div>
+                    )}
+                    {filteredTransferableOffices.map((office) => (
+                      <SelectItem 
+                        key={office.id} 
+                        value={office.id}
+                        className="hover:bg-accent hover:text-accent-foreground transition-colors"
+                      >
+                        {office.description || 'Unnamed'}
                       </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
@@ -639,8 +960,11 @@ const StaffQueueManager = () => {
             <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleTransfer} disabled={!transferTargetOffice || isLoading}>
-              {isLoading ? (
+            <Button
+              onClick={handleTransfer}
+              disabled={!transferTargetOffice || isLoading || isTransferSubmitting}
+            >
+              {isLoading || isTransferSubmitting ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <ArrowRightLeft className="h-4 w-4 mr-2" />
