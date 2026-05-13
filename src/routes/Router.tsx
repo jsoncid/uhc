@@ -4,6 +4,7 @@ import { lazy, useEffect } from 'react';
 import { Navigate, createBrowserRouter, useRouteError } from 'react-router';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { AdminRoute } from '../components/AdminRoute';
 import Spinner from '../views/spinner/Spinner';
 import { attemptChunkRecoveryReload, isChunkLoadError } from '../utils/chunkRecovery';
 
@@ -45,6 +46,15 @@ const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/BlogDetail')))
 
 const Error = Loadable(lazy(() => import('../views/authentication/Error')));
 const Unauthorized = Loadable(lazy(() => import('../views/authentication/Unauthorized')));
+
+// RBAC
+const AssignmentManagement = Loadable(lazy(() => import('../views/rbac/AssignmentManagement')));
+const ModuleManagement = Loadable(lazy(() => import('../views/rbac/ModuleManagement')));
+const RoleManagement = Loadable(lazy(() => import('../views/rbac/RoleManagement')));
+const UserAssignmentManagement = Loadable(
+  lazy(() => import('../views/rbac/UserAssignmentManagement')),
+);
+const UserAcceptance = Loadable(lazy(() => import('../views/rbac/UserAcceptance')));
 
 // // icons
 const SolarIcon = Loadable(lazy(() => import('../views/icons/SolarIcon')));
@@ -180,23 +190,53 @@ const Router = [
       // RBAC Routes
       {
         path: '/rbac/assignments',
-        element: <Navigate to="/auth/unauthorized" replace />,
+        element: (
+          <ProtectedRoute>
+            <AdminRoute>
+              <AssignmentManagement />
+            </AdminRoute>
+          </ProtectedRoute>
+        ),
       },
       {
         path: '/rbac/modules',
-        element: <Navigate to="/auth/unauthorized" replace />,
+        element: (
+          <ProtectedRoute>
+            <AdminRoute>
+              <ModuleManagement />
+            </AdminRoute>
+          </ProtectedRoute>
+        ),
       },
       {
         path: '/rbac/roles',
-        element: <Navigate to="/auth/unauthorized" replace />,
+        element: (
+          <ProtectedRoute>
+            <AdminRoute>
+              <RoleManagement />
+            </AdminRoute>
+          </ProtectedRoute>
+        ),
       },
       {
         path: '/rbac/user-assignments',
-        element: <Navigate to="/auth/unauthorized" replace />,
+        element: (
+          <ProtectedRoute>
+            <AdminRoute>
+              <UserAssignmentManagement />
+            </AdminRoute>
+          </ProtectedRoute>
+        ),
       },
       {
         path: '/rbac/user-acceptance',
-        element: <Navigate to="/auth/unauthorized" replace />,
+        element: (
+          <ProtectedRoute>
+            <AdminRoute>
+              <UserAcceptance />
+            </AdminRoute>
+          </ProtectedRoute>
+        ),
       },
       { path: '*', element: <Navigate to="/auth/404" /> },
     ],
