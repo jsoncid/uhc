@@ -72,6 +72,46 @@ const SidebarContent: MenuItem[] = [
 
   // ==================== COMMON SECTIONS ====================
   {
+    heading: 'Role-Based Access Control',
+    children: [
+      {
+        id: uniqueId(),
+        name: 'Roles',
+        icon: 'solar:shield-check-linear',
+        url: '/rbac/roles',
+        isPro: false,
+      },
+      {
+        id: uniqueId(),
+        name: 'Modules',
+        icon: 'solar:box-minimalistic-linear',
+        url: '/rbac/modules',
+        isPro: false,
+      },
+      {
+        id: uniqueId(),
+        name: 'Assignments',
+        icon: 'solar:clipboard-list-linear',
+        url: '/rbac/assignments',
+        isPro: false,
+      },
+      {
+        id: uniqueId(),
+        name: 'User Assignments',
+        icon: 'solar:user-check-linear',
+        url: '/rbac/user-assignments',
+        isPro: false,
+      },
+      {
+        id: uniqueId(),
+        name: 'User Activation',
+        icon: 'solar:user-plus-linear',
+        url: '/rbac/user-acceptance',
+        isPro: false,
+      },
+    ],
+  },
+  {
     heading: 'About',
     children: [
       {
@@ -97,7 +137,6 @@ const SidebarContent: MenuItem[] = [
     ],
   },
 
-  // RBAC frontend is intentionally hidden for all users.
 ];
 
 export default SidebarContent;
